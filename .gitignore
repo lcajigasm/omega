@@ -1,0 +1,4 @@
+/bin/
+/dist/
+*.omega-bak-*
+.DS_Store
