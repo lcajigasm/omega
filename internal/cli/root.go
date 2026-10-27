@@ -16,6 +16,7 @@ import (
 
 	"github.com/lcajigasm/omega/internal/agent"
 	"github.com/lcajigasm/omega/internal/config"
+	"github.com/lcajigasm/omega/internal/demo"
 	"github.com/lcajigasm/omega/internal/i18n"
 	"github.com/lcajigasm/omega/internal/llm"
 	"github.com/lcajigasm/omega/internal/runner"
@@ -33,10 +34,16 @@ type runFlags struct {
 	sudo     bool
 	prompt   string
 	once     bool
+	demo     bool
+	auto     bool
 }
 
+// version is set by Execute for the TUI header.
+var version string
+
 // Execute runs the root command.
-func Execute(version string) error {
+func Execute(v string) error {
+	version = v
 	runner.ExtendPath()
 	// The language must be known before the commands' help text is built.
 	if cfg, err := config.Load(); err == nil {
@@ -54,7 +61,7 @@ func Execute(version string) error {
 		Args:          cobra.MaximumNArgs(1),
 		SilenceUsage:  true,
 		SilenceErrors: true,
-		ValidArgs:     []string{agent.TaskFull, agent.TaskUpdate, agent.TaskClean, agent.TaskAnalyze, agent.TaskFix},
+		ValidArgs:     []string{agent.TaskFull, agent.TaskUpdate, agent.TaskClean, agent.TaskAnalyze, agent.TaskFix, agent.TaskTune},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			task := agent.TaskFull
 			if len(args) == 1 {
@@ -73,35 +80,34 @@ func Execute(version string) error {
 	pf.BoolVar(&f.sudo, "sudo", false, i18n.T("flag.sudo"))
 	pf.StringVarP(&f.prompt, "prompt", "p", "", i18n.T("flag.prompt"))
 	pf.BoolVar(&f.once, "once", false, i18n.T("flag.once"))
+	pf.BoolVar(&f.auto, "auto", false, i18n.T("flag.auto"))
+	pf.BoolVar(&f.demo, "demo", false, "scripted session with no API calls and no real commands (for screenshots)")
+	pf.MarkHidden("demo")
 
-	root.AddCommand(setupCmd(), authCmd(), modelsCmd(), configCmd(), stepsCmd(), notesCmd())
+	root.AddCommand(setupCmd(), authCmd(), modelCmd(), modelsCmd(), dockerCmd(), configCmd(), stepsCmd(), notesCmd())
 	return root.Execute()
 }
 
-// resolveProvider builds the provider and model from flags and config.
-func resolveProvider(cfg *config.Config, name, model, effort string) (llm.Provider, string, error) {
+var getKey = secrets.Get
+
+// resolveProvider builds the provider and the model plan for a task.
+func resolveProvider(cfg *config.Config, name, model, effort, task string) (llm.Provider, modelPlan, error) {
 	if name == "" {
 		name = cfg.Provider
 	}
 	info, ok := llm.Lookup(name)
 	if !ok {
-		return nil, "", fmt.Errorf("%s", i18n.T("err.unknown_provider", name, providerNames()))
-	}
-	if model == "" {
-		model = cfg.ModelFor(name)
-	}
-	if model == "" {
-		model = info.DefaultModel
+		return nil, modelPlan{}, fmt.Errorf("%s", i18n.T("err.unknown_provider", name, providerNames()))
 	}
 	if effort == "" {
 		effort = cfg.Effort
 	}
-	key, _, err := secrets.Get(name)
+	plan, err := planModel(cfg, info, model, task)
 	if err != nil {
-		return nil, "", err
+		return nil, plan, err
 	}
-	p, err := llm.New(name, llm.Options{APIKey: key, BaseURL: cfg.BaseURLFor(name), Effort: effort})
-	return p, model, err
+	p, err := newProvider(cfg, info, effort)
+	return p, plan, err
 }
 
 func runTask(task string, f runFlags) error {
@@ -119,10 +125,20 @@ func runTask(task string, f runFlags) error {
 	} else {
 		task = i18n.T("task.custom")
 	}
+	if f.auto {
+		prompt += agent.AutoSuffix
+	}
 	readOnly := f.dryRun || task == agent.TaskAnalyze
 
-	p, model, err := resolveProvider(cfg, f.provider, f.model, f.effort)
-	if err != nil {
+	planTask := task
+	if f.prompt != "" {
+		planTask = "custom"
+	}
+	var p llm.Provider
+	var plan modelPlan
+	if f.demo {
+		p, plan = demo.Provider(), modelPlan{Model: "claude-haiku-5-5", Escalate: "claude-sonnet-5-5"}
+	} else if p, plan, err = resolveProvider(cfg, f.provider, f.model, f.effort, planTask); err != nil {
 		return err
 	}
 	timeout, err := time.ParseDuration(cfg.Timeout)
@@ -142,22 +158,31 @@ func runTask(task string, f runFlags) error {
 		}
 	}
 
-	ag := agent.New(p, agent.Options{
-		Model:       model,
+	opts := agent.Options{
+		Model:       plan.Model,
+		Escalate:    plan.Escalate,
 		Approval:    cfg.Approval,
 		AutoYes:     f.yes,
 		ReadOnly:    readOnly,
 		Interactive: stdinTTY && !f.once,
 		Timeout:     timeout,
 		Config:      cfg,
-	})
+	}
+	if f.demo {
+		opts.Provider = "anthropic"
+		opts.Exec = demo.Exec
+		opts.SkipDetect = true
+		opts.Interactive = stdinTTY
+	}
+	ag := agent.New(p, opts)
 	go ag.Run(ctx, prompt)
 
 	if f.noTUI || !stdinTTY || !stdoutTTY {
 		ui.RunPlain(ag, os.Stdin, stdinTTY)
 		return nil
 	}
-	err = ui.RunTUI(ctx, cancel, ag, ui.Header{Provider: p.Name(), Model: model, Task: task, ReadOnly: readOnly})
+	err = ui.RunTUI(ctx, cancel, ag, ui.Header{Version: version, Provider: p.Name(), Model: plan.Model,
+		Escalate: plan.Escalate, Task: task, ReadOnly: readOnly, AutoYes: f.yes})
 	cancel()
 	// Drain so the agent goroutine can finish writing its log.
 	for range ag.Events() {

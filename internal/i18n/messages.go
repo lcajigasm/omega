@@ -21,6 +21,7 @@ Tasks:
   clean     cleanup only (like mo clean)
   analyze   report without changing anything
   fix       diagnose and fix the topgrade and Mole configuration
+  tune      review the configuration of your tools and suggest improvements
 
 Examples:
   omega setup                        configure provider, API key and model
@@ -37,6 +38,7 @@ Tareas:
   clean     solo limpiar (como mo clean)
   analyze   informe sin cambiar nada
   fix       diagnosticar y arreglar la configuración de topgrade y Mole
+  tune      revisar la configuración de tus herramientas y proponer mejoras
 
 Ejemplos:
   omega setup                        configurar proveedor, API key y modelo
@@ -53,6 +55,7 @@ Tâches :
   clean     nettoyage uniquement (comme mo clean)
   analyze   rapport sans rien modifier
   fix       diagnostiquer et corriger la configuration de topgrade et Mole
+  tune      examiner la configuration de vos outils et proposer des améliorations
 
 Exemples :
   omega setup                        configurer fournisseur, clé API et modèle
@@ -69,6 +72,7 @@ Aufgaben:
   clean     nur aufräumen (wie mo clean)
   analyze   Bericht, ohne etwas zu ändern
   fix       Konfiguration von topgrade und Mole diagnostizieren und reparieren
+  tune      Konfiguration deiner Tools prüfen und Verbesserungen vorschlagen
 
 Beispiele:
   omega setup                        Anbieter, API-Key und Modell einrichten
@@ -85,6 +89,7 @@ Tarefas:
   clean     apenas limpar (como o mo clean)
   analyze   relatório sem alterar nada
   fix       diagnosticar e corrigir a configuração do topgrade e do Mole
+  tune      rever a configuração das suas ferramentas e propor melhorias
 
 Exemplos:
   omega setup                        configurar fornecedor, API key e modelo
@@ -156,12 +161,19 @@ Exemplos:
 		"beenden, wenn der Agent fertig ist, statt nach weiteren Anweisungen zu fragen",
 		"terminar quando o agente acabar, sem pedir mais instruções",
 	},
+	"flag.auto": {
+		"apply low-risk improvements without offering them first (other changes are still offered)",
+		"aplicar las mejoras de bajo riesgo sin ofrecerlas antes (el resto se sigue ofreciendo)",
+		"appliquer les améliorations à faible risque sans les proposer d'abord (le reste est toujours proposé)",
+		"risikoarme Verbesserungen direkt anwenden (andere werden weiterhin angeboten)",
+		"aplicar as melhorias de baixo risco sem as propor antes (o resto continua a ser proposto)",
+	},
 	"err.unknown_task": {
-		"unknown task %q (full, update, clean, analyze, fix)",
-		"tarea desconocida %q (full, update, clean, analyze, fix)",
-		"tâche inconnue %q (full, update, clean, analyze, fix)",
-		"unbekannte Aufgabe %q (full, update, clean, analyze, fix)",
-		"tarefa desconhecida %q (full, update, clean, analyze, fix)",
+		"unknown task %q (full, update, clean, analyze, fix, tune)",
+		"tarea desconocida %q (full, update, clean, analyze, fix, tune)",
+		"tâche inconnue %q (full, update, clean, analyze, fix, tune)",
+		"unbekannte Aufgabe %q (full, update, clean, analyze, fix, tune)",
+		"tarefa desconhecida %q (full, update, clean, analyze, fix, tune)",
 	},
 	"err.unknown_provider": {
 		"unknown provider %q (available: %s)",
@@ -375,18 +387,19 @@ Exemplos:
 	"risk.blocked":   {"blocked", "bloqueado", "bloqué", "blockiert", "bloqueado"},
 
 	// ---- agent and providers ----
-	"agent.cancelled":   {"Cancelled.", "Cancelado.", "Annulé.", "Abgebrochen.", "Cancelado."},
-	"agent.turn_limit":  {"turn limit of %d reached", "límite de %d turnos alcanzado", "limite de %d tours atteinte", "Limit von %d Runden erreicht", "limite de %d turnos atingido"},
-	"agent.model_error": {"Model error: %s", "Error del modelo: %s", "Erreur du modèle : %s", "Modellfehler: %s", "Erro do modelo: %s"},
-	"agent.note_saved":  {"note saved: %s", "nota guardada: %s", "note enregistrée : %s", "Notiz gespeichert: %s", "nota guardada: %s"},
-	"agent.read":        {"read %s", "leer %s", "lire %s", "lesen %s", "ler %s"},
-	"agent.write":       {"write %s (%d → %d bytes)", "escribir %s (%d → %d bytes)", "écrire %s (%d → %d octets)", "schreiben %s (%d → %d Bytes)", "escrever %s (%d → %d bytes)"},
-	"agent.disk":        {"measure disk usage in %s", "medir espacio en %s", "mesurer l'espace dans %s", "Speicherbelegung in %s messen", "medir espaço em %s"},
-	"llm.invalid_key":   {"invalid API key", "API key inválida", "clé API invalide", "ungültiger API-Key", "API key inválida"},
-	"llm.not_found":     {"model or endpoint not found", "modelo o endpoint no encontrado", "modèle ou endpoint introuvable", "Modell oder Endpunkt nicht gefunden", "modelo ou endpoint não encontrado"},
-	"llm.rate_limit":    {"rate limit reached", "límite de peticiones alcanzado", "limite de requêtes atteinte", "Ratenlimit erreicht", "limite de pedidos atingido"},
-	"secrets.save":      {"saving to the Keychain: %v: %s", "guardando en el llavero: %v: %s", "enregistrement dans le trousseau : %v : %s", "Speichern im Schlüsselbund: %v: %s", "a guardar no porta-chaves: %v: %s"},
-	"secrets.delete":    {"deleting from the Keychain: %v: %s", "borrando del llavero: %v: %s", "suppression du trousseau : %v : %s", "Löschen aus dem Schlüsselbund: %v: %s", "a apagar do porta-chaves: %v: %s"},
+	"agent.cancelled":     {"Cancelled.", "Cancelado.", "Annulé.", "Abgebrochen.", "Cancelado."},
+	"agent.turn_limit":    {"turn limit of %d reached", "límite de %d turnos alcanzado", "limite de %d tours atteinte", "Limit von %d Runden erreicht", "limite de %d turnos atingido"},
+	"agent.model_error":   {"Model error: %s", "Error del modelo: %s", "Erreur du modèle : %s", "Modellfehler: %s", "Erro do modelo: %s"},
+	"agent.note_saved":    {"note saved: %s", "nota guardada: %s", "note enregistrée : %s", "Notiz gespeichert: %s", "nota guardada: %s"},
+	"agent.read":          {"read %s", "leer %s", "lire %s", "lesen %s", "ler %s"},
+	"agent.write":         {"write %s (%d → %d bytes)", "escribir %s (%d → %d bytes)", "écrire %s (%d → %d octets)", "schreiben %s (%d → %d Bytes)", "escrever %s (%d → %d bytes)"},
+	"agent.search_failed": {"web search failed", "falló la búsqueda web", "la recherche web a échoué", "Websuche fehlgeschlagen", "a pesquisa web falhou"},
+	"agent.disk":          {"measure disk usage in %s", "medir espacio en %s", "mesurer l'espace dans %s", "Speicherbelegung in %s messen", "medir espaço em %s"},
+	"llm.invalid_key":     {"invalid API key", "API key inválida", "clé API invalide", "ungültiger API-Key", "API key inválida"},
+	"llm.not_found":       {"model or endpoint not found", "modelo o endpoint no encontrado", "modèle ou endpoint introuvable", "Modell oder Endpunkt nicht gefunden", "modelo ou endpoint não encontrado"},
+	"llm.rate_limit":      {"rate limit reached", "límite de peticiones alcanzado", "limite de requêtes atteinte", "Ratenlimit erreicht", "limite de pedidos atingido"},
+	"secrets.save":        {"saving to the Keychain: %v: %s", "guardando en el llavero: %v: %s", "enregistrement dans le trousseau : %v : %s", "Speichern im Schlüsselbund: %v: %s", "a guardar no porta-chaves: %v: %s"},
+	"secrets.delete":      {"deleting from the Keychain: %v: %s", "borrando del llavero: %v: %s", "suppression du trousseau : %v : %s", "Löschen aus dem Schlüsselbund: %v: %s", "a apagar do porta-chaves: %v: %s"},
 
 	// ---- step names (ids without an entry keep their English name) ----
 	"step.disk":                  {"Disk space", "Espacio en disco", "Espace disque", "Speicherplatz", "Espaço em disco"},
@@ -405,7 +418,7 @@ Exemplos:
 	"step.uv-cache":              {"uv cache", "Caché de uv", "Cache uv", "uv-Cache", "Cache do uv"},
 	"step.go-cache":              {"Go build cache", "Caché de compilación de Go", "Cache de compilation Go", "Go-Build-Cache", "Cache de compilação do Go"},
 	"step.simulators":            {"Unavailable simulators", "Simuladores no disponibles", "Simulateurs indisponibles", "Nicht verfügbare Simulatoren", "Simuladores indisponíveis"},
-	"step.docker":                {"Docker (unused images and stopped containers)", "Docker (imágenes sin usar y contenedores parados)", "Docker (images inutilisées et conteneurs arrêtés)", "Docker (ungenutzte Images und gestoppte Container)", "Docker (imagens não usadas e contentores parados)"},
+	"step.docker":                {"Docker: everything unused except volumes", "Docker: todo lo que no se usa salvo volúmenes", "Docker : tout l'inutilisé sauf les volumes", "Docker: alles Ungenutzte außer Volumes", "Docker: tudo o que não é usado exceto volumes"},
 	"step.trash":                 {"Trash", "Papelera", "Corbeille", "Papierkorb", "Lixo"},
 	"step.topgrade-preview":      {"topgrade (dry run)", "topgrade (simulación)", "topgrade (simulation)", "topgrade (Probelauf)", "topgrade (simulação)"},
 	"step.mole-clean-preview":    {"Mole clean (dry run)", "Mole clean (simulación)", "Mole clean (simulation)", "Mole clean (Probelauf)", "Mole clean (simulação)"},
@@ -438,4 +451,141 @@ Exemplos:
 		"this is not an API key, run `omega auth set %s`", "esto no es una API key, ejecuta `omega auth set %s`", "ce n'est pas une clé API, lancez `omega auth set %s`",
 		"das ist kein API-Key, führe `omega auth set %s` aus", "isto não é uma API key, execute `omega auth set %s`",
 	},
+
+	// ---- v0.3 interface ----
+	"ui.welcome_tagline": {"AI maintenance for your Mac", "Mantenimiento con IA para tu Mac", "Maintenance par IA pour votre Mac", "KI-Wartung für deinen Mac", "Manutenção com IA para o seu Mac"},
+	"ui.label_provider":  {"provider", "proveedor", "fournisseur", "Anbieter", "fornecedor"},
+	"ui.label_model":     {"model", "modelo", "modèle", "Modell", "modelo"},
+	"ui.label_task":      {"task", "tarea", "tâche", "Aufgabe", "tarefa"},
+	"ui.label_log":       {"log", "registro", "journal", "Protokoll", "registo"},
+	"ui.escalates":       {"→ %s if something fails", "→ %s si algo falla", "→ %s si quelque chose échoue", "→ %s, falls etwas fehlschlägt", "→ %s se algo falhar"},
+	"ui.mode_readonly":   {"read only", "solo lectura", "lecture seule", "nur lesen", "só leitura"},
+	"ui.mode_auto":       {"auto approve", "aprobación automática", "approbation automatique", "automatisch genehmigen", "aprovação automática"},
+	"ui.mode_ask":        {"asks before risky actions", "pregunta antes de lo arriesgado", "demande avant les actions risquées", "fragt vor riskanten Aktionen", "pergunta antes do arriscado"},
+	"ui.verbs": {
+		"Inspecting|Measuring|Checking|Diagnosing|Thinking|Untangling|Tidying|Weighing",
+		"Inspeccionando|Midiendo|Comprobando|Diagnosticando|Pensando|Desenredando|Ordenando|Sopesando",
+		"Inspection|Mesure|Vérification|Diagnostic|Réflexion|Démêlage|Rangement|Évaluation",
+		"Untersuche|Messe|Prüfe|Diagnostiziere|Denke nach|Entwirre|Räume auf|Wäge ab",
+		"A inspecionar|A medir|A verificar|A diagnosticar|A pensar|A desembaraçar|A arrumar|A ponderar",
+	},
+	"ui.thinking_meta": {"(%s · %s tokens · ctrl+c to cancel)", "(%s · %s tokens · ctrl+c cancela)", "(%s · %s jetons · ctrl+c annule)", "(%s · %s Tokens · Strg+C bricht ab)", "(%s · %s tokens · ctrl+c cancela)"},
+	"ui.running":       {"running · %s", "en curso · %s", "en cours · %s", "läuft · %s", "a decorrer · %s"},
+	"ui.line_one":      {"1 line", "1 línea", "1 ligne", "1 Zeile", "1 linha"},
+	"ui.lines":         {"%d lines", "%d líneas", "%d lignes", "%d Zeilen", "%d linhas"},
+	"ui.hint_idle": {
+		"enter send · esc quit · ctrl+o expand output · ↑↓ scroll", "enter enviar · esc salir · ctrl+o ver salida · ↑↓ desplazar",
+		"entrée envoyer · échap quitter · ctrl+o voir la sortie · ↑↓ défiler", "Enter senden · Esc beenden · Strg+O Ausgabe zeigen · ↑↓ scrollen",
+		"enter enviar · esc sair · ctrl+o ver saída · ↑↓ deslocar",
+	},
+	"ui.chosen":       {"Selected: %s", "Seleccionado: %s", "Sélectionné : %s", "Ausgewählt: %s", "Selecionado: %s"},
+	"ui.chosen_none":  {"Nothing selected", "Nada seleccionado", "Rien de sélectionné", "Nichts ausgewählt", "Nada selecionado"},
+	"ui.model_switch": {"Switched to %s to diagnose the failure", "Cambio a %s para diagnosticar el fallo", "Passage à %s pour diagnostiquer l'échec", "Wechsel zu %s, um den Fehler zu diagnostizieren", "Mudança para %s para diagnosticar a falha"},
+	"ui.mode_lifted": {
+		"Read only lifted for the selected actions", "Solo lectura desactivado para las acciones elegidas", "Lecture seule levée pour les actions choisies",
+		"Nur-Lesen für die gewählten Aktionen aufgehoben", "Só leitura desativado para as ações escolhidas",
+	},
+	"ui.always_note": {
+		"Docker cleanups always need your confirmation", "Las limpiezas de Docker siempre necesitan tu confirmación", "Les nettoyages Docker demandent toujours votre confirmation",
+		"Docker-Bereinigungen brauchen immer deine Bestätigung", "As limpezas do Docker precisam sempre da sua confirmação",
+	},
+	"ui.confirm_keys_once": {"[y] yes   [n] no", "[y] sí   [n] no", "[y] oui   [n] non", "[y] ja   [n] nein", "[y] sim   [n] não"},
+	"ui.summary_done": {
+		"Done in %s · %s tokens · %s", "Terminado en %s · %s tokens · %s", "Terminé en %s · %s jetons · %s", "Fertig in %s · %s Tokens · %s", "Concluído em %s · %s tokens · %s",
+	},
+	"pick.filter":   {"filter: %s", "filtro: %s", "filtre : %s", "Filter: %s", "filtro: %s"},
+	"pick.no_match": {"no matches", "sin coincidencias", "aucun résultat", "keine Treffer", "sem resultados"},
+	"pick.keys_multi": {
+		"↑↓ move · space select · a all · enter confirm (%d) · esc none", "↑↓ mover · espacio marcar · a todas · enter confirmar (%d) · esc ninguna",
+		"↑↓ déplacer · espace cocher · a tout · entrée valider (%d) · échap aucune", "↑↓ bewegen · Leertaste wählen · a alle · Enter bestätigen (%d) · Esc keine",
+		"↑↓ mover · espaço marcar · a todas · enter confirmar (%d) · esc nenhuma",
+	},
+	"pick.keys_single": {
+		"↑↓ move · type to filter · enter choose · esc cancel", "↑↓ mover · escribe para filtrar · enter elegir · esc cancelar",
+		"↑↓ déplacer · tapez pour filtrer · entrée choisir · échap annuler", "↑↓ bewegen · tippen zum Filtern · Enter wählen · Esc abbrechen",
+		"↑↓ mover · escreva para filtrar · enter escolher · esc cancelar",
+	},
+	"pick.plain_multi": {
+		"Numbers separated by commas, 'all', or Enter for none: ", "Números separados por comas, 'all', o Enter para ninguno: ", "Numéros séparés par des virgules, 'all', ou Entrée pour aucun : ",
+		"Nummern durch Kommas getrennt, 'all' oder Enter für keine: ", "Números separados por vírgulas, 'all', ou Enter para nenhum: ",
+	},
+	"pick.plain_single": {"Number, or Enter to cancel: ", "Número, o Enter para cancelar: ", "Numéro, ou Entrée pour annuler : ", "Nummer oder Enter zum Abbrechen: ", "Número, ou Enter para cancelar: "},
+
+	// ---- model selection ----
+	"cmd.model": {
+		"Choose the model: automatic (cheap, stronger on failures) or a fixed one", "Elegir el modelo: automático (barato, más potente si algo falla) o uno fijo",
+		"Choisir le modèle : automatique (économique, plus puissant en cas d'échec) ou fixe", "Modell wählen: automatisch (günstig, stärker bei Fehlern) oder fest",
+		"Escolher o modelo: automático (barato, mais potente se algo falhar) ou fixo",
+	},
+	"model.title": {"Model for %s", "Modelo para %s", "Modèle pour %s", "Modell für %s", "Modelo para %s"},
+	"model.hint": {
+		"Routine maintenance does not need the biggest model", "El mantenimiento rutinario no necesita el modelo más grande",
+		"La maintenance de routine n'a pas besoin du plus gros modèle", "Routinewartung braucht nicht das größte Modell", "A manutenção de rotina não precisa do maior modelo",
+	},
+	"model.auto": {"Automatic (recommended)", "Automático (recomendado)", "Automatique (recommandé)", "Automatisch (empfohlen)", "Automático (recomendado)"},
+	"model.auto_detail": {
+		"%s for routine work, %s when something fails and for fix", "%s para lo rutinario, %s cuando algo falla y en fix",
+		"%s pour la routine, %s en cas d'échec et pour fix", "%s für Routine, %s bei Fehlern und für fix",
+		"%s para o rotineiro, %s quando algo falha e em fix",
+	},
+	"model.fast":  {"fast and cheap", "rápido y barato", "rapide et économique", "schnell und günstig", "rápido e barato"},
+	"model.smart": {"stronger reasoning", "razonamiento más potente", "raisonnement plus puissant", "stärkeres Denken", "raciocínio mais potente"},
+	"model.free":  {"free, runs on this Mac", "gratis, se ejecuta en este Mac", "gratuit, tourne sur ce Mac", "kostenlos, läuft auf diesem Mac", "grátis, corre neste Mac"},
+	"model.saved": {"Model for %s: %s", "Modelo para %s: %s", "Modèle pour %s : %s", "Modell für %s: %s", "Modelo para %s: %s"},
+	"model.need_local": {
+		"no model selected for %s; run `omega model` to pick one of your local models", "no hay modelo elegido para %s; ejecuta `omega model` para elegir uno de tus modelos locales",
+		"aucun modèle choisi pour %s ; lancez `omega model` pour choisir un modèle local", "kein Modell für %s gewählt; führe `omega model` aus, um ein lokales Modell zu wählen",
+		"nenhum modelo escolhido para %s; execute `omega model` para escolher um modelo local",
+	},
+	"model.unreachable": {
+		"%s is not reachable at %s. Is it running?", "%s no responde en %s. ¿Está en marcha?", "%s ne répond pas sur %s. Est il lancé ?",
+		"%s ist unter %s nicht erreichbar. Läuft es?", "%s não responde em %s. Está a correr?",
+	},
+	"setup.local_found": {"running on this Mac", "en marcha en este Mac", "actif sur ce Mac", "läuft auf diesem Mac", "a correr neste Mac"},
+
+	// ---- docker ----
+	"cmd.docker": {
+		"Free Docker space: shows what it uses and cleans only what you select", "Liberar espacio de Docker: muestra lo que ocupa y limpia solo lo que elijas",
+		"Libérer l'espace Docker : montre ce qu'il occupe et ne nettoie que ce que vous choisissez", "Docker-Speicher freigeben: zeigt die Belegung und räumt nur Ausgewähltes auf",
+		"Libertar espaço do Docker: mostra o que ocupa e limpa só o que escolher",
+	},
+	"docker.not_installed": {"Docker is not installed.", "Docker no está instalado.", "Docker n'est pas installé.", "Docker ist nicht installiert.", "O Docker não está instalado."},
+	"docker.not_running": {
+		"Docker is not running. Start Docker Desktop now? y/N", "Docker no está en marcha. ¿Arranco Docker Desktop? s/N", "Docker n'est pas lancé. Démarrer Docker Desktop ? o/N",
+		"Docker läuft nicht. Docker Desktop jetzt starten? j/N", "O Docker não está a correr. Iniciar o Docker Desktop? s/N",
+	},
+	"docker.starting": {"Starting Docker Desktop…", "Arrancando Docker Desktop…", "Démarrage de Docker Desktop…", "Starte Docker Desktop…", "A iniciar o Docker Desktop…"},
+	"docker.usage":    {"Docker disk usage", "Espacio usado por Docker", "Espace utilisé par Docker", "Docker-Speicherbelegung", "Espaço usado pelo Docker"},
+	"docker.disk_image": {
+		"Docker Desktop disk image: %s on disk (it does not shrink by itself after a cleanup)", "Imagen de disco de Docker Desktop: %s en disco (no se reduce sola tras limpiar)",
+		"Image disque de Docker Desktop : %s sur le disque (elle ne rétrécit pas seule après un nettoyage)", "Docker-Desktop-Disk-Image: %s auf der Platte (schrumpft nach dem Aufräumen nicht von selbst)",
+		"Imagem de disco do Docker Desktop: %s em disco (não encolhe sozinha depois de limpar)",
+	},
+	"docker.pick_title": {"What should I clean in Docker?", "¿Qué limpio en Docker?", "Que dois je nettoyer dans Docker ?", "Was soll ich in Docker aufräumen?", "O que devo limpar no Docker?"},
+	"docker.pick_hint": {
+		"Nothing runs until you confirm. Volumes may hold databases.", "No se ejecuta nada hasta que confirmes. Los volúmenes pueden contener bases de datos.",
+		"Rien ne s'exécute avant votre confirmation. Les volumes peuvent contenir des bases de données.", "Nichts läuft, bevor du bestätigst. Volumes können Datenbanken enthalten.",
+		"Nada é executado até confirmar. Os volumes podem conter bases de dados.",
+	},
+	"docker.reclaimable": {"%s reclaimable", "%s recuperables", "%s récupérables", "%s freigebbar", "%s recuperáveis"},
+	"docker.confirm": {
+		"Run %d cleanup(s)? This cannot be undone. y/N", "¿Ejecutar %d limpieza(s)? No se puede deshacer. s/N", "Lancer %d nettoyage(s) ? C'est irréversible. o/N",
+		"%d Bereinigung(en) ausführen? Das kann nicht rückgängig gemacht werden. j/N", "Executar %d limpeza(s)? Não se pode desfazer. s/N",
+	},
+	"docker.nothing": {"Nothing selected; Docker was not touched.", "Nada seleccionado; Docker no se ha tocado.", "Rien de sélectionné ; Docker n'a pas été modifié.", "Nichts ausgewählt; Docker wurde nicht angefasst.", "Nada selecionado; o Docker não foi tocado."},
+	"docker.freed":   {"Docker now uses %s (was %s).", "Docker ocupa ahora %s (antes %s).", "Docker utilise maintenant %s (avant %s).", "Docker belegt jetzt %s (vorher %s).", "O Docker ocupa agora %s (antes %s)."},
+	"docker.compact": {
+		"To give the space back to macOS, Docker Desktop must shrink its disk image: Settings → Resources → Disk usage, or quit and reopen Docker Desktop.",
+		"Para devolver el espacio a macOS, Docker Desktop tiene que reducir su imagen de disco: Ajustes → Resources → Disk usage, o cierra y vuelve a abrir Docker Desktop.",
+		"Pour rendre l'espace à macOS, Docker Desktop doit réduire son image disque : Réglages → Resources → Disk usage, ou quittez et rouvrez Docker Desktop.",
+		"Damit macOS den Platz zurückbekommt, muss Docker Desktop sein Disk-Image verkleinern: Einstellungen → Resources → Disk usage, oder Docker Desktop beenden und neu öffnen.",
+		"Para devolver o espaço ao macOS, o Docker Desktop tem de reduzir a imagem de disco: Definições → Resources → Disk usage, ou feche e reabra o Docker Desktop.",
+	},
+	"step.docker-df":          {"Docker disk usage", "Espacio usado por Docker", "Espace utilisé par Docker", "Docker-Speicherbelegung", "Espaço usado pelo Docker"},
+	"step.docker-start":       {"Start Docker Desktop", "Arrancar Docker Desktop", "Démarrer Docker Desktop", "Docker Desktop starten", "Iniciar o Docker Desktop"},
+	"step.docker-containers":  {"Docker: stopped containers", "Docker: contenedores parados", "Docker : conteneurs arrêtés", "Docker: gestoppte Container", "Docker: contentores parados"},
+	"step.docker-images":      {"Docker: dangling images", "Docker: imágenes huérfanas", "Docker : images orphelines", "Docker: verwaiste Images", "Docker: imagens órfãs"},
+	"step.docker-images-all":  {"Docker: all unused images", "Docker: todas las imágenes sin usar", "Docker : toutes les images inutilisées", "Docker: alle ungenutzten Images", "Docker: todas as imagens não usadas"},
+	"step.docker-build-cache": {"Docker: build cache", "Docker: caché de compilación", "Docker : cache de build", "Docker: Build-Cache", "Docker: cache de compilação"},
+	"step.docker-volumes":     {"Docker: unused volumes (deletes data)", "Docker: volúmenes sin usar (borra datos)", "Docker : volumes inutilisés (supprime des données)", "Docker: ungenutzte Volumes (löscht Daten)", "Docker: volumes não usados (apaga dados)"},
 }

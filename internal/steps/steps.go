@@ -27,8 +27,10 @@ type Step struct {
 	Description string
 	Command     string
 	Risk        safety.Risk
-	Requires    string      // binary that must be on PATH
-	Detect      func() bool // optional extra detection
+	Requires    string // binary that must be on PATH
+	// AlwaysConfirm makes the user approve this step every time, even with --yes.
+	AlwaysConfirm bool
+	Detect        func() bool // optional extra detection
 }
 
 // Available reports whether the step can run on this machine.
@@ -87,7 +89,24 @@ var All = []Step{
 		Detect: dirExists("Library/Developer/Xcode/DerivedData")},
 	{ID: "simulators", Name: "Unavailable simulators", Category: Clean, Command: "xcrun simctl delete unavailable", Risk: safety.Dangerous, Requires: "xcrun",
 		Detect: dirExists("Library/Developer/CoreSimulator")},
-	{ID: "docker", Name: "Docker (unused images and stopped containers)", Category: Clean, Command: "docker system prune -f", Risk: safety.Dangerous, Requires: "docker"},
+	{ID: "docker-df", Name: "Docker disk usage", Category: Check, Risk: safety.Safe, Requires: "docker",
+		Command:     "docker system df && du -sh ~/Library/Containers/com.docker.docker/Data/vms/0/data/Docker.raw 2>/dev/null",
+		Description: "Space used by images, containers, volumes and build cache, plus the Docker Desktop disk image"},
+	{ID: "docker-start", Name: "Start Docker Desktop", Category: Check, Risk: safety.Dangerous, Requires: "docker",
+		Command:     "docker info >/dev/null 2>&1 || { open -ga Docker && for i in $(seq 45); do docker info >/dev/null 2>&1 && exit 0; sleep 2; done; exit 1; }",
+		Description: "Needed before any Docker cleanup when the daemon is not running"},
+	{ID: "docker-containers", Name: "Docker: stopped containers", Category: Clean, Risk: safety.Dangerous, Requires: "docker", AlwaysConfirm: true,
+		Command: "docker container prune -f"},
+	{ID: "docker-images", Name: "Docker: dangling images", Category: Clean, Risk: safety.Dangerous, Requires: "docker", AlwaysConfirm: true,
+		Command: "docker image prune -f", Description: "Untagged layers left behind by rebuilds"},
+	{ID: "docker-images-all", Name: "Docker: all unused images", Category: Clean, Risk: safety.Dangerous, Requires: "docker", AlwaysConfirm: true,
+		Command: "docker image prune -a -f", Description: "Every image no container uses; they will be pulled again when needed"},
+	{ID: "docker-build-cache", Name: "Docker: build cache", Category: Clean, Risk: safety.Dangerous, Requires: "docker", AlwaysConfirm: true,
+		Command: "docker builder prune -a -f", Description: "Cached build layers; the next builds will be slower"},
+	{ID: "docker-volumes", Name: "Docker: unused volumes", Category: Clean, Risk: safety.Dangerous, Requires: "docker", AlwaysConfirm: true,
+		Command: "docker volume prune -a -f", Description: "DELETES DATA: databases and files stored in volumes no container uses"},
+	{ID: "docker", Name: "Docker: everything unused except volumes", Category: Clean, Risk: safety.Dangerous, Requires: "docker", AlwaysConfirm: true,
+		Command: "docker system prune -a -f", Description: "Stopped containers, unused networks, unused images and build cache"},
 	{ID: "trash", Name: "Trash", Category: Clean, Command: "rm -rf ~/.Trash/*", Risk: safety.Dangerous, Detect: dirExists(".Trash")},
 
 	// Backends: the original tools, when installed.

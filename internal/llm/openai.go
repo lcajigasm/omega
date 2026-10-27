@@ -31,7 +31,9 @@ func newOpenAICompat(name string, opts Options) *openAICompat {
 func (p *openAICompat) Name() string { return p.name }
 
 func (p *openAICompat) headers(req *http.Request) {
-	req.Header.Set("Authorization", "Bearer "+p.opts.APIKey)
+	if p.opts.APIKey != "" {
+		req.Header.Set("Authorization", "Bearer "+p.opts.APIKey)
+	}
 	req.Header.Set("Content-Type", "application/json")
 	if p.name == "openrouter" {
 		req.Header.Set("HTTP-Referer", "https://github.com/lcajigasm/omega")
@@ -115,6 +117,8 @@ func (p *openAICompat) NewChat(model, system string, tools []ToolSpec) Chat {
 	}
 	return c
 }
+
+func (c *openAIChat) SetModel(model string) { c.model = model }
 
 type openAIChat struct {
 	p        *openAICompat

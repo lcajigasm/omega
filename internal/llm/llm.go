@@ -37,8 +37,18 @@ type ToolResult struct {
 
 // Usage is the token accounting for one model call.
 type Usage struct {
-	InputTokens  int64
+	InputTokens  int64 // uncached input
 	OutputTokens int64
+	CacheRead    int64 // input served from the prompt cache
+	CacheWrite   int64 // input written to the prompt cache
+}
+
+// Input is every input token the request processed, cached or not.
+func (u Usage) Input() int64 { return u.InputTokens + u.CacheRead + u.CacheWrite }
+
+// Add sums two usages.
+func (u Usage) Add(o Usage) Usage {
+	return Usage{u.InputTokens + o.InputTokens, u.OutputTokens + o.OutputTokens, u.CacheRead + o.CacheRead, u.CacheWrite + o.CacheWrite}
 }
 
 // Reply is one model turn.
@@ -54,6 +64,9 @@ type Chat interface {
 	// Send appends either a user message (text) or the results of the
 	// previous turn's tool calls, then asks the model for its next turn.
 	Send(ctx context.Context, text string, results []ToolResult) (*Reply, error)
+	// SetModel switches the model used for the following turns, keeping the
+	// conversation.
+	SetModel(model string)
 }
 
 // Provider creates chats and lists models.
@@ -84,18 +97,24 @@ type Options struct {
 
 // Info describes a supported provider.
 type Info struct {
-	Name         string
-	Label        string
-	DefaultModel string
-	KeyURL       string
+	Name       string
+	Label      string
+	FastModel  string // cheap model for routine maintenance
+	SmartModel string // stronger model for diagnosing failures
+	KeyURL     string
+	Local      bool   // runs on this Mac; no API key needed
+	BaseURL    string // default endpoint for local and custom providers
 }
 
 // Providers lists every supported provider, in display order.
 var Providers = []Info{
-	{"anthropic", "Anthropic (Claude)", "claude-opus-5-5", "https://console.anthropic.com/settings/keys"},
-	{"openai", "OpenAI", "gpt-5.5", "https://platform.openai.com/api-keys"},
-	{"openrouter", "OpenRouter", "anthropic/claude-opus-5.5", "https://openrouter.ai/settings/keys"},
-	{"opencode", "OpenCode Zen", "claude-sonnet-4-6", "https://opencode.ai/auth"},
+	{Name: "anthropic", Label: "Anthropic (Claude)", FastModel: "claude-haiku-5-5", SmartModel: "claude-sonnet-5-5", KeyURL: "https://console.anthropic.com/settings/keys"},
+	{Name: "openai", Label: "OpenAI", FastModel: "gpt-5.4-mini", SmartModel: "gpt-5.5", KeyURL: "https://platform.openai.com/api-keys"},
+	{Name: "openrouter", Label: "OpenRouter", FastModel: "anthropic/claude-haiku-5.5", SmartModel: "anthropic/claude-sonnet-5.5", KeyURL: "https://openrouter.ai/settings/keys"},
+	{Name: "opencode", Label: "OpenCode Zen", FastModel: "claude-sonnet-4-6", SmartModel: "claude-sonnet-4-6", KeyURL: "https://opencode.ai/auth"},
+	{Name: "ollama", Label: "Ollama (local)", Local: true, BaseURL: "http://localhost:11434/v1", KeyURL: "https://ollama.com/download"},
+	{Name: "lmstudio", Label: "LM Studio (local)", Local: true, BaseURL: "http://localhost:1234/v1", KeyURL: "https://lmstudio.ai"},
+	{Name: "custom", Label: "OpenAI-compatible endpoint", Local: true, KeyURL: "https://github.com/lcajigasm/omega#local-models"},
 }
 
 // Lookup returns the Info for a provider name.
@@ -110,6 +129,14 @@ func Lookup(name string) (Info, bool) {
 
 // New builds a provider by name.
 func New(name string, opts Options) (Provider, error) {
+	info, ok := Lookup(name)
+	if !ok {
+		names := make([]string, 0, len(Providers))
+		for _, p := range Providers {
+			names = append(names, p.Name)
+		}
+		return nil, fmt.Errorf("unknown provider %q (available: %s)", name, strings.Join(names, ", "))
+	}
 	switch name {
 	case "anthropic":
 		return newAnthropic("anthropic", opts), nil
@@ -117,20 +144,21 @@ func New(name string, opts Options) (Provider, error) {
 		if opts.BaseURL == "" {
 			opts.BaseURL = "https://api.openai.com/v1"
 		}
-		return newOpenAICompat("openai", opts), nil
 	case "openrouter":
 		if opts.BaseURL == "" {
 			opts.BaseURL = "https://openrouter.ai/api/v1"
 		}
-		return newOpenAICompat("openrouter", opts), nil
 	case "opencode":
 		return newOpenCode(opts), nil
+	default:
+		if opts.BaseURL == "" {
+			opts.BaseURL = info.BaseURL
+		}
+		if opts.BaseURL == "" {
+			return nil, fmt.Errorf("provider %q needs a base_url in the configuration", name)
+		}
 	}
-	names := make([]string, 0, len(Providers))
-	for _, p := range Providers {
-		names = append(names, p.Name)
-	}
-	return nil, fmt.Errorf("unknown provider %q (available: %s)", name, strings.Join(names, ", "))
+	return newOpenAICompat(name, opts), nil
 }
 
 func sortedUnique(in []string) []string {

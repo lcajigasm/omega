@@ -51,6 +51,9 @@ func (p *anthropicProvider) NewChat(model, system string, tools []ToolSpec) Chat
 	params := anthropic.MessageNewParams{
 		Model:     anthropic.Model(model),
 		MaxTokens: 16000,
+		// Cache the conversation up to the latest message too: every turn
+		// resends the history, including command output and fetched pages.
+		CacheControl: anthropic.NewCacheControlEphemeralParam(),
 		System: []anthropic.TextBlockParam{{
 			Text:         system,
 			CacheControl: anthropic.NewCacheControlEphemeralParam(),
@@ -71,15 +74,21 @@ func (p *anthropicProvider) NewChat(model, system string, tools []ToolSpec) Chat
 		params.OutputConfig = anthropic.OutputConfigParam{Effort: anthropic.OutputConfigEffort(p.opts.Effort)}
 	}
 
-	var reqOpts []option.RequestOption
+	c := &anthropicChat{client: p.client, params: params, firstParty: p.opts.BaseURL == ""}
+	c.SetModel(model)
+	return c
+}
+
+func (c *anthropicChat) SetModel(model string) {
+	c.params.Model = anthropic.Model(model)
+	c.reqOpts = nil
 	// On the first-party API, let refusals on the newest models fall back
 	// server-side instead of ending the run. Proxies may reject the field.
-	if p.opts.BaseURL == "" && supportsFallbacks(model) {
-		reqOpts = append(reqOpts,
+	if c.firstParty && supportsFallbacks(model) {
+		c.reqOpts = append(c.reqOpts,
 			option.WithHeaderAdd("anthropic-beta", "server-side-fallback-2026-07-01"),
 			option.WithJSONSet("fallbacks", "default"))
 	}
-	return &anthropicChat{client: p.client, params: params, reqOpts: reqOpts}
 }
 
 func supportsFallbacks(model string) bool {
@@ -91,9 +100,10 @@ func supportsFallbacks(model string) bool {
 }
 
 type anthropicChat struct {
-	client  anthropic.Client
-	params  anthropic.MessageNewParams
-	reqOpts []option.RequestOption
+	client     anthropic.Client
+	params     anthropic.MessageNewParams
+	reqOpts    []option.RequestOption
+	firstParty bool
 }
 
 func (c *anthropicChat) Send(ctx context.Context, text string, results []ToolResult) (*Reply, error) {
@@ -118,7 +128,12 @@ func (c *anthropicChat) Send(ctx context.Context, text string, results []ToolRes
 	}
 	c.params.Messages = append(c.params.Messages, resp.ToParam())
 
-	reply := &Reply{Usage: Usage{InputTokens: resp.Usage.InputTokens, OutputTokens: resp.Usage.OutputTokens}}
+	reply := &Reply{Usage: Usage{
+		InputTokens:  resp.Usage.InputTokens,
+		OutputTokens: resp.Usage.OutputTokens,
+		CacheRead:    resp.Usage.CacheReadInputTokens,
+		CacheWrite:   resp.Usage.CacheCreationInputTokens,
+	}}
 	var sb strings.Builder
 	for _, block := range resp.Content {
 		switch b := block.AsAny().(type) {

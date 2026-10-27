@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>omega · AI maintenance for your Mac</title>
-  <meta name="description" content="omega updates and cleans your Mac like topgrade and Mole, then reads every failure, finds the cause and fixes the config. Works with Claude, GPT and any OpenRouter model. Free and open source.">
+  <meta name="description" content="omega updates and cleans your Mac like topgrade and Mole, then reads every failure, finds the cause and fixes the config. Runs on a cheap model by default, or fully local with Ollama or LM Studio. Free and open source.">
   <link rel="canonical" href="https://lcajigasm.github.io/omega/">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="icon" href="favicon.png" type="image/png" sizes="64x64">
@@ -50,9 +50,11 @@
       {"@type": "Question", "name": "Does omega replace topgrade and Mole?", "acceptedAnswer": {"@type": "Answer", "text": "For a typical developer Mac, yes. omega has its own steps for Homebrew, the Mac App Store, npm, pnpm, bun, pipx, uv, rustup, cargo, gh extensions, Oh My Zsh, macOS, caches, Xcode, Docker and the Trash. If topgrade or Mole are installed, it also uses them and can fix their configuration."}},
       {"@type": "Question", "name": "What does omega send to the AI provider?", "acceptedAnswer": {"@type": "Answer", "text": "Its instructions, the trimmed output of the commands it runs and the configuration files it reads. It is instructed never to open your documents. Every run is logged to ~/.local/state/omega/runs so you can check exactly what happened."}},
       {"@type": "Question", "name": "Can omega delete my files?", "acceptedAnswer": {"@type": "Answer", "text": "Only after you approve it. Deleting, sudo, editing config files and any unknown command need your confirmation. Commands like rm -rf ~, diskutil erase or curl piped into a shell are blocked and never run, even with --yes."}},
-      {"@type": "Question", "name": "Which AI models work with omega?", "acceptedAnswer": {"@type": "Answer", "text": "Any model with tool calling from Anthropic, OpenAI, OpenRouter or OpenCode Zen. The default is Claude Opus 5.5."}},
-      {"@type": "Question", "name": "How much does a run cost?", "acceptedAnswer": {"@type": "Answer", "text": "It depends on the model and on how much needs fixing. omega prints the tokens used at the end of every run. Lower the effort setting or pick a smaller model for routine updates."}},
-      {"@type": "Question", "name": "Can omega run unattended?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Run omega update --yes --no-tui --once from launchd or cron. Blocked commands stay blocked."}},
+      {"@type": "Question", "name": "Which AI models work with omega?", "acceptedAnswer": {"@type": "Answer", "text": "Any model with tool calling from Anthropic, OpenAI, OpenRouter or OpenCode Zen, or a local model through Ollama, LM Studio or any OpenAI compatible endpoint. By default omega uses a fast model and switches to a stronger one when a step fails."}},
+      {"@type": "Question", "name": "How much does a run cost?", "acceptedAnswer": {"@type": "Answer", "text": "On the automatic model a typical run costs under one cent. omega shows tokens and cost live. Local models cost nothing."}},
+      {"@type": "Question", "name": "Can it run on a local model?", "acceptedAnswer": {"@type": "Answer", "text": "Yes, through Ollama, LM Studio or any OpenAI compatible endpoint. Apple Intelligence's on device model has a 4,096 token context, too small for this agent."}},
+      {"@type": "Question", "name": "How does omega tune know the right settings?", "acceptedAnswer": {"@type": "Answer", "text": "It reads the current official documentation of each installed tool on the web and proposes changes with their source. You pick which ones to apply, or use --auto for the low risk ones."}},
+      {"@type": "Question", "name": "Can omega run unattended?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Run omega update --yes --no-tui --once from launchd or cron. Blocked commands stay blocked and Docker is never cleaned without you."}},
       {"@type": "Question", "name": "Where are my API keys stored?", "acceptedAnswer": {"@type": "Answer", "text": "In the macOS Keychain, under the service omega-cli. Environment variables take precedence when set."}},
       {"@type": "Question", "name": "Which languages does the interface support?", "acceptedAnswer": {"@type": "Answer", "text": "English, Spanish, French, German and Portuguese. omega follows your system locale and the agent replies in the same language."}}
     ]
@@ -68,6 +70,7 @@
       <ul class="nav-links">
         <li><a href="#how">How it works</a></li>
         <li><a href="#safety">Safety</a></li>
+        <li><a href="#gallery">Screens</a></li>
         <li><a href="#providers">Models</a></li>
         <li><a href="#faq">FAQ</a></li>
       </ul>
@@ -83,6 +86,7 @@
     <ul>
       <li><a href="#how">How it works</a></li>
       <li><a href="#safety">Safety</a></li>
+      <li><a href="#gallery">Screens</a></li>
       <li><a href="#providers">Models</a></li>
       <li><a href="#faq">FAQ</a></li>
       <li><a href="https://github.com/lcajigasm/omega">GitHub</a></li>
@@ -96,7 +100,7 @@
       <div class="container hero-inner">
         <p class="eyebrow"><i class="ph ph-apple-logo" aria-hidden="true"></i> For macOS · free and open source</p>
         <h1 class="hero-title">Updates that fix<br> their own errors</h1>
-        <p class="hero-sub">omega updates and cleans your Mac like topgrade and Mole, then reads every failure, finds the cause and fixes the config. You approve anything risky. Pick Claude, GPT or any OpenRouter model.</p>
+        <p class="hero-sub">omega updates and cleans your Mac like topgrade and Mole, then reads every failure, finds the cause and fixes the config. You pick what it does from a card and approve anything risky. A routine run costs under one cent, or nothing on a local model.</p>
 
         <div class="install" id="install-hero">
           <code class="install-cmd">brew install lcajigasm/omega/omega</code>
@@ -106,21 +110,23 @@
         </div>
         <p class="copy-status" role="status" aria-live="polite"></p>
 
-        <p class="proof"><i class="ph ph-check-circle" aria-hidden="true"></i> 35 maintenance steps · 4 AI providers · 5 interface languages · MIT licensed</p>
+        <p class="proof"><i class="ph ph-check-circle" aria-hidden="true"></i> 42 maintenance steps · cloud or local models · 5 interface languages · MIT licensed</p>
 
         <figure class="terminal" aria-label="Example omega session">
           <div class="terminal-bar"><span></span><span></span><span></span><p>omega · full</p></div>
           <div class="terminal-body">
-            <p class="t-line t-head"><span class="t-accent">Ω omega</span>  <span class="t-muted">anthropic · claude-opus-5-5 · task: full</span></p>
+            <p class="t-line t-head"><span class="t-accent">Ω omega</span>  <span class="t-muted">anthropic · claude-haiku-5-5 · task: full</span></p>
             <p class="t-line"><span class="t-ok">✓</span> system_info</p>
             <p class="t-line"><span class="t-ok">✓</span> brew update &amp;&amp; brew upgrade <span class="t-muted">· 2m14s</span></p>
             <p class="t-line"><span class="t-err">✗ exit 1</span> pipx upgrade-all</p>
             <p class="t-line t-muted">  │ Error: python@3.12 not found</p>
+            <p class="t-line t-muted"><span class="t-accent">↑</span> Switched to claude-sonnet-5-5 to diagnose the failure</p>
             <p class="t-line">The pipx environments point at a Python that Homebrew removed. Reinstalling them against the current one.</p>
             <p class="t-line"><span class="t-warn">? pipx reinstall-all</span> → <span class="t-ok">approved</span></p>
             <p class="t-line"><span class="t-ok">✓</span> pipx reinstall-all <span class="t-muted">· 41s</span></p>
             <p class="t-line"><span class="t-ok">✓</span> brew cleanup --prune=all <span class="t-muted">· 12s</span></p>
             <p class="t-line">Done: 23 packages updated, 6.4 GB freed, pipx repaired and noted for next time.</p>
+            <p class="t-line t-muted">⏵⏵ asks before risky actions                       ↑94k ↓4.6k · $0.0061 · 3m12s</p>
           </div>
           <figcaption class="sr-only">An illustrative omega run: an update step fails, omega diagnoses it, asks for approval, fixes it and summarises.</figcaption>
         </figure>
@@ -172,29 +178,29 @@
             <p>omega reads the output, checks the config file behind it and retries with the fix. Your run ends with a summary, not a wall of red.</p>
           </article>
           <article class="card feature">
+            <i class="ph ph-check-square feature-icon" aria-hidden="true"></i>
+            <h3 class="card-title">You pick, it does</h3>
+            <p>Recommendations arrive on a card with their impact. Tick one or several, and omega carries out exactly those. Nothing else.</p>
+          </article>
+          <article class="card feature">
+            <i class="ph ph-coins feature-icon" aria-hidden="true"></i>
+            <h3 class="card-title">Small model first</h3>
+            <p>Routine work runs on Claude Haiku or GPT mini. omega switches to a stronger model only when a step fails, and shows the cost as it goes.</p>
+          </article>
+          <article class="card feature">
+            <i class="ph ph-sliders-horizontal feature-icon" aria-hidden="true"></i>
+            <h3 class="card-title">Tunes your tools with current docs</h3>
+            <p><code>omega tune</code> reviews the config of what you have installed, reads the official documentation on the web and proposes improvements with their source.</p>
+          </article>
+          <article class="card feature">
+            <i class="ph ph-cube feature-icon" aria-hidden="true"></i>
+            <h3 class="card-title">Docker back under control</h3>
+            <p><code>omega docker</code> shows what images, volumes and build cache take, and cleans only what you tick. Docker cleanups always ask you first.</p>
+          </article>
+          <article class="card feature">
             <i class="ph ph-shield-check feature-icon" aria-hidden="true"></i>
             <h3 class="card-title">Nothing risky runs without you</h3>
             <p>Every command is classified before it runs. Deletes, sudo and config edits wait for your yes. The truly destructive ones never run at all.</p>
-          </article>
-          <article class="card feature">
-            <i class="ph ph-brain feature-icon" aria-hidden="true"></i>
-            <h3 class="card-title">It remembers your machine</h3>
-            <p>When it finds out why a step fails on your Mac, it saves a note. The next run starts with that knowledge instead of rediscovering it.</p>
-          </article>
-          <article class="card feature">
-            <i class="ph ph-cpu feature-icon" aria-hidden="true"></i>
-            <h3 class="card-title">Use the model you already pay for</h3>
-            <p>Anthropic, OpenAI, OpenRouter or OpenCode Zen. Bring one API key, pick any model with tool calling and switch whenever you like.</p>
-          </article>
-          <article class="card feature">
-            <i class="ph ph-broom feature-icon" aria-hidden="true"></i>
-            <h3 class="card-title">Space back, measured first</h3>
-            <p>It checks what is actually taking up room before it cleans, then goes after caches, old Homebrew versions, Xcode build data and Docker leftovers.</p>
-          </article>
-          <article class="card feature">
-            <i class="ph ph-translate feature-icon" aria-hidden="true"></i>
-            <h3 class="card-title">In your language</h3>
-            <p>The interface and the agent speak English, Spanish, French, German and Portuguese, following your system locale.</p>
           </article>
         </div>
       </div>
@@ -221,11 +227,39 @@ omega setup</code></pre>
           <li class="card step">
             <span class="step-num">3</span>
             <h3 class="card-title">Let it do the maintenance</h3>
-            <p>Updates, cleanup and a summary, with your approval on anything risky. Or ask for something specific.</p>
+            <p>Updates, cleanup and a summary, with your approval on anything risky. Then tune your tools or free Docker space.</p>
             <pre><code>omega
-omega -p "topgrade fails on rustup, fix it"</code></pre>
+omega tune
+omega docker</code></pre>
           </li>
         </ol>
+      </div>
+    </section>
+
+    <!-- Gallery -->
+    <section class="section reveal" id="gallery" aria-labelledby="gallery-title">
+      <div class="container">
+        <h2 class="section-title" id="gallery-title">Inside the terminal</h2>
+        <p class="section-sub">A full screen interface in the style of Claude Code: tool calls as they happen, live tokens and cost, and cards for every decision.</p>
+        <div class="gallery">
+          <figure class="shot">
+            <img src="assets/confirm.png" width="1280" height="820" loading="lazy" alt="omega diagnoses a failed pipx upgrade, switches to a stronger model and asks before reinstalling">
+            <figcaption>A failure is diagnosed on a stronger model, then the fix waits for your approval.</figcaption>
+          </figure>
+          <figure class="shot">
+            <img src="assets/card.png" width="1280" height="820" loading="lazy" alt="A selection card with three cleanup actions ticked and the space each one frees">
+            <figcaption>Recommendations on a card: tick what you want, omega does exactly that.</figcaption>
+          </figure>
+          <figure class="shot">
+            <img src="assets/model.png" width="1280" height="560" loading="lazy" alt="The model picker with Automatic recommended and the price of each model">
+            <figcaption>Automatic model choice by default, with prices for every option.</figcaption>
+          </figure>
+          <figure class="shot">
+            <img src="assets/docker-confirm.png" width="1280" height="820" loading="lazy" alt="A Docker build cache cleanup that always asks for confirmation">
+            <figcaption>Docker cleanups always ask, even when everything else is approved.</figcaption>
+          </figure>
+        </div>
+        <p class="section-sub center gallery-note">Screenshots from <code>omega --demo</code>, a scripted session with sample data.</p>
       </div>
     </section>
 
@@ -247,8 +281,8 @@ omega -p "topgrade fails on rustup, fix it"</code></pre>
           </article>
           <article class="card risk risk-warn">
             <p class="risk-label"><i class="ph ph-hand" aria-hidden="true"></i> Dangerous</p>
-            <p class="risk-rule">Waits for your approval</p>
-            <code>rm</code><code>sudo</code><code>editing a config file</code>
+            <p class="risk-rule">Waits for your approval. Docker cleanups ask every time.</p>
+            <code>rm</code><code>sudo</code><code>docker … prune</code>
           </article>
           <article class="card risk risk-block">
             <p class="risk-label"><i class="ph ph-prohibit" aria-hidden="true"></i> Blocked</p>
@@ -267,27 +301,38 @@ omega -p "topgrade fails on rustup, fix it"</code></pre>
     <!-- Providers -->
     <section class="section reveal" id="providers" aria-labelledby="providers-title">
       <div class="container">
-        <h2 class="section-title" id="providers-title">One API key. Any model you trust.</h2>
-        <div class="grid grid-4">
+        <h2 class="section-title" id="providers-title">The model you trust, at the size the job needs</h2>
+        <p class="section-sub">Automatic by default: a fast model for routine work, a stronger one when something fails. Pin any model with <code>omega model</code>.</p>
+        <div class="grid grid-3">
           <article class="card provider">
             <h3 class="card-title">Anthropic</h3>
-            <p>Official Go SDK, adaptive effort, server side fallback on refusals.</p>
-            <code>claude-opus-5-5</code>
+            <p>Official Go SDK with conversation caching.</p>
+            <code>claude-haiku-5-5 → claude-sonnet-5-5</code>
           </article>
           <article class="card provider">
             <h3 class="card-title">OpenAI</h3>
             <p>Chat Completions with tool calling.</p>
-            <code>gpt-5.5</code>
+            <code>gpt-5.4-mini → gpt-5.5</code>
           </article>
           <article class="card provider">
             <h3 class="card-title">OpenRouter</h3>
-            <p>Hundreds of models behind one key. Filter them in the setup.</p>
-            <code>anthropic/claude-opus-5.5</code>
+            <p>Hundreds of models behind one key.</p>
+            <code>anthropic/claude-haiku-5.5 → sonnet</code>
           </article>
           <article class="card provider">
             <h3 class="card-title">OpenCode Zen</h3>
-            <p>Claude, Qwen, GLM, Kimi and more through one account.</p>
+            <p>Claude, Qwen, GLM, Kimi and more.</p>
             <code>claude-sonnet-4-6</code>
+          </article>
+          <article class="card provider">
+            <h3 class="card-title">Ollama and LM Studio</h3>
+            <p>Fully local and free. Nothing leaves your Mac but the docs it reads.</p>
+            <code>qwen3:14b · any model with tools</code>
+          </article>
+          <article class="card provider">
+            <h3 class="card-title">Any compatible endpoint</h3>
+            <p>MLX, llama.cpp, vLLM or a company gateway through a base URL.</p>
+            <code>provider = "custom"</code>
           </article>
         </div>
       </div>
@@ -298,10 +343,10 @@ omega -p "topgrade fails on rustup, fix it"</code></pre>
       <div class="container">
         <h2 class="section-title" id="proof-title">Built in the open</h2>
         <div class="stats">
-          <div class="stat"><p class="stat-num">35</p><p class="stat-label">maintenance steps, from Homebrew to Docker</p></div>
-          <div class="stat"><p class="stat-num">8</p><p class="stat-label">narrow tools the agent can use, nothing more</p></div>
+          <div class="stat"><p class="stat-num">42</p><p class="stat-label">maintenance steps, from Homebrew to Docker</p></div>
+          <div class="stat"><p class="stat-num">12</p><p class="stat-label">narrow tools the agent can use, nothing more</p></div>
           <div class="stat"><p class="stat-num">5</p><p class="stat-label">interface languages, checked by tests</p></div>
-          <div class="stat"><p class="stat-num">1</p><p class="stat-label">Go binary, built from source by Homebrew</p></div>
+          <div class="stat"><p class="stat-num">&lt;1¢</p><p class="stat-label">for a typical run on the automatic model</p></div>
         </div>
         <p class="section-sub center">Read every line before you run it: <a href="https://github.com/lcajigasm/omega">github.com/lcajigasm/omega</a></p>
       </div>
@@ -315,9 +360,11 @@ omega -p "topgrade fails on rustup, fix it"</code></pre>
           <details><summary>Does omega replace topgrade and Mole?</summary><p>For a typical developer Mac, yes. omega has its own steps for Homebrew, the Mac App Store, npm, pnpm, bun, pipx, uv, rustup, cargo, gh extensions, Oh My Zsh, macOS, caches, Xcode, Docker and the Trash. If topgrade or Mole are installed, it also uses them and can fix their configuration with <code>omega fix</code>.</p></details>
           <details><summary>What does omega send to the AI provider?</summary><p>Its instructions, the trimmed output of the commands it runs and the configuration files it reads. It is instructed never to open your documents. Every run is logged to <code>~/.local/state/omega/runs</code> so you can check exactly what happened.</p></details>
           <details><summary>Can omega delete my files?</summary><p>Only after you approve it. Deleting, sudo, editing config files and any unknown command need your confirmation. Commands like <code>rm -rf ~</code>, <code>diskutil erase</code> or <code>curl</code> piped into a shell are blocked and never run, even with <code>--yes</code>.</p></details>
-          <details><summary>Which AI models work with omega?</summary><p>Any model with tool calling from Anthropic, OpenAI, OpenRouter or OpenCode Zen. The default is Claude Opus 5.5. List what your provider offers with <code>omega models</code>.</p></details>
-          <details><summary>How much does a run cost?</summary><p>It depends on the model and on how much needs fixing. omega prints the tokens used at the end of every run. Lower the effort setting or pick a smaller model for routine updates.</p></details>
-          <details><summary>Can omega run unattended?</summary><p>Yes. Run <code>omega update --yes --no-tui --once</code> from launchd or cron. Blocked commands stay blocked, and disabled steps stay disabled.</p></details>
+          <details><summary>Which AI models work with omega?</summary><p>Any model with tool calling from Anthropic, OpenAI, OpenRouter or OpenCode Zen, or a local one through Ollama, LM Studio or any OpenAI compatible endpoint. By default omega uses a fast model such as Claude Haiku 5.5 and switches to a stronger one when a step fails. Choose with <code>omega model</code>.</p></details>
+          <details><summary>How much does a run cost?</summary><p>On the automatic model a typical run costs under one cent: a full configuration review on a real Mac came to $0.009. omega shows tokens and cost live in the status bar and in the final summary. Local models cost nothing.</p></details>
+          <details><summary>Can it run on a local model?</summary><p>Yes. Start Ollama or the LM Studio server and pick the provider in <code>omega setup</code>. Apple Intelligence's on device model is only reachable from Swift and its 4,096 token context is too small for this kind of agent, so omega uses local servers instead.</p></details>
+          <details><summary>How does <code>omega tune</code> know the right settings?</summary><p>It does not ship a fixed list. For each tool you have installed it gets pointers to the config files and the official docs, reads the current documentation on the web, and proposes changes with their source. You pick which ones to apply, or use <code>--auto</code> for the low risk ones.</p></details>
+          <details><summary>Can omega run unattended?</summary><p>Yes. Run <code>omega update --yes --no-tui --once</code> from launchd or cron. Blocked commands stay blocked, Docker is never cleaned without you, and recommendations go into the summary instead of a card.</p></details>
           <details><summary>Where are my API keys stored?</summary><p>In the macOS Keychain, under the service <code>omega-cli</code>. Environment variables such as <code>ANTHROPIC_API_KEY</code> take precedence when set.</p></details>
           <details><summary>Which languages does the interface support?</summary><p>English, Spanish, French, German and Portuguese. omega follows your system locale, and you can override it with <code>omega config set language</code>. The agent replies in the same language.</p></details>
         </div>

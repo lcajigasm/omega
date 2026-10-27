@@ -40,7 +40,7 @@ func (a *Agent) writeLog(e Event) {
 	case EvError:
 		fmt.Fprintf(a.log, "\n! %s\n", e.Text)
 	case EvDone:
-		fmt.Fprintf(a.log, "\n== end. tokens: %d in, %d out\n", a.usage.InputTokens, a.usage.OutputTokens)
+		fmt.Fprintf(a.log, "\n== end. tokens: %d in (%d cached), %d out, $%.4f\n", a.usage.Input(), a.usage.CacheRead, a.usage.OutputTokens, a.cost)
 	}
 }
 

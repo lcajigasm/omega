@@ -3,10 +3,10 @@ package cli
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
-	"strconv"
 	"strings"
 	"time"
 
@@ -65,108 +65,80 @@ func setupCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Println(i18n.T("setup.providers"))
-			for i, p := range llm.Providers {
+			tty := term.IsTerminal(int(os.Stdin.Fd()))
+			var opts []ui.Option
+			for _, p := range llm.Providers {
 				status := i18n.T("setup.no_key")
-				if _, src, err := secrets.Get(p.Name); err == nil {
-					status = i18n.T("setup.key_in", src)
+				switch {
+				case p.Local:
+					status = ""
+					base := cfg.BaseURLFor(p.Name)
+					if base == "" {
+						base = p.BaseURL
+					}
+					if base != "" && probeLocal(base) {
+						status = i18n.T("setup.local_found")
+					}
+				default:
+					if _, src, err := secrets.Get(p.Name); err == nil {
+						status = i18n.T("setup.key_in", src)
+					}
 				}
-				fmt.Printf("  %d) %-12s %s (%s)\n", i+1, p.Name, p.Label, status)
+				opts = append(opts, ui.Option{ID: p.Name, Label: p.Label, Detail: p.KeyURL, Badge: status})
 			}
-			choice := ask(i18n.T("setup.choose_provider"), cfg.Provider)
-			name := choice
-			if n, err := strconv.Atoi(choice); err == nil && n >= 1 && n <= len(llm.Providers) {
-				name = llm.Providers[n-1].Name
+			ids, err := ui.Pick(i18n.T("setup.providers"), "", opts, false, tty, os.Stdin, os.Stdout)
+			if errors.Is(err, ui.ErrCancelled) {
+				return nil
 			}
-			if err := validProvider(name); err != nil {
+			if err != nil {
 				return err
 			}
+			name := ids[0]
 			info, _ := llm.Lookup(name)
 
-			key, src, keyErr := secrets.Get(name)
-			if keyErr != nil || i18n.IsYes(ask(i18n.T("setup.replace_key", secrets.Mask(key), src), "n")) {
-				fmt.Println(i18n.T("setup.get_key", info.KeyURL))
-				key, err = askSecret(i18n.T("setup.enter_key"))
-				key = cleanKey(key)
-				if err != nil || key == "" {
-					return fmt.Errorf("%s", i18n.T("setup.no_key_entered"))
+			if !info.Local {
+				key, src, keyErr := secrets.Get(name)
+				if keyErr != nil || i18n.IsYes(ask(i18n.T("setup.replace_key", secrets.Mask(key), src), "n")) {
+					fmt.Println(i18n.T("setup.get_key", info.KeyURL))
+					key, err = askSecret(i18n.T("setup.enter_key"))
+					key = cleanKey(key)
+					if err != nil || key == "" {
+						return fmt.Errorf("%s", i18n.T("setup.no_key_entered"))
+					}
+					if err := checkKey(cfg, name, key); err != nil {
+						return err
+					}
+					if err := secrets.Set(name, key); err != nil {
+						return err
+					}
+					fmt.Println(i18n.T("setup.key_saved"))
 				}
-				if err := checkKey(cfg, name, key); err != nil {
-					return err
+			} else if name == "custom" && cfg.BaseURLFor(name) == "" {
+				base := ask("base_url (OpenAI-compatible, e.g. http://localhost:8080/v1)", "")
+				if base == "" {
+					return fmt.Errorf("custom provider needs a base_url")
 				}
-				if err := secrets.Set(name, key); err != nil {
-					return err
-				}
-				fmt.Println(i18n.T("setup.key_saved"))
-			}
-
-			p, err := llm.New(name, llm.Options{APIKey: key, BaseURL: cfg.BaseURLFor(name)})
-			if err != nil {
-				return err
-			}
-			def := cfg.ModelFor(name)
-			if def == "" {
-				def = info.DefaultModel
-			}
-			model := def
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			models, err := p.Models(ctx)
-			cancel()
-			if err != nil {
-				fmt.Println(i18n.T("setup.models_failed", err))
-			} else {
-				model = pickModel(models, def)
+				pc := cfg.Providers[name]
+				pc.BaseURL = base
+				cfg.Providers[name] = pc
 			}
 
 			cfg.Provider = name
-			cfg.Model = model
-			pc := cfg.Providers[name]
-			pc.Model = model
-			cfg.Providers[name] = pc
+			cfg.Model = cfg.Providers[name].Model
 			if err := cfg.Save(); err != nil {
 				return err
 			}
-			fmt.Print(i18n.T("setup.done", name, model, config.Path()))
+			p, err := newProvider(cfg, info, "")
+			if err != nil {
+				return err
+			}
+			if err := chooseModel(cfg, info, p); err != nil && !errors.Is(err, ui.ErrCancelled) {
+				return err
+			}
+			plan, _ := planModel(cfg, info, "", "full")
+			fmt.Print(i18n.T("setup.done", name, plan.Model, config.Path()))
 			return nil
 		},
-	}
-}
-
-func pickModel(models []string, def string) string {
-	fmt.Print(i18n.T("setup.models_count", len(models), def))
-	list := models
-	for {
-		show := list
-		if len(show) > 30 {
-			show = show[:30]
-		}
-		for i, m := range show {
-			fmt.Printf("  %2d) %s\n", i+1, m)
-		}
-		if len(list) > len(show) {
-			fmt.Print(i18n.T("setup.more", len(list)-len(show)))
-		}
-		in := ask(i18n.T("setup.model"), def)
-		if in == def {
-			return def
-		}
-		if n, err := strconv.Atoi(in); err == nil && n >= 1 && n <= len(show) {
-			return show[n-1]
-		}
-		var filtered []string
-		for _, m := range models {
-			if m == in {
-				return m
-			}
-			if strings.Contains(strings.ToLower(m), strings.ToLower(in)) {
-				filtered = append(filtered, m)
-			}
-		}
-		if len(filtered) == 0 {
-			fmt.Println(i18n.T("setup.no_match", in))
-			return in
-		}
-		list = filtered
 	}
 }
 
@@ -244,10 +216,11 @@ func modelsCmd() *cobra.Command {
 			if len(args) > 0 {
 				name = args[0]
 			}
-			p, current, err := resolveProvider(cfg, name, "", "")
+			p, plan, err := resolveProvider(cfg, name, "", "", "full")
 			if err != nil {
 				return err
 			}
+			current := plan.Model
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 			models, err := p.Models(ctx)
@@ -262,7 +235,11 @@ func modelsCmd() *cobra.Command {
 				if m == current {
 					mark = "* "
 				}
-				fmt.Println(mark + m)
+				if badge := priceBadge(p.Name(), m); badge != "" {
+					fmt.Printf("%s%-44s %s\n", mark, m, badge)
+				} else {
+					fmt.Println(mark + m)
+				}
 			}
 			return nil
 		},

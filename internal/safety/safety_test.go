@@ -62,3 +62,33 @@ func TestRedirections(t *testing.T) {
 		}
 	}
 }
+
+func TestAlwaysConfirm(t *testing.T) {
+	for cmd, want := range map[string]bool{
+		"docker system prune -a -f": true, "docker volume prune -f": true, "docker rmi abc": true,
+		"docker builder prune -a -f": true, "docker system df": false, "docker ps -a": false, "brew cleanup": false,
+	} {
+		if got := AlwaysConfirm(cmd); got != want {
+			t.Errorf("AlwaysConfirm(%q) = %v, want %v", cmd, got, want)
+		}
+	}
+	if Classify("git worktree list") != Safe || Classify("docker system df") != Safe {
+		t.Error("read-only git/docker commands should be safe")
+	}
+}
+
+func TestReadOnlyInspection(t *testing.T) {
+	for _, cmd := range []string{
+		"env | grep ^HOMEBREW_", "git config --global --list", "pnpm store path", "topgrade --help",
+		"brew cleanup --prune=all --dry-run", "brew autoremove -n", "mo clean --dry-run", "time zsh -i -c exit",
+	} {
+		if got := Classify(cmd); got != Safe {
+			t.Errorf("Classify(%q) = %s, want read-only", cmd, got)
+		}
+	}
+	for _, cmd := range []string{"git config --global user.name x", "brew cleanup --prune=all", "zsh -c 'rm -rf x'"} {
+		if got := Classify(cmd); got == Safe {
+			t.Errorf("Classify(%q) should not be read-only", cmd)
+		}
+	}
+}

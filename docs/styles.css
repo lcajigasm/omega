@@ -222,6 +222,19 @@ i.ph { font-size: 20px; line-height: 1; }
 .stat-num { font-size: 48px; line-height: 1; font-weight: 600; font-family: var(--mono); }
 .stat-label { margin-top: var(--s-100); color: var(--text-muted); font-size: 14px; line-height: 20px; }
 
+/* Gallery */
+.gallery { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-300); }
+.shot { margin: 0; }
+.shot img {
+  display: block; width: 100%; height: auto;
+  border: 1px solid var(--border-strong); border-radius: 16px; background: var(--surface-1);
+  transition: transform 500ms var(--ease);
+}
+.shot img:hover { transform: translateY(-4px); }
+.shot figcaption { margin-top: var(--s-100); color: var(--text-muted); font-size: 14px; line-height: 20px; }
+.gallery-note { margin-top: var(--s-400); margin-bottom: 0; font-size: 14px; line-height: 20px; }
+.feature code, .provider p code { font-size: 14px; line-height: 20px; padding: var(--s-25) var(--s-50); background: var(--surface-3); border-radius: 4px; color: var(--text); }
+
 /* FAQ */
 .faq { display: grid; gap: var(--s-100); }
 .faq details { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 0 var(--s-300); transition: background-color 300ms var(--ease); }
@@ -281,7 +294,7 @@ i.ph { font-size: 20px; line-height: 1; }
   .hero-sub { font-size: 16px; line-height: 24px; }
   .section-title { font-size: 30px; line-height: 36px; }
   .tagline-text { font-size: 36px; line-height: 40px; }
-  .compare, .grid-3, .grid-4, .risk-grid, .stats { grid-template-columns: 1fr; }
+  .compare, .grid-3, .grid-4, .risk-grid, .stats, .gallery { grid-template-columns: 1fr; }
   .install { flex-direction: column; align-items: stretch; padding: var(--s-100); width: 100%; }
   .install-cmd { padding: var(--s-75) var(--s-50); text-align: center; }
   .install .btn { justify-content: center; }

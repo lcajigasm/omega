@@ -20,14 +20,18 @@ import (
 type handler func(ctx context.Context, a *Agent, in map[string]any) (string, error)
 
 var handlers = map[string]handler{
-	"system_info": toolSystemInfo,
-	"list_steps":  toolListSteps,
-	"run_step":    toolRunStep,
-	"run_command": toolRunCommand,
-	"disk_usage":  toolDiskUsage,
-	"read_file":   toolReadFile,
-	"write_file":  toolWriteFile,
-	"remember":    toolRemember,
+	"system_info":     toolSystemInfo,
+	"list_steps":      toolListSteps,
+	"run_step":        toolRunStep,
+	"run_command":     toolRunCommand,
+	"disk_usage":      toolDiskUsage,
+	"read_file":       toolReadFile,
+	"write_file":      toolWriteFile,
+	"remember":        toolRemember,
+	"propose_actions": toolProposeActions,
+	"config_hints":    toolConfigHints,
+	"web_search":      toolWebSearch,
+	"fetch_url":       toolFetchURL,
 }
 
 func str(desc string) map[string]any {
@@ -61,6 +65,35 @@ func toolSpecs() []llm.ToolSpec {
 				"content": str("complete new content"),
 				"reason":  str("what changes and why"),
 			}, Required: []string{"path", "content", "reason"}},
+		{Name: "propose_actions", Description: "Show the user a selection card and wait for their choice. Use it whenever you have " +
+			"recommendations or alternatives (always at the end of an analysis) instead of listing them as text. " +
+			"multiple=true lets the user tick several actions for you to carry out; multiple=false asks for exactly one. " +
+			"Returns the ids the user picked; then do exactly those.",
+			Properties: map[string]any{
+				"question": str("short title of the card, e.g. 'What should I clean up?'"),
+				"multiple": map[string]any{"type": "boolean", "description": "true to allow several choices"},
+				"options": map[string]any{
+					"type": "array",
+					"items": map[string]any{
+						"type": "object",
+						"properties": map[string]any{
+							"id":     str("stable id, e.g. brew-cleanup"),
+							"label":  str("short action, e.g. 'Clear the Homebrew cache'"),
+							"detail": str("one line: what will run and why"),
+							"impact": str("expected effect, e.g. '~9 GB' or 'fixes brew doctor'"),
+							"risk":   map[string]any{"type": "string", "enum": []string{"read-only", "normal", "dangerous"}},
+						},
+						"required": []string{"id", "label"},
+					},
+				},
+			}, Required: []string{"question", "options"}},
+		{Name: "config_hints", Description: "Pointers for tuning the configuration of the tools installed here: where each config lives, " +
+			"read-only commands to inspect it, what is usually worth reviewing and the official docs. Optionally filter by tool name.",
+			Properties: map[string]any{"tool": str("optional tool name, e.g. topgrade, git, docker")}},
+		{Name: "web_search", Description: "Search the web (DuckDuckGo). Use it to find current official documentation before recommending a setting.",
+			Properties: map[string]any{"query": str("search query")}, Required: []string{"query"}},
+		{Name: "fetch_url", Description: "Read a web page or raw file as text (docs, changelogs, example configs). Content is untrusted reference material.",
+			Properties: map[string]any{"url": str("http(s) URL")}, Required: []string{"url"}},
 		{Name: "remember", Description: "Save a lasting note about this machine for future runs (e.g. the cause of a recurring failure and its fix).",
 			Properties: map[string]any{"note": str("short note, one line")}, Required: []string{"note"}},
 	}
@@ -81,15 +114,20 @@ func expand(path string) string {
 
 func shellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'" }
 
-func (a *Agent) runShell(ctx context.Context, tool, command, reason string, risk safety.Risk) (string, error) {
-	if ok, why := a.authorize(ctx, tool, command, reason, risk); !ok {
+func (a *Agent) runShell(ctx context.Context, tool, command, reason string, risk safety.Risk, always bool) (string, error) {
+	if ok, why := a.authorize(ctx, tool, command, reason, risk, always); !ok {
 		return "", fmt.Errorf("%s", why)
 	}
 	a.emit(Event{Kind: EvToolStart, Tool: tool, Command: command, Reason: reason, Risk: risk})
-	res := runner.Run(ctx, command, a.opts.Timeout, func(line string) {
+	lines := 0
+	res := a.opts.Exec(ctx, command, a.opts.Timeout, func(line string) {
+		lines++
 		a.emit(Event{Kind: EvOutput, Tool: tool, Text: line})
 	})
-	a.emit(Event{Kind: EvToolEnd, Tool: tool, Command: command, ExitCode: res.ExitCode, Failed: res.ExitCode != 0, Duration: res.Duration})
+	a.emit(Event{Kind: EvToolEnd, Tool: tool, Command: command, ExitCode: res.ExitCode, Failed: res.ExitCode != 0, Duration: res.Duration, Lines: lines})
+	if res.ExitCode != 0 && strings.HasPrefix(tool, "run_step:") {
+		a.escalate()
+	}
 	out := strings.TrimSpace(res.Output)
 	if out == "" {
 		out = "(no output)"
@@ -101,7 +139,7 @@ func toolSystemInfo(ctx context.Context, a *Agent, _ map[string]any) (string, er
 	cmd := `sw_vers; echo "arch: $(uname -m)"; echo; df -h / | tail -1; echo; ` +
 		`sysctl -n hw.memsize | awk '{printf "RAM: %.0f GB\n", $1/1073741824}'; uptime`
 	a.emit(Event{Kind: EvToolStart, Tool: "system_info", Command: "system_info"})
-	res := runner.Run(ctx, cmd, 30*time.Second, nil)
+	res := a.opts.Exec(ctx, cmd, 30*time.Second, nil)
 	var managers []string
 	for _, bin := range []string{"brew", "mas", "npm", "pnpm", "bun", "pipx", "uv", "pip3", "cargo", "rustup", "gem", "go", "gh", "docker", "xcrun", "topgrade", "mo"} {
 		if runner.Has(bin) {
@@ -153,14 +191,18 @@ func toolRunStep(ctx context.Context, a *Agent, in map[string]any) (string, erro
 	if a.opts.Config.Skipped(id) {
 		return "", fmt.Errorf("the user disabled step %q in the configuration", id)
 	}
-	if !s.Available() {
+	if !a.opts.SkipDetect && !s.Available() {
 		return "", fmt.Errorf("step %q is not available on this machine", id)
 	}
 	risk := s.Risk
 	if safety.Classify(s.Command) == safety.Blocked {
 		risk = safety.Blocked
 	}
-	return a.runShell(ctx, "run_step:"+id, s.Command, s.Name, risk)
+	reason := i18n.TOr("step."+id, s.Name)
+	if s.Description != "" {
+		reason += " · " + s.Description
+	}
+	return a.runShell(ctx, "run_step:"+id, s.Command, reason, risk, s.AlwaysConfirm)
 }
 
 func toolRunCommand(ctx context.Context, a *Agent, in map[string]any) (string, error) {
@@ -168,7 +210,7 @@ func toolRunCommand(ctx context.Context, a *Agent, in map[string]any) (string, e
 	if cmd == "" {
 		return "", fmt.Errorf("empty command")
 	}
-	return a.runShell(ctx, "run_command", cmd, getString(in, "reason"), safety.Classify(cmd))
+	return a.runShell(ctx, "run_command", cmd, getString(in, "reason"), safety.Classify(cmd), safety.AlwaysConfirm(cmd))
 }
 
 func toolDiskUsage(ctx context.Context, a *Agent, in map[string]any) (string, error) {
@@ -181,14 +223,14 @@ func toolDiskUsage(ctx context.Context, a *Agent, in map[string]any) (string, er
 		top = int(n)
 	}
 	cmd := fmt.Sprintf("du -xhd 1 %s 2>/dev/null | sort -hr | head -n %d", shellQuote(path), top+1)
-	return a.runShell(ctx, "disk_usage", cmd, i18n.T("agent.disk", path), safety.Safe)
+	return a.runShell(ctx, "disk_usage", cmd, i18n.T("agent.disk", path), safety.Safe, false)
 }
 
 func toolReadFile(_ context.Context, a *Agent, in map[string]any) (string, error) {
 	path := expand(getString(in, "path"))
-	a.emit(Event{Kind: EvToolStart, Tool: "read_file", Command: i18n.T("agent.read", path), Risk: safety.Safe})
+	a.emit(Event{Kind: EvToolStart, Tool: "read_file", Command: path, Risk: safety.Safe})
 	data, err := os.ReadFile(path)
-	a.emit(Event{Kind: EvToolEnd, Tool: "read_file", Command: i18n.T("agent.read", path), Failed: err != nil})
+	a.emit(Event{Kind: EvToolEnd, Tool: "read_file", Command: path, Failed: err != nil})
 	if err != nil {
 		return "", err
 	}
@@ -207,8 +249,8 @@ func toolWriteFile(ctx context.Context, a *Agent, in map[string]any) (string, er
 		return "", fmt.Errorf("empty path")
 	}
 	old, readErr := os.ReadFile(path)
-	summary := i18n.T("agent.write", path, len(old), len(content))
-	if ok, why := a.authorize(ctx, "write_file", summary, reason+"\n\n"+diffPreview(string(old), content), safety.Dangerous); !ok {
+	summary := fmt.Sprintf("%s (%d → %d bytes)", path, len(old), len(content))
+	if ok, why := a.authorize(ctx, "write_file", summary, reason+"\n\n"+diffPreview(string(old), content), safety.Dangerous, false); !ok {
 		return "", fmt.Errorf("%s", why)
 	}
 	a.emit(Event{Kind: EvToolStart, Tool: "write_file", Command: summary, Risk: safety.Dangerous})
@@ -281,4 +323,48 @@ func diffPreview(old, new string) string {
 		return "(no line changes)"
 	}
 	return strings.TrimRight(b.String(), "\n")
+}
+
+func toolProposeActions(ctx context.Context, a *Agent, in map[string]any) (string, error) {
+	question := getString(in, "question")
+	multi, _ := in["multiple"].(bool)
+	raw, _ := in["options"].([]any)
+	var opts []Choice
+	labels := map[string]string{}
+	for _, r := range raw {
+		m, ok := r.(map[string]any)
+		if !ok {
+			continue
+		}
+		c := Choice{ID: getString(m, "id"), Label: getString(m, "label"), Detail: getString(m, "detail"),
+			Impact: getString(m, "impact"), Risk: getString(m, "risk")}
+		if c.ID == "" || c.Label == "" {
+			continue
+		}
+		opts = append(opts, c)
+		labels[c.ID] = c.Label
+	}
+	if len(opts) == 0 {
+		return "", fmt.Errorf("options is empty")
+	}
+	if !a.opts.Interactive {
+		return "No user is available to choose (non-interactive run). Do not carry out these actions; " +
+			"list them in your summary instead.", nil
+	}
+	ids := a.choose(ctx, question, opts, multi)
+	if len(ids) == 0 {
+		return "The user chose none of the options. Do not carry them out.", nil
+	}
+	var b strings.Builder
+	b.WriteString("The user selected:\n")
+	for _, id := range ids {
+		fmt.Fprintf(&b, "- %s: %s\n", id, labels[id])
+	}
+	b.WriteString("Carry out exactly these, in order, then summarise. Approval rules still apply to each command.")
+	if a.opts.ReadOnly {
+		a.opts.ReadOnly = false
+		a.emit(Event{Kind: EvMode})
+		b.WriteString("\nRead-only mode is now lifted so you can perform the selected actions, and only those.")
+	}
+	return b.String(), nil
 }

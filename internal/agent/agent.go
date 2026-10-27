@@ -13,43 +13,65 @@ import (
 	"github.com/lcajigasm/omega/internal/config"
 	"github.com/lcajigasm/omega/internal/i18n"
 	"github.com/lcajigasm/omega/internal/llm"
+	"github.com/lcajigasm/omega/internal/runner"
 	"github.com/lcajigasm/omega/internal/safety"
 )
 
 const maxTurns = 80
 
+// ExecFunc runs a shell command. It is runner.Run outside of tests and demos.
+type ExecFunc func(ctx context.Context, command string, timeout time.Duration, onLine func(string)) runner.Result
+
 // Options configure a run.
 type Options struct {
+	Provider    string
 	Model       string
+	Escalate    string // stronger model to switch to when a step fails; "" disables
 	Approval    string // config.Approve*
-	AutoYes     bool   // --yes: approve everything except blocked commands
-	ReadOnly    bool   // only Safe actions are allowed
+	AutoYes     bool   // --yes: approve everything except blocked and always-confirm actions
+	ReadOnly    bool   // only Safe actions are allowed until the user picks actions
 	Interactive bool   // wait for follow-up input after the model finishes
 	Timeout     time.Duration
 	Config      *config.Config
+	Exec        ExecFunc
+	SkipDetect  bool // run catalogue steps without checking they are installed (demo mode)
 }
 
 // Agent drives one maintenance session.
 type Agent struct {
 	opts       Options
 	chat       llm.Chat
+	model      string
+	escalated  bool
 	events     chan Event
 	input      chan string
 	approveAll bool
 	log        *os.File
 	usage      llm.Usage
+	cost       float64
+	costKnown  bool
+	started    time.Time
 }
 
 // New creates an agent for the given provider.
 func New(p llm.Provider, opts Options) *Agent {
+	if opts.Exec == nil {
+		opts.Exec = runner.Run
+	}
+	if opts.Provider == "" {
+		opts.Provider = p.Name()
+	}
 	notes, _ := os.ReadFile(config.NotesPath())
 	sys := systemPrompt(string(notes), opts.Config.SkipSteps, opts.ReadOnly)
 	a := &Agent{
-		opts:   opts,
-		chat:   p.NewChat(opts.Model, sys, toolSpecs()),
-		events: make(chan Event, 256),
-		input:  make(chan string),
+		opts:    opts,
+		model:   opts.Model,
+		chat:    p.NewChat(opts.Model, sys, toolSpecs()),
+		events:  make(chan Event, 512),
+		input:   make(chan string),
+		started: time.Now(),
 	}
+	_, a.costKnown = llm.PriceFor(opts.Provider, opts.Model)
 	a.openLog(p.Name())
 	return a
 }
@@ -60,9 +82,6 @@ func (a *Agent) Events() <-chan Event { return a.events }
 // Input sends a follow-up message from the user while the agent is idle.
 // An empty string ends the session.
 func (a *Agent) Input() chan<- string { return a.input }
-
-// Usage returns the tokens spent so far.
-func (a *Agent) Usage() llm.Usage { return a.usage }
 
 // LogPath returns where this run's transcript is written.
 func (a *Agent) LogPath() string {
@@ -77,6 +96,10 @@ func (a *Agent) emit(e Event) {
 	a.events <- e
 }
 
+func (a *Agent) stats() Stats {
+	return Stats{Usage: a.usage, Cost: a.cost, CostKnown: a.costKnown, Model: a.model, Elapsed: time.Since(a.started)}
+}
+
 // Run executes the task until the model stops and, in interactive mode, the
 // user ends the session.
 func (a *Agent) Run(ctx context.Context, task string) {
@@ -87,7 +110,7 @@ func (a *Agent) Run(ctx context.Context, task string) {
 	var results []llm.ToolResult
 	for turn := 0; ; turn++ {
 		if ctx.Err() != nil {
-			a.emit(Event{Kind: EvDone, Text: i18n.T("agent.cancelled")})
+			a.emit(Event{Kind: EvDone, Text: i18n.T("agent.cancelled"), Stats: a.stats()})
 			return
 		}
 		if turn >= maxTurns {
@@ -100,17 +123,17 @@ func (a *Agent) Run(ctx context.Context, task string) {
 			continue
 		}
 
-		a.emit(Event{Kind: EvThinking})
+		a.emit(Event{Kind: EvThinking, Stats: a.stats()})
 		reply, err := a.chat.Send(ctx, text, results)
 		if err != nil {
 			if ctx.Err() != nil {
-				a.emit(Event{Kind: EvDone, Text: i18n.T("agent.cancelled")})
+				a.emit(Event{Kind: EvDone, Text: i18n.T("agent.cancelled"), Stats: a.stats()})
 				return
 			}
 			a.emit(Event{Kind: EvError, Text: i18n.T("agent.model_error", err.Error())})
 			// The failed message was rolled back; let the user retry or quit.
 			if !a.opts.Interactive {
-				a.emit(Event{Kind: EvDone})
+				a.emit(Event{Kind: EvDone, Stats: a.stats()})
 				return
 			}
 			if !a.waitInput(ctx, &text) {
@@ -121,8 +144,13 @@ func (a *Agent) Run(ctx context.Context, task string) {
 			}
 			continue
 		}
-		a.usage.InputTokens += reply.Usage.InputTokens
-		a.usage.OutputTokens += reply.Usage.OutputTokens
+		a.usage = a.usage.Add(reply.Usage)
+		if price, ok := llm.PriceFor(a.opts.Provider, a.model); ok {
+			a.cost += price.Cost(reply.Usage)
+		} else {
+			a.costKnown = false
+		}
+		a.emit(Event{Kind: EvUsage, Stats: a.stats()})
 		if t := strings.TrimSpace(reply.Text); t != "" {
 			a.emit(Event{Kind: EvAssistant, Text: t})
 		}
@@ -147,17 +175,17 @@ func (a *Agent) Run(ctx context.Context, task string) {
 // the session should end.
 func (a *Agent) waitInput(ctx context.Context, text *string) bool {
 	if !a.opts.Interactive {
-		a.emit(Event{Kind: EvDone})
+		a.emit(Event{Kind: EvDone, Stats: a.stats()})
 		return false
 	}
-	a.emit(Event{Kind: EvIdle})
+	a.emit(Event{Kind: EvIdle, Stats: a.stats()})
 	select {
 	case <-ctx.Done():
-		a.emit(Event{Kind: EvDone, Text: i18n.T("agent.cancelled")})
+		a.emit(Event{Kind: EvDone, Text: i18n.T("agent.cancelled"), Stats: a.stats()})
 		return false
 	case msg, ok := <-a.input:
 		if !ok || strings.TrimSpace(msg) == "" {
-			a.emit(Event{Kind: EvDone})
+			a.emit(Event{Kind: EvDone, Stats: a.stats()})
 			return false
 		}
 		*text = msg
@@ -166,35 +194,76 @@ func (a *Agent) waitInput(ctx context.Context, text *string) bool {
 	}
 }
 
+// escalate switches to the stronger model once, the first time something
+// fails, so routine work stays on the cheap model.
+func (a *Agent) escalate() {
+	if a.escalated || a.opts.Escalate == "" || a.opts.Escalate == a.model {
+		return
+	}
+	a.escalated = true
+	a.model = a.opts.Escalate
+	a.chat.SetModel(a.model)
+	if _, ok := llm.PriceFor(a.opts.Provider, a.model); !ok {
+		a.costKnown = false
+	}
+	a.emit(Event{Kind: EvModel, Text: a.model, Stats: a.stats()})
+}
+
 // authorize applies the approval policy and asks the user when needed.
-func (a *Agent) authorize(ctx context.Context, tool, command, reason string, risk safety.Risk) (bool, string) {
+// always forces a question even under --yes or "approve all", for actions
+// such as Docker cleanups that delete data the user may want to keep.
+func (a *Agent) authorize(ctx context.Context, tool, command, reason string, risk safety.Risk, always bool) (bool, string) {
+	deny := func(why string) (bool, string) {
+		a.emit(Event{Kind: EvDenied, Tool: tool, Command: command, Reason: why})
+		return false, why
+	}
 	if risk == safety.Blocked {
-		return false, "Blocked by omega's safety policy; this command can never run."
+		return deny("Blocked by omega's safety policy; this command can never run.")
 	}
 	if a.opts.ReadOnly && risk > safety.Safe {
-		return false, "Read-only mode: this action would change the system and was rejected. Describe it in the summary instead."
+		return deny("Read-only mode: this action would change the system and was rejected. " +
+			"Offer it to the user with propose_actions instead.")
 	}
-	if risk == safety.Safe || a.opts.AutoYes || a.approveAll || a.opts.Approval == config.ApproveNever {
-		return true, ""
-	}
-	if risk == safety.Normal && a.opts.Approval != config.ApproveAll {
-		return true, ""
+	if !always {
+		if risk == safety.Safe || a.opts.AutoYes || a.approveAll || a.opts.Approval == config.ApproveNever {
+			return true, ""
+		}
+		if risk == safety.Normal && a.opts.Approval != config.ApproveAll {
+			return true, ""
+		}
 	}
 	reply := make(chan Decision, 1)
-	a.emit(Event{Kind: EvConfirm, Tool: tool, Command: command, Reason: reason, Risk: risk, Reply: reply})
+	a.emit(Event{Kind: EvConfirm, Tool: tool, Command: command, Reason: reason, Risk: risk, Always: always, Reply: reply})
 	select {
 	case <-ctx.Done():
 		return false, "cancelled"
 	case d := <-reply:
 		switch d {
 		case ApproveAll:
-			a.approveAll = true
+			if !always {
+				a.approveAll = true
+			}
 			return true, ""
 		case Approve:
 			return true, ""
 		}
 	}
-	return false, "The user denied this action. Do not retry it or an equivalent; carry on with the rest."
+	return deny("The user denied this action. Do not retry it or an equivalent; carry on with the rest.")
+}
+
+// choose shows a selection card and returns the IDs the user picked.
+func (a *Agent) choose(ctx context.Context, question string, opts []Choice, multi bool) []string {
+	if !a.opts.Interactive {
+		return nil
+	}
+	reply := make(chan []string, 1)
+	a.emit(Event{Kind: EvChoice, Text: question, Choices: opts, Multi: multi, Picks: reply})
+	select {
+	case <-ctx.Done():
+		return nil
+	case ids := <-reply:
+		return ids
+	}
 }
 
 func (a *Agent) execute(ctx context.Context, call llm.ToolCall) llm.ToolResult {

@@ -20,8 +20,10 @@ const (
 
 // ProviderConfig holds per-provider overrides.
 type ProviderConfig struct {
-	Model   string `toml:"model,omitempty"`
-	BaseURL string `toml:"base_url,omitempty"`
+	Model      string `toml:"model,omitempty"`       // fixed model; empty or "auto" picks per task
+	FastModel  string `toml:"fast_model,omitempty"`  // override for routine work in auto mode
+	SmartModel string `toml:"smart_model,omitempty"` // override for failures and fix tasks in auto mode
+	BaseURL    string `toml:"base_url,omitempty"`
 }
 
 // Config is the user configuration stored in config.toml.

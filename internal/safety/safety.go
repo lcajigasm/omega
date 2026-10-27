@@ -53,7 +53,15 @@ var safePrefixes = []string{
 	"pnpm ls", "pnpm outdated", "pip list", "pip3 list", "pip show", "pip3 show", "pip cache info", "pip3 cache info",
 	"pipx list", "uv tool list", "uv cache dir", "cargo install --list", "rustup show", "rustup check",
 	"gem list", "gh extension list", "go version", "go env", "node --version", "python3 --version",
-	"docker system df", "docker ps", "docker images", "git status", "git log", "git --version",
+	"docker system df", "docker ps", "docker images", "docker image ls", "docker container ls", "docker volume ls",
+	"docker info", "docker version", "docker builder du", "docker buildx du",
+	"git status", "git log", "git --version", "git worktree list", "git branch", "git remote -v", "git rev-parse",
+	"git stash list", "ollama list", "ollama ps", "lms ls", "lms ps", "tmutil listbackups", "mdfind", "sw_vers",
+	"pmset -g batt", "brew services info", "npm config list", "pip3 config list",
+	"env", "printenv", "git config --list", "git config --global --list", "git config --get", "git config --global --get",
+	"git config -l", "pnpm store path", "pnpm config list", "npm config get", "pipx environment", "pipx --version",
+	"uv cache dir", "uv python list", "uv --version", "rustup toolchain list", "go env", "brew --cache", "brew --repo",
+	"time zsh -i -c exit", "docker context ls", "launchctl list", "tmutil destinationinfo", "mdutil -s",
 	"topgrade --dry-run", "topgrade -n", "topgrade --version", "topgrade --config-reference",
 	"mo --version", "mo clean --dry-run", "mo optimize --dry-run", "mo uninstall --dry-run", "mo history",
 	"mo --help", "mo help",
@@ -73,6 +81,15 @@ var (
 	fdDup           = regexp.MustCompile(`[0-9]*>&[0-9-]+`)
 	devNullRedirect = regexp.MustCompile(`[0-9&]?>{1,2}\s*/dev/null`)
 )
+
+var dockerDestructive = regexp.MustCompile(`\bdocker\s+((system|image|container|volume|network|builder|buildx)\s+prune|rmi|rm|volume\s+rm|image\s+rm|container\s+rm|buildx\s+rm)\b`)
+
+// AlwaysConfirm reports commands that must be confirmed by the user every
+// time, even under --yes: Docker cleanups can delete images, volumes and
+// databases that are expensive or impossible to recreate.
+func AlwaysConfirm(command string) bool {
+	return dockerDestructive.MatchString(command)
+}
 
 // Classify returns the highest risk among the parts of a (possibly compound) command.
 func Classify(command string) Risk {
@@ -102,6 +119,12 @@ func Classify(command string) Risk {
 	return max
 }
 
+// dryRun matches commands that only preview what they would do.
+var dryRun = regexp.MustCompile(`^(brew (cleanup|autoremove)|mo (clean|optimize|uninstall|purge)|topgrade)\b.*(\s--dry-run|\s-n)\b`)
+
+// helpOnly matches "<tool> --help" or "<tool> --version" with nothing else.
+var helpOnly = regexp.MustCompile(`^[\w.+-]+( [a-z][\w-]*)? (--help|-h|--version|-V|version|help)$`)
+
 func classifyOne(part string) Risk {
 	p := strings.TrimSpace(part)
 	// Strip leading env assignments such as FOO=1 cmd.
@@ -118,6 +141,9 @@ func classifyOne(part string) Risk {
 	}
 	if strings.HasPrefix(p, "sudo ") || p == "sudo" {
 		return Dangerous
+	}
+	if dryRun.MatchString(p) || helpOnly.MatchString(p) {
+		return Safe
 	}
 	if strings.HasPrefix(p, "find ") && findDestructive.MatchString(p) {
 		return Dangerous
