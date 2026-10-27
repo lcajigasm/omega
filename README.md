@@ -1,5 +1,7 @@
 # Ω omega
 
+[Website](https://lcajigasm.github.io/omega/) · [Releases](https://github.com/lcajigasm/omega/releases) · [Homebrew tap](https://github.com/lcajigasm/homebrew-omega)
+
 **AI-driven macOS maintenance.** omega combines what
 [topgrade](https://github.com/topgrade-rs/topgrade) does (update all installed
 software) and what [Mole](https://github.com/tw93/Mole) does (clean and optimise
