@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/lcajigasm/omega/internal/config"
@@ -42,20 +43,25 @@ type Options struct {
 
 // Agent drives one maintenance session.
 type Agent struct {
-	opts       Options
-	chat       llm.Chat
-	model      string
-	escalated  bool
-	events     chan Event
-	input      chan string
-	approveAll bool
-	log        *os.File
-	usage      llm.Usage
-	cost       float64
-	costKnown  bool
-	started    time.Time
-	real       bool // commands run on this machine (not a test or demo)
-	ctx        context.Context
+	opts      Options
+	chat      llm.Chat
+	model     string
+	escalated bool
+	events    chan Event
+	input     chan string
+	log       *os.File
+	usage     llm.Usage
+	cost      float64
+	costKnown bool
+	started   time.Time
+	real      bool // commands run on this machine (not a test or demo)
+	ctx       context.Context
+
+	// Changed by the UI while the run goes on.
+	mu        sync.Mutex
+	mode      Mode
+	nextModel string   // model the user picked, applied before the next turn
+	notes     []string // messages for the model about what the user changed
 }
 
 // New creates an agent for the given provider.
@@ -77,6 +83,12 @@ func New(p llm.Provider, opts Options) *Agent {
 		input:   make(chan string),
 		started: time.Now(),
 		real:    real,
+	}
+	switch {
+	case opts.ReadOnly:
+		a.mode = ModeReadOnly
+	case opts.AutoYes:
+		a.mode = ModeAuto
 	}
 	_, a.costKnown = llm.PriceFor(opts.Provider, opts.Model)
 	a.openLog(p.Name())
@@ -140,6 +152,7 @@ func (a *Agent) Run(ctx context.Context, task string) {
 			continue
 		}
 
+		text = a.applyChanges(text)
 		a.emit(Event{Kind: EvThinking, Stats: a.stats()})
 		reply, err := a.chat.Send(ctx, text, results)
 		if err != nil {
@@ -211,10 +224,75 @@ func (a *Agent) waitInput(ctx context.Context, text *string) bool {
 	}
 }
 
+// Mode returns the current approval mode.
+func (a *Agent) Mode() Mode {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.mode
+}
+
+// SetMode changes the approval mode. It is safe to call from the UI while
+// the agent runs; the model is told when read-only mode starts or ends.
+func (a *Agent) SetMode(m Mode) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if m == a.mode {
+		return
+	}
+	switch {
+	case m == ModeReadOnly:
+		a.notes = append(a.notes, "The user switched to read-only mode: from now on only read-only commands and steps "+
+			"are allowed. Offer any change with propose_actions instead of running it.")
+	case a.mode == ModeReadOnly:
+		a.notes = append(a.notes, "The user switched off read-only mode: you may now make changes, "+
+			"subject to the approval rules.")
+	}
+	a.mode = m
+}
+
+// SetModel switches to another model from the next turn on. A model the user
+// picks is kept: the automatic switch to the stronger model no longer applies.
+func (a *Agent) SetModel(model string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.nextModel = model
+}
+
+// applyChanges applies what the user changed from the UI before the next
+// request and returns text with the notes for the model appended.
+func (a *Agent) applyChanges(text string) string {
+	a.mu.Lock()
+	next, notes := a.nextModel, a.notes
+	a.nextModel, a.notes = "", nil
+	a.mu.Unlock()
+	if next != "" && next != a.model {
+		a.escalated = true
+		a.model = next
+		a.chat.SetModel(next)
+		if _, ok := llm.PriceFor(a.opts.Provider, next); !ok {
+			a.costKnown = false
+		}
+		a.writeLog(Event{Kind: EvAssistant, Text: "[model " + next + "]"})
+	}
+	if len(notes) == 0 {
+		return text
+	}
+	note := "[" + strings.Join(notes, " ") + "]"
+	a.writeLog(Event{Kind: EvAssistant, Text: note})
+	if text == "" {
+		return note
+	}
+	return text + "\n\n" + note
+}
+
 // escalate switches to the stronger model once, the first time something
-// fails, so routine work stays on the cheap model.
+// fails, so routine work stays on the cheap model. A model the user picked
+// in the meantime wins.
 func (a *Agent) escalate() {
-	if a.escalated || a.opts.Escalate == "" || a.opts.Escalate == a.model {
+	a.mu.Lock()
+	picked := a.nextModel != ""
+	a.mu.Unlock()
+	if picked || a.escalated || a.opts.Escalate == "" || a.opts.Escalate == a.model {
 		return
 	}
 	a.escalated = true
@@ -237,12 +315,13 @@ func (a *Agent) authorize(ctx context.Context, tool, command, reason string, ris
 	if risk == safety.Blocked {
 		return deny("Blocked by omega's safety policy; this command can never run.")
 	}
-	if a.opts.ReadOnly && risk > safety.Safe {
+	mode := a.Mode()
+	if mode == ModeReadOnly && risk > safety.Safe {
 		return deny("Read-only mode: this action would change the system and was rejected. " +
 			"Offer it to the user with propose_actions instead.")
 	}
 	if !always {
-		if risk == safety.Safe || a.opts.AutoYes || a.approveAll || a.opts.Approval == config.ApproveNever {
+		if risk == safety.Safe || mode == ModeAuto || a.opts.Approval == config.ApproveNever {
 			return true, ""
 		}
 		if risk == safety.Normal && a.opts.Approval != config.ApproveAll {
@@ -258,7 +337,7 @@ func (a *Agent) authorize(ctx context.Context, tool, command, reason string, ris
 		switch d {
 		case ApproveAll:
 			if !always {
-				a.approveAll = true
+				a.SetMode(ModeAuto)
 			}
 			return true, ""
 		case Approve:

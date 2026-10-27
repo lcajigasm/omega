@@ -21,12 +21,24 @@ const (
 	EvPassword                   // sudo needs the password; answer on Secret ("" cancels)
 	EvDenied                     // an action was refused (policy or user)
 	EvModel                      // switched to another model (Text)
-	EvMode                       // read-only mode lifted
+	EvMode                       // read-only mode lifted (Mode holds the new mode)
 	EvUsage                      // token and cost totals changed
 	EvIdle                       // the model finished its turn; waiting for user input
 	EvError                      // a non-fatal error
 	EvDone                       // the run ended
 )
+
+// Mode is the approval mode. The user can change it during a run.
+type Mode int
+
+const (
+	ModeAsk      Mode = iota // follow the configured approval policy
+	ModeAuto                 // approve everything except blocked and always-confirm actions
+	ModeReadOnly             // only read-only actions; changes are offered with propose_actions
+)
+
+// Next is the mode that follows m when the user cycles through them.
+func (m Mode) Next() Mode { return (m + 1) % 3 }
 
 // Decision is the user's answer to an EvConfirm.
 type Decision int
@@ -73,5 +85,6 @@ type Event struct {
 	Multi    bool
 	Picks    chan []string
 	Secret   chan string
+	Mode     Mode
 	Stats    Stats
 }

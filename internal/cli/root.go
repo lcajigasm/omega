@@ -137,7 +137,8 @@ func runTask(task string, f runFlags) error {
 	var p llm.Provider
 	var plan modelPlan
 	if f.demo {
-		p, plan = demo.Provider(), modelPlan{Model: "claude-haiku-5-5", Escalate: "claude-sonnet-5-5"}
+		p, plan = demo.Provider(), modelPlan{Model: "claude-haiku-5-5", Escalate: "claude-sonnet-5-5",
+			Choices: []string{"claude-haiku-5-5", "claude-sonnet-5-5"}}
 	} else if p, plan, err = resolveProvider(cfg, f.provider, f.model, f.effort, planTask); err != nil {
 		return err
 	}
@@ -184,7 +185,7 @@ func runTask(task string, f runFlags) error {
 		return nil
 	}
 	err = ui.RunTUI(ctx, cancel, ag, ui.Header{Version: version, Provider: p.Name(), Model: plan.Model,
-		Escalate: plan.Escalate, Task: task, ReadOnly: readOnly, AutoYes: f.yes})
+		Escalate: plan.Escalate, Models: plan.Choices, Task: task})
 	cancel()
 	// Drain so the agent goroutine can finish writing its log.
 	for range ag.Events() {

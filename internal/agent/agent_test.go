@@ -213,3 +213,35 @@ func TestFollowUpHints(t *testing.T) {
 		}
 	}
 }
+
+func TestUserChangesApplyBeforeNextTurn(t *testing.T) {
+	p := &modelRecorder{}
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	a := New(p, Options{Model: "fast", Escalate: "smart", Config: config.Default()})
+	a.SetMode(ModeReadOnly)
+	a.SetModel("other")
+	if ok, _ := a.authorize(context.Background(), "run_command", "brew upgrade", "", 1, false); ok {
+		t.Fatal("read-only mode set by the user must reject changes")
+	}
+	text := a.applyChanges("hello")
+	if !strings.Contains(text, "read-only") || !strings.HasPrefix(text, "hello") {
+		t.Fatalf("the model should be told about read-only mode: %q", text)
+	}
+	if a.model != "other" || len(p.models) != 1 || p.models[0] != "other" {
+		t.Fatalf("picked model not applied: %s %v", a.model, p.models)
+	}
+	a.escalate()
+	if a.model != "other" {
+		t.Fatal("a model the user picked must not be replaced by escalation")
+	}
+	a.SetMode(ModeAuto)
+	if ok, _ := a.authorize(context.Background(), "run_command", "brew upgrade", "", 2, false); !ok {
+		t.Fatal("auto mode should approve without asking")
+	}
+	if text := a.applyChanges(""); !strings.Contains(text, "switched off read-only") {
+		t.Fatalf("the model should be told read-only mode ended: %q", text)
+	}
+	if text := a.applyChanges("x"); text != "x" {
+		t.Fatalf("notes must be sent once: %q", text)
+	}
+}
