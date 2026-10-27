@@ -16,6 +16,7 @@ import (
 
 	"github.com/lcajigasm/omega/internal/agent"
 	"github.com/lcajigasm/omega/internal/config"
+	"github.com/lcajigasm/omega/internal/i18n"
 	"github.com/lcajigasm/omega/internal/llm"
 	"github.com/lcajigasm/omega/internal/runner"
 	"github.com/lcajigasm/omega/internal/secrets"
@@ -37,27 +38,18 @@ type runFlags struct {
 // Execute runs the root command.
 func Execute(version string) error {
 	runner.ExtendPath()
+	// The language must be known before the commands' help text is built.
+	if cfg, err := config.Load(); err == nil {
+		i18n.Init(cfg.Language)
+	} else {
+		i18n.Init("")
+	}
 	var f runFlags
 
 	root := &cobra.Command{
-		Use:   "omega [tarea]",
-		Short: "Mantenimiento de macOS guiado por IA: actualiza (topgrade) y limpia (Mole)",
-		Long: `omega usa un modelo de IA (Anthropic, OpenAI, OpenRouter u OpenCode) para mantener tu Mac:
-actualiza todo el software, limpia lo que sobra, diagnostica los errores y los corrige.
-
-Tareas:
-  full      mantenimiento completo (por defecto)
-  update    solo actualizar (equivalente a topgrade)
-  clean     solo limpiar (equivalente a mo clean)
-  analyze   informe sin cambiar nada
-  fix       diagnosticar y arreglar la configuración de topgrade y Mole
-
-Ejemplos:
-  omega setup                       configurar proveedor, API key y modelo
-  omega                             mantenimiento completo
-  omega update --yes                actualizar sin preguntar
-  omega -p "¿por qué falla pipx?"   tarea libre
-  omega --provider openrouter --model openai/gpt-5.5 analyze`,
+		Use:           "omega [task]",
+		Short:         i18n.T("cli.short"),
+		Long:          i18n.T("cli.long"),
 		Version:       version,
 		Args:          cobra.MaximumNArgs(1),
 		SilenceUsage:  true,
@@ -72,15 +64,15 @@ Ejemplos:
 		},
 	}
 	pf := root.Flags()
-	pf.StringVar(&f.provider, "provider", "", "proveedor: anthropic, openai, openrouter, opencode")
-	pf.StringVarP(&f.model, "model", "m", "", "modelo a usar (ver `omega models`)")
-	pf.StringVar(&f.effort, "effort", "", "esfuerzo para modelos Claude: low, medium, high, xhigh, max")
-	pf.BoolVarP(&f.yes, "yes", "y", false, "aprobar automáticamente todo excepto comandos bloqueados")
-	pf.BoolVar(&f.noTUI, "no-tui", false, "salida de texto simple en vez de interfaz a pantalla completa")
-	pf.BoolVarP(&f.dryRun, "dry-run", "n", false, "modo solo lectura: el agente no puede modificar nada")
-	pf.BoolVar(&f.sudo, "sudo", false, "pedir la contraseña de sudo al inicio y mantenerla durante la ejecución")
-	pf.StringVarP(&f.prompt, "prompt", "p", "", "tarea libre en lenguaje natural en lugar de una tarea predefinida")
-	pf.BoolVar(&f.once, "once", false, "terminar cuando el agente acabe, sin pedir más instrucciones")
+	pf.StringVar(&f.provider, "provider", "", i18n.T("flag.provider"))
+	pf.StringVarP(&f.model, "model", "m", "", i18n.T("flag.model"))
+	pf.StringVar(&f.effort, "effort", "", i18n.T("flag.effort"))
+	pf.BoolVarP(&f.yes, "yes", "y", false, i18n.T("flag.yes"))
+	pf.BoolVar(&f.noTUI, "no-tui", false, i18n.T("flag.no_tui"))
+	pf.BoolVarP(&f.dryRun, "dry-run", "n", false, i18n.T("flag.dry_run"))
+	pf.BoolVar(&f.sudo, "sudo", false, i18n.T("flag.sudo"))
+	pf.StringVarP(&f.prompt, "prompt", "p", "", i18n.T("flag.prompt"))
+	pf.BoolVar(&f.once, "once", false, i18n.T("flag.once"))
 
 	root.AddCommand(setupCmd(), authCmd(), modelsCmd(), configCmd(), stepsCmd(), notesCmd())
 	return root.Execute()
@@ -93,8 +85,7 @@ func resolveProvider(cfg *config.Config, name, model, effort string) (llm.Provid
 	}
 	info, ok := llm.Lookup(name)
 	if !ok {
-		_, err := llm.New(name, llm.Options{})
-		return nil, "", err
+		return nil, "", fmt.Errorf("%s", i18n.T("err.unknown_provider", name, providerNames()))
 	}
 	if model == "" {
 		model = cfg.ModelFor(name)
@@ -107,7 +98,7 @@ func resolveProvider(cfg *config.Config, name, model, effort string) (llm.Provid
 	}
 	key, _, err := secrets.Get(name)
 	if err != nil {
-		return nil, "", fmt.Errorf("%w\nEjecuta `omega setup` para configurarlo", err)
+		return nil, "", err
 	}
 	p, err := llm.New(name, llm.Options{APIKey: key, BaseURL: cfg.BaseURLFor(name), Effort: effort})
 	return p, model, err
@@ -123,10 +114,10 @@ func runTask(task string, f runFlags) error {
 		var ok bool
 		prompt, ok = agent.TaskPrompts[task]
 		if !ok {
-			return fmt.Errorf("tarea desconocida %q (full, update, clean, analyze, fix)", task)
+			return fmt.Errorf("%s", i18n.T("err.unknown_task", task))
 		}
 	} else {
-		task = "personalizada"
+		task = i18n.T("task.custom")
 	}
 	readOnly := f.dryRun || task == agent.TaskAnalyze
 
@@ -172,7 +163,7 @@ func runTask(task string, f runFlags) error {
 	for range ag.Events() {
 	}
 	if path := ag.LogPath(); path != "" {
-		fmt.Println("Registro de la ejecución:", path)
+		fmt.Println(i18n.T("run.log", path))
 	}
 	return err
 }
@@ -180,7 +171,7 @@ func runTask(task string, f runFlags) error {
 // startSudo validates sudo credentials up front and refreshes them in the
 // background so steps can use `sudo -n` without prompting.
 func startSudo(ctx context.Context) error {
-	fmt.Println("omega necesita sudo para algunos pasos (p. ej. actualizaciones de macOS).")
+	fmt.Println(i18n.T("sudo.intro"))
 	c := exec.Command("sudo", "-v")
 	c.Stdin, c.Stdout, c.Stderr = os.Stdin, os.Stdout, os.Stderr
 	if err := c.Run(); err != nil {

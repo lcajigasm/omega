@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/lcajigasm/omega/internal/config"
+	"github.com/lcajigasm/omega/internal/i18n"
 	"github.com/lcajigasm/omega/internal/llm"
 	"github.com/lcajigasm/omega/internal/runner"
 	"github.com/lcajigasm/omega/internal/safety"
@@ -29,39 +30,39 @@ var handlers = map[string]handler{
 	"remember":    toolRemember,
 }
 
-func str(p string, desc string) map[string]any {
+func str(desc string) map[string]any {
 	return map[string]any{"type": "string", "description": desc}
 }
 
 func toolSpecs() []llm.ToolSpec {
 	return []llm.ToolSpec{
-		{Name: "system_info", Description: "Resumen del sistema: versión de macOS, arquitectura, disco, memoria y gestores de paquetes detectados.",
+		{Name: "system_info", Description: "System summary: macOS version, architecture, disk, memory and detected package managers.",
 			Properties: map[string]any{}},
-		{Name: "list_steps", Description: "Lista el catálogo de pasos de mantenimiento (update, clean, check, backend) y si están disponibles en esta máquina.",
+		{Name: "list_steps", Description: "List the catalogue of maintenance steps (update, clean, check, backend) and whether each is available on this machine.",
 			Properties: map[string]any{"category": map[string]any{"type": "string", "enum": []string{"update", "clean", "check", "backend", "all"}}}},
-		{Name: "run_step", Description: "Ejecuta un paso del catálogo por su id. Preferible a run_command para acciones habituales.",
-			Properties: map[string]any{"id": str("id", "id del paso, p. ej. brew, npm, brew-cleanup")}, Required: []string{"id"}},
-		{Name: "run_command", Description: "Ejecuta un comando de shell no interactivo (zsh -lc). Los comandos de solo lectura se ejecutan directamente; " +
-			"los que modifican el sistema pueden requerir aprobación del usuario. Devuelve código de salida y salida (recortada).",
+		{Name: "run_step", Description: "Run a catalogue step by id. Prefer this over run_command for routine actions.",
+			Properties: map[string]any{"id": str("step id, e.g. brew, npm, brew-cleanup")}, Required: []string{"id"}},
+		{Name: "run_command", Description: "Run a non-interactive shell command (zsh -lc). Read-only commands run directly; " +
+			"commands that change the system may need the user's approval. Returns the exit code and (trimmed) output.",
 			Properties: map[string]any{
-				"command": str("command", "comando a ejecutar"),
-				"reason":  str("reason", "por qué lo ejecutas, en una frase; se muestra al usuario"),
+				"command": str("command to run"),
+				"reason":  str("why you are running it, in one sentence; shown to the user"),
 			}, Required: []string{"command", "reason"}},
-		{Name: "disk_usage", Description: "Muestra los subdirectorios que más ocupan dentro de una ruta.",
+		{Name: "disk_usage", Description: "Show the largest subdirectories of a path.",
 			Properties: map[string]any{
-				"path": str("path", "ruta a analizar, p. ej. ~/Library/Caches"),
-				"top":  map[string]any{"type": "integer", "description": "número de entradas (por defecto 15)"},
+				"path": str("path to analyse, e.g. ~/Library/Caches"),
+				"top":  map[string]any{"type": "integer", "description": "number of entries (default 15)"},
 			}, Required: []string{"path"}},
-		{Name: "read_file", Description: "Lee un archivo de texto (configs, logs). Máximo 64 KB.",
-			Properties: map[string]any{"path": str("path", "ruta del archivo; admite ~")}, Required: []string{"path"}},
-		{Name: "write_file", Description: "Escribe un archivo de configuración completo. Siempre requiere aprobación y guarda una copia .omega-bak del original.",
+		{Name: "read_file", Description: "Read a text file (configs, logs). 64 KB maximum.",
+			Properties: map[string]any{"path": str("file path; ~ is supported")}, Required: []string{"path"}},
+		{Name: "write_file", Description: "Write a whole configuration file. Always needs approval and keeps an .omega-bak copy of the original.",
 			Properties: map[string]any{
-				"path":    str("path", "ruta del archivo; admite ~"),
-				"content": str("content", "contenido completo nuevo"),
-				"reason":  str("reason", "qué cambia y por qué"),
+				"path":    str("file path; ~ is supported"),
+				"content": str("complete new content"),
+				"reason":  str("what changes and why"),
 			}, Required: []string{"path", "content", "reason"}},
-		{Name: "remember", Description: "Guarda una nota duradera sobre esta máquina para futuras ejecuciones (p. ej. causa de un fallo recurrente y su solución).",
-			Properties: map[string]any{"note": str("note", "nota breve, una línea")}, Required: []string{"note"}},
+		{Name: "remember", Description: "Save a lasting note about this machine for future runs (e.g. the cause of a recurring failure and its fix).",
+			Properties: map[string]any{"note": str("short note, one line")}, Required: []string{"note"}},
 	}
 }
 
@@ -91,9 +92,9 @@ func (a *Agent) runShell(ctx context.Context, tool, command, reason string, risk
 	a.emit(Event{Kind: EvToolEnd, Tool: tool, Command: command, ExitCode: res.ExitCode, Failed: res.ExitCode != 0, Duration: res.Duration})
 	out := strings.TrimSpace(res.Output)
 	if out == "" {
-		out = "(sin salida)"
+		out = "(no output)"
 	}
-	return fmt.Sprintf("exit_code: %d\nduración: %s\n---\n%s", res.ExitCode, res.Duration.Round(time.Second), out), nil
+	return fmt.Sprintf("exit_code: %d\nduration: %s\n---\n%s", res.ExitCode, res.Duration.Round(time.Second), out), nil
 }
 
 func toolSystemInfo(ctx context.Context, a *Agent, _ map[string]any) (string, error) {
@@ -110,11 +111,11 @@ func toolSystemInfo(ctx context.Context, a *Agent, _ map[string]any) (string, er
 	a.emit(Event{Kind: EvToolEnd, Tool: "system_info", Command: "system_info", ExitCode: res.ExitCode})
 	var b strings.Builder
 	b.WriteString(strings.TrimSpace(res.Output))
-	fmt.Fprintf(&b, "\n\nherramientas detectadas: %s\n", strings.Join(managers, ", "))
-	fmt.Fprintf(&b, "shell: %s, omega en %s/%s\n", runner.Shell(), runtime.GOOS, runtime.GOARCH)
+	fmt.Fprintf(&b, "\n\ndetected tools: %s\n", strings.Join(managers, ", "))
+	fmt.Fprintf(&b, "shell: %s, omega on %s/%s\n", runner.Shell(), runtime.GOOS, runtime.GOARCH)
 	for _, f := range []string{"~/.config/topgrade.toml", "~/.config/mole"} {
 		if _, err := os.Stat(expand(f)); err == nil {
-			fmt.Fprintf(&b, "existe: %s\n", f)
+			fmt.Fprintf(&b, "exists: %s\n", f)
 		}
 	}
 	return b.String(), nil
@@ -127,14 +128,14 @@ func toolListSteps(_ context.Context, a *Agent, in map[string]any) (string, erro
 		if cat != "" && cat != "all" && s.Category != cat {
 			continue
 		}
-		status := "disponible"
+		status := "available"
 		switch {
 		case a.opts.Config.Skipped(s.ID):
-			status = "desactivado por el usuario"
+			status = "disabled by the user"
 		case !s.Available():
-			status = "no instalado"
+			status = "not installed"
 		}
-		fmt.Fprintf(&b, "- %s [%s, riesgo %s, %s]: %s — `%s`", s.ID, s.Category, s.Risk, status, s.Name, s.Command)
+		fmt.Fprintf(&b, "- %s [%s, risk %s, %s]: %s — `%s`", s.ID, s.Category, s.Risk, status, s.Name, s.Command)
 		if s.Description != "" {
 			b.WriteString(" — " + s.Description)
 		}
@@ -147,13 +148,13 @@ func toolRunStep(ctx context.Context, a *Agent, in map[string]any) (string, erro
 	id := getString(in, "id")
 	s, ok := steps.Find(id)
 	if !ok {
-		return "", fmt.Errorf("no existe el paso %q; usa list_steps", id)
+		return "", fmt.Errorf("no step %q; use list_steps", id)
 	}
 	if a.opts.Config.Skipped(id) {
-		return "", fmt.Errorf("el usuario ha desactivado el paso %q en la configuración", id)
+		return "", fmt.Errorf("the user disabled step %q in the configuration", id)
 	}
 	if !s.Available() {
-		return "", fmt.Errorf("el paso %q no está disponible en esta máquina", id)
+		return "", fmt.Errorf("step %q is not available on this machine", id)
 	}
 	risk := s.Risk
 	if safety.Classify(s.Command) == safety.Blocked {
@@ -165,7 +166,7 @@ func toolRunStep(ctx context.Context, a *Agent, in map[string]any) (string, erro
 func toolRunCommand(ctx context.Context, a *Agent, in map[string]any) (string, error) {
 	cmd := getString(in, "command")
 	if cmd == "" {
-		return "", fmt.Errorf("command vacío")
+		return "", fmt.Errorf("empty command")
 	}
 	return a.runShell(ctx, "run_command", cmd, getString(in, "reason"), safety.Classify(cmd))
 }
@@ -173,27 +174,27 @@ func toolRunCommand(ctx context.Context, a *Agent, in map[string]any) (string, e
 func toolDiskUsage(ctx context.Context, a *Agent, in map[string]any) (string, error) {
 	path := expand(getString(in, "path"))
 	if path == "" {
-		return "", fmt.Errorf("path vacío")
+		return "", fmt.Errorf("empty path")
 	}
 	top := 15
 	if n, ok := in["top"].(float64); ok && n > 0 && n <= 100 {
 		top = int(n)
 	}
 	cmd := fmt.Sprintf("du -xhd 1 %s 2>/dev/null | sort -hr | head -n %d", shellQuote(path), top+1)
-	return a.runShell(ctx, "disk_usage", cmd, "medir espacio en "+path, safety.Safe)
+	return a.runShell(ctx, "disk_usage", cmd, i18n.T("agent.disk", path), safety.Safe)
 }
 
 func toolReadFile(_ context.Context, a *Agent, in map[string]any) (string, error) {
 	path := expand(getString(in, "path"))
-	a.emit(Event{Kind: EvToolStart, Tool: "read_file", Command: "leer " + path, Risk: safety.Safe})
+	a.emit(Event{Kind: EvToolStart, Tool: "read_file", Command: i18n.T("agent.read", path), Risk: safety.Safe})
 	data, err := os.ReadFile(path)
-	a.emit(Event{Kind: EvToolEnd, Tool: "read_file", Command: "leer " + path, Failed: err != nil})
+	a.emit(Event{Kind: EvToolEnd, Tool: "read_file", Command: i18n.T("agent.read", path), Failed: err != nil})
 	if err != nil {
 		return "", err
 	}
 	const max = 64 * 1024
 	if len(data) > max {
-		return string(data[:max]) + "\n[… archivo truncado …]", nil
+		return string(data[:max]) + "\n[… file truncated …]", nil
 	}
 	return string(data), nil
 }
@@ -203,10 +204,10 @@ func toolWriteFile(ctx context.Context, a *Agent, in map[string]any) (string, er
 	content, _ := in["content"].(string)
 	reason := getString(in, "reason")
 	if path == "" {
-		return "", fmt.Errorf("path vacío")
+		return "", fmt.Errorf("empty path")
 	}
 	old, readErr := os.ReadFile(path)
-	summary := fmt.Sprintf("escribir %s (%d → %d bytes)", path, len(old), len(content))
+	summary := i18n.T("agent.write", path, len(old), len(content))
 	if ok, why := a.authorize(ctx, "write_file", summary, reason+"\n\n"+diffPreview(string(old), content), safety.Dangerous); !ok {
 		return "", fmt.Errorf("%s", why)
 	}
@@ -215,7 +216,7 @@ func toolWriteFile(ctx context.Context, a *Agent, in map[string]any) (string, er
 	if readErr == nil {
 		backup = fmt.Sprintf("%s.omega-bak-%s", path, time.Now().Format("20060102-150405"))
 		if err := os.WriteFile(backup, old, 0o644); err != nil {
-			return "", fmt.Errorf("no se pudo crear la copia de seguridad: %w", err)
+			return "", fmt.Errorf("could not create the backup: %w", err)
 		}
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -227,15 +228,15 @@ func toolWriteFile(ctx context.Context, a *Agent, in map[string]any) (string, er
 		return "", err
 	}
 	if backup != "" {
-		return "escrito. copia de seguridad en " + backup, nil
+		return "written. backup at " + backup, nil
 	}
-	return "escrito (archivo nuevo)", nil
+	return "written (new file)", nil
 }
 
 func toolRemember(_ context.Context, a *Agent, in map[string]any) (string, error) {
 	note := strings.ReplaceAll(getString(in, "note"), "\n", " ")
 	if note == "" {
-		return "", fmt.Errorf("nota vacía")
+		return "", fmt.Errorf("empty note")
 	}
 	if err := os.MkdirAll(config.Dir(), 0o755); err != nil {
 		return "", err
@@ -246,8 +247,8 @@ func toolRemember(_ context.Context, a *Agent, in map[string]any) (string, error
 	}
 	defer f.Close()
 	fmt.Fprintf(f, "- %s: %s\n", time.Now().Format("2006-01-02"), note)
-	a.emit(Event{Kind: EvToolEnd, Tool: "remember", Command: "nota guardada: " + note})
-	return "guardado", nil
+	a.emit(Event{Kind: EvToolEnd, Tool: "remember", Command: i18n.T("agent.note_saved", note)})
+	return "saved", nil
 }
 
 // diffPreview shows changed lines between two versions, capped for display.
@@ -277,7 +278,7 @@ func diffPreview(old, new string) string {
 		}
 	}
 	if n == 0 {
-		return "(sin cambios de líneas)"
+		return "(no line changes)"
 	}
 	return strings.TrimRight(b.String(), "\n")
 }

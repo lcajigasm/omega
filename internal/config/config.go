@@ -30,7 +30,7 @@ type Config struct {
 	Model     string                    `toml:"model,omitempty"`
 	Effort    string                    `toml:"effort,omitempty"` // Claude models: low|medium|high|xhigh|max
 	Approval  string                    `toml:"approval"`
-	Language  string                    `toml:"language"`
+	Language  string                    `toml:"language"` // en, es, fr, de, pt or auto (system locale)
 	SkipSteps []string                  `toml:"skip_steps,omitempty"`
 	Timeout   string                    `toml:"command_timeout"`
 	Providers map[string]ProviderConfig `toml:"providers,omitempty"`
@@ -41,7 +41,7 @@ func Default() *Config {
 	return &Config{
 		Provider:  "anthropic",
 		Approval:  ApproveDangerous,
-		Language:  "es",
+		Language:  "auto",
 		Timeout:   "45m",
 		Providers: map[string]ProviderConfig{},
 	}
@@ -76,7 +76,7 @@ func Load() (*Config, error) {
 	cfg := Default()
 	_, err := toml.DecodeFile(Path(), cfg)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return nil, fmt.Errorf("leyendo %s: %w", Path(), err)
+		return nil, fmt.Errorf("reading %s: %w", Path(), err)
 	}
 	if cfg.Providers == nil {
 		cfg.Providers = map[string]ProviderConfig{}

@@ -15,6 +15,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/lcajigasm/omega/internal/agent"
+	"github.com/lcajigasm/omega/internal/i18n"
 	"github.com/lcajigasm/omega/internal/safety"
 )
 
@@ -78,7 +79,7 @@ type model struct {
 // RunTUI runs the agent inside a full-screen terminal UI.
 func RunTUI(ctx context.Context, cancel context.CancelFunc, ag *agent.Agent, h Header) error {
 	ti := textinput.New()
-	ti.Placeholder = "Pide algo más, o pulsa Enter vacío / Esc para salir"
+	ti.Placeholder = i18n.T("ui.placeholder")
 	ti.CharLimit = 2000
 	sp := spinner.New()
 	sp.Spinner = spinner.MiniDot
@@ -127,16 +128,19 @@ func (m *model) wrap(s string, indent int) string {
 	return lipgloss.NewStyle().Width(w).PaddingLeft(indent).Render(s)
 }
 
+// RiskName is the localized name of a risk level.
+func RiskName(r safety.Risk) string {
+	return i18n.T([...]string{"risk.safe", "risk.normal", "risk.dangerous", "risk.blocked"}[r])
+}
+
 func riskLabel(r safety.Risk) string {
 	switch r {
 	case safety.Dangerous:
-		return warnStyle.Render("peligroso")
+		return warnStyle.Render(RiskName(r))
 	case safety.Blocked:
-		return errStyle.Render("bloqueado")
-	case safety.Normal:
-		return "normal"
+		return errStyle.Render(RiskName(r))
 	}
-	return "lectura"
+	return RiskName(r)
 }
 
 func (m *model) handleEvent(e agent.Event) tea.Cmd {
@@ -194,8 +198,8 @@ func (m *model) handleEvent(e agent.Event) tea.Cmd {
 		}
 		u := m.ag.Usage()
 		m.appendLine("")
-		m.appendLine(mutedStyle.Render(fmt.Sprintf("Fin. Tokens: %d entrada / %d salida. Registro: %s", u.InputTokens, u.OutputTokens, m.ag.LogPath())))
-		m.appendLine(mutedStyle.Render("Pulsa q para salir."))
+		m.appendLine(mutedStyle.Render(i18n.T("ui.summary", u.InputTokens, u.OutputTokens, m.ag.LogPath())))
+		m.appendLine(mutedStyle.Render(i18n.T("ui.press_q")))
 	}
 	return nil
 }
@@ -241,7 +245,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case stConfirm:
 			var d agent.Decision = -1
 			switch strings.ToLower(msg.String()) {
-			case "y", "s", "enter":
+			case "y", "s", "o", "j", "enter":
 				d = agent.Approve
 			case "a":
 				d = agent.ApproveAll
@@ -249,7 +253,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				d = agent.Deny
 			}
 			if d >= 0 {
-				answer := map[agent.Decision]string{agent.Approve: okStyle.Render("aprobado"), agent.ApproveAll: okStyle.Render("aprobado (todo)"), agent.Deny: errStyle.Render("rechazado")}[d]
+				answer := map[agent.Decision]string{agent.Approve: okStyle.Render(i18n.T("ui.approved")), agent.ApproveAll: okStyle.Render(i18n.T("ui.approved_all")), agent.Deny: errStyle.Render(i18n.T("ui.denied"))}[d]
 				m.appendLine(fmt.Sprintf("? %s → %s", truncate(m.pending.Command, m.width-30), answer))
 				m.pending.Reply <- d
 				m.pending = nil
@@ -302,9 +306,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m *model) headerView() string {
 	mode := ""
 	if m.header.ReadOnly {
-		mode = warnStyle.Render(" · solo lectura")
+		mode = warnStyle.Render(" · " + i18n.T("ui.read_only"))
 	}
-	return titleStyle.Render("Ω omega") + mutedStyle.Render(fmt.Sprintf("  %s · %s · tarea: %s", m.header.Provider, m.header.Model, m.header.Task)) + mode
+	return titleStyle.Render("Ω omega") + mutedStyle.Render(fmt.Sprintf("  %s · %s · %s", m.header.Provider, m.header.Model, i18n.T("ui.task", m.header.Task))) + mode
 }
 
 func (m *model) footerView() string {
@@ -312,7 +316,7 @@ func (m *model) footerView() string {
 	case stConfirm:
 		e := m.pending
 		var b strings.Builder
-		fmt.Fprintf(&b, "%s  riesgo: %s\n", warnStyle.Render("¿Ejecutar?"), riskLabel(e.Risk))
+		fmt.Fprintf(&b, "%s  %s\n", warnStyle.Render(i18n.T("ui.confirm")), i18n.T("ui.risk", riskLabel(e.Risk)))
 		b.WriteString(cmdStyle.Render(truncate(e.Command, m.width-8)) + "\n")
 		if e.Reason != "" {
 			lines := strings.Split(e.Reason, "\n")
@@ -323,12 +327,12 @@ func (m *model) footerView() string {
 				b.WriteString(mutedStyle.Render(truncate(l, m.width-8)) + "\n")
 			}
 		}
-		b.WriteString("[y] sí   [a] sí a todo   [n] no")
+		b.WriteString(i18n.T("ui.confirm_keys"))
 		return confirmStyle.Width(m.width - 2).Render(b.String())
 	case stIdle:
 		return boxStyle.Width(m.width - 2).Render(m.input.View())
 	case stDone:
-		return mutedStyle.Render("q salir · ↑/↓ desplazar")
+		return mutedStyle.Render(i18n.T("ui.hint_done"))
 	}
 	if m.current != "" {
 		var b strings.Builder
@@ -340,9 +344,9 @@ func (m *model) footerView() string {
 		return boxStyle.Width(m.width - 2).Render(strings.TrimRight(b.String(), "\n"))
 	}
 	if m.thinking {
-		return m.spin.View() + mutedStyle.Render(" pensando…  (ctrl+c cancela)")
+		return m.spin.View() + mutedStyle.Render(" "+i18n.T("ui.thinking"))
 	}
-	return mutedStyle.Render("ctrl+c cancela · ↑/↓ desplazar")
+	return mutedStyle.Render(i18n.T("ui.hint_running"))
 }
 
 func (m *model) resize() {
@@ -362,7 +366,7 @@ func (m *model) resize() {
 
 func (m *model) View() string {
 	if !m.ready {
-		return "iniciando…"
+		return i18n.T("ui.starting")
 	}
 	m.resize()
 	return m.headerView() + "\n" + m.vp.View() + "\n" + m.footerView()

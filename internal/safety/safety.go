@@ -19,7 +19,7 @@ const (
 )
 
 func (r Risk) String() string {
-	return [...]string{"lectura", "normal", "peligroso", "bloqueado"}[r]
+	return [...]string{"read-only", "normal", "dangerous", "blocked"}[r]
 }
 
 var blocked = []*regexp.Regexp{

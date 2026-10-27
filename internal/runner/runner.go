@@ -125,7 +125,7 @@ func Run(ctx context.Context, command string, timeout time.Duration, onLine func
 	if ctx.Err() == context.DeadlineExceeded {
 		res.TimedOut = true
 		res.ExitCode = -1
-		res.Output += fmt.Sprintf("\n[omega: tiempo agotado tras %s]", timeout)
+		res.Output += fmt.Sprintf("\n[omega: timed out after %s]", timeout)
 		return res
 	}
 	var ee *exec.ExitError
@@ -170,7 +170,7 @@ func (c *capture) String() string {
 	if dropped == 0 {
 		return c.head.String() + string(tail)
 	}
-	return fmt.Sprintf("%s\n[… %d bytes omitidos …]\n%s", c.head.String(), dropped, tail)
+	return fmt.Sprintf("%s\n[… %d bytes omitted …]\n%s", c.head.String(), dropped, tail)
 }
 
 func scanLinesCR(data []byte, atEOF bool) (int, []byte, error) {

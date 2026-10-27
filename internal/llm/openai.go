@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/lcajigasm/omega/internal/i18n"
 )
 
 // openAICompat speaks the Chat Completions wire format, shared by OpenAI,
@@ -61,7 +63,7 @@ func (p *openAICompat) Models(ctx context.Context) ([]string, error) {
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(body, &out); err != nil {
-		return nil, fmt.Errorf("respuesta de modelos inválida: %w", err)
+		return nil, fmt.Errorf("invalid models response: %w", err)
 	}
 	ids := make([]string, 0, len(out.Data))
 	for _, m := range out.Data {
@@ -144,10 +146,10 @@ func (c *openAIChat) Send(ctx context.Context, text string, results []ToolResult
 
 	var resp oaResponse
 	if err := json.Unmarshal(raw, &resp); err != nil {
-		return nil, fmt.Errorf("respuesta inválida: %w", err)
+		return nil, fmt.Errorf("invalid response: %w", err)
 	}
 	if len(resp.Choices) == 0 {
-		return nil, fmt.Errorf("respuesta sin contenido: %s", truncate(string(raw), 300))
+		return nil, fmt.Errorf("empty response: %s", truncate(string(raw), 300))
 	}
 	choice := resp.Choices[0]
 	var msg struct {
@@ -156,7 +158,7 @@ func (c *openAIChat) Send(ctx context.Context, text string, results []ToolResult
 		ToolCalls []oaToolCall `json:"tool_calls"`
 	}
 	if err := json.Unmarshal(choice.Message, &msg); err != nil {
-		return nil, fmt.Errorf("mensaje inválido: %w", err)
+		return nil, fmt.Errorf("invalid message: %w", err)
 	}
 
 	// Keep only the fields every compatible API accepts back in history.
@@ -184,7 +186,7 @@ func (c *openAIChat) Send(ctx context.Context, text string, results []ToolResult
 	}
 	if choice.FinishReason == "length" {
 		reply.Calls = nil
-		reply.Text += "\n[respuesta truncada por longitud]"
+		reply.Text += "\n[response truncated by length]"
 	}
 	return reply, nil
 }
@@ -242,11 +244,11 @@ func apiError(status int, body []byte) error {
 	hint := ""
 	switch status {
 	case http.StatusUnauthorized:
-		hint = " (API key inválida)"
+		hint = " (" + i18n.T("llm.invalid_key") + ")"
 	case http.StatusNotFound:
-		hint = " (modelo o endpoint no encontrado)"
+		hint = " (" + i18n.T("llm.not_found") + ")"
 	case http.StatusTooManyRequests:
-		hint = " (límite de peticiones)"
+		hint = " (" + i18n.T("llm.rate_limit") + ")"
 	}
 	return fmt.Errorf("HTTP %d%s: %s", status, hint, msg)
 }

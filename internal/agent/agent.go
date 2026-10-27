@@ -6,12 +6,12 @@ package agent
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/lcajigasm/omega/internal/config"
+	"github.com/lcajigasm/omega/internal/i18n"
 	"github.com/lcajigasm/omega/internal/llm"
 	"github.com/lcajigasm/omega/internal/safety"
 )
@@ -43,7 +43,7 @@ type Agent struct {
 // New creates an agent for the given provider.
 func New(p llm.Provider, opts Options) *Agent {
 	notes, _ := os.ReadFile(config.NotesPath())
-	sys := systemPrompt(opts.Config.Language, string(notes), opts.Config.SkipSteps, opts.ReadOnly)
+	sys := systemPrompt(string(notes), opts.Config.SkipSteps, opts.ReadOnly)
 	a := &Agent{
 		opts:   opts,
 		chat:   p.NewChat(opts.Model, sys, toolSpecs()),
@@ -87,11 +87,11 @@ func (a *Agent) Run(ctx context.Context, task string) {
 	var results []llm.ToolResult
 	for turn := 0; ; turn++ {
 		if ctx.Err() != nil {
-			a.emit(Event{Kind: EvDone, Text: "Cancelado."})
+			a.emit(Event{Kind: EvDone, Text: i18n.T("agent.cancelled")})
 			return
 		}
 		if turn >= maxTurns {
-			a.emit(Event{Kind: EvError, Text: fmt.Sprintf("límite de %d turnos alcanzado", maxTurns)})
+			a.emit(Event{Kind: EvError, Text: i18n.T("agent.turn_limit", maxTurns)})
 			results, text = nil, ""
 			if !a.waitInput(ctx, &text) {
 				return
@@ -104,10 +104,10 @@ func (a *Agent) Run(ctx context.Context, task string) {
 		reply, err := a.chat.Send(ctx, text, results)
 		if err != nil {
 			if ctx.Err() != nil {
-				a.emit(Event{Kind: EvDone, Text: "Cancelado."})
+				a.emit(Event{Kind: EvDone, Text: i18n.T("agent.cancelled")})
 				return
 			}
-			a.emit(Event{Kind: EvError, Text: "Error del modelo: " + err.Error()})
+			a.emit(Event{Kind: EvError, Text: i18n.T("agent.model_error", err.Error())})
 			// The failed message was rolled back; let the user retry or quit.
 			if !a.opts.Interactive {
 				a.emit(Event{Kind: EvDone})
@@ -117,7 +117,7 @@ func (a *Agent) Run(ctx context.Context, task string) {
 				return
 			}
 			if text == "" {
-				text = "continúa"
+				text = "continue"
 			}
 			continue
 		}
@@ -153,7 +153,7 @@ func (a *Agent) waitInput(ctx context.Context, text *string) bool {
 	a.emit(Event{Kind: EvIdle})
 	select {
 	case <-ctx.Done():
-		a.emit(Event{Kind: EvDone, Text: "Cancelado."})
+		a.emit(Event{Kind: EvDone, Text: i18n.T("agent.cancelled")})
 		return false
 	case msg, ok := <-a.input:
 		if !ok || strings.TrimSpace(msg) == "" {
@@ -169,10 +169,10 @@ func (a *Agent) waitInput(ctx context.Context, text *string) bool {
 // authorize applies the approval policy and asks the user when needed.
 func (a *Agent) authorize(ctx context.Context, tool, command, reason string, risk safety.Risk) (bool, string) {
 	if risk == safety.Blocked {
-		return false, "Comando bloqueado por la política de seguridad de omega; no se puede ejecutar."
+		return false, "Blocked by omega's safety policy; this command can never run."
 	}
 	if a.opts.ReadOnly && risk > safety.Safe {
-		return false, "Modo solo lectura: esta acción modificaría el sistema y se ha rechazado. Descríbela en el resumen."
+		return false, "Read-only mode: this action would change the system and was rejected. Describe it in the summary instead."
 	}
 	if risk == safety.Safe || a.opts.AutoYes || a.approveAll || a.opts.Approval == config.ApproveNever {
 		return true, ""
@@ -184,7 +184,7 @@ func (a *Agent) authorize(ctx context.Context, tool, command, reason string, ris
 	a.emit(Event{Kind: EvConfirm, Tool: tool, Command: command, Reason: reason, Risk: risk, Reply: reply})
 	select {
 	case <-ctx.Done():
-		return false, "cancelado"
+		return false, "cancelled"
 	case d := <-reply:
 		switch d {
 		case ApproveAll:
@@ -194,19 +194,19 @@ func (a *Agent) authorize(ctx context.Context, tool, command, reason string, ris
 			return true, ""
 		}
 	}
-	return false, "El usuario ha rechazado esta acción. No la repitas ni intentes un equivalente; continúa con lo demás."
+	return false, "The user denied this action. Do not retry it or an equivalent; carry on with the rest."
 }
 
 func (a *Agent) execute(ctx context.Context, call llm.ToolCall) llm.ToolResult {
 	res := llm.ToolResult{CallID: call.ID}
 	h, ok := handlers[call.Name]
 	if !ok {
-		res.Content, res.IsError = "herramienta desconocida: "+call.Name, true
+		res.Content, res.IsError = "unknown tool: "+call.Name, true
 		return res
 	}
 	var in map[string]any
 	if err := json.Unmarshal(call.Input, &in); err != nil {
-		res.Content, res.IsError = "argumentos JSON inválidos: "+err.Error(), true
+		res.Content, res.IsError = "invalid JSON arguments: "+err.Error(), true
 		return res
 	}
 	out, err := h(ctx, a, in)

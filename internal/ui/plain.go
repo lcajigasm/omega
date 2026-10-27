@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/lcajigasm/omega/internal/agent"
+	"github.com/lcajigasm/omega/internal/i18n"
 )
 
 // RunPlain prints events line by line and reads approvals and follow-ups from
@@ -37,27 +38,27 @@ func RunPlain(ag *agent.Agent, in io.Reader, interactive bool) {
 				fmt.Println(okStyle.Render("✓ " + e.Duration.Round(time.Second).String()))
 			}
 		case agent.EvConfirm:
-			fmt.Printf("\n%s (riesgo: %s)\n  %s\n", warnStyle.Render("¿Ejecutar?"), riskLabel(e.Risk), cmdStyle.Render(e.Command))
+			fmt.Printf("\n%s (%s)\n  %s\n", warnStyle.Render(i18n.T("ui.confirm")), i18n.T("ui.risk", riskLabel(e.Risk)), cmdStyle.Render(e.Command))
 			if e.Reason != "" {
 				fmt.Println(mutedStyle.Render("  " + strings.ReplaceAll(e.Reason, "\n", "\n  ")))
 			}
 			if !interactive {
-				fmt.Println(errStyle.Render("  sin terminal: rechazado (usa --yes para aprobar automáticamente)"))
+				fmt.Println(errStyle.Render(i18n.T("ui.no_tty")))
 				e.Reply <- agent.Deny
 				continue
 			}
-			fmt.Print("  [y] sí  [a] sí a todo  [n] no: ")
+			fmt.Print(i18n.T("ui.confirm_line"))
 			ans, _ := readLine()
-			switch strings.ToLower(ans) {
-			case "y", "s", "si", "sí", "yes":
-				e.Reply <- agent.Approve
-			case "a":
+			switch {
+			case strings.EqualFold(ans, "a"):
 				e.Reply <- agent.ApproveAll
+			case i18n.IsYes(ans):
+				e.Reply <- agent.Approve
 			default:
 				e.Reply <- agent.Deny
 			}
 		case agent.EvIdle:
-			fmt.Print("\n› (Enter vacío para salir) ")
+			fmt.Print("\n" + i18n.T("ui.followup"))
 			text, ok := readLine()
 			if !ok {
 				text = ""
@@ -71,7 +72,7 @@ func RunPlain(ag *agent.Agent, in io.Reader, interactive bool) {
 			}
 			u := ag.Usage()
 			fmt.Println()
-			fmt.Println(mutedStyle.Render(fmt.Sprintf("Tokens: %d entrada / %d salida. Registro: %s", u.InputTokens, u.OutputTokens, ag.LogPath())))
+			fmt.Println(mutedStyle.Render(i18n.T("ui.summary", u.InputTokens, u.OutputTokens, ag.LogPath())))
 		}
 	}
 }

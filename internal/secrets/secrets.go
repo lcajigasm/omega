@@ -8,6 +8,8 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+
+	"github.com/lcajigasm/omega/internal/i18n"
 )
 
 const service = "omega-cli"
@@ -21,7 +23,7 @@ var EnvVar = map[string]string{
 }
 
 // ErrNotFound means no key is configured for the provider.
-var ErrNotFound = errors.New("no hay API key configurada")
+var ErrNotFound = errors.New("no API key configured")
 
 // Source describes where a key came from.
 type Source string
@@ -38,7 +40,7 @@ func Get(provider string) (string, Source, error) {
 	}
 	out, err := exec.Command("security", "find-generic-password", "-s", service, "-a", provider, "-w").Output()
 	if err != nil {
-		return "", "", fmt.Errorf("%w para %s (usa `omega auth set %s` o exporta %s)", ErrNotFound, provider, provider, EnvVar[provider])
+		return "", "", &notFoundError{provider}
 	}
 	return strings.TrimSpace(string(out)), FromKeychain, nil
 }
@@ -48,7 +50,7 @@ func Set(provider, key string) error {
 	cmd := exec.Command("security", "add-generic-password", "-U", "-s", service, "-a", provider, "-w", key,
 		"-l", "omega ("+provider+")")
 	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("guardando en el llavero: %v: %s", err, strings.TrimSpace(string(out)))
+		return fmt.Errorf("%s", i18n.T("secrets.save", err, strings.TrimSpace(string(out))))
 	}
 	return nil
 }
@@ -56,7 +58,7 @@ func Set(provider, key string) error {
 // Delete removes the key from the Keychain.
 func Delete(provider string) error {
 	if out, err := exec.Command("security", "delete-generic-password", "-s", service, "-a", provider).CombinedOutput(); err != nil {
-		return fmt.Errorf("borrando del llavero: %v: %s", err, strings.TrimSpace(string(out)))
+		return fmt.Errorf("%s", i18n.T("secrets.delete", err, strings.TrimSpace(string(out))))
 	}
 	return nil
 }
@@ -68,3 +70,11 @@ func Mask(key string) string {
 	}
 	return key[:6] + "…" + key[len(key)-4:]
 }
+
+type notFoundError struct{ provider string }
+
+func (e *notFoundError) Error() string {
+	return i18n.T("err.no_key", e.provider, e.provider, EnvVar[e.provider])
+}
+
+func (e *notFoundError) Unwrap() error { return ErrNotFound }

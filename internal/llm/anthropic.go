@@ -9,6 +9,8 @@ import (
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
+
+	"github.com/lcajigasm/omega/internal/i18n"
 )
 
 type anthropicProvider struct {
@@ -123,12 +125,12 @@ func (c *anthropicChat) Send(ctx context.Context, text string, results []ToolRes
 		reply.Refused = true
 		reply.Calls = nil
 		if reply.Text == "" {
-			reply.Text = "El modelo rechazó la petición: " + resp.StopDetails.Explanation
+			reply.Text = "The model declined the request: " + resp.StopDetails.Explanation
 		}
 	case anthropic.StopReasonMaxTokens:
 		// A tool call cut off mid-input is not safe to run.
 		reply.Calls = nil
-		reply.Text += "\n[respuesta truncada por max_tokens]"
+		reply.Text += "\n[response truncated at max_tokens]"
 	}
 	return reply, nil
 }
@@ -138,11 +140,11 @@ func describeAnthropicError(err error) error {
 	if errors.As(err, &apierr) {
 		switch apierr.StatusCode {
 		case http.StatusUnauthorized:
-			return fmt.Errorf("API key inválida (401): %w", err)
+			return fmt.Errorf("%s (401): %w", i18n.T("llm.invalid_key"), err)
 		case http.StatusNotFound:
-			return fmt.Errorf("modelo o endpoint no encontrado (404): %w", err)
+			return fmt.Errorf("%s (404): %w", i18n.T("llm.not_found"), err)
 		case http.StatusTooManyRequests:
-			return fmt.Errorf("límite de peticiones alcanzado (429): %w", err)
+			return fmt.Errorf("%s (429): %w", i18n.T("llm.rate_limit"), err)
 		}
 	}
 	return err

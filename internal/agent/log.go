@@ -36,11 +36,11 @@ func (a *Agent) writeLog(e Event) {
 	case EvToolEnd:
 		fmt.Fprintf(a.log, "[%s exit=%d %s]\n", e.Tool, e.ExitCode, e.Duration.Round(time.Second))
 	case EvConfirm:
-		fmt.Fprintf(a.log, "\n? aprobación (%s): %s\n", e.Risk, e.Command)
+		fmt.Fprintf(a.log, "\n? approval (%s): %s\n", e.Risk, e.Command)
 	case EvError:
 		fmt.Fprintf(a.log, "\n! %s\n", e.Text)
 	case EvDone:
-		fmt.Fprintf(a.log, "\n== fin. tokens: %d entrada, %d salida\n", a.usage.InputTokens, a.usage.OutputTokens)
+		fmt.Fprintf(a.log, "\n== end. tokens: %d in, %d out\n", a.usage.InputTokens, a.usage.OutputTokens)
 	}
 }
 

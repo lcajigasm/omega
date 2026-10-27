@@ -117,7 +117,7 @@ func New(name string, opts Options) (Provider, error) {
 	for _, p := range Providers {
 		names = append(names, p.Name)
 	}
-	return nil, fmt.Errorf("proveedor desconocido %q (disponibles: %s)", name, strings.Join(names, ", "))
+	return nil, fmt.Errorf("unknown provider %q (available: %s)", name, strings.Join(names, ", "))
 }
 
 func sortedUnique(in []string) []string {

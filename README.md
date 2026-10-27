@@ -1,230 +1,259 @@
 # Ω omega
 
-**Mantenimiento de macOS guiado por IA.** omega junta lo que hacen
-[topgrade](https://github.com/topgrade-rs/topgrade) (actualizar todo el software
-instalado) y [Mole](https://github.com/tw93/Mole) (limpiar y optimizar el Mac) en
-una sola herramienta de terminal, y pone al mando un modelo de IA que ejecuta
-cada paso, **lee los errores, los diagnostica y corrige la configuración**, en
-lugar de dejarte el fallo en pantalla.
+**AI-driven macOS maintenance.** omega combines what
+[topgrade](https://github.com/topgrade-rs/topgrade) does (update all installed
+software) and what [Mole](https://github.com/tw93/Mole) does (clean and optimise
+your Mac) in a single terminal tool, and puts an AI model in charge: it runs each
+step, **reads the errors, diagnoses them and fixes the configuration**, instead of
+leaving the failure on your screen.
 
-Con una API key de **Anthropic**, **OpenAI**, **OpenRouter** u **OpenCode Zen**
-eliges el modelo que quieres que cuide tu máquina.
+With an API key from **Anthropic**, **OpenAI**, **OpenRouter** or **OpenCode Zen**
+you choose the model that looks after your machine. The interface speaks
+**English, Spanish, French, German and Portuguese**.
 
 ```text
-Ω omega  anthropic · claude-opus-5-5 · tarea: full
+Ω omega  anthropic · claude-opus-5-5 · task: full
 ✓ system_info
 ✓ brew update && brew upgrade · 2m14s
 ✗ exit 1 pipx upgrade-all
   │ Error: python@3.12 not found
-Voy a reinstalar los entornos de pipx contra el Python actual de Homebrew…
-? pipx reinstall-all → aprobado
+Reinstalling the pipx environments against Homebrew's current Python…
+? pipx reinstall-all → approved
 ✓ pipx reinstall-all · 41s
 ✓ brew cleanup --prune=all · 12s
-Resumen: 23 paquetes actualizados, 6,4 GB liberados, pipx reparado (nota guardada).
+Summary: 23 packages updated, 6.4 GB freed, pipx repaired (note saved).
 ```
 
----
-
-## Índice
-
-- [Por qué](#por-qué)
-- [Características](#características)
-- [Requisitos](#requisitos)
-- [Instalación](#instalación)
-- [Primeros pasos](#primeros-pasos)
-- [Tareas](#tareas)
-- [Interfaz](#interfaz)
-- [Seguridad y aprobaciones](#seguridad-y-aprobaciones)
-- [Catálogo de pasos](#catálogo-de-pasos)
-- [Memoria entre ejecuciones](#memoria-entre-ejecuciones)
-- [Proveedores y modelos](#proveedores-y-modelos)
-- [Configuración](#configuración)
-- [Referencia de comandos](#referencia-de-comandos)
-- [Ejecución desatendida](#ejecución-desatendida)
-- [Cómo funciona](#cómo-funciona)
-- [Solución de problemas](#solución-de-problemas)
-- [Preguntas frecuentes](#preguntas-frecuentes)
-- [Desarrollo](#desarrollo)
-- [Publicar una versión](#publicar-una-versión)
-- [Licencia](#licencia)
+*(Illustrative session.)*
 
 ---
 
-## Por qué
+## Contents
 
-topgrade y Mole son excelentes, pero cuando algo falla (un `pipx` con el Python
-roto, un cask que pide contraseña, un paso que no aplica a tu máquina, una
-opción obsoleta en `topgrade.toml`) te toca leer el error, buscar la causa,
-editar la configuración y volver a lanzar. omega delega ese ciclo en un modelo
-de IA con herramientas acotadas y una política de seguridad estricta.
+- [Why](#why)
+- [Features](#features)
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Getting started](#getting-started)
+- [Tasks](#tasks)
+- [Interface](#interface)
+- [Languages](#languages)
+- [Safety and approvals](#safety-and-approvals)
+- [Step catalogue](#step-catalogue)
+- [Memory between runs](#memory-between-runs)
+- [Providers and models](#providers-and-models)
+- [Configuration](#configuration)
+- [Command reference](#command-reference)
+- [Unattended runs](#unattended-runs)
+- [How it works](#how-it-works)
+- [Troubleshooting](#troubleshooting)
+- [FAQ](#faq)
+- [Development](#development)
+- [Releasing](#releasing)
+- [License](#license)
 
-## Características
+---
 
-- **Actualiza todo**: Homebrew (fórmulas y casks), Mac App Store, npm, pnpm,
-  bun, pipx, uv, rustup, cargo, extensiones de `gh`, Oh My Zsh y macOS.
-- **Limpia**: Homebrew, cachés de npm/pnpm/pip/uv/Go, Xcode DerivedData,
-  simuladores no disponibles, Docker y papelera, priorizando lo que más libera.
-- **Usa topgrade y Mole como backends** si están instalados, y puede
-  diagnosticar y arreglar su configuración (`omega fix`).
-- **Agente con herramientas**: inspecciona el sistema, mide el disco, lee
-  configuraciones, ejecuta pasos y comandos, y edita archivos con copia de
-  seguridad.
-- **Política de seguridad**: cada comando se clasifica (lectura, normal,
-  peligroso, bloqueado); lo peligroso requiere tu aprobación.
-- **Memoria**: aprende de cada ejecución (p. ej. "este paso falla por X") y lo
-  tiene en cuenta la próxima vez.
-- **Cuatro proveedores**, cualquier modelo con *tool calling*.
-- **TUI a pantalla completa** (Bubble Tea) o **salida de texto** para scripts,
-  cron y CI.
-- **Registro completo** de cada ejecución en disco.
-- **API keys en el llavero de macOS**, nunca en texto plano.
-- Binario único en Go, instalable con **Homebrew**.
+## Why
 
-## Requisitos
+topgrade and Mole are excellent, but when something breaks (a `pipx` with a
+broken Python, a cask that asks for a password, a step that does not apply to
+your machine, a deprecated option in `topgrade.toml`) you have to read the error,
+find the cause, edit the configuration and run it again. omega hands that loop to
+an AI model with a narrow set of tools and a strict safety policy.
 
-- macOS (Apple Silicon o Intel).
-- Una API key de al menos un proveedor compatible.
-- Opcional: `topgrade` y `mole` (`brew install topgrade mole`).
+## Features
 
-## Instalación
+- **Updates everything**: Homebrew (formulae and casks), Mac App Store, npm,
+  pnpm, bun, pipx, uv, rustup, cargo, `gh` extensions, Oh My Zsh and macOS.
+- **Cleans up**: Homebrew, npm/pnpm/pip/uv/Go caches, Xcode DerivedData,
+  unavailable simulators, Docker and the Trash, prioritising what frees the most.
+- **Uses topgrade and Mole as backends** when they are installed, and can
+  diagnose and fix their configuration (`omega fix`).
+- **Tool-using agent**: inspects the system, measures disk usage, reads
+  configuration, runs steps and commands, and edits files with a backup.
+- **Safety policy**: every command is classified (read-only, normal, dangerous,
+  blocked); dangerous ones need your approval.
+- **Memory**: learns from each run (e.g. "this step fails because of X") and
+  takes it into account next time.
+- **Four providers**, any model with tool calling.
+- **Five interface languages**, detected from your system.
+- **Full-screen TUI** (Bubble Tea) or **plain text output** for scripts, cron
+  and CI.
+- **Complete log** of every run on disk.
+- **API keys in the macOS Keychain**, never in plain text.
+- Single Go binary, installable with **Homebrew**.
 
-### Homebrew (recomendado)
+## Requirements
+
+- macOS (Apple Silicon or Intel).
+- An API key for at least one supported provider.
+- Optional: `topgrade` and `mole` (`brew install topgrade mole`).
+
+## Installation
+
+### Homebrew (recommended)
 
 ```bash
 brew install lcajigasm/omega/omega
 ```
 
-> homebrew-core ya tiene una fórmula llamada `omega` (un motor de búsqueda de
-> Xapian), así que usa siempre el nombre completo `lcajigasm/omega/omega`.
+> homebrew-core already has a formula called `omega` (a Xapian search engine),
+> so always use the full name `lcajigasm/omega/omega`.
 
-### Desde el código fuente
+### From source
 
 ```bash
 git clone https://github.com/lcajigasm/omega.git
 cd omega
-make build          # deja el binario en ./bin/omega
-make install        # o lo instala en $GOPATH/bin
+make build          # binary in ./bin/omega
+make install        # or install it into $GOPATH/bin
 ```
 
-o directamente:
+or directly:
 
 ```bash
 go install github.com/lcajigasm/omega/cmd/omega@latest
 ```
 
-### Autocompletado
+### Shell completion
 
-La fórmula de Homebrew instala el autocompletado de zsh, bash y fish. Si
-compilaste a mano:
+The Homebrew formula installs zsh, bash and fish completion. If you built it
+yourself:
 
 ```bash
 omega completion zsh > "${fpath[1]}/_omega"
 ```
 
-## Primeros pasos
+## Getting started
 
 ```bash
-omega setup        # elige proveedor, guarda la API key y escoge modelo
-omega analyze      # primer contacto: informe sin cambiar nada
-omega              # mantenimiento completo
+omega setup        # pick a provider, store the API key and choose a model
+omega analyze      # first look: a report that changes nothing
+omega              # complete maintenance
 ```
 
-`omega setup` muestra los proveedores con su estado, te pide la key con entrada
-oculta, la guarda en el llavero de macOS, descarga la lista de modelos del
-proveedor y te deja filtrar y elegir uno.
+`omega setup` lists the providers and their status, asks for the key with
+hidden input, stores it in the macOS Keychain, downloads the provider's model
+list and lets you filter and pick one.
 
-## Tareas
+## Tasks
 
-| Tarea | Qué hace | Modifica el sistema |
+| Task | What it does | Changes the system |
 |---|---|---|
-| `full` (por defecto) | revisa el estado, actualiza todo, limpia y resume | sí |
-| `update` | solo actualizaciones (equivalente a topgrade) | sí |
-| `clean` | mide qué ocupa espacio y limpia (equivalente a `mo clean`) | sí |
-| `analyze` | informe de espacio, software desactualizado, `brew doctor` y configuración de topgrade/Mole | **no** |
-| `fix` | ejecuta las simulaciones de topgrade y Mole, diagnostica los errores y arregla su configuración | sí (con aprobación) |
+| `full` (default) | checks the state, updates everything, cleans up and summarises | yes |
+| `update` | updates only (like topgrade) | yes |
+| `clean` | measures what takes up space and cleans (like `mo clean`) | yes |
+| `analyze` | report on disk space, outdated software, `brew doctor` and the topgrade/Mole configuration | **no** |
+| `fix` | runs the topgrade and Mole dry runs, diagnoses the errors and fixes their configuration | yes (with approval) |
 
-También puedes darle una tarea libre:
+You can also give it a free-form task:
 
 ```bash
-omega -p "¿Por qué ocupa 40 GB ~/Library? Dime qué puedo borrar sin riesgo"
-omega -p "Actualiza solo Homebrew y npm, nada más"
-omega -p "topgrade falla en el paso de rustup, arréglalo"
+omega -p "Why is ~/Library 40 GB? Tell me what I can safely delete"
+omega -p "Only update Homebrew and npm, nothing else"
+omega -p "topgrade fails on the rustup step, fix it"
 ```
 
-## Interfaz
+## Interface
 
-Por defecto omega abre una TUI a pantalla completa:
+By default omega opens a full-screen TUI:
 
-- **Cabecera**: proveedor, modelo, tarea y si estás en modo solo lectura.
-- **Historial**: mensajes del agente y una línea por comando (`✓`/`✗`, duración);
-  si un comando falla verás sus últimas líneas de salida.
-- **Panel en vivo**: el comando que se está ejecutando y sus últimas líneas.
-- **Confirmaciones**: el comando, su riesgo y el motivo (o el *diff* si edita un
-  archivo). Responde con `y` (sí), `a` (sí a todo en esta ejecución) o `n` (no).
-- **Seguimiento**: cuando el agente termina puedes pedirle algo más. Enter vacío
-  o `Esc` termina la sesión.
+- **Header**: provider, model, task and whether you are in read-only mode.
+- **History**: the agent's messages and one line per command (`✓`/`✗`,
+  duration); when a command fails you see its last lines of output.
+- **Live panel**: the running command and its latest output.
+- **Approvals**: the command, its risk and the reason (or the diff when it edits
+  a file). Answer `y` (yes), `a` (yes to everything in this run) or `n` (no).
+- **Follow-ups**: when the agent finishes you can ask for more. An empty Enter or
+  `Esc` ends the session.
 
-| Tecla | Acción |
+| Key | Action |
 |---|---|
-| `↑` `↓` `PgUp` `PgDn` / rueda | desplazar el historial |
-| `y` / `Enter` | aprobar |
-| `a` | aprobar esta y todas las siguientes |
-| `n` / `Esc` | rechazar |
-| `Ctrl+C` | cancelar la ejecución |
-| `q` | salir al terminar |
+| `↑` `↓` `PgUp` `PgDn` / wheel | scroll the history |
+| `y` / `Enter` | approve (`s`, `o`, `j` also work) |
+| `a` | approve this and every following request |
+| `n` / `Esc` | deny |
+| `Ctrl+C` | cancel the run |
+| `q` | quit when finished |
 
-Con `--no-tui`, o si la salida no es un terminal, omega usa salida de texto
-simple. Sin terminal en la entrada estándar, cualquier acción que requiera
-aprobación se **rechaza** salvo que pases `--yes`.
+With `--no-tui`, or when the output is not a terminal, omega prints plain text.
+Without a terminal on standard input, any action that needs approval is
+**denied** unless you pass `--yes`.
 
-## Seguridad y aprobaciones
+## Languages
 
-Antes de ejecutar nada, omega clasifica el comando (incluidos los compuestos
-con `&&`, `;`, `|`) y aplica el nivel más alto de riesgo:
+The interface (TUI, plain output, help, prompts and errors) is available in:
 
-| Riesgo | Ejemplos | Por defecto |
+| Code | Language |
+|---|---|
+| `en` | English (fallback) |
+| `es` | Spanish |
+| `fr` | French |
+| `de` | German |
+| `pt` | Portuguese |
+
+The language is chosen in this order:
+
+1. the `OMEGA_LANG` environment variable;
+2. `language` in the configuration (`auto` by default);
+3. the system locale (`LC_ALL`, `LC_MESSAGES`, `LANG`);
+4. English.
+
+The agent replies in the same language.
+
+```bash
+omega config set language de
+OMEGA_LANG=fr omega analyze
+```
+
+## Safety and approvals
+
+Before running anything, omega classifies the command (including compound
+commands with `&&`, `;`, `|`) and applies the highest risk level found:
+
+| Risk | Examples | Default |
 |---|---|---|
-| **lectura** | `brew outdated`, `df -h`, `du`, `cat`, `topgrade --dry-run`, `mo clean --dry-run` | se ejecuta |
-| **normal** | `brew upgrade`, `npm update -g`, `pipx upgrade-all`, `rustup update` | se ejecuta |
-| **peligroso** | `rm`, `sudo`, redirecciones a archivo, `sed -i`, `find -delete`, editar configs, **cualquier comando desconocido** | pide aprobación |
-| **bloqueado** | `rm -rf ~` o `/`, `diskutil erase…`, `dd of=/dev/…`, `curl … \| sh`, `csrutil disable`, `nvram` | nunca se ejecuta |
+| **read-only** | `brew outdated`, `df -h`, `du`, `cat`, `topgrade --dry-run`, `mo clean --dry-run` | runs |
+| **normal** | `brew upgrade`, `npm update -g`, `pipx upgrade-all`, `rustup update` | runs |
+| **dangerous** | `rm`, `sudo`, output redirection to a file, `sed -i`, `find -delete`, editing configs, **any unknown command** | asks |
+| **blocked** | `rm -rf ~` or `/`, `diskutil erase…`, `dd of=/dev/…`, `curl … \| sh`, `csrutil disable`, `nvram` | never runs |
 
-Ajustes:
+Settings:
 
-- `omega config set approval all`: pide aprobación también para las
-  actualizaciones normales.
-- `omega config set approval never`, o `--yes`: no pregunta nunca. Los comandos
-  bloqueados siguen bloqueados.
-- `--dry-run` (o la tarea `analyze`): solo se permiten acciones de lectura; lo
-  demás se rechaza automáticamente y el agente lo describe en el resumen.
+- `omega config set approval all`: also ask before normal updates.
+- `omega config set approval never`, or `--yes`: never ask. Blocked commands
+  stay blocked.
+- `--dry-run` (or the `analyze` task): only read-only actions are allowed; the
+  rest is rejected automatically and the agent describes it in the summary.
 
-Otras garantías:
+Other guarantees:
 
-- Los comandos se ejecutan con **stdin cerrado** y variables no interactivas
-  (`NONINTERACTIVE=1`, `GIT_TERMINAL_PROMPT=0`…). Lo que intente pedir input
-  falla en lugar de colgarse.
-- Cada comando tiene un tiempo máximo (`command_timeout`, 45 min por defecto).
-- `sudo` se usa siempre como `sudo -n`. Para pasos que lo necesitan, lanza
-  `omega --sudo`: pide la contraseña una vez al principio y la mantiene viva
-  durante la ejecución.
-- `write_file` **siempre** requiere aprobación (salvo `--yes`), muestra el diff y
-  guarda una copia `archivo.omega-bak-AAAAMMDD-HHMMSS` del original.
-- El agente tiene instrucciones explícitas de no tocar nunca datos personales
-  (Documentos, Escritorio, Descargas, Fotos, iCloud, claves SSH, llaveros).
+- Commands run with **stdin closed** and non-interactive variables
+  (`NONINTERACTIVE=1`, `GIT_TERMINAL_PROMPT=0`…). Anything that tries to prompt
+  fails instead of hanging.
+- Each command has a time limit (`command_timeout`, 45 minutes by default).
+- `sudo` is always used as `sudo -n`. For steps that need it, run
+  `omega --sudo`: it asks for the password once at the start and keeps it alive
+  during the run.
+- `write_file` **always** requires approval (unless `--yes`), shows the diff and
+  saves a `file.omega-bak-YYYYMMDD-HHMMSS` copy of the original.
+- The agent is explicitly instructed never to touch personal data (Documents,
+  Desktop, Downloads, Photos, iCloud, SSH keys, keychains).
 
-## Catálogo de pasos
+## Step catalogue
 
-`omega steps` muestra qué hay disponible en tu máquina. El agente los usa con
-`run_step`, y tú puedes ejecutarlos sin IA con `omega steps run <id>…`.
+`omega steps` shows what is available on your machine. The agent uses these with
+`run_step`, and you can run them without AI with `omega steps run <id>…`.
 
-| id | Categoría | Comando | Riesgo |
+| id | Category | Command | Risk |
 |---|---|---|---|
-| `disk` | check | `df -h /` + tamaño de cachés, logs y papelera | lectura |
-| `brew-outdated` | check | `brew outdated --verbose` | lectura |
-| `brew-doctor` | check | `brew doctor` | lectura |
-| `macos-check` | check | `softwareupdate --list` | lectura |
+| `disk` | check | `df -h /` + size of caches, logs and Trash | read-only |
+| `brew-outdated` | check | `brew outdated --verbose` | read-only |
+| `brew-doctor` | check | `brew doctor` | read-only |
+| `macos-check` | check | `softwareupdate --list` | read-only |
 | `brew` | update | `brew update && brew upgrade` | normal |
-| `brew-greedy` | update | `brew upgrade --cask --greedy` | peligroso |
+| `brew-greedy` | update | `brew upgrade --cask --greedy` | dangerous |
 | `mas` | update | `mas upgrade` | normal |
 | `npm` | update | `npm update -g` | normal |
 | `pnpm` | update | `pnpm update -g` | normal |
@@ -234,92 +263,91 @@ Otras garantías:
 | `rustup` | update | `rustup update` | normal |
 | `cargo` | update | `cargo install-update -a` | normal |
 | `gh-ext` | update | `gh extension upgrade --all` | normal |
-| `omz` | update | actualizador de Oh My Zsh | peligroso |
-| `macos` | update | `sudo -n softwareupdate --install --all` | peligroso |
-| `brew-cleanup` | clean | `brew cleanup --prune=all` | peligroso |
-| `brew-autoremove` | clean | `brew autoremove` | peligroso |
-| `npm-cache` | clean | `npm cache clean --force` | peligroso |
-| `pnpm-store` | clean | `pnpm store prune` | peligroso |
-| `pip-cache` | clean | `pip3 cache purge` | peligroso |
-| `uv-cache` | clean | `uv cache prune` | peligroso |
-| `go-cache` | clean | `go clean -cache` | peligroso |
-| `xcode-derived` | clean | vaciar `~/Library/Developer/Xcode/DerivedData` | peligroso |
-| `simulators` | clean | `xcrun simctl delete unavailable` | peligroso |
-| `docker` | clean | `docker system prune -f` | peligroso |
-| `trash` | clean | vaciar `~/.Trash` | peligroso |
-| `topgrade-preview` | backend | `topgrade --dry-run` | lectura |
-| `topgrade` | backend | `topgrade --yes` | peligroso |
-| `mole-clean-preview` | backend | `mo clean --dry-run` | lectura |
-| `mole-clean` | backend | `mo clean` | peligroso |
-| `mole-optimize-preview` | backend | `mo optimize --dry-run` | lectura |
-| `mole-optimize` | backend | `mo optimize` | peligroso |
+| `omz` | update | Oh My Zsh upgrader | dangerous |
+| `macos` | update | `sudo -n softwareupdate --install --all` | dangerous |
+| `brew-cleanup` | clean | `brew cleanup --prune=all` | dangerous |
+| `brew-autoremove` | clean | `brew autoremove` | dangerous |
+| `npm-cache` | clean | `npm cache clean --force` | dangerous |
+| `pnpm-store` | clean | `pnpm store prune` | dangerous |
+| `pip-cache` | clean | `pip3 cache purge` | dangerous |
+| `uv-cache` | clean | `uv cache prune` | dangerous |
+| `go-cache` | clean | `go clean -cache` | dangerous |
+| `xcode-derived` | clean | empty `~/Library/Developer/Xcode/DerivedData` | dangerous |
+| `simulators` | clean | `xcrun simctl delete unavailable` | dangerous |
+| `docker` | clean | `docker system prune -f` | dangerous |
+| `trash` | clean | empty `~/.Trash` | dangerous |
+| `topgrade-preview` | backend | `topgrade --dry-run` | read-only |
+| `topgrade` | backend | `topgrade --yes` | dangerous |
+| `mole-clean-preview` | backend | `mo clean --dry-run` | read-only |
+| `mole-clean` | backend | `mo clean` | dangerous |
+| `mole-optimize-preview` | backend | `mo optimize --dry-run` | read-only |
+| `mole-optimize` | backend | `mo optimize` | dangerous |
 | `mole-update` | backend | `mo update` | normal |
 
-Para desactivar pasos que nunca quieres que se ejecuten:
+To disable steps you never want to run:
 
 ```bash
 omega config set skip_steps macos,docker,brew-greedy
 ```
 
-Además del catálogo, el agente puede ejecutar comandos arbitrarios
-(`run_command`) para diagnosticar o cuando no hay un paso adecuado, siempre
-bajo la misma política de riesgo.
+Besides the catalogue, the agent can run arbitrary commands (`run_command`) to
+diagnose problems or when no step fits, always under the same risk policy.
 
-## Memoria entre ejecuciones
+## Memory between runs
 
-Cuando el agente descubre algo duradero de tu máquina (un paso que siempre
-falla y su causa, una ruta especial, una preferencia tuya), lo guarda con la
-herramienta `remember` en `~/.config/omega/notes.md`. Esas notas se incluyen en
-las instrucciones del agente en la siguiente ejecución.
+When the agent learns something lasting about your machine (a step that always
+fails and why, a special path, a preference of yours), it saves it with the
+`remember` tool in `~/.config/omega/notes.md`. Those notes are included in the
+agent's instructions on the next run.
 
 ```bash
-omega notes          # ver lo aprendido
-omega notes clear    # olvidarlo todo
+omega notes          # show what it has learned
+omega notes clear    # forget everything
 ```
 
-El archivo es Markdown normal: puedes editarlo a mano para darle instrucciones
-permanentes ("no actualices nunca node, lo gestiono con fnm").
+The file is plain Markdown: you can edit it by hand to give permanent
+instructions ("never update node, I manage it with fnm").
 
-## Proveedores y modelos
+## Providers and models
 
-| Proveedor | API | Variable de entorno | Modelo por defecto |
+| Provider | API | Environment variable | Default model |
 |---|---|---|---|
-| `anthropic` | Messages API (SDK oficial de Go) | `ANTHROPIC_API_KEY` | `claude-opus-5-5` |
+| `anthropic` | Messages API (official Go SDK) | `ANTHROPIC_API_KEY` | `claude-opus-5-5` |
 | `openai` | Chat Completions | `OPENAI_API_KEY` | `gpt-5.5` |
-| `openrouter` | Chat Completions (compatible con OpenAI) | `OPENROUTER_API_KEY` | `anthropic/claude-opus-5.5` |
-| `opencode` | OpenCode Zen: Claude y Qwen Plus/Flash por el endpoint Anthropic; el resto por Chat Completions | `OPENCODE_API_KEY` | `claude-sonnet-4-6` |
+| `openrouter` | Chat Completions (OpenAI-compatible) | `OPENROUTER_API_KEY` | `anthropic/claude-opus-5.5` |
+| `opencode` | OpenCode Zen: Claude and Qwen Plus/Flash through the Anthropic endpoint; the rest through Chat Completions | `OPENCODE_API_KEY` | `claude-sonnet-4-6` |
 
-- El modelo tiene que soportar **tool calling**.
-- Las variables de entorno tienen prioridad sobre el llavero.
-- Con Claude puedes ajustar el esfuerzo de razonamiento (`effort`: `low`,
-  `medium`, `high`, `xhigh`, `max`). `medium` o `low` suelen bastar para
-  mantenimiento rutinario y gastan menos.
-- En la API de Anthropic, omega activa el *fallback* del servidor para que una
-  negativa del modelo no corte la ejecución.
-- Los modelos GPT de OpenCode Zen solo se ofrecen por la Responses API, que
-  omega todavía no soporta. Usa GPT con el proveedor `openai` u `openrouter`.
+- The model must support **tool calling**.
+- Environment variables take precedence over the Keychain.
+- With Claude you can tune the reasoning effort (`effort`: `low`, `medium`,
+  `high`, `xhigh`, `max`). `medium` or `low` is usually enough for routine
+  maintenance and costs less.
+- On the Anthropic API, omega enables server-side fallback so that a model
+  refusal does not end the run.
+- OpenCode Zen only serves GPT models through the Responses API, which omega
+  does not support yet. Use GPT through `openai` or `openrouter`.
 
 ```bash
-omega models                       # modelos del proveedor activo (* = actual)
-omega models openrouter claude     # filtrar
+omega models                       # models of the active provider (* = current)
+omega models openrouter claude     # filter
 omega --provider openai --model gpt-5.5 analyze
 ```
 
-## Configuración
+## Configuration
 
-Archivo: `~/.config/omega/config.toml` (`omega config path`). Respeta
+File: `~/.config/omega/config.toml` (`omega config path`). Honours
 `XDG_CONFIG_HOME`.
 
 ```toml
-provider = "anthropic"          # proveedor activo
-model = "claude-opus-5-5"       # modelo del proveedor activo
-effort = "medium"               # solo modelos Claude: low|medium|high|xhigh|max
+provider = "anthropic"          # active provider
+model = "claude-opus-5-5"       # model of the active provider
+effort = "medium"               # Claude models only: low|medium|high|xhigh|max
 approval = "dangerous"          # dangerous | all | never
-language = "es"                 # idioma de las respuestas del agente (es, en…)
-command_timeout = "45m"         # tiempo máximo por comando
+language = "auto"               # en | es | fr | de | pt | auto (system locale)
+command_timeout = "45m"         # time limit per command
 skip_steps = ["macos", "docker"]
 
-# Modelo y URL base por proveedor (se usan al cambiar con --provider)
+# Model and base URL per provider (used when switching with --provider)
 [providers.anthropic]
 model = "claude-opus-5-5"
 
@@ -328,10 +356,10 @@ model = "anthropic/claude-opus-5.5"
 
 [providers.opencode]
 model = "claude-sonnet-4-6"
-base_url = "https://opencode.ai/inference"   # opcional
+base_url = "https://opencode.ai/inference"   # optional
 
 [providers.openai]
-base_url = "https://api.openai.com/v1"       # opcional: proxies o gateways compatibles
+base_url = "https://api.openai.com/v1"       # optional: compatible proxies or gateways
 ```
 
 ```bash
@@ -339,59 +367,59 @@ omega config show
 omega config set provider openrouter
 omega config set model anthropic/claude-sonnet-5.5
 omega config set effort low
-omega config edit                  # abre $EDITOR
+omega config edit                  # opens $EDITOR
 ```
 
-### Archivos
+### Files
 
-| Ruta | Contenido |
+| Path | Contents |
 |---|---|
-| `~/.config/omega/config.toml` | configuración |
-| `~/.config/omega/notes.md` | memoria del agente |
-| `~/.local/state/omega/runs/*.log` | registro de cada ejecución (comandos, salida, decisiones, tokens) |
-| Llavero de macOS, servicio `omega-cli` | API keys |
+| `~/.config/omega/config.toml` | configuration |
+| `~/.config/omega/notes.md` | the agent's memory |
+| `~/.local/state/omega/runs/*.log` | log of every run (commands, output, decisions, tokens) |
+| macOS Keychain, service `omega-cli` | API keys |
 
-## Referencia de comandos
+## Command reference
 
 ```text
-omega [tarea] [flags]
+omega [task] [flags]
 ```
 
-| Flag | Descripción |
+| Flag | Description |
 |---|---|
 | `--provider` | `anthropic`, `openai`, `openrouter`, `opencode` |
-| `-m, --model` | modelo a usar en esta ejecución |
-| `--effort` | esfuerzo para modelos Claude |
-| `-p, --prompt` | tarea libre en lenguaje natural |
-| `-y, --yes` | aprobar todo salvo comandos bloqueados |
-| `-n, --dry-run` | modo solo lectura |
-| `--sudo` | pedir sudo al inicio y mantenerlo |
-| `--no-tui` | salida de texto simple |
-| `--once` | terminar cuando el agente acabe, sin pedir más instrucciones |
-| `-v, --version` | versión |
+| `-m, --model` | model for this run |
+| `--effort` | effort for Claude models |
+| `-p, --prompt` | free-form task in natural language |
+| `-y, --yes` | approve everything except blocked commands |
+| `-n, --dry-run` | read-only mode |
+| `--sudo` | ask for sudo at the start and keep it alive |
+| `--no-tui` | plain text output |
+| `--once` | exit when the agent finishes instead of asking for more |
+| `-v, --version` | version |
 
-| Subcomando | Descripción |
+| Subcommand | Description |
 |---|---|
-| `omega setup` | asistente de configuración |
-| `omega auth set <proveedor>` | guardar una API key en el llavero |
-| `omega auth remove <proveedor>` | borrarla |
-| `omega auth status` | ver qué proveedores tienen key y de dónde sale |
-| `omega models [proveedor] [filtro]` | listar modelos |
-| `omega config show \| path \| edit \| set <clave> <valor>` | configuración |
-| `omega steps` | catálogo de pasos y su disponibilidad |
-| `omega steps run <id>… [-y]` | ejecutar pasos sin IA |
-| `omega notes [clear]` | memoria del agente |
-| `omega completion zsh\|bash\|fish` | script de autocompletado |
+| `omega setup` | setup wizard |
+| `omega auth set <provider>` | store an API key in the Keychain |
+| `omega auth remove <provider>` | delete it |
+| `omega auth status` | which providers have a key and where it comes from |
+| `omega models [provider] [filter]` | list models |
+| `omega config show \| path \| edit \| set <key> <value>` | configuration |
+| `omega steps` | step catalogue and availability |
+| `omega steps run <id>… [-y]` | run steps without AI |
+| `omega notes [clear]` | the agent's memory |
+| `omega completion zsh\|bash\|fish` | completion script |
 
-## Ejecución desatendida
+## Unattended runs
 
-Para lanzarlo de forma periódica sin interacción:
+To run it periodically without interaction:
 
 ```bash
 omega update --yes --no-tui --once
 ```
 
-Ejemplo con `launchd` (todos los lunes a las 9:00), en
+Example with `launchd` (every Monday at 9:00), in
 `~/Library/LaunchAgents/com.lcajigasm.omega.plist`:
 
 ```xml
@@ -420,120 +448,128 @@ Ejemplo con `launchd` (todos los lunes a las 9:00), en
 launchctl load ~/Library/LaunchAgents/com.lcajigasm.omega.plist
 ```
 
-Con `--yes` el agente puede ejecutar acciones peligrosas sin preguntar (nunca
-las bloqueadas). Si prefieres que en modo desatendido solo actualice, combina
-`--yes` con `skip_steps` o usa `-p` con instrucciones precisas.
+With `--yes` the agent may run dangerous actions without asking (never blocked
+ones). If you only want unattended updates, combine `--yes` with `skip_steps` or
+use `-p` with precise instructions.
 
-## Cómo funciona
+## How it works
 
 ```text
-            ┌──────────────┐  eventos   ┌────────────────────┐
-  tarea ──▶ │    agente    │ ─────────▶ │ TUI / texto simple │ ──▶ tú
-            │ (bucle + IA) │ ◀───────── │  (aprobaciones)    │
-            └──────┬───────┘ decisiones └────────────────────┘
-                   │ herramientas
+            ┌──────────────┐   events   ┌────────────────────┐
+  task ───▶ │    agent     │ ─────────▶ │ TUI / plain output │ ──▶ you
+            │ (loop + AI)  │ ◀───────── │    (approvals)     │
+            └──────┬───────┘  decisions └────────────────────┘
+                   │ tools
    ┌───────────────┼──────────────────────────────────────┐
    │ system_info  list_steps  run_step  run_command       │
    │ disk_usage   read_file   write_file  remember        │
    └───────────────┬──────────────────────────────────────┘
-                   │ clasificador de riesgo (safety)
+                   │ risk classifier (safety)
                    ▼
-           runner: zsh -lc, stdin cerrado, timeout, salida en vivo
+           runner: zsh -lc, stdin closed, timeout, live output
 ```
 
-1. omega envía al modelo unas instrucciones de sistema (rol, flujo de trabajo,
-   reglas, pasos desactivados y notas de ejecuciones anteriores) y la tarea.
-2. El modelo responde con texto y/o llamadas a herramientas.
-3. Cada llamada pasa por la política de aprobación: se ejecuta, se te pregunta
-   o se rechaza. El resultado (código de salida y salida recortada a ~10 KB) se
-   devuelve al modelo.
-4. El bucle sigue hasta que el modelo deja de pedir herramientas. En modo
-   interactivo puedes continuar la conversación.
+1. omega sends the model a system prompt (role, workflow, rules, disabled
+   steps and notes from previous runs) and the task.
+2. The model answers with text and/or tool calls.
+3. Each call goes through the approval policy: it runs, you are asked, or it is
+   rejected. The result (exit code and output trimmed to about 10 KB) goes back
+   to the model.
+4. The loop continues until the model stops asking for tools. In interactive
+   mode you can keep the conversation going.
 
-Estructura del código:
+Code layout:
 
 ```text
-cmd/omega/          punto de entrada
-internal/cli/       comandos cobra (setup, auth, models, config, steps, notes)
-internal/agent/     bucle del agente, herramientas, prompt, eventos, registro
-internal/llm/       proveedores: anthropic (SDK oficial), openai-compat, opencode
-internal/safety/    clasificador de riesgo de comandos
-internal/runner/    ejecución de comandos con salida en vivo
-internal/steps/     catálogo de pasos
-internal/ui/        TUI (Bubble Tea) y salida de texto
-internal/config/    configuración y rutas
-internal/secrets/   llavero de macOS
-Formula/omega.rb    fórmula de Homebrew (se copia al tap)
+cmd/omega/          entry point
+internal/cli/       cobra commands (setup, auth, models, config, steps, notes)
+internal/agent/     agent loop, tools, prompt, events, run log
+internal/llm/       providers: anthropic (official SDK), openai-compatible, opencode
+internal/safety/    command risk classifier
+internal/runner/    command execution with live output
+internal/steps/     step catalogue
+internal/ui/        TUI (Bubble Tea) and plain output
+internal/i18n/      translations (en, es, fr, de, pt)
+internal/config/    configuration and paths
+internal/secrets/   macOS Keychain
+Formula/omega.rb    Homebrew formula (copied to the tap)
 ```
 
-## Solución de problemas
+## Troubleshooting
 
-**`no hay API key configurada`**: ejecuta `omega setup` o
-`omega auth set <proveedor>`, o exporta la variable de entorno.
+**`no API key configured`**: run `omega setup` or `omega auth set <provider>`,
+or export the environment variable.
 
-**`API key inválida (401)`**: comprueba la key con `omega auth status`. Si
-tienes una variable de entorno exportada, tiene prioridad sobre el llavero.
+**`invalid API key (401)`**: check the key with `omega auth status`. An exported
+environment variable takes precedence over the Keychain.
 
-**`modelo o endpoint no encontrado (404)`**: el modelo no existe para ese
-proveedor. Lístalos con `omega models <proveedor>`.
+**`model or endpoint not found (404)`**: the model does not exist for that
+provider. List them with `omega models <provider>`.
 
-**El modelo no llama a herramientas o responde raro**: usa un modelo con *tool
-calling*. En OpenRouter, filtra por modelos que lo soporten.
+**The model does not call tools or behaves oddly**: use a model with tool
+calling. On OpenRouter, filter for models that support it.
 
-**Un paso con sudo falla con "a password is required"**: relanza con
+**A sudo step fails with "a password is required"**: relaunch with
 `omega --sudo`.
 
-**Un comando se queda colgado**: no debería, porque stdin está cerrado, pero si
-un programa ignora eso, el `command_timeout` lo corta. Bájalo con
+**A command hangs**: it should not, because stdin is closed, but if a program
+ignores that, `command_timeout` stops it. Lower it with
 `omega config set command_timeout 15m`.
 
-**Quiero ver exactamente qué hizo**: revisa el último archivo en
+**I want to see exactly what it did**: open the latest file in
 `~/.local/state/omega/runs/`.
 
-**El agente insiste en algo que no quiero**: recházalo (`n`) y no lo repetirá en
-esa ejecución. Para que sea permanente, añádelo a `skip_steps` o escríbelo en
-`~/.config/omega/notes.md`.
+**The agent insists on something I do not want**: deny it (`n`) and it will not
+retry it in that run. To make it permanent, add it to `skip_steps` or write it
+in `~/.config/omega/notes.md`.
 
-## Preguntas frecuentes
+**The interface is in the wrong language**: set it explicitly with
+`omega config set language en` or `OMEGA_LANG=en`.
 
-**¿Sustituye a topgrade y Mole?** Para lo habitual en un Mac de desarrollo, sí:
-tiene pasos nativos equivalentes. Si los tienes instalados, los usa como
-backends y te ayuda a arreglar su configuración.
+## FAQ
 
-**¿Envía mis datos a la IA?** Se envían al proveedor que elijas las
-instrucciones, la salida de los comandos que ejecuta (recortada) y los archivos
-que el agente lee (configuraciones). No se envían tus documentos salvo que el
-agente lea uno explícitamente, cosa que tiene instruido no hacer.
+**Does it replace topgrade and Mole?** For a typical developer Mac, yes: it has
+equivalent native steps. If you have them installed, it uses them as backends
+and helps you fix their configuration.
 
-**¿Cuánto cuesta?** Depende del modelo y de lo que haya que hacer. Al terminar,
-omega muestra los tokens usados. Un `update` rutinario suele ser corto; usa
-`effort = "low"` o un modelo más pequeño para abaratarlo.
+**Does it send my data to the AI?** The provider you choose receives the
+instructions, the (trimmed) output of the commands it runs and the files the
+agent reads (configuration). Your documents are not sent unless the agent
+explicitly reads one, which it is instructed not to do.
 
-**¿Funciona en Linux?** Está pensado para macOS (llavero, `softwareupdate`, Mac
-App Store, rutas de Xcode). Partes del código funcionarían en Linux, pero no
-está soportado.
+**How much does it cost?** It depends on the model and on how much needs doing.
+At the end omega shows the tokens used. A routine `update` is usually short; use
+`effort = "low"` or a smaller model to make it cheaper.
 
-## Desarrollo
+**Does it work on Linux?** It is built for macOS (Keychain, `softwareupdate`,
+Mac App Store, Xcode paths). Parts of the code would work on Linux, but it is not
+supported.
+
+**Can I add a language?** Yes: add a column to `internal/i18n/messages.go` and
+its code to `i18n.Supported` and `i18n.Names`. A test checks that every key is
+translated with the same format arguments.
+
+## Development
 
 ```bash
-make build     # compila ./bin/omega
-make test      # tests (clasificador de riesgo y bucle del agente con un proveedor simulado)
+make build     # builds ./bin/omega
+make test      # tests: risk classifier, agent loop with a scripted provider, translations
 make lint      # gofmt + go vet
 ```
 
-Para añadir un paso, edita `internal/steps/steps.go`. Para añadir un proveedor,
-implementa `llm.Provider` en `internal/llm/` y regístralo en `llm.New` y
-`llm.Providers`.
+To add a step, edit `internal/steps/steps.go` (and optionally add a
+`step.<id>` translation). To add a provider, implement `llm.Provider` in
+`internal/llm/` and register it in `llm.New` and `llm.Providers`.
 
-## Publicar una versión
+## Releasing
 
 ```bash
-git tag v0.1.0 && git push origin v0.1.0
-make formula VERSION=0.1.0          # actualiza url y sha256 en Formula/omega.rb
+git tag v0.2.0 && git push origin v0.2.0
+make formula VERSION=0.2.0          # updates url and sha256 in Formula/omega.rb
 cp Formula/omega.rb ../homebrew-omega/Formula/omega.rb
-cd ../homebrew-omega && git commit -am "omega 0.1.0" && git push
+cd ../homebrew-omega && git commit -am "omega 0.2.0" && git push
 ```
 
-## Licencia
+## License
 
 [MIT](LICENSE) © Luis Cajigas

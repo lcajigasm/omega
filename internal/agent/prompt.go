@@ -3,6 +3,8 @@ package agent
 import (
 	"fmt"
 	"strings"
+
+	"github.com/lcajigasm/omega/internal/i18n"
 )
 
 // Task presets.
@@ -16,64 +18,58 @@ const (
 
 // TaskPrompts are the opening user messages for each preset.
 var TaskPrompts = map[string]string{
-	TaskFull: "Haz el mantenimiento completo de este Mac: revisa el estado, actualiza todo el software " +
-		"(lo que haría topgrade), limpia lo que sobra (lo que haría Mole) y termina con un resumen.",
-	TaskUpdate: "Actualiza todo el software instalado en este Mac (equivalente a topgrade). " +
-		"No hagas limpieza salvo que sea necesaria para que una actualización funcione.",
-	TaskClean: "Libera espacio en disco y limpia este Mac (equivalente a Mole clean). " +
-		"Empieza midiendo qué ocupa espacio y prioriza lo que más libera con menos riesgo.",
-	TaskAnalyze: "Analiza el estado de este Mac sin cambiar nada: espacio, software desactualizado, " +
-		"problemas de brew doctor, y la configuración de topgrade y Mole si existen. " +
-		"Termina con recomendaciones priorizadas.",
-	TaskFix: "Ejecuto topgrade y Mole a mano y fallan a menudo. Ejecuta sus simulaciones, " +
-		"diagnostica los errores, revisa su configuración (~/.config/topgrade.toml, ~/.config/mole) " +
-		"y propón o aplica los cambios necesarios para que funcionen sin errores.",
+	TaskFull: "Run full maintenance on this Mac: check its state, update all installed software " +
+		"(what topgrade would do), clean up what is no longer needed (what Mole would do) and finish with a summary.",
+	TaskUpdate: "Update all software installed on this Mac (what topgrade would do). " +
+		"Do not clean anything unless an update needs it to succeed.",
+	TaskClean: "Free up disk space and clean this Mac (what `mo clean` would do). " +
+		"Start by measuring what takes up space and prioritise what frees the most with the least risk.",
+	TaskAnalyze: "Analyse the state of this Mac without changing anything: disk space, outdated software, " +
+		"brew doctor problems, and the topgrade and Mole configuration if present. " +
+		"Finish with prioritised recommendations.",
+	TaskFix: "I run topgrade and Mole by hand and they fail often. Run their dry runs, " +
+		"diagnose the errors, review their configuration (~/.config/topgrade.toml, ~/.config/mole) " +
+		"and propose or apply the changes needed for them to run cleanly.",
 }
 
-func systemPrompt(language, notes string, skip []string, readOnly bool) string {
+func systemPrompt(notes string, skip []string, readOnly bool) string {
 	var b strings.Builder
-	b.WriteString(`Eres omega, un agente de mantenimiento para macOS que se ejecuta en la terminal del usuario.
-Tu trabajo combina lo que hacen topgrade (actualizar todo el software instalado) y Mole (limpiar y optimizar el Mac),
-pero de forma inteligente: detectas qué hay instalado, ejecutas cada paso, lees los errores, los diagnosticas y los corriges.
+	b.WriteString(`You are omega, a macOS maintenance agent running in the user's terminal.
+Your job combines what topgrade does (update all installed software) and what Mole does (clean and optimise the Mac),
+but intelligently: you detect what is installed, run each step, read the errors, diagnose them and fix them.
 
-Cómo trabajar:
-1. Empieza con system_info y list_steps para saber qué hay en esta máquina.
-2. Prefiere run_step para las acciones del catálogo; usa run_command solo cuando no exista un paso adecuado
-   o para diagnosticar un fallo.
-3. Si un paso falla, lee la salida, averigua la causa (read_file sobre configs, comandos de diagnóstico),
-   aplica la corrección más pequeña posible y reintenta UNA vez. Si sigue fallando, sigue con los demás pasos
-   y anótalo en el resumen.
-4. Cuando descubras algo útil y duradero de esta máquina (un paso que siempre falla y por qué, una ruta especial,
-   una preferencia del usuario), guárdalo con remember para la próxima ejecución.
-5. Termina con un resumen breve: qué se actualizó, cuánto espacio se liberó, qué falló y qué recomiendas.
+How to work:
+1. Start with system_info and list_steps to learn what this machine has.
+2. Prefer run_step for catalogue actions; use run_command only when no suitable step exists
+   or to diagnose a failure.
+3. When a step fails, read the output, find the cause (read_file on configs, diagnostic commands),
+   apply the smallest possible fix and retry ONCE. If it still fails, move on to the other steps
+   and mention it in the summary.
+4. When you learn something useful and lasting about this machine (a step that always fails and why,
+   a special path, a user preference), save it with remember for the next run.
+5. Finish with a short summary: what was updated, how much space was freed, what failed and what you recommend.
 
-Reglas:
-- Los comandos se ejecutan sin terminal interactiva (stdin cerrado). No lances comandos que esperen input
-  ni TUIs (mo sin subcomando, mo analyze, mo status, top, vim, less). Usa flags no interactivos.
-- sudo no puede pedir contraseña: usa "sudo -n" y, si falla por falta de credenciales, díselo al usuario
-  (puede relanzar con omega --sudo).
-- El usuario aprueba las acciones peligrosas; si rechaza una, no insistas con variantes equivalentes.
-- Nunca borres datos personales (Documentos, Escritorio, Descargas, Fotos, iCloud, claves SSH, llaveros).
-  Las cachés, logs y artefactos regenerables sí se pueden limpiar.
-- Antes de modificar un archivo de configuración, léelo. write_file guarda una copia de seguridad automática.
-- Sé conciso en el texto: el usuario ve en directo los comandos y su salida.
+Rules:
+- Commands run without an interactive terminal (stdin is closed). Do not run commands that wait for input
+  or TUIs (mo without a subcommand, mo analyze, mo status, top, vim, less). Use non-interactive flags.
+- sudo cannot prompt for a password: use "sudo -n" and, if it fails for lack of credentials, tell the user
+  (they can relaunch with omega --sudo).
+- The user approves dangerous actions; if they deny one, do not retry it or an equivalent.
+- Never delete personal data (Documents, Desktop, Downloads, Photos, iCloud, SSH keys, keychains).
+  Caches, logs and regenerable build artefacts may be cleaned.
+- Read a configuration file before changing it. write_file makes an automatic backup.
+- Keep your text concise: the user sees the commands and their output live.
 `)
 	if readOnly {
-		b.WriteString("\nMODO SOLO LECTURA: no modifiques nada. Solo están permitidos comandos y pasos de lectura;\n" +
-			"todo lo demás será rechazado automáticamente. Describe lo que harías en lugar de hacerlo.\n")
+		b.WriteString("\nREAD-ONLY MODE: do not change anything. Only read-only commands and steps are allowed;\n" +
+			"everything else is rejected automatically. Describe what you would do instead of doing it.\n")
 	}
 	if len(skip) > 0 {
-		fmt.Fprintf(&b, "\nEl usuario ha desactivado estos pasos; no los ejecutes: %s\n", strings.Join(skip, ", "))
+		fmt.Fprintf(&b, "\nThe user has disabled these steps; do not run them: %s\n", strings.Join(skip, ", "))
 	}
-	lang := map[string]string{"es": "español", "en": "English"}[language]
-	if lang == "" {
-		lang = language
-	}
-	if lang != "" {
-		fmt.Fprintf(&b, "\nResponde siempre en %s.\n", lang)
-	}
+	fmt.Fprintf(&b, "\nAlways reply in %s.\n", i18n.Names[i18n.Lang()])
 	if strings.TrimSpace(notes) != "" {
-		b.WriteString("\nNotas guardadas de ejecuciones anteriores en esta máquina:\n")
+		b.WriteString("\nNotes saved from previous runs on this machine:\n")
 		b.WriteString(notes)
 		b.WriteString("\n")
 	}

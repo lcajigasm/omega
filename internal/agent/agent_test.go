@@ -84,7 +84,7 @@ func TestDangerousCommandDenied(t *testing.T) {
 	if !asked {
 		t.Fatal("dangerous command did not ask for confirmation")
 	}
-	if r := p.results[1][0]; !r.IsError || !strings.Contains(r.Content, "rechazado") {
+	if r := p.results[1][0]; !r.IsError || !strings.Contains(r.Content, "denied") {
 		t.Fatalf("expected a denial result, got %+v", r)
 	}
 }
@@ -95,7 +95,7 @@ func TestReadOnlyRejectsUpdates(t *testing.T) {
 		{Text: "ok"},
 	}}
 	run(t, p, Options{ReadOnly: true, AutoYes: true}, Approve)
-	if r := p.results[1][0]; !r.IsError || !strings.Contains(r.Content, "solo lectura") {
+	if r := p.results[1][0]; !r.IsError || !strings.Contains(r.Content, "Read-only") {
 		t.Fatalf("expected read-only refusal, got %+v", r)
 	}
 }
@@ -106,7 +106,7 @@ func TestBlockedEvenWithYes(t *testing.T) {
 		{Text: "ok"},
 	}}
 	run(t, p, Options{AutoYes: true}, Approve)
-	if r := p.results[1][0]; !r.IsError || !strings.Contains(r.Content, "bloqueado") {
+	if r := p.results[1][0]; !r.IsError || !strings.Contains(r.Content, "Blocked") {
 		t.Fatalf("expected blocked, got %+v", r)
 	}
 }
