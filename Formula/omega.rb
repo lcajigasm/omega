@@ -5,7 +5,7 @@ class Omega < Formula
   desc "AI-driven macOS maintenance: updates like topgrade, cleans like Mole"
   homepage "https://github.com/lcajigasm/omega"
   url "https://github.com/lcajigasm/omega/archive/refs/tags/v0.1.0.tar.gz"
-  sha256 "0000000000000000000000000000000000000000000000000000000000000000"
+  sha256 "996c1c8d1e3cf73dd2907e8502e570285eedceb6ac9f5bcfb9c6f670d1017d13"
   license "MIT"
   head "https://github.com/lcajigasm/omega.git", branch: "main"
 
