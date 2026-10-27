@@ -38,6 +38,15 @@ func (p *anthropicProvider) Models(ctx context.Context) ([]string, error) {
 	return ids, iter.Err()
 }
 
+func (p *anthropicProvider) verify(ctx context.Context) error {
+	_, err := p.client.Models.List(ctx, anthropic.ModelListParams{})
+	var apierr *anthropic.Error
+	if errors.As(err, &apierr) && (apierr.StatusCode == http.StatusUnauthorized || apierr.StatusCode == http.StatusForbidden) {
+		return fmt.Errorf("%w: %s", ErrUnauthorized, i18n.T("llm.invalid_key"))
+	}
+	return err
+}
+
 func (p *anthropicProvider) NewChat(model, system string, tools []ToolSpec) Chat {
 	params := anthropic.MessageNewParams{
 		Model:     anthropic.Model(model),

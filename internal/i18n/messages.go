@@ -411,4 +411,31 @@ Exemplos:
 	"step.mole-clean-preview":    {"Mole clean (dry run)", "Mole clean (simulación)", "Mole clean (simulation)", "Mole clean (Probelauf)", "Mole clean (simulação)"},
 	"step.mole-optimize-preview": {"Mole optimize (dry run)", "Mole optimize (simulación)", "Mole optimize (simulation)", "Mole optimize (Probelauf)", "Mole optimize (simulação)"},
 	"step.mole-update":           {"Update Mole", "Actualizar Mole", "Mettre à jour Mole", "Mole aktualisieren", "Atualizar o Mole"},
+
+	// ---- key validation ----
+	"setup.key_checking": {"Checking the key with %s…", "Comprobando la key con %s…", "Vérification de la clé auprès de %s…", "Prüfe den Key bei %s…", "A verificar a key com %s…"},
+	"setup.key_ok":       {"Key accepted.", "Key aceptada.", "Clé acceptée.", "Key akzeptiert.", "Key aceite."},
+	"setup.key_url": {
+		"That does not look like an API key (it looks like a URL or text with spaces). Copy the key itself from %s",
+		"Eso no parece una API key (parece una URL o un texto con espacios). Copia la key en sí desde %s",
+		"Cela ne ressemble pas à une clé API (on dirait une URL ou un texte avec des espaces). Copiez la clé elle même depuis %s",
+		"Das sieht nicht nach einem API-Key aus (eher nach einer URL oder Text mit Leerzeichen). Kopiere den Key selbst von %s",
+		"Isso não parece uma API key (parece um URL ou texto com espaços). Copie a própria key em %s",
+	},
+	"setup.key_prefix": {
+		"Warning: %s keys usually start with %q.", "Aviso: las keys de %s suelen empezar por %q.", "Attention : les clés %s commencent généralement par %q.",
+		"Hinweis: %s-Keys beginnen normalerweise mit %q.", "Aviso: as keys de %s costumam começar por %q.",
+	},
+	"setup.key_rejected": {
+		"%s rejected this key, so it was not saved: %v", "%s ha rechazado esta key, así que no se ha guardado: %v", "%s a refusé cette clé, elle n'a donc pas été enregistrée : %v",
+		"%s hat diesen Key abgelehnt, er wurde nicht gespeichert: %v", "%s rejeitou esta key, por isso não foi guardada: %v",
+	},
+	"setup.key_unverified": {
+		"Could not verify the key (%v); saving it anyway.", "No se pudo verificar la key (%v); se guarda igualmente.", "Impossible de vérifier la clé (%v) ; elle est enregistrée quand même.",
+		"Key konnte nicht geprüft werden (%v); wird trotzdem gespeichert.", "Não foi possível verificar a key (%v); é guardada na mesma.",
+	},
+	"auth.looks_wrong": {
+		"this is not an API key, run `omega auth set %s`", "esto no es una API key, ejecuta `omega auth set %s`", "ce n'est pas une clé API, lancez `omega auth set %s`",
+		"das ist kein API-Key, führe `omega auth set %s` aus", "isto não é uma API key, execute `omega auth set %s`",
+	},
 }

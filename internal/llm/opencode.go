@@ -34,6 +34,8 @@ func (p *openCode) Name() string { return "opencode" }
 
 func (p *openCode) Models(ctx context.Context) ([]string, error) { return p.openai.Models(ctx) }
 
+func (p *openCode) verify(ctx context.Context) error { return p.openai.verify(ctx) }
+
 func (p *openCode) NewChat(model, system string, tools []ToolSpec) Chat {
 	if usesAnthropicEndpoint(model) {
 		return p.anthropic.NewChat(model, system, tools)

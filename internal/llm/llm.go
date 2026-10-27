@@ -6,6 +6,7 @@ package llm
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -60,6 +61,18 @@ type Provider interface {
 	Name() string
 	NewChat(model, system string, tools []ToolSpec) Chat
 	Models(ctx context.Context) ([]string, error)
+}
+
+// ErrUnauthorized means the provider rejected the API key.
+var ErrUnauthorized = errors.New("unauthorized")
+
+// Verify checks that the provider accepts its API key.
+func Verify(ctx context.Context, p Provider) error {
+	if v, ok := p.(interface{ verify(context.Context) error }); ok {
+		return v.verify(ctx)
+	}
+	_, err := p.Models(ctx)
+	return err
 }
 
 // Options configure a provider instance.

@@ -87,8 +87,12 @@ func setupCmd() *cobra.Command {
 			if keyErr != nil || i18n.IsYes(ask(i18n.T("setup.replace_key", secrets.Mask(key), src), "n")) {
 				fmt.Println(i18n.T("setup.get_key", info.KeyURL))
 				key, err = askSecret(i18n.T("setup.enter_key"))
+				key = cleanKey(key)
 				if err != nil || key == "" {
 					return fmt.Errorf("%s", i18n.T("setup.no_key_entered"))
+				}
+				if err := checkKey(cfg, name, key); err != nil {
+					return err
 				}
 				if err := secrets.Set(name, key); err != nil {
 					return err
@@ -178,8 +182,16 @@ func authCmd() *cobra.Command {
 					return err
 				}
 				key, err := askSecret(i18n.T("auth.prompt", args[0]))
+				key = cleanKey(key)
 				if err != nil || key == "" {
 					return fmt.Errorf("%s", i18n.T("setup.no_key_entered"))
+				}
+				cfg, err := config.Load()
+				if err != nil {
+					return err
+				}
+				if err := checkKey(cfg, args[0], key); err != nil {
+					return err
 				}
 				if err := secrets.Set(args[0], key); err != nil {
 					return err
@@ -206,7 +218,11 @@ func authCmd() *cobra.Command {
 						fmt.Printf("  %-12s —\n", p.Name)
 						continue
 					}
-					fmt.Printf("  %-12s %s (%s)\n", p.Name, secrets.Mask(key), src)
+					warn := ""
+					if keyLooksWrong(key) {
+						warn = "  ⚠ " + i18n.T("auth.looks_wrong", p.Name)
+					}
+					fmt.Printf("  %-12s %s (%s)%s\n", p.Name, secrets.Mask(key), src, warn)
 				}
 			},
 		},

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -70,6 +71,29 @@ func (p *openAICompat) Models(ctx context.Context) ([]string, error) {
 		ids = append(ids, m.ID)
 	}
 	return sortedUnique(ids), nil
+}
+
+func (p *openAICompat) verify(ctx context.Context) error {
+	if p.name != "openrouter" {
+		_, err := p.Models(ctx)
+		return err
+	}
+	// OpenRouter lists models without auth; ask about the key itself.
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, p.opts.BaseURL+"/key", nil)
+	if err != nil {
+		return err
+	}
+	p.headers(req)
+	resp, err := p.http.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return apiError(resp.StatusCode, body)
+	}
+	return nil
 }
 
 func (p *openAICompat) NewChat(model, system string, tools []ToolSpec) Chat {
@@ -242,6 +266,10 @@ func apiError(status int, body []byte) error {
 		msg = e.Error.Message
 	}
 	hint := ""
+	var base error = errors.New("request failed")
+	if status == http.StatusUnauthorized || status == http.StatusForbidden {
+		base = ErrUnauthorized
+	}
 	switch status {
 	case http.StatusUnauthorized:
 		hint = " (" + i18n.T("llm.invalid_key") + ")"
@@ -250,7 +278,7 @@ func apiError(status int, body []byte) error {
 	case http.StatusTooManyRequests:
 		hint = " (" + i18n.T("llm.rate_limit") + ")"
 	}
-	return fmt.Errorf("HTTP %d%s: %s", status, hint, msg)
+	return fmt.Errorf("%w: HTTP %d%s: %s", base, status, hint, msg)
 }
 
 func truncate(s string, n int) string {
