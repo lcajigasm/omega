@@ -365,9 +365,15 @@ func toolProposeActions(ctx context.Context, a *Agent, in map[string]any) (strin
 		fmt.Fprintf(&b, "- %s: %s\n", id, labels[id])
 	}
 	b.WriteString("Carry out exactly these, in order, then summarise. Approval rules still apply to each command.")
-	if a.opts.ReadOnly {
-		a.opts.ReadOnly = false
-		a.emit(Event{Kind: EvMode})
+	if a.Mode() == ModeReadOnly {
+		mode := ModeAsk
+		if a.opts.AutoYes {
+			mode = ModeAuto
+		}
+		a.mu.Lock()
+		a.mode = mode
+		a.mu.Unlock()
+		a.emit(Event{Kind: EvMode, Mode: mode})
 		b.WriteString("\nRead-only mode is now lifted so you can perform the selected actions, and only those.")
 	}
 	return b.String(), nil

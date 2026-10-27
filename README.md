@@ -176,11 +176,32 @@ omega's TUI follows the conventions of Claude Code's CLI:
 |---|---|
 | `↑` `↓` `PgUp` `PgDn` / wheel | scroll |
 | `ctrl+o` | expand or collapse the output of every tool call |
+| `shift+tab` | cycle the approval mode: asks before risky actions → auto approve → read only |
+| `ctrl+p` (or `alt+p`) | switch to the next model of the run (fast ↔ smart) from the next turn |
+| `/` | open the command menu (see below) |
 | `y` / `Enter` | approve (`s`, `o`, `j` also work) |
 | `a` | approve this and every following request (not available for Docker cleanups) |
 | `n` / `Esc` | deny |
 | `ctrl+c` | cancel the run |
 | `Esc` / empty `Enter` when idle | end the session |
+
+A model you pick by hand is kept: omega no longer switches to the stronger
+model on failure. Switching to read only mid-run tells the model, which then
+offers changes on a card instead of running them; `a` on an approval card is the
+same as switching to auto approve.
+
+When the input box is waiting for you, type `/` for commands. A menu under the
+box lists the matching commands with a short explanation and narrows as you
+type; `↑` `↓` move, `Tab` completes and `Enter` runs the highlighted one. After
+`/mode ` or `/model ` the menu offers the modes or the run's models.
+
+| Command | Action |
+|---|---|
+| `/help` | list the commands and keyboard shortcuts |
+| `/mode [ask\|auto\|readonly]` | change the approval mode (a card when no argument) |
+| `/model [name]` | switch model from the next turn (a card when no argument) |
+| `/expand` | expand or collapse the output of every tool call |
+| `/exit`, `/quit` | end the session and quit |
 
 With `--no-tui`, or when the output is not a terminal, omega prints plain text
 with the same `⏺`/`⎿` structure. Without a terminal on standard input, any action

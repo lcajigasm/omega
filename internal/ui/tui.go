@@ -53,7 +53,7 @@ const (
 // Header describes the session shown in the welcome box and status bar.
 type Header struct {
 	Version, Provider, Model, Escalate, Task string
-	ReadOnly, AutoYes                        bool
+	Models                                   []string // models the user can switch to
 }
 
 type entryKind int
@@ -110,6 +110,9 @@ type model struct {
 	current  *entry
 	state    state
 	expanded bool
+	mode     agent.Mode
+	menuSel  int  // highlighted row of the command menu
+	quitting bool // /exit: leave as soon as the session ends
 
 	thinking   bool
 	thinkStart time.Time
@@ -120,6 +123,7 @@ type model struct {
 
 	pending  *agent.Event
 	picker   *Picker
+	onPick   func(string) // set when a card answers the interface, not the agent
 	password textinput.Model
 
 	md      *glamour.TermRenderer
@@ -140,6 +144,7 @@ func RunTUI(ctx context.Context, cancel context.CancelFunc, ag *agent.Agent, h H
 		verbs:   strings.Split(i18n.T("ui.verbs"), "|"),
 		dark:    lipgloss.HasDarkBackground(),
 		started: time.Now(),
+		mode:    ag.Mode(),
 	}
 	m.verb = m.verbs[0]
 	m.password = textinput.New()
@@ -287,15 +292,7 @@ var leadingSpace = regexp.MustCompile(`^((?:\x1b\[[0-9;]*m)*) +`)
 
 var spinFrames = []string{"·", "✢", "✳", "✶", "✻", "✽", "✻", "✶", "✳", "✢"}
 
-func (m *model) modeText() string {
-	switch {
-	case m.header.ReadOnly:
-		return i18n.T("ui.mode_readonly")
-	case m.header.AutoYes:
-		return i18n.T("ui.mode_auto")
-	}
-	return i18n.T("ui.mode_ask")
-}
+func (m *model) modeText() string { return modeLabel(m.mode) }
 
 func (m *model) renderWelcome() string {
 	w := min(m.width-2, 78)
@@ -499,7 +496,7 @@ func (m *model) handleEvent(e agent.Event) tea.Cmd {
 		m.header.Model = e.Text
 		m.note(titleStyle.Render("↑ ")+mutedStyle.Render(i18n.T("ui.model_switch", e.Text)), lipgloss.NewStyle())
 	case agent.EvMode:
-		m.header.ReadOnly = false
+		m.mode = e.Mode
 		m.note(okStyle.Render("⏵ ")+mutedStyle.Render(i18n.T("ui.mode_lifted")), lipgloss.NewStyle())
 	case agent.EvIdle:
 		m.thinking = false
@@ -517,6 +514,9 @@ func (m *model) handleEvent(e agent.Event) tea.Cmd {
 		}
 		m.note(i18n.T("ui.summary_done", humanDuration(m.stats.Elapsed),
 			humanTokens(m.stats.Usage.Input()+m.stats.Usage.OutputTokens), m.costText()), mutedStyle)
+		if m.quitting {
+			return tea.Quit
+		}
 	}
 	return nil
 }
@@ -554,6 +554,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case closedMsg:
 		m.state = stDone
+		if m.quitting {
+			return m, tea.Quit
+		}
 
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -563,6 +566,18 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+o":
 			m.expanded = !m.expanded
 			m.refresh()
+			return m, nil
+		case "shift+tab":
+			if m.state != stDone {
+				m.setMode(m.mode.Next())
+				m.refresh()
+			}
+			return m, nil
+		case "ctrl+p", "alt+p":
+			if m.state != stDone {
+				m.cycleModel()
+				m.refresh()
+			}
 			return m, nil
 		}
 		switch m.state {
@@ -574,6 +589,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "a":
 				if !m.pending.Always {
 					d = agent.ApproveAll
+					m.mode = agent.ModeAuto
 				}
 			case "n", "esc":
 				d = agent.Deny
@@ -604,6 +620,21 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.password, cmd = m.password.Update(msg)
 			return m, cmd
 		case stChoice:
+			if m.onPick != nil {
+				if done, cancelled := m.picker.HandleKey(msg); done {
+					ids := m.picker.Selected()
+					pick := m.onPick
+					m.picker, m.onPick = nil, nil
+					m.state = stIdle
+					if !cancelled && len(ids) > 0 {
+						pick(ids[0])
+					}
+					m.refresh()
+					return m, m.input.Focus()
+				}
+				m.refresh()
+				return m, nil
+			}
 			if done, cancelled := m.picker.HandleKey(msg); done {
 				var ids []string
 				if !cancelled {
@@ -629,9 +660,15 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.refresh()
 			return m, nil
 		case stIdle:
+			if m.handleMenuKey(msg) {
+				return m, nil
+			}
 			switch msg.Type {
 			case tea.KeyEnter:
 				text := strings.TrimSpace(m.input.Value())
+				if strings.HasPrefix(text, "/") {
+					return m, m.submitCommand(text)
+				}
 				m.input.Blur()
 				m.state = stRunning
 				if text != "" {
@@ -642,18 +679,19 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.refresh()
 				return m, nil
 			case tea.KeyEsc:
-				m.input.Blur()
-				m.state = stRunning
-				ch := m.ag.Input()
-				go func() { ch <- "" }()
+				m.endSession()
 				return m, nil
 			case tea.KeyPgUp, tea.KeyPgDown, tea.KeyUp, tea.KeyDown:
 				var cmd tea.Cmd
 				m.vp, cmd = m.vp.Update(msg)
 				return m, cmd
 			}
+			before := m.input.Value()
 			var cmd tea.Cmd
 			m.input, cmd = m.input.Update(msg)
+			if m.input.Value() != before {
+				m.menuSel = 0
+			}
 			return m, cmd
 		case stDone:
 			if msg.String() == "q" || msg.Type == tea.KeyEnter || msg.Type == tea.KeyEsc {
@@ -670,6 +708,14 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, cmd)
 	}
 	return m, tea.Batch(cmds...)
+}
+
+// endSession tells the agent the user is done.
+func (m *model) endSession() {
+	m.input.Blur()
+	m.state = stRunning
+	ch := m.ag.Input()
+	go func() { ch <- "" }()
 }
 
 // ---------- footer ----------
@@ -730,13 +776,16 @@ func (m *model) confirmView() string {
 
 func (m *model) statusBar() string {
 	var left string
-	switch {
-	case m.header.ReadOnly:
+	switch m.mode {
+	case agent.ModeReadOnly:
 		left = okStyle.Render("⏵⏵ " + i18n.T("ui.mode_readonly"))
-	case m.header.AutoYes:
+	case agent.ModeAuto:
 		left = warnStyle.Render("⏵⏵ " + i18n.T("ui.mode_auto"))
 	default:
 		left = mutedStyle.Render("⏵⏵ " + i18n.T("ui.mode_ask"))
+	}
+	if m.state != stDone {
+		left += faintStyle.Render(" " + i18n.T("ui.mode_hint"))
 	}
 	parts := []string{m.header.Model,
 		"↑" + humanTokens(m.stats.Usage.Input()) + " ↓" + humanTokens(m.stats.Usage.OutputTokens)}
@@ -778,6 +827,9 @@ func (m *model) footerView() string {
 		top = confirmStyle.Width(m.width - 2).Render(b.String())
 	case stIdle:
 		top = inputStyle.Width(m.width - 2).Render(m.input.View())
+		if menu := m.menuView(); menu != "" {
+			return top + "\n" + menu + "\n" + m.statusBar()
+		}
 		return top + "\n" + m.statusBar() + "\n" + faintStyle.Render("  "+i18n.T("ui.hint_idle"))
 	case stDone:
 		return m.statusBar() + "\n" + faintStyle.Render("  "+i18n.T("ui.hint_done"))

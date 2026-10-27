@@ -15,6 +15,9 @@ func TestPlanModel(t *testing.T) {
 	if p.Model != "claude-haiku-5-5" || p.Escalate != "claude-sonnet-5-5" {
 		t.Fatalf("auto routine: %+v", p)
 	}
+	if len(p.Choices) != 2 {
+		t.Fatalf("auto routine choices: %+v", p.Choices)
+	}
 	p, _ = planModel(cfg, info, "", "fix")
 	if p.Model != "claude-sonnet-5-5" || p.Escalate != "" {
 		t.Fatalf("auto fix: %+v", p)
@@ -22,6 +25,9 @@ func TestPlanModel(t *testing.T) {
 	p, _ = planModel(cfg, info, "claude-opus-5-5", "update")
 	if p.Model != "claude-opus-5-5" || p.Escalate != "" {
 		t.Fatalf("flag: %+v", p)
+	}
+	if len(p.Choices) != 3 || p.Choices[0] != "claude-opus-5-5" {
+		t.Fatalf("flag choices: %+v", p.Choices)
 	}
 	cfg.Providers["anthropic"] = config.ProviderConfig{FastModel: "my-fast"}
 	p, _ = planModel(cfg, info, "", "clean")

@@ -23,7 +23,8 @@ import (
 // modelPlan is the model choice for one run.
 type modelPlan struct {
 	Model    string
-	Escalate string // switch to this model when a step fails; "" for none
+	Escalate string   // switch to this model when a step fails; "" for none
+	Choices  []string // models the user can switch to during the run
 }
 
 // tiers returns the fast and smart models for a provider, honouring the
@@ -51,6 +52,29 @@ func tiers(cfg *config.Config, info llm.Info) (fast, smart string) {
 // the smart tier on the first failing step; fix, which is all diagnosis,
 // starts on the smart tier.
 func planModel(cfg *config.Config, info llm.Info, flagModel, task string) (modelPlan, error) {
+	plan, err := pickModel(cfg, info, flagModel, task)
+	if err != nil {
+		return plan, err
+	}
+	fast, smart := tiers(cfg, info)
+	plan.Choices = uniqueModels(plan.Model, plan.Escalate, fast, smart)
+	return plan, nil
+}
+
+// uniqueModels drops empty and repeated names, keeping the order.
+func uniqueModels(names ...string) []string {
+	var out []string
+	seen := map[string]bool{}
+	for _, n := range names {
+		if n != "" && !seen[n] {
+			seen[n] = true
+			out = append(out, n)
+		}
+	}
+	return out
+}
+
+func pickModel(cfg *config.Config, info llm.Info, flagModel, task string) (modelPlan, error) {
 	if flagModel != "" {
 		return modelPlan{Model: flagModel}, nil
 	}
