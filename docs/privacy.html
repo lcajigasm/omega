@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Privacy · omega</title>
+  <meta name="description" content="What omega stores on your Mac and what it sends to the AI provider you choose.">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <meta name="theme-color" content="#000000">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;600&family=Geist+Mono:wght@400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="page">
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="nav-wrap">
+    <nav class="nav" aria-label="Main">
+      <a class="brand" href="./" aria-label="omega home"><span class="brand-mark" aria-hidden="true">Ω</span> omega</a>
+      <a class="btn btn-sm btn-primary" href="./">Back to home</a>
+    </nav>
+  </header>
+  <main id="main">
+    <div class="container narrow">
+      <h1>Privacy</h1>
+      <p>omega is a command line tool that runs on your Mac. It has no account, no server of its own, no analytics and no telemetry. This website sets no cookies.</p>
+
+      <h2>What stays on your Mac</h2>
+      <p>Your API keys are stored in the macOS Keychain under the service <code>omega-cli</code>. Your configuration lives in <code>~/.config/omega/config.toml</code>, the notes the agent keeps about your machine in <code>~/.config/omega/notes.md</code>, and a log of every run in <code>~/.local/state/omega/runs</code>. You can delete any of them at any time.</p>
+
+      <h2>What goes to your AI provider</h2>
+      <p>omega talks only to the provider you configure: Anthropic, OpenAI, OpenRouter or OpenCode Zen. Each request contains omega's instructions, your notes, the trimmed output of the commands it ran and the contents of the configuration files it read. The agent is instructed not to read personal documents. That provider's own privacy policy and data retention terms apply to those requests.</p>
+
+      <h2>This website</h2>
+      <p>This page is hosted on GitHub Pages and loads fonts from Google Fonts and icons from unpkg. Those services may log your IP address as part of serving the files.</p>
+
+      <h2>Contact</h2>
+      <p>Questions or concerns: open an issue at <a href="https://github.com/lcajigasm/omega/issues">github.com/lcajigasm/omega/issues</a>.</p>
+
+      <a class="btn btn-primary" href="./">Back to home</a>
+    </div>
+  </main>
+  <footer class="footer">
+    <div class="container footer-inner">
+      <p class="brand"><span class="brand-mark" aria-hidden="true">Ω</span> omega</p>
+      <ul class="footer-links">
+        <li><a href="https://github.com/lcajigasm/omega">GitHub</a></li>
+        <li><a href="privacy.html" aria-current="page">Privacy</a></li>
+        <li><a href="https://github.com/lcajigasm/omega/blob/main/LICENSE">License (terms)</a></li>
+      </ul>
+    </div>
+  </footer>
+</body>
+</html>

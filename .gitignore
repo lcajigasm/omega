@@ -2,3 +2,4 @@
 /dist/
 *.omega-bak-*
 .DS_Store
+.claude/
