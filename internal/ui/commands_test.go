@@ -16,14 +16,14 @@ func TestSuggestions(t *testing.T) {
 		return out
 	}
 	for in, want := range map[string][]string{
-		"hello":    nil,
-		"/":        {"/help", "/mode", "/model", "/expand", "/exit", "/quit"},
-		"/mo":      {"/mode", "/model"},
-		"/model ":  {"/model fast", "/model smart"},
+		"hello":     nil,
+		"/":         {"/help", "/mode", "/model", "/expand", "/exit", "/quit"},
+		"/mo":       {"/mode", "/model"},
+		"/model ":   {"/model fast", "/model smart"},
 		"/model sm": {"/model smart"},
-		"/model a": {"/model fast", "/model smart"},
-		"/mode r":  {"/mode readonly"},
-		"/zz":      nil,
+		"/model a":  {"/model fast", "/model smart"},
+		"/mode r":   {"/mode readonly"},
+		"/zz":       nil,
 	} {
 		m.input.SetValue(in)
 		got := labels()
