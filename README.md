@@ -65,7 +65,14 @@ an AI model with a narrow set of tools and a strict safety policy.
   unavailable simulators, Docker and the Trash, measuring first and prioritising
   what frees the most.
 - **Fixes what breaks**: reads the failure, checks the config behind it, applies
-  the smallest fix and retries once.
+  the smallest fix and retries once. When Docker is not running it offers to
+  start it, and when a cleanup needs a tool you do not have it offers to install it.
+- **Reads the system logs**: crash reports, launch agents that keep failing,
+  processes preventing sleep, apps flooding the log and log folder sizes, with
+  fixes offered on a card.
+- **sudo inside the interface**: when Mole, `softwareupdate` or any command needs
+  administrator access, omega asks for the password on a card instead of the
+  terminal.
 - **Selection cards**: recommendations arrive as a card where you tick one or
   several actions, and omega carries out exactly those.
 - **Sensible model choice**: a cheap model for routine work that escalates to a
@@ -320,8 +327,14 @@ commands with `&&`, `;`, `|`) and applies the highest risk level found:
   something on a card.
 - Commands run with **stdin closed** and non-interactive variables, so nothing
   hangs on a hidden prompt; each command has a time limit (`command_timeout`).
-- `sudo` is always `sudo -n`. Run `omega --sudo` to give the password once at the
-  start.
+![The sudo password card](docs/assets/sudo.png)
+
+- Commands run in their own session, detached from your terminal, so nothing can
+  write over the interface. When something calls `sudo`, a small wrapper sends the
+  password request to omega, which shows a **password card**, checks the password
+  with sudo and keeps it in memory for that run only (never logged, never sent to
+  the AI). `Esc` skips what needs admin access. `omega --sudo` asks for it before
+  the run starts instead.
 - `write_file` always requires approval (unless `--yes`), shows the diff and saves
   a `file.omega-bak-YYYYMMDD-HHMMSS` copy.
 - Denied actions are shown in the interface and recorded in the run log.
@@ -339,6 +352,7 @@ commands with `&&`, `;`, `|`) and applies the highest risk level found:
 | `brew-outdated` | check | `brew outdated --verbose` | read-only |
 | `brew-doctor` | check | `brew doctor` | read-only |
 | `macos-check` | check | `softwareupdate --list` | read-only |
+| `system-logs` | check | crash reports, failing launch agents, sleep blockers, processes logging faults, log sizes | read-only |
 | `docker-df` | check | `docker system df` + Docker Desktop disk image | read-only |
 | `docker-start` | check | start Docker Desktop and wait for it | dangerous |
 | `brew` | update | `brew update && brew upgrade` | normal |
@@ -353,7 +367,7 @@ commands with `&&`, `;`, `|`) and applies the highest risk level found:
 | `cargo` | update | `cargo install-update -a` | normal |
 | `gh-ext` | update | `gh extension upgrade --all` | normal |
 | `omz` | update | Oh My Zsh upgrader | dangerous |
-| `macos` | update | `sudo -n softwareupdate --install --all` | dangerous |
+| `macos` | update | `sudo softwareupdate --install --all` | dangerous |
 | `brew-cleanup` | clean | `brew cleanup --prune=all` | dangerous |
 | `brew-autoremove` | clean | `brew autoremove` | dangerous |
 | `npm-cache` | clean | `npm cache clean --force` | dangerous |
@@ -505,8 +519,8 @@ Example with `launchd` (every Monday at 9:00), in
 launchctl load ~/Library/LaunchAgents/com.lcajigasm.omega.plist
 ```
 
-Unattended runs never clean Docker (that always needs you) and skip selection
-cards, listing the recommendations in the summary instead.
+Unattended runs never clean Docker (that always needs you), skip selection cards
+(the recommendations go into the summary) and skip anything that needs sudo.
 
 ## How it works
 
@@ -544,7 +558,8 @@ internal/cli/       commands (setup, model, docker, auth, config, steps, notes),
 internal/agent/     agent loop, tools, config hints, web tools, prompt, events, run log
 internal/llm/       providers (Anthropic SDK, OpenAI-compatible, OpenCode), tiers, prices
 internal/safety/    command risk classifier
-internal/runner/    command execution with live output
+internal/runner/    command execution in its own session with live output
+internal/sudo/      sudo bridge: wrapper, askpass helper and password checks
 internal/steps/     step catalogue
 internal/ui/        TUI (Bubble Tea, glamour), selection cards, plain output
 internal/i18n/      translations (en, es, fr, de, pt)
@@ -574,7 +589,9 @@ Studio server, or fix `base_url`.
 **The model does not call tools or behaves oddly**: use a model with tool
 calling; with local models, try a larger one.
 
-**A sudo step fails with "a password is required"**: relaunch with `omega --sudo`.
+**A step that needs sudo was skipped**: you pressed `Esc` on the password card,
+or the password was wrong three times. Run again, or use `omega --sudo` to give the
+password before the run starts.
 
 **A read-only command was denied**: the classifier treats unknown commands as
 dangerous. Open an issue with the command so it can be added to the read-only

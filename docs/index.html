@@ -55,6 +55,7 @@
       {"@type": "Question", "name": "Can it run on a local model?", "acceptedAnswer": {"@type": "Answer", "text": "Yes, through Ollama, LM Studio or any OpenAI compatible endpoint. Apple Intelligence's on device model has a 4,096 token context, too small for this agent."}},
       {"@type": "Question", "name": "How does omega tune know the right settings?", "acceptedAnswer": {"@type": "Answer", "text": "It reads the current official documentation of each installed tool on the web and proposes changes with their source. You pick which ones to apply, or use --auto for the low risk ones."}},
       {"@type": "Question", "name": "Can omega run unattended?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Run omega update --yes --no-tui --once from launchd or cron. Blocked commands stay blocked and Docker is never cleaned without you."}},
+      {"@type": "Question", "name": "What happens when something needs admin access?", "acceptedAnswer": {"@type": "Answer", "text": "omega shows a password card, checks the password with sudo and keeps it in memory for that run only. It is never logged or sent to the AI."}},
       {"@type": "Question", "name": "Where are my API keys stored?", "acceptedAnswer": {"@type": "Answer", "text": "In the macOS Keychain, under the service omega-cli. Environment variables take precedence when set."}},
       {"@type": "Question", "name": "Which languages does the interface support?", "acceptedAnswer": {"@type": "Answer", "text": "English, Spanish, French, German and Portuguese. omega follows your system locale and the agent replies in the same language."}}
     ]
@@ -110,7 +111,7 @@
         </div>
         <p class="copy-status" role="status" aria-live="polite"></p>
 
-        <p class="proof"><i class="ph ph-check-circle" aria-hidden="true"></i> 42 maintenance steps · cloud or local models · 5 interface languages · MIT licensed</p>
+        <p class="proof"><i class="ph ph-check-circle" aria-hidden="true"></i> 43 maintenance steps · cloud or local models · 5 interface languages · MIT licensed</p>
 
         <figure class="terminal" aria-label="Example omega session">
           <div class="terminal-bar"><span></span><span></span><span></span><p>omega · full</p></div>
@@ -175,7 +176,7 @@
           <article class="card feature">
             <i class="ph ph-wrench feature-icon" aria-hidden="true"></i>
             <h3 class="card-title">Failures get fixed, not just reported</h3>
-            <p>omega reads the output, checks the config file behind it and retries with the fix. Your run ends with a summary, not a wall of red.</p>
+            <p>omega reads the output, checks the config behind it and retries with the fix. It also reads the system logs for crash loops and failing agents, and offers to install what a cleanup needs.</p>
           </article>
           <article class="card feature">
             <i class="ph ph-check-square feature-icon" aria-hidden="true"></i>
@@ -200,7 +201,7 @@
           <article class="card feature">
             <i class="ph ph-shield-check feature-icon" aria-hidden="true"></i>
             <h3 class="card-title">Nothing risky runs without you</h3>
-            <p>Every command is classified before it runs. Deletes, sudo and config edits wait for your yes. The truly destructive ones never run at all.</p>
+            <p>Every command is classified before it runs. Deletes and config edits wait for your yes, sudo asks for the password inside the interface, and the truly destructive commands never run.</p>
           </article>
         </div>
       </div>
@@ -343,7 +344,7 @@ omega docker</code></pre>
       <div class="container">
         <h2 class="section-title" id="proof-title">Built in the open</h2>
         <div class="stats">
-          <div class="stat"><p class="stat-num">42</p><p class="stat-label">maintenance steps, from Homebrew to Docker</p></div>
+          <div class="stat"><p class="stat-num">43</p><p class="stat-label">maintenance steps, from Homebrew to Docker</p></div>
           <div class="stat"><p class="stat-num">12</p><p class="stat-label">narrow tools the agent can use, nothing more</p></div>
           <div class="stat"><p class="stat-num">5</p><p class="stat-label">interface languages, checked by tests</p></div>
           <div class="stat"><p class="stat-num">&lt;1¢</p><p class="stat-label">for a typical run on the automatic model</p></div>
@@ -357,16 +358,17 @@ omega docker</code></pre>
       <div class="container narrow">
         <h2 class="section-title" id="faq-title">Questions</h2>
         <div class="faq">
-          <details><summary>Does omega replace topgrade and Mole?</summary><p>For a typical developer Mac, yes. omega has its own steps for Homebrew, the Mac App Store, npm, pnpm, bun, pipx, uv, rustup, cargo, gh extensions, Oh My Zsh, macOS, caches, Xcode, Docker and the Trash. If topgrade or Mole are installed, it also uses them and can fix their configuration with <code>omega fix</code>.</p></details>
-          <details><summary>What does omega send to the AI provider?</summary><p>Its instructions, the trimmed output of the commands it runs and the configuration files it reads. It is instructed never to open your documents. Every run is logged to <code>~/.local/state/omega/runs</code> so you can check exactly what happened.</p></details>
-          <details><summary>Can omega delete my files?</summary><p>Only after you approve it. Deleting, sudo, editing config files and any unknown command need your confirmation. Commands like <code>rm -rf ~</code>, <code>diskutil erase</code> or <code>curl</code> piped into a shell are blocked and never run, even with <code>--yes</code>.</p></details>
-          <details><summary>Which AI models work with omega?</summary><p>Any model with tool calling from Anthropic, OpenAI, OpenRouter or OpenCode Zen, or a local one through Ollama, LM Studio or any OpenAI compatible endpoint. By default omega uses a fast model such as Claude Haiku 5.5 and switches to a stronger one when a step fails. Choose with <code>omega model</code>.</p></details>
-          <details><summary>How much does a run cost?</summary><p>On the automatic model a typical run costs under one cent: a full configuration review on a real Mac came to $0.009. omega shows tokens and cost live in the status bar and in the final summary. Local models cost nothing.</p></details>
-          <details><summary>Can it run on a local model?</summary><p>Yes. Start Ollama or the LM Studio server and pick the provider in <code>omega setup</code>. Apple Intelligence's on device model is only reachable from Swift and its 4,096 token context is too small for this kind of agent, so omega uses local servers instead.</p></details>
-          <details><summary>How does <code>omega tune</code> know the right settings?</summary><p>It does not ship a fixed list. For each tool you have installed it gets pointers to the config files and the official docs, reads the current documentation on the web, and proposes changes with their source. You pick which ones to apply, or use <code>--auto</code> for the low risk ones.</p></details>
-          <details><summary>Can omega run unattended?</summary><p>Yes. Run <code>omega update --yes --no-tui --once</code> from launchd or cron. Blocked commands stay blocked, Docker is never cleaned without you, and recommendations go into the summary instead of a card.</p></details>
-          <details><summary>Where are my API keys stored?</summary><p>In the macOS Keychain, under the service <code>omega-cli</code>. Environment variables such as <code>ANTHROPIC_API_KEY</code> take precedence when set.</p></details>
-          <details><summary>Which languages does the interface support?</summary><p>English, Spanish, French, German and Portuguese. omega follows your system locale, and you can override it with <code>omega config set language</code>. The agent replies in the same language.</p></details>
+          <details><summary><span>Does omega replace topgrade and Mole?</span></summary><p>For a typical developer Mac, yes. omega has its own steps for Homebrew, the Mac App Store, npm, pnpm, bun, pipx, uv, rustup, cargo, gh extensions, Oh My Zsh, macOS, caches, Xcode, Docker and the Trash. If topgrade or Mole are installed, it also uses them and can fix their configuration with <code>omega fix</code>.</p></details>
+          <details><summary><span>What does omega send to the AI provider?</span></summary><p>Its instructions, the trimmed output of the commands it runs and the configuration files it reads. It is instructed never to open your documents. Every run is logged to <code>~/.local/state/omega/runs</code> so you can check exactly what happened.</p></details>
+          <details><summary><span>Can omega delete my files?</span></summary><p>Only after you approve it. Deleting, sudo, editing config files and any unknown command need your confirmation. Commands like <code>rm -rf ~</code>, <code>diskutil erase</code> or <code>curl</code> piped into a shell are blocked and never run, even with <code>--yes</code>.</p></details>
+          <details><summary><span>Which AI models work with omega?</span></summary><p>Any model with tool calling from Anthropic, OpenAI, OpenRouter or OpenCode Zen, or a local one through Ollama, LM Studio or any OpenAI compatible endpoint. By default omega uses a fast model such as Claude Haiku 5.5 and switches to a stronger one when a step fails. Choose with <code>omega model</code>.</p></details>
+          <details><summary><span>How much does a run cost?</span></summary><p>On the automatic model a typical run costs under one cent: a full configuration review on a real Mac came to $0.009. omega shows tokens and cost live in the status bar and in the final summary. Local models cost nothing.</p></details>
+          <details><summary><span>Can it run on a local model?</span></summary><p>Yes. Start Ollama or the LM Studio server and pick the provider in <code>omega setup</code>. Apple Intelligence's on device model is only reachable from Swift and its 4,096 token context is too small for this kind of agent, so omega uses local servers instead.</p></details>
+          <details><summary><span>How does <code>omega tune</code> know the right settings?</span></summary><p>It does not ship a fixed list. For each tool you have installed it gets pointers to the config files and the official docs, reads the current documentation on the web, and proposes changes with their source. You pick which ones to apply, or use <code>--auto</code> for the low risk ones.</p></details>
+          <details><summary><span>Can omega run unattended?</span></summary><p>Yes. Run <code>omega update --yes --no-tui --once</code> from launchd or cron. Blocked commands stay blocked, Docker is never cleaned without you, and recommendations go into the summary instead of a card.</p></details>
+          <details><summary><span>What happens when something needs admin access?</span></summary><p>Commands run detached from your terminal, so nothing can write over the interface. When a tool such as Mole or softwareupdate asks for sudo, omega shows a password card, checks the password with sudo and keeps it in memory for that run only. It is never logged or sent to the AI. Press Esc to skip the steps that need it.</p></details>
+          <details><summary><span>Where are my API keys stored?</span></summary><p>In the macOS Keychain, under the service <code>omega-cli</code>. Environment variables such as <code>ANTHROPIC_API_KEY</code> take precedence when set.</p></details>
+          <details><summary><span>Which languages does the interface support?</span></summary><p>English, Spanish, French, German and Portuguese. omega follows your system locale, and you can override it with <code>omega config set language</code>. The agent replies in the same language.</p></details>
         </div>
       </div>
     </section>

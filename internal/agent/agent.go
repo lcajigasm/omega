@@ -15,6 +15,7 @@ import (
 	"github.com/lcajigasm/omega/internal/llm"
 	"github.com/lcajigasm/omega/internal/runner"
 	"github.com/lcajigasm/omega/internal/safety"
+	"github.com/lcajigasm/omega/internal/sudo"
 )
 
 const maxTurns = 80
@@ -35,6 +36,8 @@ type Options struct {
 	Config      *config.Config
 	Exec        ExecFunc
 	SkipDetect  bool // run catalogue steps without checking they are installed (demo mode)
+	// SudoPassword, when set (omega --sudo), answers sudo prompts without asking.
+	SudoPassword string
 }
 
 // Agent drives one maintenance session.
@@ -51,11 +54,14 @@ type Agent struct {
 	cost       float64
 	costKnown  bool
 	started    time.Time
+	real       bool // commands run on this machine (not a test or demo)
+	ctx        context.Context
 }
 
 // New creates an agent for the given provider.
 func New(p llm.Provider, opts Options) *Agent {
-	if opts.Exec == nil {
+	real := opts.Exec == nil
+	if real {
 		opts.Exec = runner.Run
 	}
 	if opts.Provider == "" {
@@ -70,6 +76,7 @@ func New(p llm.Provider, opts Options) *Agent {
 		events:  make(chan Event, 512),
 		input:   make(chan string),
 		started: time.Now(),
+		real:    real,
 	}
 	_, a.costKnown = llm.PriceFor(opts.Provider, opts.Model)
 	a.openLog(p.Name())
@@ -105,6 +112,16 @@ func (a *Agent) stats() Stats {
 func (a *Agent) Run(ctx context.Context, task string) {
 	defer close(a.events)
 	defer a.closeLog()
+	a.ctx = ctx
+	if a.real {
+		if b, err := sudo.Start(a.askPassword, a.opts.SudoPassword); err == nil {
+			runner.Configure(b.Env(), b.PathPrefix())
+			defer func() {
+				runner.Configure(nil, "")
+				b.Close()
+			}()
+		}
+	}
 
 	text := task
 	var results []llm.ToolResult
@@ -249,6 +266,22 @@ func (a *Agent) authorize(ctx context.Context, tool, command, reason string, ris
 		}
 	}
 	return deny("The user denied this action. Do not retry it or an equivalent; carry on with the rest.")
+}
+
+// askPassword asks the user for the sudo password in the interface. It runs
+// on the sudo bridge's goroutine while a command waits for it.
+func (a *Agent) askPassword(prompt string, retry bool) (string, bool) {
+	if !a.opts.Interactive {
+		return "", false
+	}
+	reply := make(chan string, 1)
+	a.emit(Event{Kind: EvPassword, Text: prompt, Failed: retry, Secret: reply})
+	select {
+	case <-a.ctx.Done():
+		return "", false
+	case pw := <-reply:
+		return pw, pw != ""
+	}
 }
 
 // choose shows a selection card and returns the IDs the user picked.

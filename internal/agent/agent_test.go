@@ -199,3 +199,17 @@ func TestEscalatesOnStepFailure(t *testing.T) {
 		t.Fatalf("expected one switch to smart, got %v", p.models)
 	}
 }
+
+func TestFollowUpHints(t *testing.T) {
+	for out, want := range map[string]string{
+		"Cannot connect to the Docker daemon at unix:///x. Is the docker daemon running?": "docker-start",
+		"zsh: command not found: mas":                                      "install",
+		"✓ Skipping sudo-required optimizations: admin access not granted": "omega --sudo",
+		"all good": "",
+	} {
+		got := followUpHint(out)
+		if (want == "") != (got == "") || !strings.Contains(got, want) {
+			t.Errorf("followUpHint(%q) = %q, want it to mention %q", out, got, want)
+		}
+	}
+}

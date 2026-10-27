@@ -37,6 +37,8 @@ func (a *Agent) writeLog(e Event) {
 		fmt.Fprintf(a.log, "[%s exit=%d %s]\n", e.Tool, e.ExitCode, e.Duration.Round(time.Second))
 	case EvConfirm:
 		fmt.Fprintf(a.log, "\n? approval (%s): %s\n", e.Risk, e.Command)
+	case EvPassword:
+		fmt.Fprintf(a.log, "\n? sudo password requested (%s)\n", e.Text)
 	case EvError:
 		fmt.Fprintf(a.log, "\n! %s\n", e.Text)
 	case EvDone:

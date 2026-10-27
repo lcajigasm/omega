@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"os/signal"
 	"strings"
 	"syscall"
@@ -21,6 +20,7 @@ import (
 	"github.com/lcajigasm/omega/internal/llm"
 	"github.com/lcajigasm/omega/internal/runner"
 	"github.com/lcajigasm/omega/internal/secrets"
+	"github.com/lcajigasm/omega/internal/sudo"
 	"github.com/lcajigasm/omega/internal/ui"
 )
 
@@ -152,21 +152,23 @@ func runTask(task string, f runFlags) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	if f.sudo && !readOnly {
-		if err := startSudo(ctx); err != nil {
+	sudoPassword := ""
+	if f.sudo && !readOnly && stdinTTY {
+		if sudoPassword, err = askSudo(); err != nil {
 			return err
 		}
 	}
 
 	opts := agent.Options{
-		Model:       plan.Model,
-		Escalate:    plan.Escalate,
-		Approval:    cfg.Approval,
-		AutoYes:     f.yes,
-		ReadOnly:    readOnly,
-		Interactive: stdinTTY && !f.once,
-		Timeout:     timeout,
-		Config:      cfg,
+		Model:        plan.Model,
+		Escalate:     plan.Escalate,
+		Approval:     cfg.Approval,
+		AutoYes:      f.yes,
+		ReadOnly:     readOnly,
+		Interactive:  stdinTTY && !f.once,
+		Timeout:      timeout,
+		Config:       cfg,
+		SudoPassword: sudoPassword,
 	}
 	if f.demo {
 		opts.Provider = "anthropic"
@@ -193,28 +195,21 @@ func runTask(task string, f runFlags) error {
 	return err
 }
 
-// startSudo validates sudo credentials up front and refreshes them in the
-// background so steps can use `sudo -n` without prompting.
-func startSudo(ctx context.Context) error {
+// askSudo asks for the sudo password before the interface starts and checks
+// it, so sudo prompts during the run are answered without interrupting.
+func askSudo() (string, error) {
 	fmt.Println(i18n.T("sudo.intro"))
-	c := exec.Command("sudo", "-v")
-	c.Stdin, c.Stdout, c.Stderr = os.Stdin, os.Stdout, os.Stderr
-	if err := c.Run(); err != nil {
-		return fmt.Errorf("sudo -v: %w", err)
-	}
-	go func() {
-		t := time.NewTicker(4 * time.Minute)
-		defer t.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-t.C:
-				exec.Command("sudo", "-n", "-v").Run()
-			}
+	for i := 0; i < 3; i++ {
+		pw, err := askSecret(i18n.T("sudo.prompt"))
+		if err != nil || pw == "" {
+			return "", fmt.Errorf("%s", i18n.T("sudo.cancelled"))
 		}
-	}()
-	return nil
+		if sudo.Validate(pw) {
+			return pw, nil
+		}
+		fmt.Println(i18n.T("sudo.wrong"))
+	}
+	return "", fmt.Errorf("%s", i18n.T("sudo.cancelled"))
 }
 
 func providerNames() string {

@@ -241,8 +241,10 @@ i.ph { font-size: 20px; line-height: 1; }
 .faq details:hover { background: var(--surface-2); }
 .faq summary {
   list-style: none; cursor: pointer; padding: var(--s-200) 0; font-weight: 600; font-size: 16px; line-height: 24px;
-  display: flex; justify-content: space-between; gap: var(--s-200); border-radius: 4px;
+  display: flex; justify-content: space-between; align-items: center; gap: var(--s-200); border-radius: 4px;
 }
+.faq summary > span { flex: 1; }
+.faq summary code { font-size: 14px; line-height: 20px; padding: var(--s-25) var(--s-50); background: var(--surface-3); border-radius: 4px; }
 .faq summary::-webkit-details-marker { display: none; }
 .faq summary::after { content: "+"; color: var(--text-muted); font-family: var(--mono); transition: transform 300ms var(--ease); }
 .faq details[open] summary::after { transform: rotate(45deg); }

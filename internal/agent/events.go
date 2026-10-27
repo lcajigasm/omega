@@ -18,6 +18,7 @@ const (
 	EvToolEnd                    // a tool finished
 	EvConfirm                    // approval needed; answer on Reply
 	EvChoice                     // selection card; answer on Picks
+	EvPassword                   // sudo needs the password; answer on Secret ("" cancels)
 	EvDenied                     // an action was refused (policy or user)
 	EvModel                      // switched to another model (Text)
 	EvMode                       // read-only mode lifted
@@ -71,5 +72,6 @@ type Event struct {
 	Choices  []Choice
 	Multi    bool
 	Picks    chan []string
+	Secret   chan string
 	Stats    Stats
 }

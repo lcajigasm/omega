@@ -13,8 +13,11 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
+
+func shellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'" }
 
 // Result is the outcome of a command.
 type Result struct {
@@ -65,8 +68,21 @@ func Has(bin string) bool {
 	return err == nil
 }
 
-// Run executes command through the login shell with stdin closed, so tools
-// that would prompt fail fast instead of hanging. onLine receives each line.
+var (
+	extraEnv   []string
+	pathPrefix string
+)
+
+// Configure adds environment variables to every command and a directory
+// that goes first on their PATH (after the login shell has built it).
+func Configure(env []string, prefix string) {
+	extraEnv, pathPrefix = env, prefix
+}
+
+// Run executes command through the login shell with stdin closed and in its
+// own session, without a controlling terminal: tools that would prompt fail
+// fast (or go through omega's sudo bridge) instead of hanging or writing over
+// the interface. onLine receives each line of output.
 func Run(ctx context.Context, command string, timeout time.Duration, onLine func(string)) Result {
 	start := time.Now()
 	if timeout > 0 {
@@ -74,8 +90,16 @@ func Run(ctx context.Context, command string, timeout time.Duration, onLine func
 		ctx, cancel = context.WithTimeout(ctx, timeout)
 		defer cancel()
 	}
-	cmd := exec.CommandContext(ctx, Shell(), "-lc", command)
+	script := command
+	if pathPrefix != "" {
+		// Login shells rebuild PATH (path_helper), so prepend after they start.
+		script = "export PATH=" + shellQuote(pathPrefix) + ":\"$PATH\"; " + command
+	}
+	cmd := exec.CommandContext(ctx, Shell(), "-lc", script)
 	cmd.Stdin = nil
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	// Kill the whole session on timeout or cancel, not just the shell.
+	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) }
 	cmd.Env = append(os.Environ(),
 		"NONINTERACTIVE=1",
 		"HOMEBREW_NO_ENV_HINTS=1",
@@ -86,6 +110,7 @@ func Run(ctx context.Context, command string, timeout time.Duration, onLine func
 		"PAGER=cat",
 		"GIT_TERMINAL_PROMPT=0",
 	)
+	cmd.Env = append(cmd.Env, extraEnv...)
 	cmd.WaitDelay = 5 * time.Second
 
 	pr, pw := io.Pipe()

@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/term"
+
 	"github.com/lcajigasm/omega/internal/agent"
 	"github.com/lcajigasm/omega/internal/i18n"
 )
@@ -81,6 +83,22 @@ func RunPlain(ag *agent.Agent, in io.Reader, interactive bool) {
 			default:
 				e.Reply <- agent.Deny
 			}
+		case agent.EvPassword:
+			if !interactive {
+				e.Secret <- ""
+				continue
+			}
+			if e.Failed {
+				fmt.Println(errStyle.Render(i18n.T("ui.password_wrong")))
+			}
+			fmt.Println(mutedStyle.Render(i18n.T("ui.password_hint")))
+			fmt.Print(warnStyle.Render(i18n.T("ui.password_title")) + " ")
+			pw, err := term.ReadPassword(int(os.Stdin.Fd()))
+			fmt.Println()
+			if err != nil {
+				pw = nil
+			}
+			e.Secret <- string(pw)
 		case agent.EvChoice:
 			opts := make([]Option, len(e.Choices))
 			for i, c := range e.Choices {

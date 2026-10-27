@@ -132,6 +132,7 @@ func (a *Agent) runShell(ctx context.Context, tool, command, reason string, risk
 	if out == "" {
 		out = "(no output)"
 	}
+	out += followUpHint(res.Output)
 	return fmt.Sprintf("exit_code: %d\nduration: %s\n---\n%s", res.ExitCode, res.Duration.Round(time.Second), out), nil
 }
 
@@ -172,6 +173,9 @@ func toolListSteps(_ context.Context, a *Agent, in map[string]any) (string, erro
 			status = "disabled by the user"
 		case !s.Available():
 			status = "not installed"
+			if s.Install != "" {
+				status += "; install with: " + s.Install
+			}
 		}
 		fmt.Fprintf(&b, "- %s [%s, risk %s, %s]: %s — `%s`", s.ID, s.Category, s.Risk, status, s.Name, s.Command)
 		if s.Description != "" {
@@ -367,4 +371,22 @@ func toolProposeActions(ctx context.Context, a *Agent, in map[string]any) (strin
 		b.WriteString("\nRead-only mode is now lifted so you can perform the selected actions, and only those.")
 	}
 	return b.String(), nil
+}
+
+// followUpHint points the model at the next sensible offer for well-known
+// failures, so it suggests a fix instead of just reporting them.
+func followUpHint(output string) string {
+	switch {
+	case strings.Contains(output, "Cannot connect to the Docker daemon") || strings.Contains(output, "Is the docker daemon running"):
+		return "\n\nNOTE: Docker Desktop is not running. Offer to start it (step docker-start) with propose_actions, " +
+			"then measure with docker-df before offering any Docker cleanup."
+	case strings.Contains(output, "command not found") || strings.Contains(output, "No such file or directory: "):
+		return "\n\nNOTE: a tool is missing. If it is needed for what the user asked, offer to install it " +
+			"(usually brew install <formula>, see list_steps) with propose_actions. Never install without a selection."
+	case strings.Contains(output, "a password is required") || strings.Contains(output, "admin access not granted") ||
+		strings.Contains(output, "requires sudo"):
+		return "\n\nNOTE: this needed administrator access that was not granted. Do not retry it in this run; " +
+			"mention in the summary that it can be done with omega --sudo."
+	}
+	return ""
 }

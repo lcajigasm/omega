@@ -88,6 +88,7 @@ const (
 	stRunning state = iota
 	stConfirm
 	stChoice
+	stPassword
 	stIdle
 	stDone
 )
@@ -117,8 +118,9 @@ type model struct {
 	verb       string
 	stats      agent.Stats
 
-	pending *agent.Event
-	picker  *Picker
+	pending  *agent.Event
+	picker   *Picker
+	password textinput.Model
 
 	md      *glamour.TermRenderer
 	mdWidth int
@@ -140,6 +142,11 @@ func RunTUI(ctx context.Context, cancel context.CancelFunc, ag *agent.Agent, h H
 		started: time.Now(),
 	}
 	m.verb = m.verbs[0]
+	m.password = textinput.New()
+	m.password.EchoMode = textinput.EchoPassword
+	m.password.EchoCharacter = '•'
+	m.password.Prompt = "🔒 "
+	m.password.CharLimit = 256
 	m.stats.Model = h.Model
 	m.entries = append(m.entries, &entry{kind: enWelcome})
 	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithContext(ctx), tea.WithMouseCellMotion())
@@ -481,6 +488,13 @@ func (m *model) handleEvent(e agent.Event) tea.Cmd {
 		ev := e
 		m.pending = &ev
 		m.state = stChoice
+	case agent.EvPassword:
+		m.thinking = false
+		ev := e
+		m.pending = &ev
+		m.state = stPassword
+		m.password.Reset()
+		return m.password.Focus()
 	case agent.EvModel:
 		m.header.Model = e.Text
 		m.note(titleStyle.Render("↑ ")+mutedStyle.Render(i18n.T("ui.model_switch", e.Text)), lipgloss.NewStyle())
@@ -571,6 +585,24 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.refresh()
 			}
 			return m, nil
+		case stPassword:
+			switch msg.Type {
+			case tea.KeyEnter, tea.KeyEsc:
+				pw := m.password.Value()
+				if msg.Type == tea.KeyEsc {
+					pw = ""
+				}
+				m.password.Reset()
+				m.password.Blur()
+				m.pending.Secret <- pw
+				m.pending = nil
+				m.state = stRunning
+				m.refresh()
+				return m, nil
+			}
+			var cmd tea.Cmd
+			m.password, cmd = m.password.Update(msg)
+			return m, cmd
 		case stChoice:
 			if done, cancelled := m.picker.HandleKey(msg); done {
 				var ids []string
@@ -731,6 +763,19 @@ func (m *model) footerView() string {
 		top = m.confirmView()
 	case stChoice:
 		top = m.picker.View(m.width)
+	case stPassword:
+		var b strings.Builder
+		b.WriteString(warnStyle.Render(i18n.T("ui.password_title")) + "\n")
+		if m.pending.Text != "" {
+			b.WriteString(faintStyle.Render(truncate(m.pending.Text, m.width-8)) + "\n")
+		}
+		if m.pending.Failed {
+			b.WriteString(errStyle.Render(i18n.T("ui.password_wrong")) + "\n")
+		}
+		b.WriteString("\n" + m.password.View() + "\n\n")
+		b.WriteString(mutedStyle.Render(i18n.T("ui.password_hint")) + "\n")
+		b.WriteString(faintStyle.Render(i18n.T("ui.password_keys")))
+		top = confirmStyle.Width(m.width - 2).Render(b.String())
 	case stIdle:
 		top = inputStyle.Width(m.width - 2).Render(m.input.View())
 		return top + "\n" + m.statusBar() + "\n" + faintStyle.Render("  "+i18n.T("ui.hint_idle"))
