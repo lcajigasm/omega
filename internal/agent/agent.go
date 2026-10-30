@@ -14,6 +14,7 @@ import (
 	"github.com/lcajigasm/omega/internal/config"
 	"github.com/lcajigasm/omega/internal/i18n"
 	"github.com/lcajigasm/omega/internal/llm"
+	"github.com/lcajigasm/omega/internal/macos"
 	"github.com/lcajigasm/omega/internal/runner"
 	"github.com/lcajigasm/omega/internal/safety"
 	"github.com/lcajigasm/omega/internal/sudo"
@@ -62,6 +63,8 @@ type Agent struct {
 	mode      Mode
 	nextModel string   // model the user picked, applied before the next turn
 	notes     []string // messages for the model about what the user changed
+
+	macInv *macos.Inventory // read once per run; dropped after a change
 }
 
 // New creates an agent for the given provider.

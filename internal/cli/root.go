@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"golang.org/x/term"
 
 	"github.com/lcajigasm/omega/internal/agent"
@@ -70,7 +71,14 @@ func Execute(v string) error {
 			return runTask(task, f)
 		},
 	}
-	pf := root.Flags()
+	bindRunFlags(root.Flags(), &f)
+
+	root.AddCommand(setupCmd(), authCmd(), modelCmd(), modelsCmd(), dockerCmd(), macCmd(), configCmd(), stepsCmd(), notesCmd())
+	return root.Execute()
+}
+
+// bindRunFlags registers the flags of an agent run.
+func bindRunFlags(pf *pflag.FlagSet, f *runFlags) {
 	pf.StringVar(&f.provider, "provider", "", i18n.T("flag.provider"))
 	pf.StringVarP(&f.model, "model", "m", "", i18n.T("flag.model"))
 	pf.StringVar(&f.effort, "effort", "", i18n.T("flag.effort"))
@@ -83,9 +91,6 @@ func Execute(v string) error {
 	pf.BoolVar(&f.auto, "auto", false, i18n.T("flag.auto"))
 	pf.BoolVar(&f.demo, "demo", false, "scripted session with no API calls and no real commands (for screenshots)")
 	pf.MarkHidden("demo")
-
-	root.AddCommand(setupCmd(), authCmd(), modelCmd(), modelsCmd(), dockerCmd(), configCmd(), stepsCmd(), notesCmd())
-	return root.Execute()
 }
 
 var getKey = secrets.Get

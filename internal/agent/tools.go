@@ -32,6 +32,9 @@ var handlers = map[string]handler{
 	"config_hints":    toolConfigHints,
 	"web_search":      toolWebSearch,
 	"fetch_url":       toolFetchURL,
+	"mac_inventory":   toolMacInventory,
+	"mac_change":      toolMacChange,
+	"mac_policy":      toolMacPolicy,
 }
 
 func str(desc string) map[string]any {
@@ -39,7 +42,7 @@ func str(desc string) map[string]any {
 }
 
 func toolSpecs() []llm.ToolSpec {
-	return []llm.ToolSpec{
+	return append([]llm.ToolSpec{
 		{Name: "system_info", Description: "System summary: macOS version, architecture, disk, memory and detected package managers.",
 			Properties: map[string]any{}},
 		{Name: "list_steps", Description: "List the catalogue of maintenance steps (update, clean, check, backend) and whether each is available on this machine.",
@@ -96,7 +99,7 @@ func toolSpecs() []llm.ToolSpec {
 			Properties: map[string]any{"url": str("http(s) URL")}, Required: []string{"url"}},
 		{Name: "remember", Description: "Save a lasting note about this machine for future runs (e.g. the cause of a recurring failure and its fix).",
 			Properties: map[string]any{"note": str("short note, one line")}, Required: []string{"note"}},
-	}
+	}, macToolSpecs()...)
 }
 
 func getString(in map[string]any, key string) string {
