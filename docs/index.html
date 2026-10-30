@@ -87,6 +87,7 @@
         <li><a href="#safety">Safety</a></li>
         <li><a href="#gallery">Screens</a></li>
         <li><a href="#keys">Keys</a></li>
+        <li><a href="#mac">Your Mac</a></li>
         <li><a href="#providers">Models</a></li>
         <li><a href="#faq">FAQ</a></li>
       </ul>
@@ -104,6 +105,7 @@
       <li><a href="#safety">Safety</a></li>
       <li><a href="#gallery">Screens</a></li>
       <li><a href="#keys">Keys</a></li>
+      <li><a href="#mac">Your Mac</a></li>
       <li><a href="#providers">Models</a></li>
       <li><a href="#faq">FAQ</a></li>
       <li><a href="https://github.com/lcajigasm/omega">GitHub</a></li>
@@ -329,6 +331,43 @@ omega docker</code></pre>
       </div>
     </section>
 
+    <!-- Your Mac -->
+    <section class="section reveal" id="mac" aria-labelledby="mac-title">
+      <div class="container">
+        <h2 class="section-title" id="mac-title">Your Mac, back on your terms</h2>
+        <p class="section-sub">Apps add themselves to login, keep helpers running in the background, fill the menu bar and grab shortcuts other apps already use. <code>omega mac</code> reviews all of it with your rules and sensible defaults, asks you on cards and applies only what you pick. Every change can be undone.</p>
+        <div class="keys">
+          <div class="card keys-list">
+            <h3 class="card-title"><i class="ph ph-sliders" aria-hidden="true"></i> Five areas, one review</h3>
+            <dl>
+              <div><dt><code>login</code></dt><dd>Apps that open at login: updaters and apps you open when needed go, VPN, security and sync stay</dd></div>
+              <div><dt><code>background</code></dt><dd>Launch agents, daemons and app helpers allowed in the background, including leftovers of uninstalled apps</dd></div>
+              <div><dt><code>menubar</code></dt><dd>Menu bar apps: quit them, stop them at login, or hide them with Bartender, Ice or Thaw</dd></div>
+              <div><dt><code>dock</code></dt><dd>Apps no longer installed or not opened in 90 days, and the Dock settings you prefer</dd></div>
+              <div><dt><code>shortcuts</code></dt><dd>Who keeps each contested shortcut; the others move to a free one</dd></div>
+            </dl>
+          </div>
+          <figure class="terminal keys-demo" aria-label="A shortcut conflict card">
+            <div class="terminal-bar"><span></span><span></span><span></span><p>omega mac shortcuts</p></div>
+            <div class="terminal-body">
+              <p><span class="t-accent">Who keeps ⌥Space?</span></p>
+              <p><span class="t-accent">❯ ◉ Alfred · Show Alfred</span>  <span class="t-muted">suggested</span></p>
+              <p>  ○ ChatGPT · Open the ChatGPT launcher</p>
+              <p>  ○ Claude · Quick Entry</p>
+              <p>  ○ Nobody: turn it off for all of them</p>
+              <p class="k-status"><span class="t-muted">the others get a free shortcut</span></p>
+              <dl class="k-cmds">
+                <div><dt>ChatGPT</dt><dd>→ ⌃⌥Space</dd></div>
+                <div><dt>Claude</dt><dd>→ ⌥⇧⌘Space</dd></div>
+                <div><dt>undo</dt><dd>omega mac undo</dd></div>
+              </dl>
+            </div>
+            <figcaption class="sr-only">ChatGPT, Claude and Alfred all want Option Space. omega suggests Alfred, moves the others to free shortcuts and remembers the choice.</figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
     <!-- Safety -->
     <section class="section reveal" id="safety" aria-labelledby="safety-title">
       <div class="container">
@@ -439,6 +478,7 @@ omega docker</code></pre>
           <details><summary><span>How does <code>omega tune</code> know the right settings?</span></summary><p>It does not ship a fixed list. For each tool you have installed it gets pointers to the config files and the official docs, reads the current documentation on the web, and proposes changes with their source. You pick which ones to apply, or use <code>--auto</code> for the low risk ones.</p></details>
           <details><summary><span>Can omega run unattended?</span></summary><p>Yes. Run <code>omega update --yes --no-tui --once</code> from launchd or cron. Blocked commands stay blocked, Docker is never cleaned without you, and recommendations go into the summary instead of a card.</p></details>
           <details><summary><span>What happens when something needs admin access?</span></summary><p>Commands run detached from your terminal, so nothing can write over the interface. When a tool such as Mole or softwareupdate asks for sudo, omega shows a password card, checks the password with sudo and keeps it in memory for that run only. It is never logged or sent to the AI. Press Esc to skip the steps that need it.</p></details>
+          <details><summary><span>Can omega sort out login items, the menu bar and shortcut conflicts?</span></summary><p>Yes, with <code>omega mac</code>. It lists what opens at login, what is allowed in the background, menu bar apps, the Dock and global keyboard shortcuts, and suggests changes from your rules (<code>~/.config/omega/mac.toml</code>) and its defaults: updaters off, chat and AI assistants opened when needed, VPN, security and sync kept, and AI assistants that grab a shortcut on install moved to a free one. Your choices are saved for next time, and <code>omega mac undo</code> reverts any change.</p></details>
           <details><summary><span>Where are my API keys stored?</span></summary><p>In the macOS Keychain, under the service <code>omega-cli</code>. Environment variables such as <code>ANTHROPIC_API_KEY</code> take precedence when set.</p></details>
           <details><summary><span>Which languages does the interface support?</span></summary><p>English, Spanish, French, German and Portuguese. omega follows your system locale, and you can override it with <code>omega config set language</code>. The agent replies in the same language.</p></details>
         </div>

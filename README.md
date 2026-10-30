@@ -33,6 +33,7 @@ speaks **English, Spanish, French, German and Portuguese**.
 - [Local models](#local-models)
 - [Tuning your tools' configuration](#tuning-your-tools-configuration)
 - [Docker cleanup](#docker-cleanup)
+- [Your Mac: login, background, menu bar, Dock and shortcuts](#your-mac-login-background-menu-bar-dock-and-shortcuts)
 - [Safety and approvals](#safety-and-approvals)
 - [Step catalogue](#step-catalogue)
 - [Memory between runs](#memory-between-runs)
@@ -84,6 +85,11 @@ an AI model with a narrow set of tools and a strict safety policy.
   guided or automatic.
 - **Docker cleanup** (`omega docker`): shows what Docker uses and cleans only what
   you select. Docker cleanups always need your confirmation.
+- **Control what runs on your Mac** (`omega mac`): apps that open at login, jobs
+  allowed in the background, menu bar apps, the Dock and **global keyboard
+  shortcut conflicts** (ChatGPT, Claude, Alfred and macOS all wanting ⌥Space).
+  Your rules plus sensible defaults decide what to suggest, the AI explains what
+  it does not know, your choices are remembered and every change can be undone.
 - **Safety policy**: every command is classified (read-only, normal, dangerous,
   blocked); dangerous ones need your approval.
 - **Memory**: learns from each run and takes it into account next time.
@@ -335,6 +341,97 @@ The agent has the same Docker steps. **Docker cleanups always need your
 confirmation**, even with `--yes` or after "yes to all", and the agent is told
 never to prune volumes unless you picked that explicitly.
 
+## Your Mac: login, background, menu bar, Dock and shortcuts
+
+Apps add themselves to login, keep helpers running in the background, fill the
+menu bar, pin themselves to the Dock and take global keyboard shortcuts that
+other apps already use: ChatGPT, Claude, Copilot, Alfred and Raycast all default
+to ⌥Space, Things to ⌃Space (macOS's input source switch). `omega mac` puts you
+back in charge.
+
+```bash
+omega mac               # guided review with AI: cards for each area, applies what you pick
+omega mac --auto        # the AI applies the low-risk suggestions itself and offers the rest
+omega mac status        # overview of the five areas, changes nothing
+omega mac login         # apps that open at login
+omega mac background    # launch agents, daemons, app helpers and background tasks
+omega mac menubar       # menu bar apps: quit, stop at login, hide
+omega mac dock          # unpin apps that are gone or unused, Dock settings
+omega mac shortcuts     # who keeps each contested shortcut
+omega mac policy        # your rules and omega's defaults (policy edit to change them)
+omega mac undo          # revert any change
+```
+
+The subcommands work without AI. Each one shows a card with omega's suggestions
+already ticked; you untick or tick more and press Enter.
+
+**Defaults.** omega sorts every app and job into a category and suggests from it:
+
+| Category | Examples | Suggestion |
+|---|---|---|
+| updater | Google Updater/Keystone, Adobe, Microsoft AutoUpdate, Zoom | off at login and in the background: the app or Homebrew updates it |
+| open when needed | ChatGPT, Claude, Slack, Spotify, Discord, Docker Desktop, browsers, editors | not at login, not in the background |
+| essential | VPNs, 1Password, Little Snitch, Dropbox, Logitech, Karabiner, Alfred, Raycast, Bartender, Ice, Thaw | keep |
+| Apple | `com.apple.*` | never touched |
+| unknown | anything else | the AI works out what it is (developer, path, web search) and recommends |
+
+Launch jobs whose program is no longer installed are always suggested for
+removal, as are Dock apps that are gone; Dock apps not opened in 90 days are
+offered (not ticked).
+
+**Keyboard shortcuts.** omega reads macOS's own shortcuts
+(`com.apple.symbolichotkeys`), the shortcuts apps store with the
+KeyboardShortcuts and MASShortcut libraries (Shottr, Rectangle and many more),
+and the known defaults of popular apps that only store a shortcut once you change
+it. When two want the same combo, it suggests who keeps it: essential macOS
+shortcuts first (screenshots, Mission Control), then shortcuts you set on purpose,
+then launchers and utilities, then the rest of macOS, and last the apps that
+claim a shortcut on install. You choose on a card; the others move to a free
+combo (⌃⌥Space, ⌥⇧Space…), and omega writes it where it can or opens the app and
+tells you where to change it. Input source shortcuts on a Mac with a single input
+source count as unused.
+
+**Your rules** live in `~/.config/omega/mac.toml` and always win over the
+defaults. `omega mac shortcuts` and the AI (with the `mac_policy` tool) save your
+decisions there, so the next review suggests the same:
+
+```toml
+[startup]
+keep = ["Claude", "net.mullvad.*"]       # app name, bundle id or launchd label; * is a wildcard
+disable = ["com.google.keystone.*"]
+
+[menubar]
+hide = ["Docker"]
+
+[dock]
+remove = ["App Store"]
+add = ["/Applications/Ghostty.app"]
+autohide = true
+show_recents = false
+
+[shortcuts.owners]
+"opt+space" = "ChatGPT"
+"ctrl+space" = "macOS"
+"opt+shift+cmd+space" = "none"           # nobody: turn it off everywhere
+```
+
+**How changes are made.** Every change is a visible command and has an inverse,
+recorded in `~/.local/state/omega/mac-journal.jsonl` for `omega mac undo`:
+
+| Change | Command |
+|---|---|
+| launch agent or helper off | `launchctl bootout` + `launchctl disable gui/<uid>/<label>` (daemons need sudo, asked on the password card) |
+| app no longer opens at login | System Events `delete login item` |
+| macOS shortcut | `defaults write com.apple.symbolichotkeys … -dict-add <id>` + `activateSettings -u`, no logout needed |
+| app shortcut (KeyboardShortcuts, MASShortcut) | quit the app, `defaults write`, open it again |
+| Dock | edits `persistent-apps` and restarts the Dock |
+
+Some things macOS only lets you change by hand (background tasks registered with
+`SMAppService`, menu bar visibility, shortcuts of apps that keep them in their own
+storage). For those omega opens the right settings pane or app and tells you what
+to change. Reading the login and background items uses `sfltool dumpbtm`, which
+can take up to a minute; omega caches it for an hour and refreshes it after a change.
+
 ## Safety and approvals
 
 Before running anything, omega classifies the command (including compound
@@ -476,6 +573,8 @@ model = "my-model"
 |---|---|
 | `~/.config/omega/config.toml` | configuration |
 | `~/.config/omega/notes.md` | the agent's memory |
+| `~/.config/omega/mac.toml` | your rules for `omega mac` |
+| `~/.local/state/omega/mac-journal.jsonl` | changes made by `omega mac`, for `omega mac undo` |
 | `~/.local/state/omega/runs/*.log` | log of every run: commands, output, approvals, denials, model switches, tokens and cost |
 | macOS Keychain, service `omega-cli` | API keys |
 
@@ -505,6 +604,9 @@ omega [task] [flags]
 | `omega model [model\|auto] [--provider p]` | choose the model on a card, or set it directly |
 | `omega models [provider] [filter]` | list models with prices |
 | `omega docker` | measure Docker and clean what you select |
+| `omega mac [status\|login\|background\|menubar\|dock\|shortcuts]` | review what runs at login and in the background, the menu bar, the Dock and shortcut conflicts (AI-guided without a subcommand) |
+| `omega mac policy [edit]` | your rules (`mac.toml`) and omega's defaults |
+| `omega mac undo` | revert changes made by `omega mac` |
 | `omega auth set\|remove\|status` | manage API keys (validated before saving) |
 | `omega config show\|path\|edit\|set <key> <value>` | configuration |
 | `omega steps` | step catalogue and availability |
@@ -562,6 +664,7 @@ Unattended runs never clean Docker (that always needs you), skip selection cards
    │ system_info  list_steps  run_step  run_command  disk_usage   │
    │ read_file  write_file  remember  propose_actions             │
    │ config_hints  web_search  fetch_url                          │
+   │ mac_inventory  mac_change  mac_policy                        │
    └───────────────┬───────────────────────────────────────────────┘
                    │ risk classifier (safety)
                    ▼
@@ -582,13 +685,14 @@ Code layout:
 
 ```text
 cmd/omega/          entry point
-internal/cli/       commands (setup, model, docker, auth, config, steps, notes), key checks
+internal/cli/       commands (setup, model, docker, mac, auth, config, steps, notes), key checks
 internal/agent/     agent loop, tools, config hints, web tools, prompt, events, run log
 internal/llm/       providers (Anthropic SDK, OpenAI-compatible, OpenCode), tiers, prices
 internal/safety/    command risk classifier
 internal/runner/    command execution in its own session with live output
 internal/sudo/      sudo bridge: wrapper, askpass helper and password checks
 internal/steps/     step catalogue
+internal/macos/     login and background items, menu bar, Dock, keyboard shortcuts, defaults, undo journal
 internal/ui/        TUI (Bubble Tea, glamour), selection cards, plain output
 internal/i18n/      translations (en, es, fr, de, pt)
 internal/demo/      scripted session for screenshots
@@ -653,13 +757,15 @@ the same format arguments.
 
 ```bash
 make build     # builds ./bin/omega
-make test      # risk classifier, agent loop, model plan, cards, translations
+make test      # risk classifier, agent loop, model plan, cards, translations, omega mac
 make lint      # gofmt + go vet
 ./bin/omega --demo                 # scripted session, no API calls, no real commands
 vhs docs/assets/demo.tape          # re-record the README GIF and screenshots
 ```
 
-To add a step, edit `internal/steps/steps.go` (and add a `step.<id>`
+To teach `omega mac` about an app, add its bundle id to a category in
+`internal/macos/policy.go`, or its default global shortcut to `knownAppHotkeys` in
+`internal/macos/hotkeys.go`. To add a step, edit `internal/steps/steps.go` (and add a `step.<id>`
 translation). To add configuration hints, edit `internal/agent/hints.go`. To add a
 provider, implement `llm.Provider` in `internal/llm/` and register it in
 `llm.Providers` and `llm.New`.
