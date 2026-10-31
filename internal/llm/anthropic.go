@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
@@ -20,7 +21,9 @@ type anthropicProvider struct {
 }
 
 func newAnthropic(name string, opts Options) *anthropicProvider {
-	reqOpts := []option.RequestOption{option.WithAPIKey(opts.APIKey), option.WithMaxRetries(3)}
+	// Retries belong to sendRetried, on the same schedule as the OpenAI client.
+	// The SDK's own backoff would stack on top of that one.
+	reqOpts := []option.RequestOption{option.WithAPIKey(opts.APIKey), option.WithMaxRetries(0)}
 	if opts.BaseURL != "" {
 		reqOpts = append(reqOpts, option.WithBaseURL(opts.BaseURL))
 	}
@@ -104,6 +107,8 @@ type anthropicChat struct {
 	params     anthropic.MessageNewParams
 	reqOpts    []option.RequestOption
 	firstParty bool
+	// after waits out a retry. Tests replace it; nil uses time.After.
+	after func(time.Duration) <-chan time.Time
 }
 
 func (c *anthropicChat) Send(ctx context.Context, text string, results []ToolResult) (*Reply, error) {
@@ -120,7 +125,7 @@ func (c *anthropicChat) Send(ctx context.Context, text string, results []ToolRes
 		c.params.Messages = append(c.params.Messages, anthropic.NewUserMessage(anthropic.NewTextBlock(text)))
 	}
 
-	resp, err := c.client.Messages.New(ctx, c.params, c.reqOpts...)
+	resp, err := c.sendRetried(ctx)
 	if err != nil {
 		// Drop the message we just appended so the chat can be retried.
 		c.params.Messages = c.params.Messages[:len(c.params.Messages)-1]
@@ -157,6 +162,52 @@ func (c *anthropicChat) Send(ctx context.Context, text string, results []ToolRes
 		reply.Text += "\n[response truncated at max_tokens]"
 	}
 	return reply, nil
+}
+
+// sendRetried calls the Messages API up to four times. A network error, a 429
+// or a 5xx waits retryDelay and tries again. Any other status is returned at once.
+func (c *anthropicChat) sendRetried(ctx context.Context) (*anthropic.Message, error) {
+	var lastErr error
+	for attempt := 0; attempt < 4; attempt++ {
+		if attempt > 0 {
+			if err := c.pause(ctx, retryDelay(attempt)); err != nil {
+				return nil, err
+			}
+		}
+		resp, err := c.client.Messages.New(ctx, c.params, c.reqOpts...)
+		if err == nil {
+			return resp, nil
+		}
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		lastErr = err
+		if !retryableAnthropic(err) {
+			return nil, err
+		}
+	}
+	return nil, lastErr
+}
+
+func (c *anthropicChat) pause(ctx context.Context, d time.Duration) error {
+	after := c.after
+	if after == nil {
+		after = time.After
+	}
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-after(d):
+		return nil
+	}
+}
+
+func retryableAnthropic(err error) bool {
+	var apierr *anthropic.Error
+	if errors.As(err, &apierr) {
+		return apierr.StatusCode == http.StatusTooManyRequests || apierr.StatusCode >= 500
+	}
+	return true
 }
 
 func describeAnthropicError(err error) error {

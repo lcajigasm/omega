@@ -357,6 +357,86 @@ Exemplos:
 	"cmd.notes_clear": {"Delete the notes", "Borrar las notas", "Supprimer les notes", "Notizen löschen", "Apagar as notas"},
 	"notes.empty":     {"No notes yet.", "Aún no hay notas.", "Pas encore de notes.", "Noch keine Notizen.", "Ainda não há notas."},
 
+	// ---- logs ----
+	"cmd.logs": {
+		"List run transcripts", "Listar los registros de ejecución", "Lister les journaux d'exécution",
+		"Ausführungsprotokolle auflisten", "Listar os registos de execução",
+	},
+	"cmd.logs_view": {
+		"Show a run transcript (the latest if omitted)", "Ver un registro (el último si se omite)",
+		"Voir un journal (le dernier si omis)", "Ein Protokoll anzeigen (das letzte, falls keins angegeben ist)",
+		"Ver um registo (o último se for omitido)",
+	},
+	"logs.empty": {"No run logs yet.", "Aún no hay registros.", "Pas encore de journaux.", "Noch keine Protokolle.", "Ainda não há registos."},
+	"logs.missing": {
+		"no log %q", "no existe el registro %q", "aucun journal %q", "kein Protokoll %q", "não existe o registo %q",
+	},
+	"logs.header": {
+		"%d run log(s) in %s (keeping the newest %d)",
+		"%d registro(s) en %s (se conservan los %d más recientes)",
+		"%d journal(aux) dans %s (les %d plus récents sont conservés)",
+		"%d Protokoll(e) in %s (die %d neuesten bleiben erhalten)",
+		"%d registo(s) em %s (ficam os %d mais recentes)",
+	},
+
+	// ---- doctor ----
+	"cmd.doctor": {
+		"Check config, key, provider and installed steps without spending tokens",
+		"Comprobar configuración, clave, proveedor y pasos instalados sin gastar tokens",
+		"Vérifier la configuration, la clé, le fournisseur et les étapes installées sans dépenser de jetons",
+		"Konfiguration, Schlüssel, Anbieter und installierte Schritte prüfen, ohne Tokens zu verbrauchen",
+		"Verificar a configuração, a chave, o fornecedor e os passos instalados sem gastar tokens",
+	},
+	"doctor.config_ok": {
+		"config: ok (%s)", "config: correcta (%s)", "config : valide (%s)", "config: in Ordnung (%s)", "config: correta (%s)",
+	},
+	"doctor.config_bad": {"config: %s", "config: %s", "config : %s", "config: %s", "config: %s"},
+	"doctor.key_ok": {
+		"key: ok (%s)", "clave: correcta (%s)", "clé : valide (%s)", "Schlüssel: in Ordnung (%s)", "chave: correta (%s)",
+	},
+	"doctor.key_missing": {
+		"key: missing for %s", "clave: falta para %s", "clé : absente pour %s", "Schlüssel: fehlt für %s", "chave: em falta para %s",
+	},
+	"doctor.key_bad": {
+		"key: not shaped like an API key (%s)", "clave: no tiene forma de clave de API (%s)",
+		"clé : n'a pas la forme d'une clé d'API (%s)", "Schlüssel: hat nicht die Form eines API-Schlüssels (%s)",
+		"chave: não tem a forma de uma chave de API (%s)",
+	},
+	"doctor.key_prefix": {
+		"key: warning, keys for this provider usually start with %s",
+		"clave: aviso, las claves de este proveedor suelen empezar por %s",
+		"clé : avertissement, les clés de ce fournisseur commencent en général par %s",
+		"Schlüssel: Hinweis, Schlüssel dieses Anbieters beginnen gewöhnlich mit %s",
+		"chave: aviso, as chaves deste fornecedor costumam começar por %s",
+	},
+	"doctor.key_rejected": {
+		"key: %s rejected it", "clave: %s la rechazó", "clé : %s l'a refusée", "Schlüssel: %s hat ihn abgelehnt", "chave: %s rejeitou-a",
+	},
+	"doctor.key_local": {
+		"key: not required (local provider)", "clave: no hace falta (proveedor local)",
+		"clé : inutile (fournisseur local)", "Schlüssel: nicht nötig (lokaler Anbieter)",
+		"chave: não é necessária (fornecedor local)",
+	},
+	"doctor.provider_ok": {
+		"provider: reachable (%s)", "proveedor: alcanzable (%s)", "fournisseur : joignable (%s)",
+		"Anbieter: erreichbar (%s)", "fornecedor: alcançável (%s)",
+	},
+	"doctor.provider_bad": {"provider: %s", "proveedor: %s", "fournisseur : %s", "Anbieter: %s", "fornecedor: %s"},
+	"doctor.no_base": {
+		"custom needs a base_url", "custom necesita una base_url", "custom a besoin d'une base_url",
+		"custom braucht eine base_url", "custom precisa de uma base_url",
+	},
+	"doctor.steps": {
+		"steps: %d installed, %d not installed", "pasos: %d instalados, %d no instalados",
+		"étapes : %d installées, %d non installées", "Schritte: %d installiert, %d nicht installiert",
+		"passos: %d instalados, %d não instalados",
+	},
+	"doctor.skipped": {"skipped", "omitido", "ignoré", "übersprungen", "omitido"},
+	"doctor.failed": {
+		"%d check(s) failed", "%d comprobación(es) fallida(s)", "%d vérification(s) en échec",
+		"%d Prüfung(en) fehlgeschlagen", "%d verificação(ões) falhada(s)",
+	},
+
 	// ---- interface ----
 	"ui.starting":  {"starting…", "iniciando…", "démarrage…", "starte…", "a iniciar…"},
 	"ui.task":      {"task: %s", "tarea: %s", "tâche : %s", "Aufgabe: %s", "tarefa: %s"},

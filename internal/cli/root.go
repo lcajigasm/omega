@@ -73,7 +73,7 @@ func Execute(v string) error {
 	}
 	bindRunFlags(root.Flags(), &f)
 
-	root.AddCommand(setupCmd(), authCmd(), modelCmd(), modelsCmd(), dockerCmd(), macCmd(), configCmd(), stepsCmd(), notesCmd())
+	root.AddCommand(setupCmd(), authCmd(), modelCmd(), modelsCmd(), dockerCmd(), macCmd(), configCmd(), stepsCmd(), notesCmd(), logsCmd(), doctorCmd())
 	return root.Execute()
 }
 

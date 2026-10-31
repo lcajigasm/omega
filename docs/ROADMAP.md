@@ -1,9 +1,9 @@
 # Roadmap
 
-omega 0.6 is the last merge on main before this pass: login items, background
-jobs, the menu bar, the Dock and shortcut conflicts. This list is what makes
-the tool robust, obvious to drive, and downloadable. Items already shipped are
-checked. The first three open items are the next pass.
+omega 0.7 is the current release on main: on-screen help, exit codes, config
+checks and release builds, on top of the 0.6 maintenance controls. This list is
+what makes the tool robust, obvious to drive, and downloadable. Items already
+shipped are checked. The first three open items are the next pass.
 
 ## Shipped in 0.7
 
@@ -18,17 +18,21 @@ checked. The first three open items are the next pass.
 - [x] **Release archives.** A tag `vX.Y.Z` builds linux/darwin/windows amd64 and arm64, attaches them to the GitHub Release with `SHA256SUMS`.
 - [x] **README and the website** describe the binaries, the help key and the exit codes. Pages keeps publishing `docs/` from main.
 
+## Shipped in 0.8
+
+- [x] **Run logs.** `~/.local/state/omega/runs/` keeps the newest 30 transcripts. `omega logs` lists them and `omega logs view` prints one (the latest, a list index, or a file name).
+- [x] **Retries for Anthropic.** A 429, a 5xx or a dropped connection is retried with the same waits as the OpenAI-compatible client (2s, then 4s, then 8s). Other 4xx responses are returned at once. The SDK's own retry loop is off, so the waits do not stack.
+- [x] **`omega doctor`.** Preflight with no chat message: config check, key present and shaped like a key, provider reachable (a model list, or a local `/models` probe), and which catalogue steps are installed.
+- [x] **CI smoke** also runs `omega logs`.
+
 ## Next
 
-1. **Run logs.** `~/.local/state/omega/runs/` grows without a limit. Rotate or cap it, and add `omega logs` to open the latest transcript.
-2. **Retries for Anthropic.** OpenAI-compatible providers already retry a 429 or a 5xx. A blip on the Anthropic API still ends a long maintenance run with exit 1. Retry with the same backoff, then surface the error.
-3. **`omega doctor`.** A preflight that does not spend tokens: config check, key present and shaped like a key, provider reachable, and which catalogue steps are actually installed.
+1. **TUI card tests.** Render the approval card, the password card and the choice card, so a key change cannot ship on the unit tests of the menu alone.
+2. **Mouse on cards.** Click a row or the focused button in addition to the keyboard.
+3. **Search the transcript.** Find text in the session that is already on screen.
 
 ## Later
 
-- TUI tests that render the approval card, the password card and the choice card, so a key change cannot ship on the unit tests of the menu alone.
-- Mouse clicks on a card (tick a row, press the focused button) in addition to the keyboard.
-- Search inside the transcript.
 - Copy the focused tool output.
 - Teach the in-repo Homebrew formula to follow the tag that the release workflow just published. The tap itself stays a separate repository.
 - A short asciinema of `?`, Esc and a denial, next to the existing `omega --demo` GIF.
