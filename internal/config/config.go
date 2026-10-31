@@ -7,8 +7,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
 
 	"github.com/BurntSushi/toml"
+
+	"github.com/lcajigasm/omega/internal/i18n"
+	"github.com/lcajigasm/omega/internal/steps"
 )
 
 // Approval policies.
@@ -83,23 +88,88 @@ func Load() (*Config, error) {
 	if cfg.Providers == nil {
 		cfg.Providers = map[string]ProviderConfig{}
 	}
+	if cfg.Provider == "" {
+		cfg.Provider = "anthropic"
+	}
 	if cfg.Approval == "" {
 		cfg.Approval = ApproveDangerous
+	}
+	if cfg.Language == "" {
+		cfg.Language = "auto"
+	}
+	if cfg.Timeout == "" {
+		cfg.Timeout = "45m"
 	}
 	return cfg, nil
 }
 
-// Save writes the configuration to config.toml.
+// Validate reports a configuration that omega would misread. Load does not
+// call it, so `omega config set` can still repair a broken file.
+func (c *Config) Validate() error {
+	switch c.Approval {
+	case ApproveDangerous, ApproveAll, ApproveNever:
+	default:
+		return fmt.Errorf("%s", i18n.T("config.bad_approval"))
+	}
+	if c.Language != "auto" && i18n.Normalize(c.Language) == "" {
+		return fmt.Errorf("%s", i18n.T("config.bad_language", c.Language))
+	}
+	d, err := time.ParseDuration(c.Timeout)
+	if err != nil || d <= 0 {
+		return fmt.Errorf("%s", i18n.T("config.bad_duration", c.Timeout))
+	}
+	if c.Effort != "" {
+		switch strings.ToLower(c.Effort) {
+		case "low", "medium", "high", "xhigh", "max":
+		default:
+			return fmt.Errorf("%s", i18n.T("config.bad_effort"))
+		}
+	}
+	for _, id := range c.SkipSteps {
+		if _, ok := steps.Find(id); !ok {
+			return fmt.Errorf("%s", i18n.T("config.bad_step", id))
+		}
+	}
+	return nil
+}
+
+// Save writes the configuration to config.toml. The previous file is left in
+// place when the new contents are invalid or the write fails.
 func (c *Config) Save() error {
-	if err := os.MkdirAll(Dir(), 0o755); err != nil {
+	if err := c.Validate(); err != nil {
 		return err
 	}
-	f, err := os.OpenFile(Path(), os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
+	dir := Dir()
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	f, err := os.CreateTemp(dir, ".config-*.toml")
 	if err != nil {
 		return err
 	}
-	defer f.Close()
-	return toml.NewEncoder(f).Encode(c)
+	tmp := f.Name()
+	cleanup := true
+	defer func() {
+		if cleanup {
+			os.Remove(tmp)
+		}
+	}()
+	if err := f.Chmod(0o644); err != nil {
+		f.Close()
+		return err
+	}
+	if err := toml.NewEncoder(f).Encode(c); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+	if err := os.Rename(tmp, Path()); err != nil {
+		return err
+	}
+	cleanup = false
+	return nil
 }
 
 // ModelFor returns the model to use for a provider: the explicit top-level

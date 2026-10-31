@@ -49,5 +49,6 @@ func (a *Agent) writeLog(e Event) {
 func (a *Agent) closeLog() {
 	if a.log != nil {
 		a.log.Close()
+		a.log = nil
 	}
 }

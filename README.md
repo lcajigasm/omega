@@ -112,6 +112,14 @@ brew install lcajigasm/omega/omega
 > homebrew-core already has a formula called `omega` (a Xapian search engine),
 > so always use the full name `lcajigasm/omega/omega`.
 
+### Binaries
+
+Every tagged release publishes archives for **Linux, macOS and Windows** (amd64 and arm64), plus `SHA256SUMS`:
+
+<https://github.com/lcajigasm/omega/releases/latest>
+
+omega is built for macOS. The Linux and Windows binaries run the same interface; steps that call Homebrew, `softwareupdate` or the Keychain only do their work on a Mac.
+
 ### From source
 
 ```bash
@@ -183,6 +191,7 @@ omega's TUI follows the conventions of Claude Code's CLI:
 
 | Key | Action |
 |---|---|
+| `?` | show or hide the shortcut card (also `/help`) |
 | `↑` `↓` `PgUp` `PgDn` / wheel | scroll |
 | `ctrl+o` | expand or collapse the output of every tool call |
 | `shift+tab` | cycle the approval mode: asks before risky actions → auto approve → read only |
@@ -192,7 +201,7 @@ omega's TUI follows the conventions of Claude Code's CLI:
 | `a` | approve this and every following request (not available for Docker cleanups) |
 | `n` / `Esc` | deny |
 | `ctrl+c` | cancel the run |
-| `Esc` / empty `Enter` when idle | end the session |
+| `Esc` when the line is empty, or empty `Enter` | end the session (`Esc` first clears a typed line) |
 
 A model you pick by hand is kept: omega no longer switches to the stronger
 model on failure. Switching to read only mid-run tells the model, which then
@@ -545,7 +554,10 @@ OMEGA_LANG=fr omega analyze
 ## Configuration
 
 File: `~/.config/omega/config.toml` (`omega config path`). Honours
-`XDG_CONFIG_HOME`.
+`XDG_CONFIG_HOME`. `omega config check` reports an approval, language, effort,
+timeout or `skip_steps` value omega would misread. Saving writes a temporary
+file and replaces the config only after it is valid, so a bad edit does not
+wipe the previous one.
 
 ```toml
 provider = "anthropic"          # active provider
@@ -608,7 +620,7 @@ omega [task] [flags]
 | `omega mac policy [edit]` | your rules (`mac.toml`) and omega's defaults |
 | `omega mac undo` | revert changes made by `omega mac` |
 | `omega auth set\|remove\|status` | manage API keys (validated before saving) |
-| `omega config show\|path\|edit\|set <key> <value>` | configuration |
+| `omega config show\|path\|edit\|check\|set <key> <value>` | configuration (`check` validates it) |
 | `omega steps` | step catalogue and availability |
 | `omega steps run <id>… [-y]` | run steps without AI |
 | `omega notes [clear]` | the agent's memory |
@@ -651,6 +663,8 @@ launchctl load ~/Library/LaunchAgents/com.lcajigasm.omega.plist
 
 Unattended runs never clean Docker (that always needs you), skip selection cards
 (the recommendations go into the summary) and skip anything that needs sudo.
+A model error or a turn limit exits with status **1**. Cancelling (Ctrl+C or
+SIGTERM) exits with status **130**. A run you end yourself exits with **0**.
 
 ## How it works
 
@@ -746,8 +760,10 @@ the documentation pages the agent fetches while tuning.
 **How much does it cost?** With the automatic model choice, a routine run usually
 costs well under one cent. omega shows tokens and cost live and at the end.
 
-**Does it work on Linux?** It is built for macOS (Keychain, `softwareupdate`, Mac
-App Store, Xcode paths). It is not supported on Linux.
+**Does it work on Linux or Windows?** It is built for macOS (Keychain,
+`softwareupdate`, Mac App Store, Xcode paths). Release archives exist for Linux
+and Windows so the interface and plain commands run there; maintenance steps
+that depend on macOS tools do not.
 
 **Can I add a language?** Add a column to `internal/i18n/messages.go` and the code
 to `i18n.Supported` and `i18n.Names`; a test checks every key is translated with
@@ -759,6 +775,7 @@ the same format arguments.
 make build     # builds ./bin/omega
 make test      # risk classifier, agent loop, model plan, cards, translations, omega mac
 make lint      # gofmt + go vet
+make cross     # linux, macOS and windows binaries under ./bin
 ./bin/omega --demo                 # scripted session, no API calls, no real commands
 vhs docs/assets/demo.tape          # re-record the README GIF and screenshots
 ```
@@ -772,12 +789,18 @@ provider, implement `llm.Provider` in `internal/llm/` and register it in
 
 ## Releasing
 
+Pushing a tag `vX.Y.Z` runs the release workflow, which builds the archives and
+publishes them on GitHub Releases. CI on main should be green before the tag.
+
 ```bash
-git tag v0.3.0 && git push origin v0.3.0
-make formula VERSION=0.3.0          # updates url and sha256 in Formula/omega.rb
+git tag v0.7.0 && git push origin v0.7.0
+make formula VERSION=0.7.0          # updates url and sha256 in Formula/omega.rb
 cp Formula/omega.rb ../homebrew-omega/Formula/omega.rb
-cd ../homebrew-omega && git commit -am "omega 0.3.0" && git push
+cd ../homebrew-omega && git commit -am "omega 0.7.0" && git push
 ```
+
+`Formula/omega.rb` in this repo is the copy that gets moved to the Homebrew tap.
+The tap is a separate repository.
 
 ## License
 

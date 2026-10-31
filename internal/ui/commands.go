@@ -150,7 +150,7 @@ func (m *model) submitCommand(text string) tea.Cmd {
 	arg = strings.TrimSpace(arg)
 	switch strings.ToLower(name) {
 	case "/help":
-		m.showHelp()
+		m.help = true
 	case "/mode":
 		if arg == "" {
 			m.openPicker(i18n.T("slash.pick_mode"), m.modeOptions(), func(id string) { m.setMode(parseMode(id)) })
@@ -258,19 +258,40 @@ func (m *model) cycleModel() {
 	m.setModel(next)
 }
 
-func (m *model) showHelp() {
+// helpKeys is the on-screen shortcut card, in the order a session uses them.
+var helpKeys = [][2]string{
+	{"?", "key.help"},
+	{"shift+tab", "key.mode"},
+	{"ctrl+p", "key.model"},
+	{"ctrl+o", "slash.expand"},
+	{"/", "key.slash"},
+	{"tab", "key.complete"},
+	{"y / n / a", "key.decide"},
+	{"esc", "key.esc"},
+	{"ctrl+c", "key.cancel"},
+	{"↑ ↓", "key.scroll"},
+}
+
+func (m *model) helpView() string {
+	w := m.width - 2
+	if w < 24 {
+		w = 24
+	}
 	var b strings.Builder
 	b.WriteString(titleStyle.Render(i18n.T("slash.help_title")) + "\n")
 	for _, c := range slashCommands {
-		b.WriteString("  " + cmdStyle.Render(lipgloss.NewStyle().Width(28).Render(strings.TrimSpace(c.name+" "+c.args))) +
-			mutedStyle.Render(i18n.T(c.desc)) + "\n")
+		if c.name == "/quit" {
+			continue
+		}
+		label := lipgloss.NewStyle().Width(22).Render(strings.TrimSpace(c.name + " " + c.args))
+		b.WriteString("  " + cmdStyle.Render(label) + mutedStyle.Render(truncate(i18n.T(c.desc), max(12, w-28))) + "\n")
 	}
 	b.WriteString("\n" + titleStyle.Render(i18n.T("slash.keys_title")) + "\n")
-	for _, k := range [][2]string{{"shift+tab", "key.mode"}, {"ctrl+p", "key.model"}, {"ctrl+o", "slash.expand"},
-		{"tab", "key.complete"}, {"ctrl+c", "key.cancel"}} {
-		b.WriteString("  " + cmdStyle.Render(lipgloss.NewStyle().Width(28).Render(k[0])) + mutedStyle.Render(i18n.T(k[1])) + "\n")
+	for _, k := range helpKeys {
+		label := lipgloss.NewStyle().Width(14).Render(k[0])
+		b.WriteString("  " + cmdStyle.Render(label) + mutedStyle.Render(truncate(i18n.T(k[1]), max(12, w-20))) + "\n")
 	}
-	m.note(strings.TrimRight(b.String(), "\n"), lipgloss.NewStyle())
+	return cardStyle.Width(w).Render(strings.TrimRight(b.String(), "\n"))
 }
 
 // menuView renders the autocomplete menu under the input box.

@@ -51,7 +51,8 @@
       {"@type": "Question", "name": "What does omega send to the AI provider?", "acceptedAnswer": {"@type": "Answer", "text": "Its instructions, the trimmed output of the commands it runs and the configuration files it reads. It is instructed never to open your documents. Every run is logged to ~/.local/state/omega/runs so you can check exactly what happened."}},
       {"@type": "Question", "name": "Can omega delete my files?", "acceptedAnswer": {"@type": "Answer", "text": "Only after you approve it. Deleting, sudo, editing config files and any unknown command need your confirmation. Commands like rm -rf ~, diskutil erase or curl piped into a shell are blocked and never run, even with --yes."}},
       {"@type": "Question", "name": "Which AI models work with omega?", "acceptedAnswer": {"@type": "Answer", "text": "Any model with tool calling from Anthropic, OpenAI, OpenRouter or OpenCode Zen, or a local model through Ollama, LM Studio or any OpenAI compatible endpoint. By default omega uses a fast model and switches to a stronger one when a step fails."}},
-      {"@type": "Question", "name": "Can I change the mode or the model during a run?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Shift+Tab cycles between asking before risky actions, auto approve and read only, and Ctrl+P switches to the next model of the run. In the input box, type / for commands such as /mode, /model and /exit, with a menu that explains each one as you type."}},
+      {"@type": "Question", "name": "Can I change the mode or the model during a run?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Shift+Tab cycles between asking before risky actions, auto approve and read only, and Ctrl+P switches to the next model of the run. Press ? for the shortcut card, or type / for commands such as /mode, /model and /exit, with a menu that explains each one as you type."}},
+      {"@type": "Question", "name": "Where do I download omega?", "acceptedAnswer": {"@type": "Answer", "text": "On a Mac, brew install lcajigasm/omega/omega. GitHub Releases also attach Linux, macOS and Windows archives for each version. Maintenance steps target macOS."}},
       {"@type": "Question", "name": "How much does a run cost?", "acceptedAnswer": {"@type": "Answer", "text": "On the automatic model a typical run costs under one cent. omega shows tokens and cost live. Local models cost nothing."}},
       {"@type": "Question", "name": "Can it run on a local model?", "acceptedAnswer": {"@type": "Answer", "text": "Yes, through Ollama, LM Studio or any OpenAI compatible endpoint. Apple Intelligence's on device model has a 4,096 token context, too small for this agent."}},
       {"@type": "Question", "name": "How does omega tune know the right settings?", "acceptedAnswer": {"@type": "Answer", "text": "It reads the current official documentation of each installed tool on the web and proposes changes with their source. You pick which ones to apply, or use --auto for the low risk ones."}},
@@ -129,7 +130,7 @@
         </div>
         <p class="copy-status" role="status" aria-live="polite"></p>
 
-        <p class="proof"><i class="ph ph-check-circle" aria-hidden="true"></i> 43 maintenance steps · cloud or local models · 5 interface languages · MIT licensed</p>
+        <p class="proof"><i class="ph ph-check-circle" aria-hidden="true"></i> 43 maintenance steps · cloud or local models · 5 interface languages · binaries on GitHub Releases · MIT licensed</p>
 
         <div class="works-with" aria-label="Works with these AI providers">
           <p class="works-label">Works with</p>
@@ -303,6 +304,7 @@ omega docker</code></pre>
           <div class="card keys-list">
             <h3 class="card-title"><i class="ph ph-keyboard" aria-hidden="true"></i> Shortcuts</h3>
             <dl>
+              <div><dt><kbd>?</kbd></dt><dd>Show or hide the shortcut card, without leaving the run</dd></div>
               <div><dt><kbd>shift</kbd> <kbd>tab</kbd></dt><dd>Cycle the approval mode: asks before risky actions, auto approve, read only</dd></div>
               <div><dt><kbd>ctrl</kbd> <kbd>p</kbd></dt><dd>Switch to the next model of the run, from the next turn</dd></div>
               <div><dt><kbd>ctrl</kbd> <kbd>o</kbd></dt><dd>Expand or collapse the output of every tool call</dd></div>
@@ -472,7 +474,7 @@ omega docker</code></pre>
           <details><summary><span>What does omega send to the AI provider?</span></summary><p>Its instructions, the trimmed output of the commands it runs and the configuration files it reads. It is instructed never to open your documents. Every run is logged to <code>~/.local/state/omega/runs</code> so you can check exactly what happened.</p></details>
           <details><summary><span>Can omega delete my files?</span></summary><p>Only after you approve it. Deleting, sudo, editing config files and any unknown command need your confirmation. Commands like <code>rm -rf ~</code>, <code>diskutil erase</code> or <code>curl</code> piped into a shell are blocked and never run, even with <code>--yes</code>.</p></details>
           <details><summary><span>Which AI models work with omega?</span></summary><p>Any model with tool calling from Anthropic, OpenAI, OpenRouter or OpenCode Zen, or a local one through Ollama, LM Studio or any OpenAI compatible endpoint. By default omega uses a fast model such as Claude Haiku 5.5 and switches to a stronger one when a step fails. Choose with <code>omega model</code>.</p></details>
-          <details><summary><span>Can I change the mode or the model during a run?</span></summary><p>Yes. <kbd>shift</kbd> <kbd>tab</kbd> cycles between asking before risky actions, auto approve and read only, and <kbd>ctrl</kbd> <kbd>p</kbd> switches to the next model of the run. In the input box, type <code>/</code> for commands such as <code>/mode</code>, <code>/model</code> and <code>/exit</code>: a menu explains each one as you type. A model you pick by hand is kept for the rest of the run.</p></details>
+          <details><summary><span>Can I change the mode or the model during a run?</span></summary><p>Yes. <kbd>shift</kbd> <kbd>tab</kbd> cycles between asking before risky actions, auto approve and read only, and <kbd>ctrl</kbd> <kbd>p</kbd> switches to the next model of the run. Press <kbd>?</kbd> for the shortcut card. In the input box, type <code>/</code> for commands such as <code>/mode</code>, <code>/model</code> and <code>/exit</code>: a menu explains each one as you type. A model you pick by hand is kept for the rest of the run. The first <kbd>esc</kbd> clears a line you have started; the next one ends the session.</p></details>
           <details><summary><span>How much does a run cost?</span></summary><p>On the automatic model a typical run costs under one cent: a full configuration review on a real Mac came to $0.009. omega shows tokens and cost live in the status bar and in the final summary. Local models cost nothing.</p></details>
           <details><summary><span>Can it run on a local model?</span></summary><p>Yes. Start Ollama or the LM Studio server and pick the provider in <code>omega setup</code>. Apple Intelligence's on device model is only reachable from Swift and its 4,096 token context is too small for this kind of agent, so omega uses local servers instead.</p></details>
           <details><summary><span>How does <code>omega tune</code> know the right settings?</span></summary><p>It does not ship a fixed list. For each tool you have installed it gets pointers to the config files and the official docs, reads the current documentation on the web, and proposes changes with their source. You pick which ones to apply, or use <code>--auto</code> for the low risk ones.</p></details>
@@ -497,6 +499,7 @@ omega docker</code></pre>
           </button>
         </div>
         <p class="copy-status" role="status" aria-live="polite"></p>
+        <p class="section-sub">Or grab a binary from <a href="https://github.com/lcajigasm/omega/releases/latest">GitHub Releases</a>: macOS, Linux and Windows, amd64 and arm64, with checksums. macOS is where the maintenance steps apply.</p>
       </div>
     </section>
   </main>

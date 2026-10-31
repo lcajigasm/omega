@@ -11,9 +11,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 )
 
@@ -32,12 +32,49 @@ const (
 	tailBytes = 8000
 )
 
-// Shell returns the user's login shell, defaulting to zsh.
+// Shell returns a shell that exists on this machine. It prefers SHELL, then
+// zsh, bash and sh. On Windows it prefers Git Bash, then PowerShell.
 func Shell() string {
-	if s := os.Getenv("SHELL"); s != "" {
-		return s
+	candidates := []string{os.Getenv("SHELL")}
+	if runtime.GOOS == "windows" {
+		candidates = append(candidates, `C:\Program Files\Git\bin\bash.exe`)
+	} else {
+		candidates = append(candidates, "/bin/zsh", "/usr/bin/zsh", "/bin/bash", "/usr/bin/bash", "/bin/sh")
 	}
-	return "/bin/zsh"
+	for _, c := range candidates {
+		if c == "" {
+			continue
+		}
+		if st, err := os.Stat(c); err == nil && !st.IsDir() {
+			return c
+		}
+	}
+	if runtime.GOOS == "windows" {
+		if p, err := exec.LookPath("powershell"); err == nil {
+			return p
+		}
+		return "cmd.exe"
+	}
+	return "/bin/sh"
+}
+
+// shellInvocation builds the argv that runs script. POSIX shells are login
+// shells so the user's PATH is present. A sudo bridge path is prepended
+// after the shell starts, because login shells rebuild PATH.
+func shellInvocation(script string) (string, []string) {
+	sh := Shell()
+	base := strings.ToLower(filepath.Base(sh))
+	switch base {
+	case "pwsh", "pwsh.exe", "powershell", "powershell.exe":
+		return sh, []string{"-NoProfile", "-Command", script}
+	case "cmd", "cmd.exe":
+		return sh, []string{"/d", "/c", script}
+	default:
+		if pathPrefix != "" {
+			script = "export PATH=" + shellQuote(pathPrefix) + ":\"$PATH\"; " + script
+		}
+		return sh, []string{"-lc", script}
+	}
 }
 
 // ExtendPath adds the usual package-manager bin directories to PATH so tools
@@ -49,7 +86,8 @@ func ExtendPath() {
 		filepath.Join(home, ".cargo/bin"), filepath.Join(home, ".local/bin"),
 		filepath.Join(home, ".bun/bin"), filepath.Join(home, "go/bin"),
 	}
-	parts := strings.Split(os.Getenv("PATH"), ":")
+	sep := string(os.PathListSeparator)
+	parts := strings.Split(os.Getenv("PATH"), sep)
 	have := map[string]bool{}
 	for _, p := range parts {
 		have[p] = true
@@ -59,7 +97,7 @@ func ExtendPath() {
 			parts = append(parts, e)
 		}
 	}
-	os.Setenv("PATH", strings.Join(parts, ":"))
+	os.Setenv("PATH", strings.Join(parts, sep))
 }
 
 // Has reports whether a binary is on PATH.
@@ -90,16 +128,11 @@ func Run(ctx context.Context, command string, timeout time.Duration, onLine func
 		ctx, cancel = context.WithTimeout(ctx, timeout)
 		defer cancel()
 	}
-	script := command
-	if pathPrefix != "" {
-		// Login shells rebuild PATH (path_helper), so prepend after they start.
-		script = "export PATH=" + shellQuote(pathPrefix) + ":\"$PATH\"; " + command
-	}
-	cmd := exec.CommandContext(ctx, Shell(), "-lc", script)
+	name, args := shellInvocation(command)
+	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Stdin = nil
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
-	// Kill the whole session on timeout or cancel, not just the shell.
-	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) }
+	// Own session, and kill the whole group on timeout or cancel.
+	detach(cmd)
 	cmd.Env = append(os.Environ(),
 		"NONINTERACTIVE=1",
 		"HOMEBREW_NO_ENV_HINTS=1",

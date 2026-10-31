@@ -1,0 +1,91 @@
+name: release
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: make lint
+      - run: go test ./...
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+          - goos: darwin
+            goarch: amd64
+          - goos: darwin
+            goarch: arm64
+          - goos: windows
+            goarch: amd64
+          - goos: windows
+            goarch: arm64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: package
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+        run: |
+          set -euo pipefail
+          ver="${GITHUB_REF_NAME#v}"
+          ext=""
+          if [ "$GOOS" = "windows" ]; then ext=".exe"; fi
+          name="omega_${ver}_${GOOS}_${GOARCH}"
+          stage="$(mktemp -d)"
+          go build -trimpath -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}" -o "${stage}/omega${ext}" ./cmd/omega
+          cp LICENSE "${stage}/LICENSE"
+          mkdir -p dist
+          if [ "$GOOS" = "windows" ]; then
+            (cd "$stage" && zip -q "${GITHUB_WORKSPACE}/dist/${name}.zip" "omega${ext}" LICENSE)
+          else
+            tar -C "$stage" -czf "dist/${name}.tar.gz" "omega${ext}" LICENSE
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: omega-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/*
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+          pattern: omega-*
+      - name: checksums
+        run: |
+          set -euo pipefail
+          cd dist
+          sha256sum omega_* > SHA256SUMS
+      - name: publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --title "omega ${GITHUB_REF_NAME#v}" \
+            --generate-notes

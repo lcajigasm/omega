@@ -218,6 +218,9 @@ func TestUserChangesApplyBeforeNextTurn(t *testing.T) {
 	p := &modelRecorder{}
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	a := New(p, Options{Model: "fast", Escalate: "smart", Config: config.Default()})
+	// Run is not called, so the log file would stay open and Windows could not
+	// delete the temp dir.
+	t.Cleanup(a.closeLog)
 	a.SetMode(ModeReadOnly)
 	a.SetModel("other")
 	if ok, _ := a.authorize(context.Background(), "run_command", "brew upgrade", "", 1, false); ok {
