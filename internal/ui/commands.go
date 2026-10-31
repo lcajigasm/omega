@@ -261,6 +261,7 @@ func (m *model) cycleModel() {
 // helpKeys is the on-screen shortcut card, in the order a session uses them.
 var helpKeys = [][2]string{
 	{"?", "key.help"},
+	{"ctrl+f", "key.search"},
 	{"shift+tab", "key.mode"},
 	{"ctrl+p", "key.model"},
 	{"ctrl+o", "slash.expand"},

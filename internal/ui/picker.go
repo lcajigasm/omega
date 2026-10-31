@@ -144,34 +144,47 @@ func (p *Picker) HandleKey(k tea.KeyMsg) (done, cancelled bool) {
 	return
 }
 
-func riskStyle(risk string) lipgloss.Style {
-	switch risk {
-	case "dangerous":
-		return warnStyle
-	case "blocked":
-		return errStyle
-	case "read-only":
-		return okStyle
-	}
-	return lipgloss.NewStyle().Foreground(accent)
+type lineRole int
+
+const (
+	roleText lineRole = iota
+	roleRow
+	roleKeys
+)
+
+// cardLine is one content row of a rendered card, without the border.
+type cardLine struct {
+	role lineRole
+	row  int // index into visible when role is roleRow
+	text string
 }
 
-// View renders the card at the given width.
-func (p *Picker) View(width int) string {
+// layout is the card content and the rows a click can hit. width is the
+// same value View receives.
+func (p *Picker) layout(width int) (string, []cardLine) {
 	if width < 40 {
 		width = 40
 	}
 	inner := width - 6
 	var b strings.Builder
-	b.WriteString(titleStyle.Render(p.Title))
+	var lines []cardLine
+	add := func(text string, role lineRole, row int) {
+		if len(lines) > 0 {
+			b.WriteByte('\n')
+		}
+		b.WriteString(text)
+		lines = append(lines, cardLine{role: role, row: row, text: text})
+	}
+
+	title := titleStyle.Render(p.Title)
 	if !p.Multi && p.filter != "" {
-		b.WriteString(mutedStyle.Render("  " + i18n.T("pick.filter", p.filter)))
+		title += mutedStyle.Render("  " + i18n.T("pick.filter", p.filter))
 	}
-	b.WriteString("\n")
+	add(title, roleText, 0)
 	if p.Hint != "" {
-		b.WriteString(mutedStyle.Render(truncate(p.Hint, inner)) + "\n")
+		add(mutedStyle.Render(truncate(p.Hint, inner)), roleText, 0)
 	}
-	b.WriteString("\n")
+	add("", roleText, 0)
 
 	start := 0
 	if p.cursor >= pickerRows {
@@ -179,7 +192,7 @@ func (p *Picker) View(width int) string {
 	}
 	end := min(len(p.visible), start+pickerRows)
 	if len(p.visible) == 0 {
-		b.WriteString(mutedStyle.Render("  "+i18n.T("pick.no_match")) + "\n")
+		add(mutedStyle.Render("  "+i18n.T("pick.no_match")), roleText, 0)
 	}
 	for row := start; row < end; row++ {
 		o := p.Options[p.visible[row]]
@@ -204,23 +217,74 @@ func (p *Picker) View(width int) string {
 		if o.Badge != "" {
 			badge = "  " + riskStyle(o.Risk).Render(o.Badge)
 		}
-		line := pointer + mark + label + badge
-		b.WriteString(truncateANSI(line, inner) + "\n")
+		add(truncateANSI(pointer+mark+label+badge, inner), roleRow, row)
 		if o.Detail != "" && (active || p.Multi) {
-			b.WriteString(mutedStyle.Render("    "+truncate(o.Detail, inner-4)) + "\n")
+			add(mutedStyle.Render("    "+truncate(o.Detail, inner-4)), roleText, 0)
 		}
 	}
 	if len(p.visible) > end {
-		b.WriteString(mutedStyle.Render(fmt.Sprintf("    … %d", len(p.visible)-end)) + "\n")
+		add(mutedStyle.Render(fmt.Sprintf("    … %d", len(p.visible)-end)), roleText, 0)
 	}
-	b.WriteString("\n")
+	add("", roleText, 0)
 	if p.Multi {
 		n := len(p.Selected())
-		b.WriteString(mutedStyle.Render(i18n.T("pick.keys_multi", n)))
+		add(mutedStyle.Render(i18n.T("pick.keys_multi", n)), roleKeys, 0)
 	} else {
-		b.WriteString(mutedStyle.Render(i18n.T("pick.keys_single")))
+		add(mutedStyle.Render(i18n.T("pick.keys_single")), roleKeys, 0)
 	}
-	return cardStyle.Width(width - 2).Render(b.String())
+	return b.String(), lines
+}
+
+// Click handles a left click in the rendered card. x and y are columns and
+// rows from the top-left of the card, including its border. The first click
+// on a row selects it. A second click on that row, or a click on the key
+// line, confirms the choice.
+func (p *Picker) Click(x, y, width int) (done, cancelled bool) {
+	_, lines := p.layout(width)
+	contentY := y - 1 // top border
+	if contentY < 0 || contentY >= len(lines) {
+		return false, false
+	}
+	line := lines[contentY]
+	switch line.role {
+	case roleRow:
+		if !p.Multi && line.row == p.cursor {
+			return true, false
+		}
+		p.cursor = line.row
+		if p.Multi && line.row >= 0 && line.row < len(p.visible) {
+			o := &p.Options[p.visible[line.row]]
+			o.Selected = !o.Selected
+		}
+		return false, false
+	case roleKeys:
+		if p.Multi || len(p.visible) > 0 {
+			return true, false
+		}
+	}
+	_ = x
+	return false, false
+}
+
+func riskStyle(risk string) lipgloss.Style {
+	switch risk {
+	case "dangerous":
+		return warnStyle
+	case "blocked":
+		return errStyle
+	case "read-only":
+		return okStyle
+	}
+	return lipgloss.NewStyle().Foreground(accent)
+}
+
+// View renders the card at the given width.
+func (p *Picker) View(width int) string {
+	if width < 40 {
+		width = 40
+	}
+	body, _ := p.layout(width)
+	return cardStyle.Width(width - 2).Render(body)
 }
 
 func truncateANSI(s string, n int) string {
@@ -250,6 +314,18 @@ func (m *pickerProgram) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 		if done, cancelled := m.p.HandleKey(msg); done {
+			m.done, m.cancelled = true, cancelled
+			return m, tea.Quit
+		}
+	case tea.MouseMsg:
+		if msg.Button != tea.MouseButtonLeft || msg.Action != tea.MouseActionPress {
+			break
+		}
+		w := m.width
+		if w == 0 || w > 100 {
+			w = 100
+		}
+		if done, cancelled := m.p.Click(msg.X, msg.Y, w); done {
 			m.done, m.cancelled = true, cancelled
 			return m, tea.Quit
 		}

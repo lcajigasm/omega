@@ -1,9 +1,9 @@
 # Roadmap
 
-omega 0.7 is the current release on main: on-screen help, exit codes, config
-checks and release builds, on top of the 0.6 maintenance controls. This list is
-what makes the tool robust, obvious to drive, and downloadable. Items already
-shipped are checked. The first three open items are the next pass.
+omega 0.8 is the current release on main: run logs, Anthropic retries and
+`omega doctor`, on top of the 0.7 session controls. This list is what makes the
+tool robust, obvious to drive, and downloadable. Items already shipped are
+checked. The first three open items are the next pass.
 
 ## Shipped in 0.7
 
@@ -25,14 +25,14 @@ shipped are checked. The first three open items are the next pass.
 - [x] **`omega doctor`.** Preflight with no chat message: config check, key present and shaped like a key, provider reachable (a model list, or a local `/models` probe), and which catalogue steps are installed.
 - [x] **CI smoke** also runs `omega logs`.
 
+## Shipped in 0.9
+
+- [x] **TUI card tests.** The approval card, the password card and the choice card render into a fixed cell grid. The snapshots do not depend on the real terminal size or on ANSI color.
+- [x] **Mouse on cards.** A click selects a row. A second click on that row, or a click on the key line, confirms it. On an approval card, a click on `[y]`, `[a]` or `[n]` decides.
+- [x] **Search the transcript.** `ctrl+f` opens a search line. Matches are drawn in reverse video. Enter or `ctrl+n` jumps to the next one, `ctrl+p` to the previous, Esc closes the search.
+
 ## Next
 
-1. **TUI card tests.** Render the approval card, the password card and the choice card, so a key change cannot ship on the unit tests of the menu alone.
-2. **Mouse on cards.** Click a row or the focused button in addition to the keyboard.
-3. **Search the transcript.** Find text in the session that is already on screen.
-
-## Later
-
-- Copy the focused tool output.
-- Teach the in-repo Homebrew formula to follow the tag that the release workflow just published. The tap itself stays a separate repository.
-- A short asciinema of `?`, Esc and a denial, next to the existing `omega --demo` GIF.
+1. **Copy the focused tool output.**
+2. **Homebrew formula follows the tag** the release workflow just published. The tap itself stays a separate repository.
+3. **A short asciinema** of `?`, Esc and a denial, next to the existing `omega --demo` GIF.
