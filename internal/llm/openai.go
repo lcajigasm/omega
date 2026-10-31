@@ -230,7 +230,7 @@ func (c *openAIChat) post(ctx context.Context, body map[string]any) ([]byte, err
 			select {
 			case <-ctx.Done():
 				return nil, ctx.Err()
-			case <-time.After(time.Duration(1<<attempt) * time.Second):
+			case <-time.After(retryDelay(attempt)):
 			}
 		}
 		req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.p.opts.BaseURL+"/chat/completions", bytes.NewReader(payload))

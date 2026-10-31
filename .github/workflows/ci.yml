@@ -30,6 +30,7 @@ jobs:
           "./omega${ext}" --version
           "./omega${ext}" steps >/dev/null
           "./omega${ext}" config check
+          "./omega${ext}" logs >/dev/null
       - name: cross-compile
         if: runner.os == 'Linux'
         run: make cross

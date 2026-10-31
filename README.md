@@ -587,7 +587,7 @@ model = "my-model"
 | `~/.config/omega/notes.md` | the agent's memory |
 | `~/.config/omega/mac.toml` | your rules for `omega mac` |
 | `~/.local/state/omega/mac-journal.jsonl` | changes made by `omega mac`, for `omega mac undo` |
-| `~/.local/state/omega/runs/*.log` | log of every run: commands, output, approvals, denials, model switches, tokens and cost |
+| `~/.local/state/omega/runs/*.log` | log of each run (commands, output, approvals, denials, tokens and cost). omega keeps the newest 30 |
 | macOS Keychain, service `omega-cli` | API keys |
 
 ## Command reference
@@ -624,7 +624,16 @@ omega [task] [flags]
 | `omega steps` | step catalogue and availability |
 | `omega steps run <id>… [-y]` | run steps without AI |
 | `omega notes [clear]` | the agent's memory |
+| `omega logs` | list run transcripts, newest first |
+| `omega logs view [n\|file]` | print one transcript (the latest if omitted) |
+| `omega doctor` | check config, key shape, provider and installed steps; no chat, no tokens |
 | `omega completion zsh\|bash\|fish` | completion script |
+
+`omega logs view` prints the newest transcript, `omega logs view 2` prints the second row of `omega logs`, and `omega logs view <file>` prints that file. A new run deletes older transcripts until 30 remain.
+
+`omega doctor` loads the config, checks that a cloud key is present and shaped like a key (no spaces, not a URL, long enough), and asks the provider whether it is reachable. A cloud provider is asked for its model list. A local one is probed at `<base_url>/models`. Neither call sends a chat message. The command then lists catalogue steps that are installed on this machine. It exits with status 1 when the config, the key or the provider check fails. A missing optional tool does not.
+
+A 429, a 5xx or a dropped connection on Anthropic or an OpenAI-compatible provider is retried three times, waiting 2s, then 4s, then 8s. Any other 4xx is reported immediately.
 
 ## Unattended runs
 
@@ -699,7 +708,7 @@ Code layout:
 
 ```text
 cmd/omega/          entry point
-internal/cli/       commands (setup, model, docker, mac, auth, config, steps, notes), key checks
+internal/cli/       commands (setup, model, docker, mac, auth, config, steps, notes, logs, doctor), key checks
 internal/agent/     agent loop, tools, config hints, web tools, prompt, events, run log
 internal/llm/       providers (Anthropic SDK, OpenAI-compatible, OpenCode), tiers, prices
 internal/safety/    command risk classifier
@@ -743,8 +752,14 @@ password before the run starts.
 dangerous. Open an issue with the command so it can be added to the read-only
 list.
 
-**I want to see exactly what it did**: open the latest file in
+**I want to see exactly what it did**: `omega logs` lists the transcripts and
+`omega logs view` prints the latest. omega keeps the newest 30 under
 `~/.local/state/omega/runs/`.
+
+**`omega doctor` fails**: it prints which check failed. A key that is a URL or
+too short is rejected before any request. "Not reachable" means the provider
+did not answer a model list (cloud) or a `/models` probe (local). The command
+does not send a chat message.
 
 ## FAQ
 
