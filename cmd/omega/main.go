@@ -3,6 +3,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -19,6 +20,10 @@ func main() {
 		os.Exit(sudo.RunHelper(os.Args))
 	}
 	if err := cli.Execute(version); err != nil {
+		var code interface{ ExitCode() int }
+		if errors.As(err, &code) {
+			os.Exit(code.ExitCode())
+		}
 		fmt.Fprintln(os.Stderr, "omega:", err)
 		os.Exit(1)
 	}

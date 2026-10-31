@@ -112,6 +112,7 @@ type model struct {
 	expanded bool
 	mode     agent.Mode
 	menuSel  int  // highlighted row of the command menu
+	help     bool // on-screen shortcut card
 	quitting bool // /exit: leave as soon as the session ends
 
 	thinking   bool
@@ -563,6 +564,21 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+c":
 			m.cancel()
 			return m, tea.Quit
+		}
+		if m.help {
+			switch msg.String() {
+			case "?", "esc", "q":
+				m.help = false
+				m.refresh()
+				return m, nil
+			case "up", "down", "pgup", "pgdown", "ctrl+u", "ctrl+d":
+				var cmd tea.Cmd
+				m.vp, cmd = m.vp.Update(msg)
+				return m, cmd
+			}
+			return m, nil
+		}
+		switch msg.String() {
 		case "ctrl+o":
 			m.expanded = !m.expanded
 			m.refresh()
@@ -579,6 +595,12 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.refresh()
 			}
 			return m, nil
+		case "?":
+			if m.helpAllowed() {
+				m.help = true
+				m.refresh()
+				return m, nil
+			}
 		}
 		switch m.state {
 		case stConfirm:
@@ -679,6 +701,12 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.refresh()
 				return m, nil
 			case tea.KeyEsc:
+				// First Esc clears a typed line; the next one ends the session.
+				if strings.TrimSpace(m.input.Value()) != "" {
+					m.input.Reset()
+					m.menuSel = 0
+					return m, nil
+				}
 				m.endSession()
 				return m, nil
 			case tea.KeyPgUp, tea.KeyPgDown, tea.KeyUp, tea.KeyDown:
@@ -805,7 +833,23 @@ func (m *model) statusBar() string {
 	return " " + left + strings.Repeat(" ", gap) + right
 }
 
+// helpAllowed is false while a password or a filter is being typed, and
+// while the idle input already has text, so "?" stays a character.
+func (m *model) helpAllowed() bool {
+	switch m.state {
+	case stPassword, stChoice:
+		return false
+	case stIdle:
+		return strings.TrimSpace(m.input.Value()) == ""
+	default:
+		return true
+	}
+}
+
 func (m *model) footerView() string {
+	if m.help {
+		return m.helpView() + "\n" + m.statusBar() + "\n" + faintStyle.Render("  "+i18n.T("ui.hint_help"))
+	}
 	var top string
 	switch m.state {
 	case stConfirm:

@@ -22,6 +22,13 @@ import (
 
 const maxTurns = 80
 
+// Process status values. ExitCancelled is the conventional 128+SIGINT.
+const (
+	ExitOK        = 0
+	ExitError     = 1
+	ExitCancelled = 130
+)
+
 // ExecFunc runs a shell command. It is runner.Run outside of tests and demos.
 type ExecFunc func(ctx context.Context, command string, timeout time.Duration, onLine func(string)) runner.Result
 
@@ -61,6 +68,7 @@ type Agent struct {
 	// Changed by the UI while the run goes on.
 	mu        sync.Mutex
 	mode      Mode
+	exitCode  int
 	nextModel string   // model the user picked, applied before the next turn
 	notes     []string // messages for the model about what the user changed
 
@@ -122,6 +130,28 @@ func (a *Agent) stats() Stats {
 	return Stats{Usage: a.usage, Cost: a.cost, CostKnown: a.costKnown, Model: a.model, Elapsed: time.Since(a.started)}
 }
 
+// ExitCode is the status of a finished run: 0, ExitError or ExitCancelled.
+// It is safe to call after Events has been closed.
+func (a *Agent) ExitCode() int {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.exitCode
+}
+
+func (a *Agent) setExit(code int) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if code == ExitCancelled || a.exitCode == 0 {
+		a.exitCode = code
+	}
+}
+
+func (a *Agent) clearExit() {
+	a.mu.Lock()
+	a.exitCode = 0
+	a.mu.Unlock()
+}
+
 // Run executes the task until the model stops and, in interactive mode, the
 // user ends the session.
 func (a *Agent) Run(ctx context.Context, task string) {
@@ -142,15 +172,18 @@ func (a *Agent) Run(ctx context.Context, task string) {
 	var results []llm.ToolResult
 	for turn := 0; ; turn++ {
 		if ctx.Err() != nil {
+			a.setExit(ExitCancelled)
 			a.emit(Event{Kind: EvDone, Text: i18n.T("agent.cancelled"), Stats: a.stats()})
 			return
 		}
 		if turn >= maxTurns {
+			a.setExit(ExitError)
 			a.emit(Event{Kind: EvError, Text: i18n.T("agent.turn_limit", maxTurns)})
 			results, text = nil, ""
 			if !a.waitInput(ctx, &text) {
 				return
 			}
+			a.clearExit()
 			turn = 0
 			continue
 		}
@@ -160,9 +193,11 @@ func (a *Agent) Run(ctx context.Context, task string) {
 		reply, err := a.chat.Send(ctx, text, results)
 		if err != nil {
 			if ctx.Err() != nil {
+				a.setExit(ExitCancelled)
 				a.emit(Event{Kind: EvDone, Text: i18n.T("agent.cancelled"), Stats: a.stats()})
 				return
 			}
+			a.setExit(ExitError)
 			a.emit(Event{Kind: EvError, Text: i18n.T("agent.model_error", err.Error())})
 			// The failed message was rolled back; let the user retry or quit.
 			if !a.opts.Interactive {
@@ -172,11 +207,13 @@ func (a *Agent) Run(ctx context.Context, task string) {
 			if !a.waitInput(ctx, &text) {
 				return
 			}
+			a.clearExit()
 			if text == "" {
 				text = "continue"
 			}
 			continue
 		}
+		a.clearExit()
 		a.usage = a.usage.Add(reply.Usage)
 		if price, ok := llm.PriceFor(a.opts.Provider, a.model); ok {
 			a.cost += price.Cost(reply.Usage)
@@ -214,6 +251,7 @@ func (a *Agent) waitInput(ctx context.Context, text *string) bool {
 	a.emit(Event{Kind: EvIdle, Stats: a.stats()})
 	select {
 	case <-ctx.Done():
+		a.setExit(ExitCancelled)
 		a.emit(Event{Kind: EvDone, Text: i18n.T("agent.cancelled"), Stats: a.stats()})
 		return false
 	case msg, ok := <-a.input:

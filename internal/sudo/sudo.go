@@ -15,7 +15,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"syscall"
 )
 
 // AskFunc asks the user for the password. retry is true when the previous
@@ -141,7 +140,7 @@ func (b *Bridge) handle(conn net.Conn) {
 func Validate(password string) bool {
 	cmd := exec.Command("/usr/bin/sudo", "-S", "-k", "-v", "-p", "")
 	cmd.Stdin = strings.NewReader(password + "\n")
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	setSession(cmd)
 	return cmd.Run() == nil
 }
 

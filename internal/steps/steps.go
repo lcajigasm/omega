@@ -6,6 +6,7 @@ package steps
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"github.com/lcajigasm/omega/internal/runner"
 	"github.com/lcajigasm/omega/internal/safety"
@@ -43,6 +44,8 @@ func (s Step) Available() bool {
 	return s.Detect == nil || s.Detect()
 }
 
+func darwinOnly() bool { return runtime.GOOS == "darwin" }
+
 func dirExists(rel string) func() bool {
 	return func() bool {
 		home, _ := os.UserHomeDir()
@@ -58,7 +61,7 @@ var All = []Step{
 		Description: "Free space and size of caches, logs and Trash"},
 	{ID: "brew-outdated", Name: "Outdated Homebrew packages", Category: Check, Command: "brew outdated --verbose", Risk: safety.Safe, Requires: "brew"},
 	{ID: "brew-doctor", Name: "brew doctor", Category: Check, Command: "brew doctor", Risk: safety.Safe, Requires: "brew"},
-	{ID: "macos-check", Name: "macOS updates", Category: Check, Command: "softwareupdate --list", Risk: safety.Safe},
+	{ID: "macos-check", Name: "macOS updates", Category: Check, Command: "softwareupdate --list", Risk: safety.Safe, Detect: darwinOnly},
 
 	{ID: "system-logs", Name: "System logs review", Category: Check, Risk: safety.Safe, Requires: "launchctl",
 		Description: "Crash reports, launch agents that keep failing, sleep blockers, processes logging faults and log sizes",
@@ -85,7 +88,7 @@ var All = []Step{
 	{ID: "gh-ext", Name: "gh extensions", Category: Update, Command: "gh extension upgrade --all", Risk: safety.Normal, Requires: "gh"},
 	{ID: "omz", Name: "Oh My Zsh", Category: Update, Command: "sh ~/.oh-my-zsh/tools/upgrade.sh", Risk: safety.Dangerous, Detect: dirExists(".oh-my-zsh")},
 	{ID: "macos", Name: "macOS (softwareupdate)", Category: Update, Command: "sudo softwareupdate --install --all", Risk: safety.Dangerous,
-		Description: "Needs sudo; may require a restart"},
+		Description: "Needs sudo; may require a restart", Detect: darwinOnly},
 
 	// Cleaning (Mole equivalents).
 	{ID: "brew-cleanup", Name: "Homebrew cleanup", Category: Clean, Command: "brew cleanup --prune=all", Risk: safety.Dangerous, Requires: "brew",

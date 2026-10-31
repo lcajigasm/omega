@@ -147,8 +147,11 @@ func runTask(task string, f runFlags) error {
 	} else if p, plan, err = resolveProvider(cfg, f.provider, f.model, f.effort, planTask); err != nil {
 		return err
 	}
-	timeout, err := time.ParseDuration(cfg.Timeout)
-	if err != nil || timeout <= 0 {
+	if err := cfg.Validate(); err != nil {
+		return err
+	}
+	timeout, parseErr := time.ParseDuration(cfg.Timeout)
+	if parseErr != nil || timeout <= 0 {
 		timeout = 45 * time.Minute
 	}
 
@@ -187,19 +190,31 @@ func runTask(task string, f runFlags) error {
 
 	if f.noTUI || !stdinTTY || !stdoutTTY {
 		ui.RunPlain(ag, os.Stdin, stdinTTY)
-		return nil
+	} else {
+		err = ui.RunTUI(ctx, cancel, ag, ui.Header{Version: version, Provider: p.Name(), Model: plan.Model,
+			Escalate: plan.Escalate, Models: plan.Choices, Task: task})
+		cancel()
+		// Drain so the agent goroutine can finish writing its log.
+		for range ag.Events() {
+		}
+		if path := ag.LogPath(); path != "" {
+			fmt.Println(i18n.T("run.log", path))
+		}
 	}
-	err = ui.RunTUI(ctx, cancel, ag, ui.Header{Version: version, Provider: p.Name(), Model: plan.Model,
-		Escalate: plan.Escalate, Models: plan.Choices, Task: task})
-	cancel()
-	// Drain so the agent goroutine can finish writing its log.
-	for range ag.Events() {
+	if err != nil {
+		return err
 	}
-	if path := ag.LogPath(); path != "" {
-		fmt.Println(i18n.T("run.log", path))
+	if code := ag.ExitCode(); code != 0 {
+		return exitCode(code)
 	}
-	return err
+	return nil
 }
+
+// exitCode is a finished run whose failure was already shown in the UI.
+type exitCode int
+
+func (e exitCode) Error() string { return "" }
+func (e exitCode) ExitCode() int { return int(e) }
 
 // askSudo asks for the sudo password before the interface starts and checks
 // it, so sudo prompts during the run are answered without interrupting.

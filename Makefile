@@ -2,7 +2,7 @@ VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 REPO    := lcajigasm/omega
 LDFLAGS := -s -w -X main.version=$(VERSION)
 
-.PHONY: build install test lint clean formula
+.PHONY: build install test lint clean formula cross
 
 build:
 	go build -ldflags "$(LDFLAGS)" -o bin/omega ./cmd/omega
@@ -18,6 +18,16 @@ lint:
 
 clean:
 	rm -rf bin
+
+# Local cross-compile of the release targets (no archives).
+cross:
+	@mkdir -p bin
+	@for pair in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64; do \
+		os=$${pair%/*}; arch=$${pair#*/}; ext=; \
+		if [ "$$os" = windows ]; then ext=.exe; fi; \
+		echo "$$os/$$arch"; \
+		GOOS=$$os GOARCH=$$arch CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -o bin/omega-$$os-$$arch$$ext ./cmd/omega || exit 1; \
+	done
 
 # Point Formula/omega.rb at the GitHub tarball of tag v$(VERSION).
 # Push the tag first: git tag v0.1.0 && git push origin v0.1.0

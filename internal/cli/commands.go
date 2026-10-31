@@ -65,6 +65,9 @@ func setupCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if err := cfg.Validate(); err != nil {
+				return err
+			}
 			tty := term.IsTerminal(int(os.Stdin.Fd()))
 			var opts []ui.Option
 			for _, p := range llm.Providers {
@@ -319,6 +322,20 @@ func configCmd() *cobra.Command {
 			},
 		},
 		&cobra.Command{
+			Use: "check", Short: i18n.T("cmd.config_check"), Args: cobra.NoArgs,
+			RunE: func(cmd *cobra.Command, args []string) error {
+				cfg, err := config.Load()
+				if err != nil {
+					return err
+				}
+				if err := cfg.Validate(); err != nil {
+					return err
+				}
+				fmt.Println(i18n.T("config.ok", config.Path()))
+				return nil
+			},
+		},
+		&cobra.Command{
 			Use: "edit", Short: i18n.T("cmd.config_edit"), Args: cobra.NoArgs,
 			RunE: func(cmd *cobra.Command, args []string) error {
 				cfg, err := config.Load()
@@ -380,7 +397,13 @@ func stepsCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			timeout, _ := time.ParseDuration(cfg.Timeout)
+			if err := cfg.Validate(); err != nil {
+				return err
+			}
+			timeout, err := time.ParseDuration(cfg.Timeout)
+			if err != nil {
+				return err
+			}
 			failed := 0
 			for _, id := range args {
 				s, ok := steps.Find(id)
