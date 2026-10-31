@@ -187,11 +187,13 @@ omega's TUI follows the conventions of Claude Code's CLI:
 - **Status bar** with the approval mode (change it with `shift+tab`), the current model, tokens in and out,
   cost and elapsed time.
 - **Cards** for approvals (with a coloured diff when a file changes) and for
-  choices.
+  choices. Click a row to select it; click it again, or click the key line, to
+  confirm. On an approval card, click `[y]`, `[a]` or `[n]`.
 
 | Key | Action |
 |---|---|
 | `?` | show or hide the shortcut card (also `/help`) |
+| `ctrl+f` | search the transcript. Type the query; Enter or `ctrl+n` jumps to the next match, `ctrl+p` to the previous, Esc closes it. Matches are highlighted |
 | `↑` `↓` `PgUp` `PgDn` / wheel | scroll |
 | `ctrl+o` | expand or collapse the output of every tool call |
 | `shift+tab` | cycle the approval mode: asks before risky actions → auto approve → read only |

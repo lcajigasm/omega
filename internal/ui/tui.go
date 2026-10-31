@@ -8,6 +8,7 @@ import (
 	"math"
 	"os"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -126,6 +127,10 @@ type model struct {
 	picker   *Picker
 	onPick   func(string) // set when a card answers the interface, not the agent
 	password textinput.Model
+
+	searchOn bool
+	searchQ  string
+	searchAt int // index of the current transcript match; -1 when there is none
 
 	md      *glamour.TermRenderer
 	mdWidth int
@@ -414,17 +419,32 @@ func firstSentence(s string) string {
 	return s
 }
 
+func (m *model) transcript() string {
+	parts := make([]string, 0, len(m.entries))
+	for _, e := range m.entries {
+		parts = append(parts, m.renderEntry(e))
+	}
+	return strings.Join(parts, "\n\n") + "\n"
+}
+
 func (m *model) refresh() {
 	if !m.ready {
 		return
 	}
 	atBottom := m.vp.AtBottom()
-	parts := make([]string, 0, len(m.entries))
-	for _, e := range m.entries {
-		parts = append(parts, m.renderEntry(e))
+	content := m.transcript()
+	if m.searchOn && m.searchQ != "" {
+		content = highlightQuery(content, m.searchQ)
 	}
-	m.vp.SetContent(strings.Join(parts, "\n\n") + "\n")
+	m.vp.SetContent(content)
 	m.resize()
+	if m.searchOn {
+		lines := matchLines(m.transcript(), m.searchQ)
+		if m.searchAt >= 0 && m.searchAt < len(lines) {
+			m.vp.SetYOffset(lines[m.searchAt])
+		}
+		return
+	}
 	if atBottom || m.state == stIdle {
 		m.vp.GotoBottom()
 	}
@@ -564,6 +584,21 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+c":
 			m.cancel()
 			return m, tea.Quit
+		case "ctrl+f":
+			if m.state != stPassword {
+				m.help = false
+				m.searchOn = !m.searchOn
+				if !m.searchOn {
+					m.searchQ = ""
+					m.searchAt = -1
+				}
+				m.refresh()
+			}
+			return m, nil
+		}
+		if m.searchOn {
+			m.handleSearchKey(msg)
+			return m, nil
 		}
 		if m.help {
 			switch msg.String() {
@@ -642,42 +677,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.password, cmd = m.password.Update(msg)
 			return m, cmd
 		case stChoice:
-			if m.onPick != nil {
-				if done, cancelled := m.picker.HandleKey(msg); done {
-					ids := m.picker.Selected()
-					pick := m.onPick
-					m.picker, m.onPick = nil, nil
-					m.state = stIdle
-					if !cancelled && len(ids) > 0 {
-						pick(ids[0])
-					}
-					m.refresh()
-					return m, m.input.Focus()
-				}
-				m.refresh()
-				return m, nil
-			}
 			if done, cancelled := m.picker.HandleKey(msg); done {
-				var ids []string
-				if !cancelled {
-					ids = m.picker.Selected()
-				}
-				var labels []string
-				for _, id := range ids {
-					for _, o := range m.picker.Options {
-						if o.ID == id {
-							labels = append(labels, o.Label)
-						}
-					}
-				}
-				if len(labels) == 0 {
-					m.note(mutedStyle.Render("› "+i18n.T("ui.chosen_none")), lipgloss.NewStyle())
-				} else {
-					m.note(titleStyle.Render("› ")+i18n.T("ui.chosen", strings.Join(labels, ", ")), lipgloss.NewStyle())
-				}
-				m.pending.Picks <- ids
-				m.pending, m.picker = nil, nil
-				m.state = stRunning
+				return m, m.finishChoice(cancelled)
 			}
 			m.refresh()
 			return m, nil
@@ -731,6 +732,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, cmd)
 
 	case tea.MouseMsg:
+		if m.clickCard(msg) {
+			return m, nil
+		}
 		var cmd tea.Cmd
 		m.vp, cmd = m.vp.Update(msg)
 		cmds = append(cmds, cmd)
@@ -763,22 +767,38 @@ func RiskName(r safety.Risk) string {
 	return i18n.T([...]string{"risk.safe", "risk.normal", "risk.dangerous", "risk.blocked"}[r])
 }
 
-func (m *model) confirmView() string {
+// confirmButton is a clickable span on the approval card's key line.
+// start and end are columns in that line's visible text.
+type confirmButton struct {
+	start, end int
+	decision   agent.Decision
+}
+
+func (m *model) confirmLayout() (body string, keyLine int, buttons []confirmButton) {
 	e := m.pending
 	w := m.width - 2
-	name, arg := toolLabel(e.Tool, e.Command)
 	var b strings.Builder
-	b.WriteString(warnStyle.Render(i18n.T("ui.confirm")) + "  " + mutedStyle.Render(i18n.T("ui.risk", riskLabel(e.Risk))) + "\n\n")
-	b.WriteString(cmdStyle.Render(name) + mutedStyle.Render("(") + truncate(arg, max(10, w-12)) + mutedStyle.Render(")") + "\n")
+	line := 0
+	write := func(s string) {
+		if line > 0 {
+			b.WriteByte('\n')
+		}
+		b.WriteString(s)
+		line++
+	}
+	write(warnStyle.Render(i18n.T("ui.confirm")) + "  " + mutedStyle.Render(i18n.T("ui.risk", riskLabel(e.Risk))))
+	write("")
+	name, arg := toolLabel(e.Tool, e.Command)
+	write(cmdStyle.Render(name) + mutedStyle.Render("(") + truncate(arg, max(10, w-12)) + mutedStyle.Render(")"))
 	if strings.HasPrefix(e.Tool, "run_step:") {
-		b.WriteString(faintStyle.Render(truncate(e.Command, max(10, w-6))) + "\n")
+		write(faintStyle.Render(truncate(e.Command, max(10, w-6))))
 	}
 	if e.Reason != "" {
 		lines := strings.Split(e.Reason, "\n")
 		if len(lines) > 14 {
 			lines = append(lines[:14], "…")
 		}
-		b.WriteString("\n")
+		write("")
 		for _, l := range lines {
 			st := mutedStyle
 			switch {
@@ -787,19 +807,50 @@ func (m *model) confirmView() string {
 			case strings.HasPrefix(l, "- "):
 				st = errStyle
 			}
-			b.WriteString(st.Render(truncate(l, max(10, w-6))) + "\n")
+			write(st.Render(truncate(l, max(10, w-6))))
 		}
 	}
 	if e.Always {
-		b.WriteString("\n" + warnStyle.Render("⚠ ") + mutedStyle.Render(i18n.T("ui.always_note")) + "\n")
+		write("")
+		write(warnStyle.Render("⚠ ") + mutedStyle.Render(i18n.T("ui.always_note")))
 	}
-	b.WriteString("\n")
+	write("")
+	keys := i18n.T("ui.confirm_keys")
+	marks := []struct {
+		mark string
+		d    agent.Decision
+	}{{"[y]", agent.Approve}, {"[a]", agent.ApproveAll}, {"[n]", agent.Deny}}
 	if e.Always {
-		b.WriteString(i18n.T("ui.confirm_keys_once"))
-	} else {
-		b.WriteString(i18n.T("ui.confirm_keys"))
+		keys = i18n.T("ui.confirm_keys_once")
+		marks = []struct {
+			mark string
+			d    agent.Decision
+		}{{"[y]", agent.Approve}, {"[n]", agent.Deny}}
 	}
-	return confirmStyle.Width(w).Render(b.String())
+	for _, mark := range marks {
+		at := strings.Index(keys, mark.mark)
+		if at < 0 {
+			continue
+		}
+		buttons = append(buttons, confirmButton{start: at, end: at + len(mark.mark), decision: mark.d})
+	}
+	sort.Slice(buttons, func(i, j int) bool { return buttons[i].start < buttons[j].start })
+	// Extend each button up to the next one so the label next to [y] is included.
+	for i := range buttons {
+		end := len(keys)
+		if i+1 < len(buttons) {
+			end = buttons[i+1].start
+		}
+		buttons[i].end = end
+	}
+	keyLine = line
+	write(keys)
+	return b.String(), keyLine, buttons
+}
+
+func (m *model) confirmView() string {
+	body, _, _ := m.confirmLayout()
+	return confirmStyle.Width(m.width - 2).Render(body)
 }
 
 func (m *model) statusBar() string {
@@ -848,7 +899,7 @@ func (m *model) helpAllowed() bool {
 
 func (m *model) footerView() string {
 	if m.help {
-		return m.helpView() + "\n" + m.statusBar() + "\n" + faintStyle.Render("  "+i18n.T("ui.hint_help"))
+		return m.withSearchBar(m.helpView() + "\n" + m.statusBar() + "\n" + faintStyle.Render("  "+i18n.T("ui.hint_help")))
 	}
 	var top string
 	switch m.state {
@@ -857,26 +908,15 @@ func (m *model) footerView() string {
 	case stChoice:
 		top = m.picker.View(m.width)
 	case stPassword:
-		var b strings.Builder
-		b.WriteString(warnStyle.Render(i18n.T("ui.password_title")) + "\n")
-		if m.pending.Text != "" {
-			b.WriteString(faintStyle.Render(truncate(m.pending.Text, m.width-8)) + "\n")
-		}
-		if m.pending.Failed {
-			b.WriteString(errStyle.Render(i18n.T("ui.password_wrong")) + "\n")
-		}
-		b.WriteString("\n" + m.password.View() + "\n\n")
-		b.WriteString(mutedStyle.Render(i18n.T("ui.password_hint")) + "\n")
-		b.WriteString(faintStyle.Render(i18n.T("ui.password_keys")))
-		top = confirmStyle.Width(m.width - 2).Render(b.String())
+		top = m.passwordView()
 	case stIdle:
 		top = inputStyle.Width(m.width - 2).Render(m.input.View())
 		if menu := m.menuView(); menu != "" {
-			return top + "\n" + menu + "\n" + m.statusBar()
+			return m.withSearchBar(top + "\n" + menu + "\n" + m.statusBar())
 		}
-		return top + "\n" + m.statusBar() + "\n" + faintStyle.Render("  "+i18n.T("ui.hint_idle"))
+		return m.withSearchBar(top + "\n" + m.statusBar() + "\n" + faintStyle.Render("  "+i18n.T("ui.hint_idle")))
 	case stDone:
-		return m.statusBar() + "\n" + faintStyle.Render("  "+i18n.T("ui.hint_done"))
+		return m.withSearchBar(m.statusBar() + "\n" + faintStyle.Render("  "+i18n.T("ui.hint_done")))
 	default:
 		if m.thinking {
 			el := humanDuration(time.Since(m.thinkStart))
@@ -885,7 +925,37 @@ func (m *model) footerView() string {
 				faintStyle.Render(i18n.T("ui.thinking_meta", el, humanTokens(m.stats.Usage.Input()+m.stats.Usage.OutputTokens)))
 		}
 	}
-	return top + "\n" + m.statusBar() + "\n" + faintStyle.Render("  "+i18n.T("ui.hint_running"))
+	return m.withSearchBar(top + "\n" + m.statusBar() + "\n" + faintStyle.Render("  "+i18n.T("ui.hint_running")))
+}
+
+func (m *model) passwordView() string {
+	var b strings.Builder
+	b.WriteString(warnStyle.Render(i18n.T("ui.password_title")) + "\n")
+	if m.pending != nil && m.pending.Text != "" {
+		b.WriteString(faintStyle.Render(truncate(m.pending.Text, m.width-8)) + "\n")
+	}
+	if m.pending != nil && m.pending.Failed {
+		b.WriteString(errStyle.Render(i18n.T("ui.password_wrong")) + "\n")
+	}
+	b.WriteString("\n" + m.password.View() + "\n\n")
+	b.WriteString(mutedStyle.Render(i18n.T("ui.password_hint")) + "\n")
+	b.WriteString(faintStyle.Render(i18n.T("ui.password_keys")))
+	return confirmStyle.Width(m.width - 2).Render(b.String())
+}
+
+func (m *model) withSearchBar(base string) string {
+	if !m.searchOn {
+		return base
+	}
+	count := i18n.T("ui.search_none")
+	if m.searchQ != "" {
+		n := len(matchLines(m.transcript(), m.searchQ))
+		if n > 0 && m.searchAt >= 0 && m.searchAt < n {
+			count = i18n.T("ui.search_count", m.searchAt+1, n)
+		}
+	}
+	bar := inputStyle.Width(m.width - 2).Render(i18n.T("ui.search_bar", m.searchQ, count))
+	return base + "\n" + bar + "\n" + faintStyle.Render("  "+i18n.T("ui.search_hint"))
 }
 
 func (m *model) resize() {
