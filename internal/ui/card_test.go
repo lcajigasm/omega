@@ -53,6 +53,7 @@ func TestCardSnapshots(t *testing.T) {
 func assertSnap(t *testing.T, name, view string) {
 	t.Helper()
 	got := screen(view, lipgloss.Width(view), lipgloss.Height(view))
+	got = strings.ReplaceAll(got, "\r\n", "\n")
 	if !strings.HasSuffix(got, "\n") {
 		got += "\n"
 	}
@@ -70,8 +71,10 @@ func assertSnap(t *testing.T, name, view string) {
 	if err != nil {
 		t.Fatalf("reading %s: %v\nrendered card:\n%s", path, err, got)
 	}
-	if string(want) != got {
-		t.Errorf("snapshot %s does not match the rendered card\n--- got ---\n%s--- want ---\n%s", name, got, want)
+	// Windows checkouts may rewrite the snapshot as CRLF. Compare the text.
+	wantText := strings.ReplaceAll(string(want), "\r\n", "\n")
+	if wantText != got {
+		t.Errorf("snapshot %s does not match the rendered card\n--- got ---\n%s--- want ---\n%s", name, got, wantText)
 	}
 }
 
