@@ -7,9 +7,6 @@ on:
   workflow_dispatch:
   push:
     tags: ["v*.*.*"]
-  # One pull_request run records the files for this change. The trigger is
-  # removed before merge so later PRs do not pay for a recording.
-  pull_request:
 
 permissions:
   contents: read
