@@ -19,8 +19,8 @@ Wait+Screen@40s /Run this\?/
 Sleep 600ms
 Type "y"
 Wait+Screen@25s /sudo needs your password/
-Sleep 1s
 Screenshot docs/assets/sudo.png
+Sleep 1.2s
 Escape
 Sleep 400ms
 Ctrl+C
