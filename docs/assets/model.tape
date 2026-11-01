@@ -14,8 +14,8 @@ Enter
 Show
 Type "omega model --provider ollama"
 Enter
-Wait+Screen@20s /omega-local-test/
-Sleep 1s
+Wait+Screen@25s /Model for Ollama/
+Sleep 3s
 Screenshot docs/assets/model.png
 Escape
 Sleep 500ms
