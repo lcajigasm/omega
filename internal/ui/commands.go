@@ -265,6 +265,8 @@ var helpKeys = [][2]string{
 	{"shift+tab", "key.mode"},
 	{"ctrl+p", "key.model"},
 	{"ctrl+o", "slash.expand"},
+	{"ctrl+y", "key.copy"},
+	{"alt+up/down", "key.focus"},
 	{"/", "key.slash"},
 	{"tab", "key.complete"},
 	{"y / n / a", "key.decide"},

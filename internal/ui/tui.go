@@ -115,6 +115,7 @@ type model struct {
 	menuSel  int  // highlighted row of the command menu
 	help     bool // on-screen shortcut card
 	quitting bool // /exit: leave as soon as the session ends
+	focus    int  // index of the focused tool entry; -1 when there is none
 
 	thinking   bool
 	thinkStart time.Time
@@ -159,6 +160,7 @@ func RunTUI(ctx context.Context, cancel context.CancelFunc, ag *agent.Agent, h H
 	m.password.Prompt = "🔒 "
 	m.password.CharLimit = 256
 	m.stats.Model = h.Model
+	m.focus = -1
 	m.entries = append(m.entries, &entry{kind: enWelcome})
 	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithContext(ctx), tea.WithMouseCellMotion())
 	_, err := p.Run()
@@ -352,7 +354,11 @@ func (m *model) renderEntry(e *entry) string {
 	case e.failed:
 		dot = errStyle.Render("⏺")
 	}
-	head := dot + " " + cmdStyle.Render(name)
+	mark := ""
+	if m.focusedEntry() == e {
+		mark = titleStyle.Render("▸ ")
+	}
+	head := mark + dot + " " + cmdStyle.Render(name)
 	if arg != "" {
 		head += mutedStyle.Render("(") + truncate(arg, max(10, w-len(name)-6)) + mutedStyle.Render(")")
 	}
@@ -450,7 +456,12 @@ func (m *model) refresh() {
 	}
 }
 
-func (m *model) add(e *entry) { m.entries = append(m.entries, e) }
+func (m *model) add(e *entry) {
+	m.entries = append(m.entries, e)
+	if e.kind == enTool {
+		m.focus = len(m.entries) - 1
+	}
+}
 
 func (m *model) note(text string, style lipgloss.Style) {
 	m.add(&entry{kind: enNote, text: text, style: style})
@@ -594,6 +605,17 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				m.refresh()
 			}
+			return m, nil
+		case "ctrl+y":
+			if m.state != stPassword {
+				m.copyFocused()
+			}
+			return m, nil
+		case "alt+up":
+			m.moveFocus(-1)
+			return m, nil
+		case "alt+down":
+			m.moveFocus(1)
 			return m, nil
 		}
 		if m.searchOn {

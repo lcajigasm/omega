@@ -1,8 +1,8 @@
 # Roadmap
 
-omega 0.8 is the current release on main: run logs, Anthropic retries and
-`omega doctor`, on top of the 0.7 session controls. This list is what makes the
-tool robust, obvious to drive, and downloadable. Items already shipped are
+omega 0.9 is the current release on main: card snapshots, mouse clicks and
+transcript search, on top of the 0.8 preflight tools. This list is what makes
+the tool robust, obvious to drive, and downloadable. Items already shipped are
 checked. The first three open items are the next pass.
 
 ## Shipped in 0.7
@@ -31,8 +31,12 @@ checked. The first three open items are the next pass.
 - [x] **Mouse on cards.** A click selects a row. A second click on that row, or a click on the key line, confirms it. On an approval card, a click on `[y]`, `[a]` or `[n]` decides.
 - [x] **Search the transcript.** `ctrl+f` opens a search line. Matches are drawn in reverse video. Enter or `ctrl+n` jumps to the next one, `ctrl+p` to the previous, Esc closes the search.
 
+## Shipped in 0.10
+
+- [x] **Copy the focused tool output.** `ctrl+y` copies it (OSC 52 and the OS clipboard). `alt+up` / `alt+down` move the focus. Both are on the `?` card.
+- [x] **Homebrew formula follows the tag.** The release workflow rewrites `Formula/omega.rb` with the version and the sha256 of each archive, then fast-forwards `main`. The tag is not moved. The tap stays a separate repository.
+- [x] **A short asciinema** of `?`, Esc and a denial, next to the `omega --demo` GIF.
+
 ## Next
 
-1. **Copy the focused tool output.**
-2. **Homebrew formula follows the tag** the release workflow just published. The tap itself stays a separate repository.
-3. **A short asciinema** of `?`, Esc and a denial, next to the existing `omega --demo` GIF.
+The 0.10 pass closes the list that was open at 0.9.
