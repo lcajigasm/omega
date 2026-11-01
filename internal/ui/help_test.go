@@ -59,6 +59,7 @@ func testModel(t *testing.T) *model {
 		ag: a, cancel: func() {}, state: stRunning,
 		input: textinput.New(), started: time.Now(),
 		header: Header{Model: "test-model", Models: []string{"test-model"}},
+		focus:  -1,
 	}
 	m.password = textinput.New()
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 30})

@@ -17,6 +17,8 @@ speaks **English, Spanish, French, German and Portuguese**.
 ![omega running a full maintenance session](docs/assets/demo.gif)
 
 *Recorded with `omega --demo`, a scripted session with made-up data.*
+A shorter [asciinema](docs/assets/shortcuts.cast) shows `?`, Esc and a denial
+(`asciinema play docs/assets/shortcuts.cast`).
 
 ---
 
@@ -196,6 +198,8 @@ omega's TUI follows the conventions of Claude Code's CLI:
 | `ctrl+f` | search the transcript. Type the query; Enter or `ctrl+n` jumps to the next match, `ctrl+p` to the previous, Esc closes it. Matches are highlighted |
 | `↑` `↓` `PgUp` `PgDn` / wheel | scroll |
 | `ctrl+o` | expand or collapse the output of every tool call |
+| `ctrl+y` | copy the focused tool's output to the clipboard |
+| `alt+up` / `alt+down` | focus the previous or next tool |
 | `shift+tab` | cycle the approval mode: asks before risky actions → auto approve → read only |
 | `ctrl+p` (or `alt+p`) | switch to the next model of the run (fast ↔ smart) from the next turn |
 | `/` | open the command menu (see below) |
@@ -810,14 +814,18 @@ Pushing a tag `vX.Y.Z` runs the release workflow, which builds the archives and
 publishes them on GitHub Releases. CI on main should be green before the tag.
 
 ```bash
-git tag v0.7.0 && git push origin v0.7.0
-make formula VERSION=0.7.0          # updates url and sha256 in Formula/omega.rb
-cp Formula/omega.rb ../homebrew-omega/Formula/omega.rb
-cd ../homebrew-omega && git commit -am "omega 0.7.0" && git push
+git tag v0.10.0 && git push origin v0.10.0
 ```
 
-`Formula/omega.rb` in this repo is the copy that gets moved to the Homebrew tap.
-The tap is a separate repository.
+The release workflow builds the archives, publishes them with `SHA256SUMS`, and
+rewrites `Formula/omega.rb` in this repository (version and the sha256 of each
+archive) on `main`. It does not move the tag. Copy that file to the tap yourself
+if you publish it there. The tap is a separate repository and this workflow does
+not touch it.
+
+```bash
+cp Formula/omega.rb ../homebrew-omega/Formula/omega.rb
+```
 
 ## License
 

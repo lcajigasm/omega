@@ -233,6 +233,8 @@ i.ph { font-size: 20px; line-height: 1; }
 .shot img:hover { transform: translateY(-4px); }
 .shot figcaption { margin-top: var(--s-100); color: var(--text-muted); font-size: 14px; line-height: 20px; }
 .gallery-note { margin-top: var(--s-400); margin-bottom: 0; font-size: 14px; line-height: 20px; }
+.cast { max-width: 960px; margin: var(--s-400) auto 0; }
+.cast asciinema-player { display: block; width: 100%; }
 .feature code, .provider p code { font-size: 14px; line-height: 20px; padding: var(--s-25) var(--s-50); background: var(--surface-3); border-radius: 4px; color: var(--text); }
 
 /* FAQ */

@@ -72,6 +72,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/download-artifact@v4
         with:
           path: dist
@@ -90,3 +92,23 @@ jobs:
           gh release create "$GITHUB_REF_NAME" dist/* \
             --title "omega ${GITHUB_REF_NAME#v}" \
             --generate-notes
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: formula
+        # Record this tag's version and the sha256 of every archive in
+        # Formula/omega.rb, then fast-forward main. The tag itself is left
+        # where it is: a published release is never moved.
+        run: |
+          set -euo pipefail
+          ver="${GITHUB_REF_NAME#v}"
+          go run ./internal/formula/cmd -version "$ver" -sums dist/SHA256SUMS -file Formula/omega.rb
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/omega.rb
+          if git diff --cached --quiet; then
+            echo "formula already matches ${ver}"
+            exit 0
+          fi
+          git commit -m "formula: omega ${ver}"
+          git push origin HEAD:main

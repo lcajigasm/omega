@@ -29,11 +29,8 @@ cross:
 		GOOS=$$os GOARCH=$$arch CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -o bin/omega-$$os-$$arch$$ext ./cmd/omega || exit 1; \
 	done
 
-# Point Formula/omega.rb at the GitHub tarball of tag v$(VERSION).
-# Push the tag first: git tag v0.1.0 && git push origin v0.1.0
+# Rewrite Formula/omega.rb from a SHA256SUMS file. The release workflow does
+# this when a tag is published; the tap repository is not touched.
 formula:
-	@test -n "$(VERSION)" || (echo "usage: make formula VERSION=0.1.0" && exit 1)
-	@url="https://github.com/$(REPO)/archive/refs/tags/v$(VERSION).tar.gz"; \
-	sha=$$(curl -fsSL "$$url" | shasum -a 256 | cut -d' ' -f1); \
-	sed -i '' -e "s|^  url \".*\"|  url \"$$url\"|" -e "s|^  sha256 \".*\"|  sha256 \"$$sha\"|" Formula/omega.rb; \
-	echo "Formula/omega.rb -> v$(VERSION) ($$sha)"
+	@test -n "$(VERSION)" && test -n "$(SUMS)" || (echo "usage: make formula VERSION=0.10.0 SUMS=dist/SHA256SUMS" && exit 1)
+	go run ./internal/formula/cmd -version "$(VERSION)" -sums "$(SUMS)" -file Formula/omega.rb
