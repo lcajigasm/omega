@@ -4,6 +4,8 @@
 package safety
 
 import (
+	"path"
+	"path/filepath"
 	"regexp"
 	"strings"
 )
@@ -23,7 +25,6 @@ func (r Risk) String() string {
 }
 
 var blocked = []*regexp.Regexp{
-	regexp.MustCompile(`\brm\s+(-\S*\s+)*(/|~|\$HOME|/\*|~/\*|/Users|/System|/Library|/Applications)/?\s*($|[;&|])`),
 	regexp.MustCompile(`\bmkfs\b`),
 	regexp.MustCompile(`\bdiskutil\s+(erase\w*|partition\w*|zero\w*|secureErase|apfs\s+delete\w*)`),
 	regexp.MustCompile(`\bdd\b.*\bof=/dev/`),
@@ -125,7 +126,120 @@ var dryRun = regexp.MustCompile(`^(brew (cleanup|autoremove)|mo (clean|optimize|
 // helpOnly matches "<tool> --help" or "<tool> --version" with nothing else.
 var helpOnly = regexp.MustCompile(`^[\w.+-]+( [a-z][\w-]*)? (--help|-h|--version|-V|version|help)$`)
 
+// homeSentinel stands in for ~ and $HOME so path.Clean can see that
+// "$HOME/.." is /Users and "~" itself is the home directory.
+const homeSentinel = "/Users/omega"
+
+// wipesMachine reports a command that erases a whole machine root: /, the
+// home directory, /Users, /System, /Library or /Applications. Extra flags
+// ("rm -rf / --no-preserve-root") and ".." still count. A path underneath
+// one of those directories does not.
+func wipesMachine(part string) bool {
+	words := commandWords(part)
+	i := 0
+	for i < len(words) {
+		w := words[i]
+		if strings.Contains(w, "=") && !strings.HasPrefix(w, "/") && !strings.HasPrefix(w, "-") {
+			i++
+			continue
+		}
+		switch w {
+		case "sudo", "command", "exec", "nohup", "time":
+			i++
+			for i < len(words) && strings.HasPrefix(words[i], "-") {
+				i++
+			}
+			continue
+		}
+		break
+	}
+	if i >= len(words) {
+		return false
+	}
+	args := words[i+1:]
+	switch filepath.Base(words[i]) {
+	case "rm", "rmdir":
+		return rmWipes(args)
+	case "find":
+		return findWipes(args)
+	}
+	return false
+}
+
+func commandWords(part string) []string {
+	raw := strings.Fields(part)
+	out := make([]string, len(raw))
+	for i, w := range raw {
+		out[i] = strings.Trim(w, `"'`)
+	}
+	return out
+}
+
+func rmWipes(args []string) bool {
+	flagsDone := false
+	for _, a := range args {
+		if a == "--" {
+			flagsDone = true
+			continue
+		}
+		if !flagsDone && strings.HasPrefix(a, "-") {
+			continue
+		}
+		if isRootTarget(a) {
+			return true
+		}
+	}
+	return false
+}
+
+func findWipes(args []string) bool {
+	destructive := false
+	root := false
+	for _, a := range args {
+		switch a {
+		case "-delete", "-exec", "-execdir", "-ok", "-okdir":
+			destructive = true
+		}
+		if isRootTarget(a) {
+			root = true
+		}
+	}
+	return destructive && root
+}
+
+func isRootTarget(arg string) bool {
+	if arg == "" || strings.HasPrefix(arg, "-") {
+		return false
+	}
+	expanded := strings.ReplaceAll(arg, "${HOME}", homeSentinel)
+	expanded = strings.ReplaceAll(expanded, "$HOME", homeSentinel)
+	if strings.HasPrefix(expanded, "~") {
+		rest := strings.TrimPrefix(expanded, "~")
+		if rest != "" && !strings.HasPrefix(rest, "/") {
+			return false
+		}
+		expanded = homeSentinel + rest
+	}
+	if !strings.HasPrefix(expanded, "/") {
+		return false
+	}
+	if strings.HasSuffix(expanded, "/*") {
+		expanded = strings.TrimSuffix(expanded, "/*")
+		if expanded == "" {
+			expanded = "/"
+		}
+	}
+	switch path.Clean(expanded) {
+	case "/", homeSentinel, "/Users", "/System", "/Library", "/Applications":
+		return true
+	}
+	return false
+}
+
 func classifyOne(part string) Risk {
+	if wipesMachine(part) {
+		return Blocked
+	}
 	p := strings.TrimSpace(part)
 	// Strip leading env assignments such as FOO=1 cmd.
 	for {

@@ -73,6 +73,7 @@ type Agent struct {
 	notes     []string // messages for the model about what the user changed
 
 	macInv *macos.Inventory // read once per run; dropped after a change
+	logMu  sync.Mutex       // serializes transcript writes from parallel tools
 }
 
 // New creates an agent for the given provider.
@@ -234,11 +235,32 @@ func (a *Agent) Run(ctx context.Context, task string) {
 		}
 
 		text = ""
-		results = nil
-		for _, call := range reply.Calls {
-			results = append(results, a.execute(ctx, call))
-		}
+		results = a.executeAll(ctx, reply.Calls)
 	}
+}
+
+// executeAll runs every call. A batch that is entirely read-only runs at
+// once: several checks then finish in the time of the slowest one. A call
+// that changes the machine or may ask the user keeps the whole batch in
+// order, so a question is never racing another command.
+func (a *Agent) executeAll(ctx context.Context, calls []llm.ToolCall) []llm.ToolResult {
+	results := make([]llm.ToolResult, len(calls))
+	if len(calls) < 2 || !allReadOnly(calls) {
+		for i, call := range calls {
+			results[i] = a.execute(ctx, call)
+		}
+		return results
+	}
+	var wg sync.WaitGroup
+	for i, call := range calls {
+		wg.Add(1)
+		go func(i int, call llm.ToolCall) {
+			defer wg.Done()
+			results[i] = a.execute(ctx, call)
+		}(i, call)
+	}
+	wg.Wait()
+	return results
 }
 
 // waitInput blocks for a follow-up in interactive mode. It returns false when
@@ -332,17 +354,19 @@ func (a *Agent) applyChanges(text string) string {
 func (a *Agent) escalate() {
 	a.mu.Lock()
 	picked := a.nextModel != ""
-	a.mu.Unlock()
 	if picked || a.escalated || a.opts.Escalate == "" || a.opts.Escalate == a.model {
+		a.mu.Unlock()
 		return
 	}
 	a.escalated = true
 	a.model = a.opts.Escalate
-	a.chat.SetModel(a.model)
-	if _, ok := llm.PriceFor(a.opts.Provider, a.model); !ok {
+	model := a.model
+	if _, ok := llm.PriceFor(a.opts.Provider, model); !ok {
 		a.costKnown = false
 	}
-	a.emit(Event{Kind: EvModel, Text: a.model, Stats: a.stats()})
+	a.mu.Unlock()
+	a.chat.SetModel(model)
+	a.emit(Event{Kind: EvModel, Text: model, Stats: a.stats()})
 }
 
 // authorize applies the approval policy and asks the user when needed.

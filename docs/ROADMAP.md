@@ -1,9 +1,7 @@
 # Roadmap
 
-omega 0.9 is the current release on main: card snapshots, mouse clicks and
-transcript search, on top of the 0.8 preflight tools. This list is what makes
-the tool robust, obvious to drive, and downloadable. Items already shipped are
-checked. The first three open items are the next pass.
+omega 0.11 is the current release on main. This list is what makes the tool
+robust, obvious to drive, and downloadable. Items already shipped are checked.
 
 ## Shipped in 0.7
 
@@ -37,6 +35,12 @@ checked. The first three open items are the next pass.
 - [x] **Homebrew formula follows the tag.** The release workflow rewrites `Formula/omega.rb` with the version and the sha256 of each archive, then fast-forwards `main`. The tag is not moved. The tap stays a separate repository.
 - [x] **A short asciinema** of `?`, Esc and a denial, next to the `omega --demo` GIF.
 
+## Shipped in 0.11
+
+- [x] **A wipe stays blocked.** `rm` of `/`, the home directory, `/Users`, `/System`, `/Library` or `/Applications` is refused even with extra flags (`rm -rf / --no-preserve-root`) or `..`. `find / -delete` is refused too. Deleting a directory underneath those roots still asks.
+- [x] **Command output stays inside its budget.** The model receives the first 2 KB and the last 8 KB. One line, however long, cannot blow past that.
+- [x] **Read-only tools in one answer run together.** Several checks finish in the time of the slowest. A change, or a question, keeps that batch in order, and each line stays on its own card.
+
 ## Next
 
-The 0.10 pass closes the list that was open at 0.9.
+The 0.11 pass is the open work that was left after 0.10.

@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -102,6 +103,43 @@ func toolSpecs() []llm.ToolSpec {
 	}, macToolSpecs()...)
 }
 
+// allReadOnly reports whether every call can run at the same time.
+// mac_inventory is left out: it fills a cache on the agent.
+func allReadOnly(calls []llm.ToolCall) bool {
+	for _, call := range calls {
+		if !readOnlyCall(call) {
+			return false
+		}
+	}
+	return true
+}
+
+func readOnlyCall(call llm.ToolCall) bool {
+	switch call.Name {
+	case "system_info", "list_steps", "disk_usage", "read_file", "config_hints", "web_search", "fetch_url":
+		return true
+	case "run_command":
+		var in map[string]any
+		if json.Unmarshal(call.Input, &in) != nil {
+			return false
+		}
+		cmd := getString(in, "command")
+		return cmd != "" && safety.Classify(cmd) == safety.Safe && !safety.AlwaysConfirm(cmd)
+	case "run_step":
+		var in map[string]any
+		if json.Unmarshal(call.Input, &in) != nil {
+			return false
+		}
+		s, ok := steps.Find(getString(in, "id"))
+		if !ok || s.AlwaysConfirm || s.Risk != safety.Safe {
+			return false
+		}
+		return safety.Classify(s.Command) == safety.Safe
+	default:
+		return false
+	}
+}
+
 func getString(in map[string]any, key string) string {
 	v, _ := in[key].(string)
 	return strings.TrimSpace(v)
@@ -125,7 +163,7 @@ func (a *Agent) runShell(ctx context.Context, tool, command, reason string, risk
 	lines := 0
 	res := a.opts.Exec(ctx, command, a.opts.Timeout, func(line string) {
 		lines++
-		a.emit(Event{Kind: EvOutput, Tool: tool, Text: line})
+		a.emit(Event{Kind: EvOutput, Tool: tool, Command: command, Text: line})
 	})
 	a.emit(Event{Kind: EvToolEnd, Tool: tool, Command: command, ExitCode: res.ExitCode, Failed: res.ExitCode != 0, Duration: res.Duration, Lines: lines})
 	if res.ExitCode != 0 && strings.HasPrefix(tool, "run_step:") {
