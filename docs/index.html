@@ -55,7 +55,7 @@
       {"@type": "Question", "name": "Can omega delete my files?", "acceptedAnswer": {"@type": "Answer", "text": "Only after you approve it. Deleting, sudo, editing config files and any unknown command need your confirmation. Commands like rm -rf ~, diskutil erase or curl piped into a shell are blocked and never run, even with --yes."}},
       {"@type": "Question", "name": "Which AI models work with omega?", "acceptedAnswer": {"@type": "Answer", "text": "Any model with tool calling from Anthropic, OpenAI, OpenRouter or OpenCode Zen, or a local model through Ollama, LM Studio or any OpenAI compatible endpoint. By default omega uses a fast model and switches to a stronger one when a step fails."}},
       {"@type": "Question", "name": "Can I change the mode or the model during a run?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Shift+Tab cycles between asking before risky actions, auto approve and read only, and Ctrl+P switches to the next model of the run. Press ? for the shortcut card, or type / for commands such as /mode, /model and /exit, with a menu that explains each one as you type. Ctrl+F searches the transcript: Enter jumps to the next match and Ctrl+P to the previous while search is open. Ctrl+Y copies the focused tool output. Click a card row to select it, and click the key line to confirm."}},
-      {"@type": "Question", "name": "Where do I download omega?", "acceptedAnswer": {"@type": "Answer", "text": "On a Mac, brew install lcajigasm/omega/omega. GitHub Releases also attach Linux, macOS and Windows archives for each version. Maintenance steps target macOS."}},
+      {"@type": "Question", "name": "Where do I download omega?", "acceptedAnswer": {"@type": "Answer", "text": "On a Mac, brew install lcajigasm/tap/omega. The previous tap, brew install lcajigasm/omega/omega, still works. GitHub Releases also attach Linux, macOS and Windows archives for each version. Maintenance steps target macOS."}},
       {"@type": "Question", "name": "How much does a run cost?", "acceptedAnswer": {"@type": "Answer", "text": "On the automatic model a typical run costs under one cent. omega shows tokens and cost live. Local models cost nothing."}},
       {"@type": "Question", "name": "Can it run on a local model?", "acceptedAnswer": {"@type": "Answer", "text": "Yes, through Ollama, LM Studio or any OpenAI compatible endpoint. Apple Intelligence's on device model has a 4,096 token context, too small for this agent."}},
       {"@type": "Question", "name": "How does omega tune know the right settings?", "acceptedAnswer": {"@type": "Answer", "text": "It reads the current official documentation of each installed tool on the web and proposes changes with their source. You pick which ones to apply, or use --auto for the low risk ones."}},
@@ -126,12 +126,13 @@
         <p class="hero-sub">omega updates and cleans your Mac like topgrade and Mole, then reads every failure, finds the cause and fixes the config. You pick what it does from a card and approve anything risky. A routine run costs under one cent, or nothing on a local model.</p>
 
         <div class="install" id="install-hero">
-          <code class="install-cmd">brew install lcajigasm/omega/omega</code>
-          <button class="btn btn-primary copy-btn" type="button" data-copy="brew install lcajigasm/omega/omega">
+          <code class="install-cmd">brew install lcajigasm/tap/omega</code>
+          <button class="btn btn-primary copy-btn" type="button" data-copy="brew install lcajigasm/tap/omega">
             <i class="ph ph-copy" aria-hidden="true"></i><span class="copy-label">Copy install command</span>
           </button>
         </div>
         <p class="copy-status" role="status" aria-live="polite"></p>
+        <p class="section-sub">The previous tap still works: <code>brew install lcajigasm/omega/omega</code>.</p>
 
         <p class="proof"><i class="ph ph-check-circle" aria-hidden="true"></i> 43 maintenance steps · cloud or local models · 5 interface languages · binaries on GitHub Releases · MIT licensed</p>
 
@@ -250,7 +251,7 @@
             <span class="step-num">1</span>
             <h3 class="card-title">Install and connect a model</h3>
             <p>The setup asks for your provider, stores the key in the macOS Keychain and lets you pick a model.</p>
-            <pre><code>brew install lcajigasm/omega/omega
+            <pre><code>brew install lcajigasm/tap/omega
 omega setup</code></pre>
           </li>
           <li class="card step">
@@ -294,7 +295,7 @@ omega docker</code></pre>
             <figcaption>Docker cleanups always ask, even when everything else is approved.</figcaption>
           </figure>
         </div>
-        <p class="section-sub center gallery-note">Screenshots from <code>omega --demo</code>, a scripted session with sample data. <a href="assets/shortcuts.cast">This short asciinema</a> shows <kbd>?</kbd>, Esc and a denial.</p>
+        <p class="section-sub center gallery-note">Recorded from the <code>omega</code> binary by <code>scripts/capture.sh</code> (<code>omega --demo</code> and a local test model; no paid API). <a href="assets/shortcuts.cast">This short asciinema</a> shows <kbd>?</kbd>, Esc and a denial.</p>
         <div class="cast">
           <asciinema-player src="assets/shortcuts.cast" cols="100" rows="32" preload="true" title="omega: help, Esc and a denial"></asciinema-player>
         </div>
@@ -502,8 +503,8 @@ omega docker</code></pre>
         <h2 class="section-title" id="final-title">Start with a report that changes nothing</h2>
         <p class="section-sub">Free and open source under the MIT license. <code>omega analyze</code> is read only, so you can see what it would do before you let it do anything.</p>
         <div class="install">
-          <code class="install-cmd">brew install lcajigasm/omega/omega</code>
-          <button class="btn btn-primary copy-btn" type="button" data-copy="brew install lcajigasm/omega/omega">
+          <code class="install-cmd">brew install lcajigasm/tap/omega</code>
+          <button class="btn btn-primary copy-btn" type="button" data-copy="brew install lcajigasm/tap/omega">
             <i class="ph ph-copy" aria-hidden="true"></i><span class="copy-label">Copy install command</span>
           </button>
         </div>
@@ -519,7 +520,7 @@ omega docker</code></pre>
       <ul class="footer-links">
         <li><a href="https://github.com/lcajigasm/omega">GitHub</a></li>
         <li><a href="https://github.com/lcajigasm/omega/releases">Releases</a></li>
-        <li><a href="https://github.com/lcajigasm/homebrew-omega">Homebrew tap</a></li>
+        <li><a href="https://github.com/lcajigasm/homebrew-tap">Homebrew tap</a></li>
         <li><a href="privacy.html">Privacy</a></li>
         <li><a href="https://github.com/lcajigasm/omega/blob/main/LICENSE">License (terms)</a></li>
       </ul>

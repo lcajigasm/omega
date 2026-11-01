@@ -2,7 +2,7 @@ VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 REPO    := lcajigasm/omega
 LDFLAGS := -s -w -X main.version=$(VERSION)
 
-.PHONY: build install test lint clean formula cross
+.PHONY: build install test lint clean formula cross capture
 
 build:
 	go build -ldflags "$(LDFLAGS)" -o bin/omega ./cmd/omega
@@ -28,6 +28,10 @@ cross:
 		echo "$$os/$$arch"; \
 		GOOS=$$os GOARCH=$$arch CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -o bin/omega-$$os-$$arch$$ext ./cmd/omega || exit 1; \
 	done
+
+# Record README and Pages captures from the binary built in this checkout.
+capture:
+	scripts/capture.sh
 
 # Rewrite Formula/omega.rb from a SHA256SUMS file. The release workflow does
 # this when a tag is published; the tap repository is not touched.
