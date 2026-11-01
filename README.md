@@ -730,7 +730,7 @@ internal/demo/      scripted session for screenshots
 internal/config/    configuration and paths
 internal/secrets/   macOS Keychain
 docs/               website (GitHub Pages) and README assets
-Formula/omega.rb    Homebrew formula (copied to the tap)
+Formula/omega.rb    Homebrew formula rewritten when a tag is published
 ```
 
 ## Troubleshooting
@@ -824,13 +824,19 @@ git tag v0.10.0 && git push origin v0.10.0
 
 The release workflow builds the archives, publishes them with `SHA256SUMS`, and
 rewrites `Formula/omega.rb` in this repository (version and the sha256 of each
-archive) on `main`. It does not move the tag. Copy that file into a tap
-yourself if you publish it there. This repository does not push to either tap.
+archive) on `main`. It does not move the tag. This repository does not push to
+either Homebrew tap.
+
+[`lcajigasm/homebrew-tap`](https://github.com/lcajigasm/homebrew-tap) and
+[`lcajigasm/homebrew-omega`](https://github.com/lcajigasm/homebrew-omega) refresh
+`Formula/omega.rb` on their own, about once an hour. When the release is
+published, the `verify-taps` workflow reads both formulas from the public GitHub
+API (no token) and compares their version with the tag. It tries again every
+5 minutes for up to 75 minutes, and the run fails if either tap is still on
+another version. Check a tag by hand with:
 
 ```bash
-cp Formula/omega.rb ../homebrew-tap/Formula/omega.rb
-# previous tap, if you still publish it there:
-cp Formula/omega.rb ../homebrew-omega/Formula/omega.rb
+gh workflow run verify-taps.yml --ref main -f tag=v0.10.0
 ```
 
 ## License
