@@ -1,7 +1,7 @@
 # Installed from the release archives. The release workflow rewrites version,
-# urls and sha256 when a tag is published. Copy this file to
-# github.com/lcajigasm/homebrew-omega (Formula/omega.rb). That tap is a
-# separate repository and is not updated from here.
+# urls and sha256 when a tag is published. The Homebrew taps refresh their own
+# copy of this file; this repository does not push to them. verify-taps checks
+# that both copies match the tag.
 class Omega < Formula
   desc "AI-driven macOS maintenance: updates like topgrade, cleans like Mole"
   homepage "https://github.com/lcajigasm/omega"

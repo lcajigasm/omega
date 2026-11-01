@@ -1,0 +1,29 @@
+name: verify-taps
+
+# After a release is published, both Homebrew taps refresh Formula/omega.rb
+# on their own (about once an hour). This job reads those files from the
+# public API, with no token, and fails if either is still not the tag.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to check, for example v0.10.0
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: check both taps
+        env:
+          # release: published carries the tag. workflow_dispatch passes it in.
+          VERIFY_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.tag }}
+        run: python3 scripts/verify_taps.py "$VERIFY_TAG"
