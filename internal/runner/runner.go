@@ -207,8 +207,15 @@ type capture struct {
 
 func (c *capture) add(s string) {
 	if c.head.Len() < headBytes {
-		c.head.WriteString(s)
-		return
+		room := headBytes - c.head.Len()
+		if len(s) <= room {
+			c.head.WriteString(s)
+			return
+		}
+		// One line can be up to the scanner limit (1 MB). Keep the budget:
+		// the head stays at headBytes and the rest competes for the tail.
+		c.head.WriteString(s[:room])
+		s = s[room:]
 	}
 	c.tail = append(c.tail, s...)
 	if len(c.tail) > tailBytes*2 {

@@ -460,7 +460,7 @@ commands with `&&`, `;`, `|`) and applies the highest risk level found:
 | **normal** | `brew upgrade`, `npm update -g`, `pipx upgrade-all`, `rustup update` | runs |
 | **dangerous** | `rm`, `sudo`, output redirection to a file, `sed -i`, `find -delete`, editing configs, **any unknown command** | asks |
 | **always ask** | `docker … prune`, `docker rm`, `docker rmi`, `docker volume rm` | asks every time, even with `--yes` |
-| **blocked** | `rm -rf ~` or `/`, `diskutil erase…`, `dd of=/dev/…`, `curl … \| sh`, `csrutil disable`, `nvram` | never runs |
+| **blocked** | `rm -rf ~` or `/` (extra flags and `..` still count), `find / -delete`, `diskutil erase…`, `dd of=/dev/…`, `curl … \| sh`, `csrutil disable`, `nvram` | never runs |
 
 - `omega config set approval all`: also ask before normal updates.
 - `omega config set approval never`, or `--yes`: never ask, except for Docker
@@ -706,7 +706,9 @@ SIGTERM) exits with status **130**. A run you end yourself exits with **0**.
    and notes from previous runs) and the task.
 2. The model answers with text and/or tool calls.
 3. Each call goes through the approval policy: it runs, you are asked, or it is
-   rejected. Results go back to the model, trimmed to about 10 KB.
+   rejected. Read-only calls from the same answer run together; a change, or a
+   question, keeps the batch in order. Results go back to the model trimmed to
+   the first 2 KB and the last 8 KB, including when a single line is huge.
 4. When a catalogue step fails and the model is on the fast tier, omega switches
    to the smart tier for the rest of the session.
 5. The loop continues until the model stops asking for tools. In interactive

@@ -456,6 +456,23 @@ func (m *model) refresh() {
 	}
 }
 
+// runningEntry finds the tool card a line belongs to. Read-only calls from
+// one answer run together, so output is matched by tool and command rather
+// than assumed to belong to whichever card started last.
+func (m *model) runningEntry(tool, command string) *entry {
+	for i := len(m.entries) - 1; i >= 0; i-- {
+		e := m.entries[i]
+		if e.kind != enTool || !e.running || e.tool != tool {
+			continue
+		}
+		if command != "" && e.command != command {
+			continue
+		}
+		return e
+	}
+	return nil
+}
+
 func (m *model) add(e *entry) {
 	m.entries = append(m.entries, e)
 	if e.kind == enTool {
@@ -483,23 +500,30 @@ func (m *model) handleEvent(e agent.Event) tea.Cmd {
 		m.add(&entry{kind: enAssistant, text: e.Text})
 	case agent.EvToolStart:
 		m.thinking = false
-		m.current = &entry{kind: enTool, tool: e.Tool, command: e.Command, running: true, started: time.Now()}
-		m.add(m.current)
+		ent := &entry{kind: enTool, tool: e.Tool, command: e.Command, running: true, started: time.Now()}
+		m.add(ent)
+		m.current = ent
 	case agent.EvOutput:
-		if m.current != nil {
-			m.current.output = append(m.current.output, e.Text)
-			if len(m.current.output) > maxKept {
-				m.current.output = m.current.output[len(m.current.output)-maxKept:]
+		if ent := m.runningEntry(e.Tool, e.Command); ent != nil {
+			ent.output = append(ent.output, e.Text)
+			if len(ent.output) > maxKept {
+				ent.output = ent.output[len(ent.output)-maxKept:]
 			}
 		}
 	case agent.EvToolEnd:
-		cur := m.current
-		if cur == nil || cur.tool != e.Tool {
+		cur := m.runningEntry(e.Tool, e.Command)
+		if cur == nil {
 			cur = &entry{kind: enTool, tool: e.Tool, command: e.Command}
 			m.add(cur)
 		}
 		cur.running, cur.failed, cur.exitCode, cur.duration, cur.lines = false, e.Failed, e.ExitCode, e.Duration, e.Lines
 		m.current = nil
+		for i := len(m.entries) - 1; i >= 0; i-- {
+			if m.entries[i].kind == enTool && m.entries[i].running {
+				m.current = m.entries[i]
+				break
+			}
+		}
 	case agent.EvDenied:
 		m.add(&entry{kind: enTool, tool: e.Tool, command: e.Command, denied: e.Reason})
 	case agent.EvConfirm:

@@ -144,6 +144,8 @@ func (a *Agent) openLog(provider string) {
 }
 
 func (a *Agent) writeLog(e Event) {
+	a.logMu.Lock()
+	defer a.logMu.Unlock()
 	if a.log == nil {
 		return
 	}

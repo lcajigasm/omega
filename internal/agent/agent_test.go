@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -89,6 +90,92 @@ func TestDangerousCommandDenied(t *testing.T) {
 	}
 	if r := p.results[1][0]; !r.IsError || !strings.Contains(r.Content, "denied") {
 		t.Fatalf("expected a denial result, got %+v", r)
+	}
+}
+
+func flagExec(ran *bool) ExecFunc {
+	return func(_ context.Context, _ string, _ time.Duration, _ func(string)) runner.Result {
+		*ran = true
+		return runner.Result{}
+	}
+}
+
+func countingExec(pause time.Duration, cur, maxc *int, mu *sync.Mutex, onLine bool) ExecFunc {
+	return func(_ context.Context, command string, _ time.Duration, line func(string)) runner.Result {
+		mu.Lock()
+		*cur++
+		if *cur > *maxc {
+			*maxc = *cur
+		}
+		mu.Unlock()
+		time.Sleep(pause)
+		if onLine && line != nil {
+			line(command)
+		}
+		mu.Lock()
+		*cur--
+		mu.Unlock()
+		return runner.Result{Output: command}
+	}
+}
+
+func TestYesDoesNotRunADisguisedWipe(t *testing.T) {
+	ran := false
+	p := &scriptedProvider{replies: []*llm.Reply{
+		{Calls: []llm.ToolCall{call("1", "run_command", map[string]any{"command": "rm -rf / --no-preserve-root", "reason": "r"})}},
+		{Text: "ok"},
+	}}
+	run(t, p, Options{AutoYes: true, Exec: flagExec(&ran)}, Approve)
+	if ran {
+		t.Fatal("rm -rf / --no-preserve-root ran under --yes")
+	}
+	if r := p.results[1][0]; !r.IsError || !strings.Contains(r.Content, "Blocked") {
+		t.Fatalf("expected blocked, got %+v", r)
+	}
+}
+
+func TestReadOnlyBatchOverlaps(t *testing.T) {
+	const n = 4
+	const pause = 80 * time.Millisecond
+	var mu sync.Mutex
+	var cur, maxc int
+	p := &scriptedProvider{replies: []*llm.Reply{{Calls: []llm.ToolCall{
+		call("1", "run_command", map[string]any{"command": "echo a", "reason": "r"}),
+		call("2", "run_command", map[string]any{"command": "echo b", "reason": "r"}),
+		call("3", "run_command", map[string]any{"command": "echo c", "reason": "r"}),
+		call("4", "run_command", map[string]any{"command": "echo d", "reason": "r"}),
+	}}, {Text: "ok"}}}
+	start := time.Now()
+	run(t, p, Options{Exec: countingExec(pause, &cur, &maxc, &mu, true)}, Deny)
+	elapsed := time.Since(start)
+	if maxc != n {
+		t.Fatalf("overlap %d, want %d running at once", maxc, n)
+	}
+	// Four waits of 80ms in series take ~320ms. Together they should finish
+	// close to one wait, plus scheduling.
+	if elapsed > pause*2+200*time.Millisecond {
+		t.Fatalf("batch took %s; sequential would be about %s", elapsed, pause*time.Duration(n))
+	}
+	t.Logf("%d read-only tools overlapped in %s (one after another would be about %s)", n, elapsed.Round(time.Millisecond), (pause * time.Duration(n)).Round(time.Millisecond))
+	for i, id := range []string{"1", "2", "3", "4"} {
+		got := p.results[1][i]
+		if got.CallID != id || got.IsError {
+			t.Fatalf("result %d: %+v", i, got)
+		}
+	}
+}
+
+func TestMixedBatchDoesNotOverlap(t *testing.T) {
+	const pause = 60 * time.Millisecond
+	var mu sync.Mutex
+	var cur, maxc int
+	p := &scriptedProvider{replies: []*llm.Reply{{Calls: []llm.ToolCall{
+		call("1", "run_command", map[string]any{"command": "echo a", "reason": "r"}),
+		call("2", "run_command", map[string]any{"command": "rm -rf /tmp/omega-test-nope", "reason": "r"}),
+	}}, {Text: "ok"}}}
+	run(t, p, Options{Exec: countingExec(pause, &cur, &maxc, &mu, false)}, Approve)
+	if maxc != 1 {
+		t.Fatalf("a read and a change overlapped %d-wide; they must stay in order", maxc)
 	}
 }
 
