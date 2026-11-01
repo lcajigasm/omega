@@ -7,28 +7,21 @@ import (
 	"testing"
 )
 
+// TestShortcutsCast checks the asciinema published with the README. It must be
+// a recording of the omega binary (scripts/capture.sh), not a screen rendered
+// in-process. The in-process fixture used timestamp 1762000000.
 func TestShortcutsCast(t *testing.T) {
-	path := "../../docs/assets/shortcuts.cast"
-	if os.Getenv("OMEGA_UPDATE_CAST") == "1" {
-		m := testModel(t)
-		data, err := shortcutsCast(m)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(path, data, 0o644); err != nil {
-			t.Fatal(err)
-		}
-	}
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile("../../docs/assets/shortcuts.cast")
 	if err != nil {
 		t.Fatal(err)
 	}
 	lines := strings.Split(strings.TrimSuffix(string(data), "\n"), "\n")
 	var header struct {
-		Version int    `json:"version"`
-		Width   int    `json:"width"`
-		Height  int    `json:"height"`
-		Title   string `json:"title"`
+		Version   int    `json:"version"`
+		Width     int    `json:"width"`
+		Height    int    `json:"height"`
+		Timestamp int64  `json:"timestamp"`
+		Title     string `json:"title"`
 	}
 	if err := json.Unmarshal([]byte(lines[0]), &header); err != nil {
 		t.Fatal(err)
@@ -36,9 +29,10 @@ func TestShortcutsCast(t *testing.T) {
 	if header.Version != 2 || header.Width < 80 || header.Height < 24 {
 		t.Fatalf("header %+v", header)
 	}
-	var inputs []string
-	var sawHelp, sawConfirm, sawDenied bool
-	helpBeforeConfirm := false
+	if header.Timestamp == 1762000000 {
+		t.Fatal("shortcuts.cast is the in-process render; record it with scripts/capture.sh")
+	}
+	var plain strings.Builder
 	for _, line := range lines[1:] {
 		var ev []json.RawMessage
 		if err := json.Unmarshal([]byte(line), &ev); err != nil {
@@ -48,30 +42,21 @@ func TestShortcutsCast(t *testing.T) {
 		if err := json.Unmarshal(ev[1], &kind); err != nil {
 			t.Fatal(err)
 		}
+		if kind != "o" {
+			continue
+		}
 		if err := json.Unmarshal(ev[2], &data); err != nil {
 			t.Fatal(err)
 		}
-		if kind == "i" {
-			inputs = append(inputs, data)
-			continue
-		}
-		plain := stripANSI(data)
-		switch {
-		case strings.Contains(plain, "Keyboard shortcuts") && strings.Contains(plain, "ctrl+y"):
-			sawHelp = true
-		case strings.Contains(plain, "Run this?"):
-			if sawHelp {
-				helpBeforeConfirm = true
-			}
-			sawConfirm = true
-		case strings.Contains(plain, "denied") && !strings.Contains(plain, "Run this?"):
-			sawDenied = true
-		}
+		plain.WriteString(stripANSI(data))
 	}
-	if len(inputs) != 3 || inputs[0] != "?" || inputs[1] != "\x1b" || inputs[2] != "n" {
-		t.Fatalf("inputs %q", inputs)
+	text := plain.String()
+	help := strings.Index(text, "Keyboard shortcuts")
+	denied := strings.Index(strings.ToLower(text), "denied")
+	if help < 0 || !strings.Contains(text, "ctrl+y") || denied < 0 || help > denied {
+		t.Fatalf("help=%d denied=%d ctrl+y=%v", help, denied, strings.Contains(text, "ctrl+y"))
 	}
-	if !sawHelp || !helpBeforeConfirm || !sawConfirm || !sawDenied {
-		t.Fatalf("help=%v before=%v confirm=%v denied=%v", sawHelp, helpBeforeConfirm, sawConfirm, sawDenied)
+	if !strings.Contains(text, "Run this?") {
+		t.Fatal("recording has no approval card")
 	}
 }

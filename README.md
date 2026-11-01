@@ -1,6 +1,6 @@
 # Ω omega
 
-[Website](https://lcajigasm.github.io/omega/) · [Releases](https://github.com/lcajigasm/omega/releases) · [Homebrew tap](https://github.com/lcajigasm/homebrew-omega)
+[Website](https://lcajigasm.github.io/omega/) · [Releases](https://github.com/lcajigasm/omega/releases) · [Homebrew tap](https://github.com/lcajigasm/homebrew-tap)
 
 **AI-driven macOS maintenance.** omega combines what
 [topgrade](https://github.com/topgrade-rs/topgrade) does (update all installed
@@ -16,9 +16,9 @@ speaks **English, Spanish, French, German and Portuguese**.
 
 ![omega running a full maintenance session](docs/assets/demo.gif)
 
-*Recorded with `omega --demo`, a scripted session with made-up data.*
-A shorter [asciinema](docs/assets/shortcuts.cast) shows `?`, Esc and a denial
-(`asciinema play docs/assets/shortcuts.cast`).
+*Recorded from the `omega` binary (`omega --demo`) by `scripts/capture.sh`.*
+A shorter [asciinema](docs/assets/shortcuts.cast) of that same binary shows `?`,
+Esc and a denial (`asciinema play docs/assets/shortcuts.cast`).
 
 ---
 
@@ -108,11 +108,13 @@ an AI model with a narrow set of tools and a strict safety policy.
 ### Homebrew (recommended)
 
 ```bash
-brew install lcajigasm/omega/omega
+brew install lcajigasm/tap/omega
 ```
 
+> The formula is published from [`lcajigasm/homebrew-tap`](https://github.com/lcajigasm/homebrew-tap).
+> The previous tap still works: `brew install lcajigasm/omega/omega`.
 > homebrew-core already has a formula called `omega` (a Xapian search engine),
-> so always use the full name `lcajigasm/omega/omega`.
+> so always use the full name.
 
 ### Binaries
 
@@ -798,8 +800,11 @@ make test      # risk classifier, agent loop, model plan, cards, translations, o
 make lint      # gofmt + go vet
 make cross     # linux, macOS and windows binaries under ./bin
 ./bin/omega --demo                 # scripted session, no API calls, no real commands
-vhs docs/assets/demo.tape          # re-record the README GIF and screenshots
+scripts/capture.sh                 # re-record README and Pages captures from that binary
 ```
+
+Terminal captures in this README are produced only by `scripts/capture.sh`
+(see [CONTRIBUTING.md](CONTRIBUTING.md)).
 
 To teach `omega mac` about an app, add its bundle id to a category in
 `internal/macos/policy.go`, or its default global shortcut to `knownAppHotkeys` in
@@ -819,11 +824,12 @@ git tag v0.10.0 && git push origin v0.10.0
 
 The release workflow builds the archives, publishes them with `SHA256SUMS`, and
 rewrites `Formula/omega.rb` in this repository (version and the sha256 of each
-archive) on `main`. It does not move the tag. Copy that file to the tap yourself
-if you publish it there. The tap is a separate repository and this workflow does
-not touch it.
+archive) on `main`. It does not move the tag. Copy that file into a tap
+yourself if you publish it there. This repository does not push to either tap.
 
 ```bash
+cp Formula/omega.rb ../homebrew-tap/Formula/omega.rb
+# previous tap, if you still publish it there:
 cp Formula/omega.rb ../homebrew-omega/Formula/omega.rb
 ```
 

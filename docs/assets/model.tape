@@ -1,6 +1,8 @@
-# Records the model picker screenshot:  vhs docs/assets/model.tape
-Output docs/assets/model.gif
-Set Shell zsh
+# Records the model picker from the omega binary against a local test server.
+# scripts/capture.sh serves GET /v1/models on 127.0.0.1:18080 and then runs this tape.
+Output bin/model.gif
+Set Shell bash
+Set FontFamily "DejaVu Sans Mono"
 Set FontSize 15
 Set Width 1280
 Set Height 560
@@ -10,12 +12,10 @@ Hide
 Type "export OMEGA_LANG=en PATH=$PWD/bin:$PATH PS1='$ ' && clear"
 Enter
 Show
-Type "omega model"
+Type "omega model --provider ollama"
 Enter
-Wait+Screen@20s /Automatic/
-Sleep 1s
-Down
-Sleep 600ms
+Wait+Screen@25s /Model for Ollama/
+Sleep 3s
 Screenshot docs/assets/model.png
 Escape
 Sleep 500ms

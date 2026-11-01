@@ -1,8 +1,9 @@
-# Records the README screenshots and GIF from omega's scripted demo session.
-# Run from the repository root:  make build && vhs docs/assets/demo.tape
+# Records the README screenshots and GIF by running ./bin/omega --demo.
+# scripts/capture.sh builds that binary and runs this tape.
 Output docs/assets/demo.gif
 
-Set Shell zsh
+Set Shell bash
+Set FontFamily "DejaVu Sans Mono"
 Set FontSize 15
 Set Width 1280
 Set Height 820
