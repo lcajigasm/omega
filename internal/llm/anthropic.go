@@ -165,15 +165,19 @@ func (c *anthropicChat) Send(ctx context.Context, text string, results []ToolRes
 }
 
 // sendRetried calls the Messages API up to four times. A network error, a 429
-// or a 5xx waits retryDelay and tries again. Any other status is returned at once.
+// or a 5xx waits and tries again. A Retry-After header sets that wait, up to
+// 30s; otherwise the wait is 2s, then 4s, then 8s. Any other status is returned
+// at once.
 func (c *anthropicChat) sendRetried(ctx context.Context) (*anthropic.Message, error) {
 	var lastErr error
+	var retryAfter string
 	for attempt := 0; attempt < 4; attempt++ {
 		if attempt > 0 {
-			if err := c.pause(ctx, retryDelay(attempt)); err != nil {
+			if err := c.pause(ctx, retryWait(attempt, retryAfter)); err != nil {
 				return nil, err
 			}
 		}
+		retryAfter = ""
 		resp, err := c.client.Messages.New(ctx, c.params, c.reqOpts...)
 		if err == nil {
 			return resp, nil
@@ -184,6 +188,10 @@ func (c *anthropicChat) sendRetried(ctx context.Context) (*anthropic.Message, er
 		lastErr = err
 		if !retryableAnthropic(err) {
 			return nil, err
+		}
+		var apierr *anthropic.Error
+		if errors.As(err, &apierr) && apierr.Response != nil {
+			retryAfter = apierr.Response.Header.Get("Retry-After")
 		}
 	}
 	return nil, lastErr

@@ -182,6 +182,94 @@ func TestDoctorLocalProvider(t *testing.T) {
 	}
 }
 
+func TestDoctorFailsWhenTheConfiguredModelIsMissing(t *testing.T) {
+	var calls []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls = append(calls, r.Method+" "+r.URL.Path)
+		if r.Method != http.MethodGet {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[{"id":"claude-haiku","type":"model"}],"has_more":false}`))
+	}))
+	defer srv.Close()
+	writeDoctorConfig(t, "provider = \"anthropic\"\nmodel = \"claude-no-such\"\n\n[providers.anthropic]\nbase_url = \""+srv.URL+"\"\n")
+	stubKey(t, "sk-ant-"+strings.Repeat("a", 20), nil)
+	out, err := runDoctorOut(t)
+	if err == nil || !strings.Contains(out, "model: claude-no-such is not in the list") {
+		t.Fatalf("err %v\n%s", err, out)
+	}
+	for _, c := range calls {
+		if c != "GET /v1/models" {
+			t.Fatalf("calls %v", calls)
+		}
+	}
+	if len(calls) < 2 {
+		t.Fatalf("model list was not read: %v", calls)
+	}
+}
+
+func TestDoctorAcceptsAConfiguredModelAndSkipsAuto(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.Path != "/v1/models" {
+			t.Errorf("%s %s", r.Method, r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[{"id":"claude-haiku"}],"has_more":false}`))
+	}))
+	defer srv.Close()
+	body := "provider = \"anthropic\"\nmodel = \"claude-haiku\"\n\n[providers.anthropic]\nbase_url = \"" + srv.URL + "\"\n"
+	writeDoctorConfig(t, body)
+	stubKey(t, "sk-ant-"+strings.Repeat("a", 20), nil)
+	out, err := runDoctorOut(t)
+	if err != nil || !strings.Contains(out, "model: ok (claude-haiku)") {
+		t.Fatalf("err %v\n%s", err, out)
+	}
+
+	writeDoctorConfig(t, "provider = \"anthropic\"\nmodel = \"auto\"\n\n[providers.anthropic]\nbase_url = \""+srv.URL+"\"\n")
+	out, err = runDoctorOut(t)
+	if err != nil || strings.Contains(out, "not in the list") {
+		t.Fatalf("auto should not be checked against the list: err %v\n%s", err, out)
+	}
+
+	// An empty list is not evidence the name is wrong.
+	empty := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[],"has_more":false}`))
+	}))
+	defer empty.Close()
+	writeDoctorConfig(t, "provider = \"anthropic\"\nmodel = \"claude-no-such\"\n\n[providers.anthropic]\nbase_url = \""+empty.URL+"\"\n")
+	out, err = runDoctorOut(t)
+	if err != nil || strings.Contains(out, "not in the list") {
+		t.Fatalf("empty list should not fail the model: err %v\n%s", err, out)
+	}
+}
+
+func TestDoctorLocalModelMustBeServed(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/models" {
+			t.Errorf("path %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[{"id":"llama3"}]}`))
+	}))
+	defer srv.Close()
+	writeDoctorConfig(t, "provider = \"ollama\"\nmodel = \"missing\"\n\n[providers.ollama]\nbase_url = \""+srv.URL+"/v1\"\n")
+	out, err := runDoctorOut(t)
+	if err == nil || !strings.Contains(out, "model: missing is not in the list") {
+		t.Fatalf("err %v\n%s", err, out)
+	}
+
+	writeDoctorConfig(t, "provider = \"ollama\"\nmodel = \"llama3\"\n\n[providers.ollama]\nbase_url = \""+srv.URL+"/v1\"\n")
+	out, err = runDoctorOut(t)
+	if err != nil || !strings.Contains(out, "model: ok (llama3)") {
+		t.Fatalf("err %v\n%s", err, out)
+	}
+}
+
 func TestDoctorUnknownProvider(t *testing.T) {
 	writeDoctorConfig(t, "provider = \"nope\"\n")
 	out, err := runDoctorOut(t)

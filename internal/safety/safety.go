@@ -237,7 +237,7 @@ func isRootTarget(arg string) bool {
 }
 
 func classifyOne(part string) Risk {
-	if wipesMachine(part) {
+	if wipesMachine(part) || leaksSecret(part) {
 		return Blocked
 	}
 	p := strings.TrimSpace(part)

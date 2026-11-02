@@ -61,7 +61,7 @@ func toolSpecs() []llm.ToolSpec {
 				"path": str("path to analyse, e.g. ~/Library/Caches"),
 				"top":  map[string]any{"type": "integer", "description": "number of entries (default 15)"},
 			}, Required: []string{"path"}},
-		{Name: "read_file", Description: "Read a text file (configs, logs). 64 KB maximum.",
+		{Name: "read_file", Description: "Read a text file (configs, logs). 64 KB maximum. Refuses private keys and credential files; their contents would be sent to the model.",
 			Properties: map[string]any{"path": str("file path; ~ is supported")}, Required: []string{"path"}},
 		{Name: "write_file", Description: "Write a whole configuration file. Always needs approval and keeps an .omega-bak copy of the original.",
 			Properties: map[string]any{
@@ -274,6 +274,10 @@ func toolDiskUsage(ctx context.Context, a *Agent, in map[string]any) (string, er
 func toolReadFile(_ context.Context, a *Agent, in map[string]any) (string, error) {
 	path := expand(getString(in, "path"))
 	a.emit(Event{Kind: EvToolStart, Tool: "read_file", Command: path, Risk: safety.Safe})
+	if safety.SecretFile(path) {
+		a.emit(Event{Kind: EvToolEnd, Tool: "read_file", Command: path, Failed: true})
+		return "", fmt.Errorf("%s", i18n.T("agent.secret_file", path))
+	}
 	data, err := os.ReadFile(path)
 	a.emit(Event{Kind: EvToolEnd, Tool: "read_file", Command: path, Failed: err != nil})
 	if err != nil {

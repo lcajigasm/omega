@@ -76,6 +76,34 @@ func TestAnthropicRetries429And500(t *testing.T) {
 	}
 }
 
+func TestAnthropicHonorsRetryAfter(t *testing.T) {
+	var hits int
+	chat, _ := anthropicTestChat(t, func(w http.ResponseWriter, r *http.Request) {
+		hits++
+		if hits == 1 {
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("Retry-After", "12")
+			w.WriteHeader(http.StatusTooManyRequests)
+			_, _ = w.Write([]byte(`{"type":"error","error":{"type":"rate_limit_error","message":"slow"}}`))
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(anthropicOK))
+	})
+	var waits []time.Duration
+	chat.after = noWait(0, &waits)
+	reply, err := chat.Send(context.Background(), "hi", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reply.Text != "hello" || hits != 2 {
+		t.Fatalf("text %q hits %d", reply.Text, hits)
+	}
+	if len(waits) != 1 || waits[0] != 12*time.Second {
+		t.Fatalf("waits %v, want 12s from Retry-After", waits)
+	}
+}
+
 func TestAnthropicDoesNotRetryClientErrors(t *testing.T) {
 	var hits int
 	chat, _ := anthropicTestChat(t, func(w http.ResponseWriter, r *http.Request) {

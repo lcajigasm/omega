@@ -431,6 +431,14 @@ Exemplos:
 		"étapes : %d installées, %d non installées", "Schritte: %d installiert, %d nicht installiert",
 		"passos: %d instalados, %d não instalados",
 	},
+	"doctor.model_ok": {
+		"model: ok (%s)", "modelo: correcto (%s)", "modèle : valide (%s)", "Modell: in Ordnung (%s)", "modelo: correto (%s)",
+	},
+	"doctor.model_missing": {
+		"model: %s is not in the list from %s", "modelo: %s no está en la lista de %s",
+		"modèle : %s n'est pas dans la liste de %s", "Modell: %s steht nicht in der Liste von %s",
+		"modelo: %s não está na lista de %s",
+	},
 	"doctor.skipped": {"skipped", "omitido", "ignoré", "übersprungen", "omitido"},
 	"doctor.failed": {
 		"%d check(s) failed", "%d comprobación(es) fallida(s)", "%d vérification(s) en échec",
@@ -510,11 +518,18 @@ Exemplos:
 	"sudo.cancelled":      {"no valid sudo password; run without --sudo to skip admin steps", "sin contraseña de sudo válida; ejecuta sin --sudo para saltar los pasos con permisos", "pas de mot de passe sudo valide ; lancez sans --sudo pour ignorer les étapes admin", "kein gültiges sudo-Passwort; ohne --sudo starten, um Admin-Schritte zu überspringen", "sem palavra-passe do sudo válida; execute sem --sudo para saltar os passos com permissões"},
 	"agent.search_failed": {"web search failed", "falló la búsqueda web", "la recherche web a échoué", "Websuche fehlgeschlagen", "a pesquisa web falhou"},
 	"agent.disk":          {"measure disk usage in %s", "medir espacio en %s", "mesurer l'espace dans %s", "Speicherbelegung in %s messen", "medir espaço em %s"},
-	"llm.invalid_key":     {"invalid API key", "API key inválida", "clé API invalide", "ungültiger API-Key", "API key inválida"},
-	"llm.not_found":       {"model or endpoint not found", "modelo o endpoint no encontrado", "modèle ou endpoint introuvable", "Modell oder Endpunkt nicht gefunden", "modelo ou endpoint não encontrado"},
-	"llm.rate_limit":      {"rate limit reached", "límite de peticiones alcanzado", "limite de requêtes atteinte", "Ratenlimit erreicht", "limite de pedidos atingido"},
-	"secrets.save":        {"saving to the Keychain: %v: %s", "guardando en el llavero: %v: %s", "enregistrement dans le trousseau : %v : %s", "Speichern im Schlüsselbund: %v: %s", "a guardar no porta-chaves: %v: %s"},
-	"secrets.delete":      {"deleting from the Keychain: %v: %s", "borrando del llavero: %v: %s", "suppression du trousseau : %v : %s", "Löschen aus dem Schlüsselbund: %v: %s", "a apagar do porta-chaves: %v: %s"},
+	"agent.secret_file": {
+		"refusing to read %s: it can hold a key or a credential, and omega would send the contents to the model",
+		"me niego a leer %s: puede contener una clave o una credencial, y omega enviaría el contenido al modelo",
+		"lecture refusée de %s : il peut contenir une clé ou un identifiant, et omega enverrait le contenu au modèle",
+		"Lesen von %s abgelehnt: die Datei kann einen Schlüssel oder Zugangsdaten enthalten, und omega würde den Inhalt an das Modell senden",
+		"recuso ler %s: pode conter uma chave ou uma credencial, e o omega enviaria o conteúdo ao modelo",
+	},
+	"llm.invalid_key": {"invalid API key", "API key inválida", "clé API invalide", "ungültiger API-Key", "API key inválida"},
+	"llm.not_found":   {"model or endpoint not found", "modelo o endpoint no encontrado", "modèle ou endpoint introuvable", "Modell oder Endpunkt nicht gefunden", "modelo ou endpoint não encontrado"},
+	"llm.rate_limit":  {"rate limit reached", "límite de peticiones alcanzado", "limite de requêtes atteinte", "Ratenlimit erreicht", "limite de pedidos atingido"},
+	"secrets.save":    {"saving to the Keychain: %v: %s", "guardando en el llavero: %v: %s", "enregistrement dans le trousseau : %v : %s", "Speichern im Schlüsselbund: %v: %s", "a guardar no porta-chaves: %v: %s"},
+	"secrets.delete":  {"deleting from the Keychain: %v: %s", "borrando del llavero: %v: %s", "suppression du trousseau : %v : %s", "Löschen aus dem Schlüsselbund: %v: %s", "a apagar do porta-chaves: %v: %s"},
 
 	// ---- step names (ids without an entry keep their English name) ----
 	"step.disk":                  {"Disk space", "Espacio en disco", "Espace disque", "Speicherplatz", "Espaço em disco"},

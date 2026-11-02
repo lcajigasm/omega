@@ -3,6 +3,8 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -116,6 +118,57 @@ func countingExec(pause time.Duration, cur, maxc *int, mu *sync.Mutex, onLine bo
 		*cur--
 		mu.Unlock()
 		return runner.Result{Output: command}
+	}
+}
+
+func TestReadFileRefusesAPrivateKey(t *testing.T) {
+	const secret = "SUPERSECRETKEYDATA"
+	path := filepath.Join(t.TempDir(), "id_ed25519")
+	if err := os.WriteFile(path, []byte(secret), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	p := &scriptedProvider{replies: []*llm.Reply{
+		{Calls: []llm.ToolCall{call("1", "read_file", map[string]any{"path": path})}},
+		{Text: "ok"},
+	}}
+	run(t, p, Options{}, Deny)
+	r := p.results[1][0]
+	if !r.IsError || strings.Contains(r.Content, secret) {
+		t.Fatalf("private key reached the model: %+v", r)
+	}
+	if !strings.Contains(r.Content, "refusing to read") {
+		t.Fatalf("result: %+v", r)
+	}
+}
+
+func TestReadFileReturnsANormalFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "topgrade.toml")
+	if err := os.WriteFile(path, []byte("assume_yes = true\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	p := &scriptedProvider{replies: []*llm.Reply{
+		{Calls: []llm.ToolCall{call("1", "read_file", map[string]any{"path": path})}},
+		{Text: "ok"},
+	}}
+	run(t, p, Options{}, Deny)
+	r := p.results[1][0]
+	if r.IsError || !strings.Contains(r.Content, "assume_yes = true") {
+		t.Fatalf("result: %+v", r)
+	}
+}
+
+func TestYesDoesNotCatAPrivateKey(t *testing.T) {
+	ran := false
+	p := &scriptedProvider{replies: []*llm.Reply{
+		{Calls: []llm.ToolCall{call("1", "run_command", map[string]any{"command": "cat ~/.aws/credentials", "reason": "r"})}},
+		{Text: "ok"},
+	}}
+	run(t, p, Options{AutoYes: true, Exec: flagExec(&ran)}, Approve)
+	if ran {
+		t.Fatal("cat of credentials ran under --yes")
+	}
+	if r := p.results[1][0]; !r.IsError || !strings.Contains(r.Content, "Blocked") {
+		t.Fatalf("expected blocked, got %+v", r)
 	}
 }
 
