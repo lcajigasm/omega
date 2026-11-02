@@ -21,6 +21,8 @@ type openAICompat struct {
 	opts      Options
 	http      *http.Client
 	modelsURL string
+	// after waits out a retry. Tests replace it; nil uses time.After.
+	after func(time.Duration) <-chan time.Time
 }
 
 func newOpenAICompat(name string, opts Options) *openAICompat {
@@ -225,14 +227,14 @@ func (c *openAIChat) post(ctx context.Context, body map[string]any) ([]byte, err
 		return nil, err
 	}
 	var lastErr error
+	var retryAfter string
 	for attempt := 0; attempt < 4; attempt++ {
 		if attempt > 0 {
-			select {
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			case <-time.After(retryDelay(attempt)):
+			if err := c.p.pause(ctx, retryWait(attempt, retryAfter)); err != nil {
+				return nil, err
 			}
 		}
+		retryAfter = ""
 		req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.p.opts.BaseURL+"/chat/completions", bytes.NewReader(payload))
 		if err != nil {
 			return nil, err
@@ -255,8 +257,22 @@ func (c *openAIChat) post(ctx context.Context, body map[string]any) ([]byte, err
 		if resp.StatusCode != http.StatusTooManyRequests && resp.StatusCode < 500 {
 			return nil, lastErr
 		}
+		retryAfter = resp.Header.Get("Retry-After")
 	}
 	return nil, lastErr
+}
+
+func (p *openAICompat) pause(ctx context.Context, d time.Duration) error {
+	after := p.after
+	if after == nil {
+		after = time.After
+	}
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-after(d):
+		return nil
+	}
 }
 
 func apiError(status int, body []byte) error {

@@ -460,7 +460,7 @@ commands with `&&`, `;`, `|`) and applies the highest risk level found:
 | **normal** | `brew upgrade`, `npm update -g`, `pipx upgrade-all`, `rustup update` | runs |
 | **dangerous** | `rm`, `sudo`, output redirection to a file, `sed -i`, `find -delete`, editing configs, **any unknown command** | asks |
 | **always ask** | `docker … prune`, `docker rm`, `docker rmi`, `docker volume rm` | asks every time, even with `--yes` |
-| **blocked** | `rm -rf ~` or `/` (extra flags and `..` still count), `find / -delete`, `diskutil erase…`, `dd of=/dev/…`, `curl … \| sh`, `csrutil disable`, `nvram` | never runs |
+| **blocked** | `rm -rf ~` or `/` (extra flags and `..` still count), `find / -delete`, `diskutil erase…`, `dd of=/dev/…`, `curl … \| sh`, `csrutil disable`, `nvram`, reading a private key or a credential file (`~/.ssh/id_ed25519`, `~/.aws/credentials`, `~/.netrc`, `.env`, `security … -w`) | never runs |
 
 - `omega config set approval all`: also ask before normal updates.
 - `omega config set approval never`, or `--yes`: never ask, except for Docker
@@ -634,14 +634,14 @@ omega [task] [flags]
 | `omega notes [clear]` | the agent's memory |
 | `omega logs` | list run transcripts, newest first |
 | `omega logs view [n\|file]` | print one transcript (the latest if omitted) |
-| `omega doctor` | check config, key shape, provider and installed steps; no chat, no tokens |
+| `omega doctor` | check config, key shape, provider, the configured model and installed steps; no chat, no tokens |
 | `omega completion zsh\|bash\|fish` | completion script |
 
 `omega logs view` prints the newest transcript, `omega logs view 2` prints the second row of `omega logs`, and `omega logs view <file>` prints that file. A new run deletes older transcripts until 30 remain.
 
-`omega doctor` loads the config, checks that a cloud key is present and shaped like a key (no spaces, not a URL, long enough), and asks the provider whether it is reachable. A cloud provider is asked for its model list. A local one is probed at `<base_url>/models`. Neither call sends a chat message. The command then lists catalogue steps that are installed on this machine. It exits with status 1 when the config, the key or the provider check fails. A missing optional tool does not.
+`omega doctor` loads the config, checks that a cloud key is present and shaped like a key (no spaces, not a URL, long enough), and asks the provider whether it is reachable. A cloud provider is asked for its model list. A local one is probed at `<base_url>/models`. Neither call sends a chat message. When `model`, `fast_model` or `smart_model` is set to a name other than `auto`, and the provider returned at least one model id, doctor fails if that name is not in the list. The command then lists catalogue steps that are installed on this machine. It exits with status 1 when the config, the key, the provider or a configured model check fails. A missing optional tool does not.
 
-A 429, a 5xx or a dropped connection on Anthropic or an OpenAI-compatible provider is retried three times, waiting 2s, then 4s, then 8s. Any other 4xx is reported immediately.
+A 429, a 5xx or a dropped connection on Anthropic or an OpenAI-compatible provider is retried three times. The wait is the `Retry-After` value when the server sends one (a number of seconds or an HTTP date), and never more than 30 seconds. Otherwise the wait is 2s, then 4s, then 8s. Any other 4xx is reported immediately.
 
 ## Unattended runs
 
@@ -831,8 +831,9 @@ either Homebrew tap.
 
 [`lcajigasm/homebrew-tap`](https://github.com/lcajigasm/homebrew-tap) and
 [`lcajigasm/homebrew-omega`](https://github.com/lcajigasm/homebrew-omega) refresh
-`Formula/omega.rb` on their own, about once an hour. When the release is
-published, the `verify-taps` workflow reads both formulas from the public GitHub
+`Formula/omega.rb` on their own, about once an hour. The release job then starts
+`verify-taps`: a release created by the workflow token does not start other
+workflows on its own. That workflow reads both formulas from the public GitHub
 API (no token) and compares their version with the tag. It tries again every
 5 minutes for up to 75 minutes, and the run fails if either tap is still on
 another version. Check a tag by hand with:

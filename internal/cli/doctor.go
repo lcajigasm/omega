@@ -2,9 +2,11 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"strings"
 	"time"
 
@@ -67,12 +69,13 @@ func doctorProvider(w io.Writer, cfg *config.Config) int {
 			fmt.Fprintln(w, i18n.T("doctor.provider_bad", i18n.T("doctor.no_base")))
 			return 1
 		}
-		if probeLocal(base) {
-			fmt.Fprintln(w, i18n.T("doctor.provider_ok", info.Label))
-			return 0
+		ids, up := localModels(base)
+		if !up {
+			fmt.Fprintln(w, i18n.T("doctor.provider_bad", i18n.T("model.unreachable", info.Label, base)))
+			return 1
 		}
-		fmt.Fprintln(w, i18n.T("doctor.provider_bad", i18n.T("model.unreachable", info.Label, base)))
-		return 1
+		fmt.Fprintln(w, i18n.T("doctor.provider_ok", info.Label))
+		return doctorModels(w, cfg, info, ids)
 	}
 
 	key, src, err := getKey(info.Name)
@@ -99,7 +102,6 @@ func doctorProvider(w io.Writer, cfg *config.Config) int {
 	switch err := llm.Verify(ctx, p); {
 	case err == nil:
 		fmt.Fprintln(w, i18n.T("doctor.provider_ok", info.Label))
-		return 0
 	case errors.Is(err, llm.ErrUnauthorized):
 		fmt.Fprintln(w, i18n.T("doctor.key_rejected", info.Label))
 		return 1
@@ -107,6 +109,101 @@ func doctorProvider(w io.Writer, cfg *config.Config) int {
 		fmt.Fprintln(w, i18n.T("doctor.provider_bad", err.Error()))
 		return 1
 	}
+	want := explicitModels(cfg, info.Name)
+	if len(want) == 0 {
+		return 0
+	}
+	models, err := p.Models(ctx)
+	if err != nil {
+		fmt.Fprintln(w, i18n.T("doctor.provider_bad", err.Error()))
+		return 1
+	}
+	return doctorModels(w, cfg, info, models)
+}
+
+// localModels probes a local OpenAI-compatible /models endpoint. up is false
+// only when the server cannot be reached or answers 5xx, matching the old
+// reachability probe. A body that is not a model list leaves ids empty.
+func localModels(base string) (ids []string, up bool) {
+	c := http.Client{Timeout: 700 * time.Millisecond}
+	resp, err := c.Get(strings.TrimRight(base, "/") + "/models")
+	if err != nil {
+		return nil, false
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 500 {
+		return nil, false
+	}
+	if resp.StatusCode >= 400 {
+		return nil, true
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return nil, true
+	}
+	var out struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if json.Unmarshal(body, &out) != nil {
+		return nil, true
+	}
+	for _, m := range out.Data {
+		if id := strings.TrimSpace(m.ID); id != "" {
+			ids = append(ids, id)
+		}
+	}
+	return ids, true
+}
+
+// explicitModels lists model names the user typed. auto and the built-in
+// defaults are left out: doctor only checks a name that would be sent as is.
+func explicitModels(cfg *config.Config, provider string) []string {
+	pc := cfg.Providers[provider]
+	var names []string
+	add := func(s string) {
+		s = strings.TrimSpace(s)
+		if s == "" || strings.EqualFold(s, "auto") {
+			return
+		}
+		for _, n := range names {
+			if n == s {
+				return
+			}
+		}
+		names = append(names, s)
+	}
+	if cfg.Provider == provider {
+		add(cfg.Model)
+	}
+	add(pc.Model)
+	add(pc.FastModel)
+	add(pc.SmartModel)
+	return names
+}
+
+// doctorModels fails when a configured name is missing from a non-empty list.
+// An empty list is not a failure: the server did not give names to compare.
+func doctorModels(w io.Writer, cfg *config.Config, info llm.Info, ids []string) int {
+	want := explicitModels(cfg, info.Name)
+	if len(want) == 0 || len(ids) == 0 {
+		return 0
+	}
+	have := map[string]bool{}
+	for _, id := range ids {
+		have[id] = true
+	}
+	problems := 0
+	for _, name := range want {
+		if have[name] {
+			fmt.Fprintln(w, i18n.T("doctor.model_ok", name))
+			continue
+		}
+		fmt.Fprintln(w, i18n.T("doctor.model_missing", name, info.Label))
+		problems++
+	}
+	return problems
 }
 
 func doctorSteps(cfg *config.Config) string {

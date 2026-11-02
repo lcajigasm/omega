@@ -1,6 +1,6 @@
 # Roadmap
 
-omega 0.11 is the current release on main. This list is what makes the tool
+omega 0.12 is the current release on main. This list is what makes the tool
 robust, obvious to drive, and downloadable. Items already shipped are checked.
 
 ## Shipped in 0.7
@@ -41,6 +41,13 @@ robust, obvious to drive, and downloadable. Items already shipped are checked.
 - [x] **Command output stays inside its budget.** The model receives the first 2 KB and the last 8 KB. One line, however long, cannot blow past that.
 - [x] **Read-only tools in one answer run together.** Several checks finish in the time of the slowest. A change, or a question, keeps that batch in order, and each line stays on its own card.
 
+## Shipped in 0.12
+
+- [x] **Private keys stay on the machine.** `read_file` refuses a private key or a credential file, and a command that would print one (`cat ~/.ssh/id_ed25519`, `security find-generic-password -w`) is blocked, including under `--yes`. Public keys and `~/.ssh/config` still can be read.
+- [x] **`omega doctor` checks the configured model.** A name set in `model`, `fast_model` or `smart_model` must appear in the provider's list. `auto` is not looked up.
+- [x] **Retries honour `Retry-After`.** A 429 waits for the header, at most 30 seconds. Without the header the wait stays 2s, then 4s, then 8s.
+- [x] **The release starts the tap check.** Publishing the release dispatches `verify-taps`, because a release created by the workflow token does not start other workflows.
+
 ## Next
 
-The 0.11 pass is the open work that was left after 0.10.
+The 0.12 pass is the open work that was left after 0.11.
