@@ -92,7 +92,10 @@ lines = open(path, encoding="utf-8").read().splitlines()
 header = json.loads(lines[0])
 if header.get("version") != 2 or header.get("timestamp") == 1762000000:
     sys.exit("failure.cast is not a recording of the omega binary")
+import re
 text = "".join(json.loads(line)[2] for line in lines[1:] if json.loads(line)[1] == "o")
+# Glamour paints a word at a time, so a phrase is split by colour codes.
+text = re.sub(r"\x1b\[[0-9;?]*[A-Za-z]", "", text)
 for needle in ("refusing to read", "Run this?", "TOP OF THE REPORT"):
     if needle not in text:
         sys.exit(f"failure.cast missing {needle!r}")
