@@ -1,6 +1,6 @@
 # Roadmap
 
-omega 0.12 is the current release on main. This list is what makes the tool
+omega 0.13 is the current release on main. This list is what makes the tool
 robust, obvious to drive, and downloadable. Items already shipped are checked.
 
 ## Shipped in 0.7
@@ -48,6 +48,12 @@ robust, obvious to drive, and downloadable. Items already shipped are checked.
 - [x] **Retries honour `Retry-After`.** A 429 waits for the header, at most 30 seconds. Without the header the wait stays 2s, then 4s, then 8s.
 - [x] **The release starts the tap check.** Publishing the release dispatches `verify-taps`, because a release created by the workflow token does not start other workflows.
 
+## Shipped in 0.13
+
+- [x] **Scroll while a card is open.** PgUp, PgDn, ctrl+u and ctrl+d move the transcript during an approval or a choice. y, n and the arrows still decide.
+- [x] **Settled text is painted once.** A tick or a new line of output does not run Markdown rendering again for messages that have not changed.
+- [x] **A failed tool says why.** The refusal or the error is on the card, wrapped to the terminal. A model error is wrapped the same way and the view moves to it.
+
 ## Next
 
-The 0.12 pass is the open work that was left after 0.11.
+The 0.13 pass is the open work that was left after 0.12.

@@ -6,6 +6,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"strings"
 	"sync"
@@ -458,8 +459,34 @@ func (a *Agent) execute(ctx context.Context, call llm.ToolCall) llm.ToolResult {
 	out, err := h(ctx, a, in)
 	if err != nil {
 		res.Content, res.IsError = err.Error(), true
+		// A denial or a finished card already carries the text. Anything else
+		// would vanish: the model sees it, the screen would not.
+		if !isExplained(err) {
+			a.emit(Event{Kind: EvError, Tool: call.Name, Text: err.Error()})
+		}
 		return res
 	}
 	res.Content = out
 	return res
+}
+
+// explainedError marks a failure the UI already shows on a card.
+type explainedError struct{ msg string }
+
+func (e explainedError) Error() string { return e.msg }
+
+func explained(err error) error {
+	if err == nil {
+		return nil
+	}
+	var already explainedError
+	if errors.As(err, &already) {
+		return err
+	}
+	return explainedError{msg: err.Error()}
+}
+
+func isExplained(err error) bool {
+	var already explainedError
+	return errors.As(err, &already)
 }

@@ -75,6 +75,30 @@ if text.find("Keyboard shortcuts") > text.lower().find("denied"):
 print("capture: shortcuts.cast ok")
 PY
 
+echo "capture: a refused key and scrolling during approval"
+cast=docs/assets/failure.cast
+rm -f "$cast"
+title="omega: a refused key and scrolling during approval"
+if [ -t 1 ]; then
+  asciinema rec -q --overwrite --cols 100 --rows 32 -i 2 \
+    -t "$title" -c "python3 scripts/drive_failure.py" "$cast"
+else
+  script -qefc "TERM=xterm-256color asciinema rec -q --overwrite --cols 100 --rows 32 -i 2 -t '$title' -c 'python3 scripts/drive_failure.py' '$cast'" /dev/null
+fi
+python3 - "$cast" <<'PY'
+import json, sys
+path = sys.argv[1]
+lines = open(path, encoding="utf-8").read().splitlines()
+header = json.loads(lines[0])
+if header.get("version") != 2 or header.get("timestamp") == 1762000000:
+    sys.exit("failure.cast is not a recording of the omega binary")
+text = "".join(json.loads(line)[2] for line in lines[1:] if json.loads(line)[1] == "o")
+for needle in ("refusing to read", "Run this?", "TOP OF THE REPORT"):
+    if needle not in text:
+        sys.exit(f"failure.cast missing {needle!r}")
+print("capture: failure.cast ok")
+PY
+
 echo "capture: model picker against the local test server"
 python3 scripts/mock_provider.py 18080 models &
 models_pid=$!

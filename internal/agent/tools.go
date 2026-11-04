@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -157,7 +158,7 @@ func shellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''
 
 func (a *Agent) runShell(ctx context.Context, tool, command, reason string, risk safety.Risk, always bool) (string, error) {
 	if ok, why := a.authorize(ctx, tool, command, reason, risk, always); !ok {
-		return "", fmt.Errorf("%s", why)
+		return "", explained(errors.New(why))
 	}
 	a.emit(Event{Kind: EvToolStart, Tool: tool, Command: command, Reason: reason, Risk: risk})
 	lines := 0
@@ -275,14 +276,16 @@ func toolReadFile(_ context.Context, a *Agent, in map[string]any) (string, error
 	path := expand(getString(in, "path"))
 	a.emit(Event{Kind: EvToolStart, Tool: "read_file", Command: path, Risk: safety.Safe})
 	if safety.SecretFile(path) {
-		a.emit(Event{Kind: EvToolEnd, Tool: "read_file", Command: path, Failed: true})
-		return "", fmt.Errorf("%s", i18n.T("agent.secret_file", path))
+		msg := i18n.T("agent.secret_file", path)
+		a.emit(Event{Kind: EvToolEnd, Tool: "read_file", Command: path, Failed: true, Reason: msg})
+		return "", explained(errors.New(msg))
 	}
 	data, err := os.ReadFile(path)
-	a.emit(Event{Kind: EvToolEnd, Tool: "read_file", Command: path, Failed: err != nil})
 	if err != nil {
-		return "", err
+		a.emit(Event{Kind: EvToolEnd, Tool: "read_file", Command: path, Failed: true, Reason: err.Error()})
+		return "", explained(err)
 	}
+	a.emit(Event{Kind: EvToolEnd, Tool: "read_file", Command: path})
 	const max = 64 * 1024
 	if len(data) > max {
 		return string(data[:max]) + "\n[… file truncated …]", nil
@@ -300,24 +303,28 @@ func toolWriteFile(ctx context.Context, a *Agent, in map[string]any) (string, er
 	old, readErr := os.ReadFile(path)
 	summary := fmt.Sprintf("%s (%d → %d bytes)", path, len(old), len(content))
 	if ok, why := a.authorize(ctx, "write_file", summary, reason+"\n\n"+diffPreview(string(old), content), safety.Dangerous, false); !ok {
-		return "", fmt.Errorf("%s", why)
+		return "", explained(errors.New(why))
 	}
 	a.emit(Event{Kind: EvToolStart, Tool: "write_file", Command: summary, Risk: safety.Dangerous})
 	backup := ""
 	if readErr == nil {
 		backup = fmt.Sprintf("%s.omega-bak-%s", path, time.Now().Format("20060102-150405"))
 		if err := os.WriteFile(backup, old, 0o644); err != nil {
-			return "", fmt.Errorf("could not create the backup: %w", err)
+			msg := fmt.Errorf("could not create the backup: %w", err)
+			a.emit(Event{Kind: EvToolEnd, Tool: "write_file", Command: summary, Failed: true, Reason: msg.Error()})
+			return "", explained(msg)
 		}
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return "", err
+		a.emit(Event{Kind: EvToolEnd, Tool: "write_file", Command: summary, Failed: true, Reason: err.Error()})
+		return "", explained(err)
 	}
 	err := os.WriteFile(path, []byte(content), 0o644)
-	a.emit(Event{Kind: EvToolEnd, Tool: "write_file", Command: summary, Failed: err != nil})
 	if err != nil {
-		return "", err
+		a.emit(Event{Kind: EvToolEnd, Tool: "write_file", Command: summary, Failed: true, Reason: err.Error()})
+		return "", explained(err)
 	}
+	a.emit(Event{Kind: EvToolEnd, Tool: "write_file", Command: summary})
 	if backup != "" {
 		return "written. backup at " + backup, nil
 	}

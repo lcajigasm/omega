@@ -184,7 +184,7 @@ omega's TUI follows the conventions of Claude Code's CLI:
 - **Tool calls** as `⏺ Step(brew)`, `⏺ Bash(…)`, `⏺ Disk(~/Library)`,
   `⏺ Fetch(url)`, with a `⎿` result line: status, duration and number of output
   lines. Running calls pulse and stream their last lines; failures show the tail
-  of their output.
+  of their output and the reason, wrapped to the terminal.
 - **Markdown** answers rendered with headings, lists, tables and code.
 - **Activity line** with an animated glyph, a shimmering verb, elapsed time and
   tokens so far.
@@ -198,7 +198,7 @@ omega's TUI follows the conventions of Claude Code's CLI:
 |---|---|
 | `?` | show or hide the shortcut card (also `/help`) |
 | `ctrl+f` | search the transcript. Type the query; Enter or `ctrl+n` jumps to the next match, `ctrl+p` to the previous, Esc closes it. Matches are highlighted |
-| `↑` `↓` `PgUp` `PgDn` / wheel | scroll |
+| `↑` `↓` `PgUp` `PgDn` / wheel | scroll. `PgUp`, `PgDn`, `ctrl+u` and `ctrl+d` also scroll while an approval or a choice card is open |
 | `ctrl+o` | expand or collapse the output of every tool call |
 | `ctrl+y` | copy the focused tool's output to the clipboard |
 | `alt+up` / `alt+down` | focus the previous or next tool |

@@ -77,10 +77,11 @@ func toolFetchURL(ctx context.Context, a *Agent, in map[string]any) (string, err
 	}
 	a.emit(Event{Kind: EvToolStart, Tool: "fetch_url", Command: u, Risk: safety.Safe})
 	body, ctype, err := get(ctx, rawGitHub(u))
-	a.emit(Event{Kind: EvToolEnd, Tool: "fetch_url", Command: u, Failed: err != nil})
 	if err != nil {
-		return "", err
+		a.emit(Event{Kind: EvToolEnd, Tool: "fetch_url", Command: u, Failed: true, Reason: err.Error()})
+		return "", explained(err)
 	}
+	a.emit(Event{Kind: EvToolEnd, Tool: "fetch_url", Command: u})
 	text := body
 	if strings.Contains(ctype, "html") || strings.Contains(body[:min(len(body), 512)], "<html") {
 		text = htmlToText(body)
@@ -99,8 +100,9 @@ func toolWebSearch(ctx context.Context, a *Agent, in map[string]any) (string, er
 	a.emit(Event{Kind: EvToolStart, Tool: "web_search", Command: q, Risk: safety.Safe})
 	body, _, err := get(ctx, "https://html.duckduckgo.com/html/?q="+url.QueryEscape(q))
 	if err != nil {
-		a.emit(Event{Kind: EvToolEnd, Tool: "web_search", Command: q, Failed: true})
-		return "", fmt.Errorf("%s: %w", i18n.T("agent.search_failed"), err)
+		msg := fmt.Errorf("%s: %w", i18n.T("agent.search_failed"), err)
+		a.emit(Event{Kind: EvToolEnd, Tool: "web_search", Command: q, Failed: true, Reason: msg.Error()})
+		return "", explained(msg)
 	}
 	var b strings.Builder
 	n := 0

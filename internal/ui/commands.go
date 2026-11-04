@@ -273,6 +273,7 @@ var helpKeys = [][2]string{
 	{"esc", "key.esc"},
 	{"ctrl+c", "key.cancel"},
 	{"↑ ↓", "key.scroll"},
+	{"pgup/pgdown", "key.card_scroll"},
 }
 
 func (m *model) helpView() string {

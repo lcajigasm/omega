@@ -673,6 +673,13 @@ Exemplos:
 	"key.decide": {"Approve, deny, or approve the rest", "Aprobar, denegar o aprobar el resto", "Approuver, refuser ou tout approuver ensuite", "Genehmigen, ablehnen oder den Rest genehmigen", "Aprovar, recusar ou aprovar o resto"},
 	"key.esc":    {"Clear the line; press again to quit", "Borra la línea; otra vez para salir", "Efface la ligne ; encore pour quitter", "Zeile löschen; noch einmal zum Beenden", "Limpa a linha; outra vez para sair"},
 	"key.scroll": {"Scroll the transcript", "Desplaza el historial", "Fait défiler l'historique", "Verlauf scrollen", "Desloca o histórico"},
+	"key.card_scroll": {
+		"Scroll the transcript while a card is open",
+		"Desplaza el historial con una tarjeta abierta",
+		"Fait défiler l'historique pendant qu'une carte est ouverte",
+		"Verlauf scrollen, während eine Karte offen ist",
+		"Desloca o histórico com um cartão aberto",
+	},
 	"ui.mode_lifted": {
 		"Read only lifted for the selected actions", "Solo lectura desactivado para las acciones elegidas", "Lecture seule levée pour les actions choisies",
 		"Nur-Lesen für die gewählten Aktionen aufgehoben", "Só leitura desativado para as ações escolhidas",
