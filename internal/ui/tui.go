@@ -81,6 +81,11 @@ type entry struct {
 	started  time.Time
 	output   []string
 	lines    int
+	errText  string // why a tool failed, shown on the card
+
+	cached   string
+	cacheKey string
+	cacheOK  bool
 }
 
 type state int
@@ -137,6 +142,9 @@ type model struct {
 	mdWidth int
 	dark    bool
 	started time.Time
+
+	follow    bool // next refresh jumps to the bottom (an error just arrived)
+	mdRenders int  // times glamour parsed a message; tests read it
 }
 
 // RunTUI runs the agent inside a full-screen terminal UI.
@@ -203,6 +211,7 @@ func (m *model) markdown(s string) string {
 		}
 		m.md, m.mdWidth = r, w
 	}
+	m.mdRenders++
 	out, err := m.md.Render(s)
 	if err != nil {
 		return s
@@ -321,7 +330,38 @@ func (m *model) renderWelcome() string {
 	return welcomeStyle.Width(w).Render(strings.TrimRight(b.String(), "\n"))
 }
 
+// renderKey is everything paintEntry looks at. A settled card keeps its
+// painted form, so a tick or a new line does not run glamour again.
+func (m *model) renderKey(e *entry) string {
+	focused := 0
+	if m.focusedEntry() == e {
+		focused = 1
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "%d|%d|%d|%t|%d|%s|%s|%s|%t|%t|%s|%d|%d|%s",
+		e.kind, m.width, focused, m.expanded, len(e.output),
+		e.text, e.tool, e.command, e.running, e.failed, e.denied, e.exitCode, e.lines, e.errText)
+	if n := len(e.output); n > 0 {
+		b.WriteByte('|')
+		b.WriteString(e.output[n-1])
+	}
+	if e.running {
+		fmt.Fprintf(&b, "|%d|%s", (m.frame/4)%2, humanDuration(time.Since(e.started)))
+	}
+	return b.String()
+}
+
 func (m *model) renderEntry(e *entry) string {
+	key := m.renderKey(e)
+	if e.cacheOK && e.cacheKey == key {
+		return e.cached
+	}
+	s := m.paintEntry(e)
+	e.cached, e.cacheKey, e.cacheOK = s, key, true
+	return s
+}
+
+func (m *model) paintEntry(e *entry) string {
 	w := m.width - 2
 	switch e.kind {
 	case enWelcome:
@@ -414,8 +454,23 @@ func (m *model) renderEntry(e *entry) string {
 		for _, l := range show {
 			b.WriteString("\n" + pad + mutedStyle.Render(truncate(l, w-6)))
 		}
+		if e.errText != "" {
+			for _, l := range strings.Split(m.wrapPlain(e.errText), "\n") {
+				b.WriteString("\n" + pad + errStyle.Render(l))
+			}
+		}
 	}
 	return b.String()
+}
+
+// wrapPlain folds a long error onto the width of the transcript so one
+// provider message cannot run off the right edge.
+func (m *model) wrapPlain(s string) string {
+	w := m.width - 8
+	if w < 16 {
+		w = 16
+	}
+	return lipgloss.NewStyle().Width(w).Render(s)
 }
 
 func firstSentence(s string) string {
@@ -449,11 +504,13 @@ func (m *model) refresh() {
 		if m.searchAt >= 0 && m.searchAt < len(lines) {
 			m.vp.SetYOffset(lines[m.searchAt])
 		}
+		m.follow = false
 		return
 	}
-	if atBottom || m.state == stIdle {
+	if m.follow || atBottom || m.state == stIdle {
 		m.vp.GotoBottom()
 	}
+	m.follow = false
 }
 
 // runningEntry finds the tool card a line belongs to. Read-only calls from
@@ -517,6 +574,10 @@ func (m *model) handleEvent(e agent.Event) tea.Cmd {
 			m.add(cur)
 		}
 		cur.running, cur.failed, cur.exitCode, cur.duration, cur.lines = false, e.Failed, e.ExitCode, e.Duration, e.Lines
+		if e.Reason != "" {
+			cur.errText = e.Reason
+			m.follow = true
+		}
 		m.current = nil
 		for i := len(m.entries) - 1; i >= 0; i-- {
 			if m.entries[i].kind == enTool && m.entries[i].running {
@@ -561,7 +622,12 @@ func (m *model) handleEvent(e agent.Event) tea.Cmd {
 		return m.input.Focus()
 	case agent.EvError:
 		m.thinking = false
-		m.note("! "+e.Text, errStyle)
+		text := strings.TrimSpace(e.Text)
+		if text == "" {
+			break
+		}
+		m.note(m.wrapPlain("! "+text), errStyle)
+		m.follow = true
 	case agent.EvDone:
 		m.thinking = false
 		m.state = stDone
@@ -685,6 +751,11 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		switch m.state {
 		case stConfirm:
+			if scrollKey(msg) {
+				var cmd tea.Cmd
+				m.vp, cmd = m.vp.Update(msg)
+				return m, cmd
+			}
 			var d agent.Decision = -1
 			switch strings.ToLower(msg.String()) {
 			case "y", "s", "o", "j", "enter":
@@ -723,6 +794,11 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.password, cmd = m.password.Update(msg)
 			return m, cmd
 		case stChoice:
+			if scrollKey(msg) {
+				var cmd tea.Cmd
+				m.vp, cmd = m.vp.Update(msg)
+				return m, cmd
+			}
 			if done, cancelled := m.picker.HandleKey(msg); done {
 				return m, m.finishChoice(cancelled)
 			}
@@ -1021,6 +1097,16 @@ func (m *model) View() string {
 	}
 	m.resize()
 	return m.vp.View() + "\n" + m.footerView()
+}
+
+// scrollKey is a transcript scroll that must keep working while a card
+// is open. Up and down still move the selection on that card.
+func scrollKey(msg tea.KeyMsg) bool {
+	switch msg.String() {
+	case "pgup", "pgdown", "ctrl+u", "ctrl+d":
+		return true
+	}
+	return false
 }
 
 func tail(lines []string, n int) []string {

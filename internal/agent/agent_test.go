@@ -131,10 +131,22 @@ func TestReadFileRefusesAPrivateKey(t *testing.T) {
 		{Calls: []llm.ToolCall{call("1", "read_file", map[string]any{"path": path})}},
 		{Text: "ok"},
 	}}
-	run(t, p, Options{}, Deny)
+	evs := run(t, p, Options{}, Deny)
 	r := p.results[1][0]
 	if !r.IsError || strings.Contains(r.Content, secret) {
 		t.Fatalf("private key reached the model: %+v", r)
+	}
+	shown := false
+	for _, e := range evs {
+		if strings.Contains(e.Reason, secret) || strings.Contains(e.Text, secret) {
+			t.Fatalf("event carried the key: %+v", e)
+		}
+		if e.Kind == EvToolEnd && e.Failed && strings.Contains(e.Reason, "refusing to read") {
+			shown = true
+		}
+	}
+	if !shown {
+		t.Fatal("the refusal never reached the tool card")
 	}
 	if !strings.Contains(r.Content, "refusing to read") {
 		t.Fatalf("result: %+v", r)

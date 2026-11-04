@@ -60,3 +60,50 @@ func TestShortcutsCast(t *testing.T) {
 		t.Fatal("recording has no approval card")
 	}
 }
+
+// TestFailureCast checks the recording of a refused private key and an
+// approval card. scripts/capture.sh produces it by running the omega binary.
+func TestFailureCast(t *testing.T) {
+	data, err := os.ReadFile("../../docs/assets/failure.cast")
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimSuffix(string(data), "\n"), "\n")
+	var header struct {
+		Version   int    `json:"version"`
+		Width     int    `json:"width"`
+		Height    int    `json:"height"`
+		Timestamp int64  `json:"timestamp"`
+		Title     string `json:"title"`
+	}
+	if err := json.Unmarshal([]byte(lines[0]), &header); err != nil {
+		t.Fatal(err)
+	}
+	if header.Version != 2 || header.Width < 80 || header.Height < 24 || header.Timestamp == 1762000000 {
+		t.Fatalf("header %+v", header)
+	}
+	var plain strings.Builder
+	for _, line := range lines[1:] {
+		var ev []json.RawMessage
+		if err := json.Unmarshal([]byte(line), &ev); err != nil {
+			t.Fatal(err)
+		}
+		var kind, data string
+		if err := json.Unmarshal(ev[1], &kind); err != nil {
+			t.Fatal(err)
+		}
+		if kind != "o" {
+			continue
+		}
+		if err := json.Unmarshal(ev[2], &data); err != nil {
+			t.Fatal(err)
+		}
+		plain.WriteString(stripANSI(data))
+	}
+	text := plain.String()
+	for _, needle := range []string{"refusing to read", "Run this?", "TOP OF THE REPORT"} {
+		if !strings.Contains(text, needle) {
+			t.Fatalf("failure.cast missing %q", needle)
+		}
+	}
+}
