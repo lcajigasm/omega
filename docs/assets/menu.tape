@@ -14,7 +14,9 @@ Enter
 Show
 Type "omega menu"
 Enter
-Wait+Screen@25s /YOUR MAC/
+# A heading every system has: the captures are recorded on Linux, where
+# the Mac group is not offered.
+Wait+Screen@25s /MAINTENANCE/
 Sleep 2s
 Screenshot docs/assets/menu.png
 Type "q"
