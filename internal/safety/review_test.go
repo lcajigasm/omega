@@ -262,4 +262,13 @@ func TestKeyFileByRelativePathAndXDG(t *testing.T) {
 	if !SecretFile("/data/cfg/omega/keys") || SecretFile("/data/cfg/omega/notes.md") {
 		t.Error("SecretFile must follow XDG_CONFIG_HOME")
 	}
+
+	// A Windows path is absolute too: the working directory is not put in front of it.
+	at(t, `C:\Users\ana\cfg\omega`, `C:\Users\ana\cfg`)
+	if SecretFile(`C:\Users\ana\cfg\omega\config.toml`) || SecretFile("config.toml") {
+		t.Error("the configuration stays readable on Windows")
+	}
+	if !SecretFile(`C:\Users\ana\cfg\omega\keys`) || !SecretFile("keys") || Classify(`type C:\Users\ana\cfg\omega\keys`) != Blocked {
+		t.Error("the key file is refused on Windows")
+	}
 }

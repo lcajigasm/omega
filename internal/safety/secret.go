@@ -96,7 +96,7 @@ var anyHome = regexp.MustCompile(`^/(home|users)/[^/]+(/\.config|/\.local(/share
 // absForm resolves a relative path against the working directory, so
 // "keys" typed inside omega's folder is seen for what it is.
 func absForm(p string) string {
-	if p == "" || strings.HasPrefix(p, "/") || strings.HasPrefix(p, "-") {
+	if p == "" || strings.HasPrefix(p, "/") || strings.HasPrefix(p, "-") || driveLetter.MatchString(p) {
 		return p
 	}
 	wd, err := getwd()
@@ -105,6 +105,9 @@ func absForm(p string) string {
 	}
 	return path.Clean(strings.ReplaceAll(wd, `\`, "/") + "/" + p)
 }
+
+// driveLetter matches an absolute Windows path (C:/…).
+var driveLetter = regexp.MustCompile(`^[A-Za-z]:/`)
 
 var procEnviron = regexp.MustCompile(`^/proc/[^/]+/environ$`)
 
