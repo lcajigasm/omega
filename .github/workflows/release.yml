@@ -166,6 +166,11 @@ jobs:
         run: |
           set -euo pipefail
           ver="${GITHUB_REF_NAME#v}"
+          # main may have moved since the tag (0.17.0: a merge landed while
+          # the release ran and this push was rejected). Write on top of
+          # main as it is now, so the push is always a fast-forward.
+          git fetch origin main
+          git checkout --detach origin/main
           go run ./internal/formula/cmd -version "$ver" -sums dist/SHA256SUMS -file Formula/omega.rb
           go run ./internal/formula/cmd -version "$ver" -sums dist/SHA256SUMS -file Casks/omega-app.rb -cask
           git config user.name "github-actions[bot]"

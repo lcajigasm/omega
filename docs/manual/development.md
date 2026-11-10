@@ -83,7 +83,7 @@ the provider and its key. It is built with
 safety policy, the configuration and the translations with the command.
 The model is chosen automatically: `omega model` is still the way to fix one.
 
-No release carries it yet. From the first one that does, a release publishes
+Since 0.17.0 a release publishes
 `omega-macos-universal.dmg` (`Omega.app`, Apple Silicon and Intel),
 `omega-gui_<version>_linux_{amd64,arm64}.tar.gz` and
 `omega-gui_<version>_windows_{amd64,arm64}.zip`, and on macOS it installs with

@@ -243,10 +243,11 @@ the same tasks, safety policy, configuration and keys as the command.
 </tr>
 </table>
 
-It arrives with the next release: a disk image for macOS
+Since 0.17.0 every [release](https://github.com/lcajigasm/omega/releases/latest)
+carries it: a disk image for macOS
 (`brew install --cask lcajigasm/tap/omega-app`) and archives for Linux and
 Windows. The builds are not signed yet, so macOS and Windows ask before the
-first run. Until then, `make gui` builds it from source; see
+first run. More in
 [the desktop app](docs/manual/development.md#desktop-app-preview).
 
 ## Also
