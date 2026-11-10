@@ -253,8 +253,31 @@ type; `↑` `↓` move, `Tab` completes and `Enter` runs the highlighted one. Af
 | `/model [name]` | switch model from the next turn (a card when no argument) |
 | `/expand` | expand or collapse the output of every tool call |
 | `/panel` | show or hide the session panel |
-| `/update`, `/clean`, `/analyze`, `/tune` | start that task in the running session |
-| `/mac`, `/permissions`, `/apps`, `/dev` | review what runs on your Mac, its privacy permissions, its apps, or your development setup |
+| `/full`, `/update`, `/clean`, `/analyze`, `/tune`, `/fix` | start that task in the running session |
+| `/mac`, `/permissions`, `/apps` | review what runs on your Mac, its privacy permissions or its apps |
+| `/dev`, `/install` | review your development setup, or pick tools to install |
+| `/docker` | free up the space Docker uses, only what you pick |
+| `/undo` | see what omega changed on this Mac and revert what you pick |
+| `/history` | what failed or was left undone in earlier runs |
+| `/doctor` | check that omega itself is set up correctly |
+
+You can also just ask in words. Everything omega does from the command line is
+available to the AI in a session:
+
+| You say | The AI uses |
+|---|---|
+| "install fzf and mise" | `dev_install`, then `dev_activate` for the line in `~/.zshrc` |
+| "undo what you changed in the Dock yesterday" | `mac_history`, `mac_undo` |
+| "what failed last time?" | `run_history` (the end of an earlier transcript) |
+| "forget the note about pipx" | `notes` |
+| "stop running the macOS update step" | `omega_settings` (`skip_steps`) |
+| "is omega set up correctly?" | `omega_doctor` |
+
+Installs, edits to `~/.zshrc`, deleting a note and changing a setting all ask
+first, like any other change. Three things stay yours alone, and the AI answers
+with the command to run instead: **API keys** (`omega setup`, `omega auth set`),
+the **provider** and the **approval policy** (`omega config set approval …`). A
+model that could lower its own approval policy or read a key would defeat both.
 | `/exit`, `/quit` | end the session and quit |
 
 `omega menu` (or `omega home`) is the home screen: free disk space, the

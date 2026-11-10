@@ -24,6 +24,7 @@ var slashCommands = []slashCommand{
 	{"/model", "[name]", "slash.model"},
 	{"/expand", "", "slash.expand"},
 	{"/panel", "", "slash.panel"},
+	{"/full", "", "slash.task_full"},
 	{"/update", "", "slash.task_update"},
 	{"/clean", "", "slash.task_clean"},
 	{"/analyze", "", "slash.task_analyze"},
@@ -32,6 +33,12 @@ var slashCommands = []slashCommand{
 	{"/permissions", "", "slash.task_permissions"},
 	{"/apps", "", "slash.task_apps"},
 	{"/dev", "", "slash.task_dev"},
+	{"/install", "", "slash.task_install"},
+	{"/docker", "", "slash.task_docker"},
+	{"/fix", "", "slash.task_fix"},
+	{"/undo", "", "slash.task_undo"},
+	{"/history", "", "slash.task_history"},
+	{"/doctor", "", "slash.task_doctor"},
 	{"/exit", "", "slash.exit"},
 	{"/quit", "", "slash.exit"},
 }
@@ -181,17 +188,27 @@ func (m *model) submitCommand(text string) tea.Cmd {
 	case "/panel":
 		m.togglePanel()
 		return nil
-	case "/update", "/clean", "/analyze", "/tune", "/mac", "/dev", "/permissions", "/apps":
-		return m.startTask(strings.TrimPrefix(strings.ToLower(name), "/"))
+	default:
+		if c, ok := findCommand(name); ok && strings.HasPrefix(c.desc, "slash.task_") {
+			return m.startTask(strings.TrimPrefix(c.name, "/"))
+		}
+		m.note(errStyle.Render("! ")+mutedStyle.Render(i18n.T("slash.unknown", name)), lipgloss.NewStyle())
 	case "/exit", "/quit":
 		m.quitting = true
 		m.endSession()
 		return nil
-	default:
-		m.note(errStyle.Render("! ")+mutedStyle.Render(i18n.T("slash.unknown", name)), lipgloss.NewStyle())
 	}
 	m.refresh()
 	return nil
+}
+
+func findCommand(name string) (slashCommand, bool) {
+	for _, c := range slashCommands {
+		if strings.EqualFold(c.name, name) {
+			return c, true
+		}
+	}
+	return slashCommand{}, false
 }
 
 // taskPrompts are the follow-up tasks a slash command starts in the running
@@ -347,9 +364,17 @@ func (m *model) helpView() string {
 		label := lipgloss.NewStyle().Width(27).Render(strings.TrimSpace(c.name + " " + c.args))
 		b.WriteString("  " + cmdStyle.Render(label) + mutedStyle.Render(truncate(i18n.T(c.desc), max(12, w-33))) + "\n")
 	}
-	b.WriteString("  " + cmdStyle.Render(truncate(strings.Join(tasks, " "), max(12, w-6))) + "\n")
+	line := ""
+	for _, t := range tasks {
+		if line != "" && lipgloss.Width(line)+1+lipgloss.Width(t) > w-6 {
+			b.WriteString("  " + cmdStyle.Render(line) + "\n")
+			line = ""
+		}
+		line = strings.TrimSpace(line + " " + t)
+	}
+	b.WriteString("  " + cmdStyle.Render(line) + "\n")
 	b.WriteString("  " + lipgloss.NewStyle().Width(27).Render("") + mutedStyle.Render(truncate(i18n.T("slash.tasks"), max(12, w-33))) + "\n")
-	b.WriteString("\n" + titleStyle.Render(i18n.T("slash.keys_title")) + "\n")
+	b.WriteString(titleStyle.Render(i18n.T("slash.keys_title")) + "\n")
 	// Two columns when there is room, so the card fits a short terminal.
 	cols := 1
 	if w >= 108 {

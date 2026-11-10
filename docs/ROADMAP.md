@@ -62,7 +62,8 @@ robust, obvious to drive, and downloadable. Items already shipped are checked.
 - [x] **More steps.** 17 updaters and 16 cleaners for developer tools (mise, asdf, gem, composer, deno, conda, Go binaries, .NET tools, VS Code extensions, Gradle, Cargo, CocoaPods, Playwright and others), plus `dev-artifacts` and `shell-startup`.
 - [x] **Session panel.** On a terminal of 104 columns or more: steps done, failed and denied, disk space freed, tokens and every tool call. `ctrl+b` hides it.
 - [x] **Home screen.** `omega menu` lists every command by area with disk space and the last run.
-- [x] **Task commands.** `/update`, `/clean`, `/analyze`, `/tune`, `/mac`, `/permissions`, `/apps` and `/dev` start another task in the running session.
+- [x] **Task commands.** `/full`, `/update`, `/clean`, `/analyze`, `/tune`, `/fix`, `/mac`, `/permissions`, `/apps`, `/dev`, `/install`, `/docker`, `/undo`, `/history` and `/doctor` start another task in the running session.
+- [x] **The AI reaches every feature.** New tools install and activate developer tools, revert `omega mac` changes, read earlier runs, manage the notes, change settings and run the preflight check. Each change asks first. API keys, the provider and the approval policy stay with the user: the model is told the command to give instead.
 
 ## Next
 

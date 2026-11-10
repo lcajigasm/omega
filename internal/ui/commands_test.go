@@ -16,8 +16,9 @@ func TestSuggestions(t *testing.T) {
 		return out
 	}
 	for in, want := range map[string][]string{
-		"hello":     nil,
-		"/":         {"/help", "/mode", "/model", "/expand", "/panel", "/update", "/clean", "/analyze", "/tune", "/mac", "/permissions", "/apps", "/dev", "/exit", "/quit"},
+		"hello": nil,
+		"/": {"/help", "/mode", "/model", "/expand", "/panel", "/full", "/update", "/clean", "/analyze", "/tune", "/mac", "/permissions", "/apps", "/dev",
+			"/install", "/docker", "/fix", "/undo", "/history", "/doctor", "/exit", "/quit"},
 		"/mo":       {"/mode", "/model"},
 		"/model ":   {"/model fast", "/model smart"},
 		"/model sm": {"/model smart"},

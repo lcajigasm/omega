@@ -178,6 +178,13 @@ func runTask(task string, f runFlags) error {
 		Timeout:      timeout,
 		Config:       cfg,
 		SudoPassword: sudoPassword,
+		Doctor: func() string {
+			var b strings.Builder
+			if err := runDoctor(&b); err != nil {
+				b.WriteString(err.Error() + "\n")
+			}
+			return b.String()
+		},
 	}
 	if f.demo {
 		opts.Provider = "anthropic"

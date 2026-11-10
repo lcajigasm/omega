@@ -75,12 +75,21 @@ func TestTaskCommandStartsTheNextJob(t *testing.T) {
 	if last.kind != enUser || last.text != "/dev" {
 		t.Fatalf("the transcript shows what was asked: %+v", last)
 	}
-	for _, task := range []string{"update", "clean", "analyze", "tune", "mac", "dev", "permissions", "apps"} {
+	tasks := 0
+	for _, c := range slashCommands {
+		if !strings.HasPrefix(c.desc, "slash.task_") {
+			continue
+		}
+		tasks++
+		task := strings.TrimPrefix(c.name, "/")
 		if _, ok := taskPrompts[task]; !ok {
 			if _, ok := agent.TaskPrompts[task]; !ok {
-				t.Errorf("/%s has no prompt", task)
+				t.Errorf("%s has no prompt", c.name)
 			}
 		}
+	}
+	if tasks != 15 {
+		t.Errorf("%d task commands, want 15", tasks)
 	}
 }
 

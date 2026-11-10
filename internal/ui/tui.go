@@ -257,6 +257,22 @@ func toolLabel(tool, command string) (string, string) {
 		name = "Rule"
 	case tool == "dev_inventory":
 		name, arg = "Dev", ""
+	case tool == "dev_install":
+		name = "Install"
+	case tool == "dev_activate":
+		name = "Activate"
+	case tool == "mac_history":
+		name, arg = "History", "mac"
+	case tool == "mac_undo":
+		name = "Undo"
+	case tool == "run_history":
+		name, arg = "History", strings.TrimSpace(strings.TrimPrefix(command, "run_history"))
+	case tool == "notes":
+		name = "Notes"
+	case tool == "omega_settings":
+		name = "Settings"
+	case tool == "omega_doctor":
+		name, arg = "Doctor", ""
 	}
 	return name, homeTilde(arg)
 }

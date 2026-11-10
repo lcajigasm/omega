@@ -39,6 +39,14 @@ var handlers = map[string]handler{
 	"mac_change":      toolMacChange,
 	"mac_policy":      toolMacPolicy,
 	"dev_inventory":   toolDevInventory,
+	"dev_install":     toolDevInstall,
+	"dev_activate":    toolDevActivate,
+	"mac_history":     toolMacHistory,
+	"mac_undo":        toolMacUndo,
+	"run_history":     toolRunHistory,
+	"notes":           toolNotes,
+	"omega_settings":  toolOmegaSettings,
+	"omega_doctor":    toolOmegaDoctor,
 }
 
 func str(desc string) map[string]any {
@@ -108,7 +116,7 @@ func toolSpecs() []llm.ToolSpec {
 			Properties: map[string]any{}},
 		{Name: "remember", Description: "Save a lasting note about this machine for future runs (e.g. the cause of a recurring failure and its fix).",
 			Properties: map[string]any{"note": str("short note, one line")}, Required: []string{"note"}},
-	}, macToolSpecs()...)
+	}, append(macToolSpecs(), omegaToolSpecs()...)...)
 }
 
 // allReadOnly reports whether every call can run at the same time.
@@ -124,7 +132,7 @@ func allReadOnly(calls []llm.ToolCall) bool {
 
 func readOnlyCall(call llm.ToolCall) bool {
 	switch call.Name {
-	case "system_info", "list_steps", "disk_usage", "read_file", "config_hints", "web_search", "fetch_url", "dev_inventory":
+	case "system_info", "list_steps", "disk_usage", "read_file", "config_hints", "web_search", "fetch_url", "dev_inventory", "run_history", "mac_history", "omega_doctor":
 		return true
 	case "run_command":
 		var in map[string]any
