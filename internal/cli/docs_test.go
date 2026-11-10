@@ -2,6 +2,7 @@ package cli
 
 import (
 	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -61,9 +62,17 @@ func TestDocumentedCommandsExist(t *testing.T) {
 	var f runFlags
 	root := newRoot(&f)
 	root.InitDefaultCompletionCmd() // cobra adds `omega completion` when it runs
-	for _, doc := range []string{"../../README.md", "../../docs/index.html"} {
+	// The README and the website are the front pages; the manual's pages
+	// hold the rest. A front page with few commands means the extraction
+	// broke; a manual page may have few.
+	docs := []string{"../../README.md", "../../docs/index.html"}
+	manual, err := filepath.Glob("../../docs/manual/*.md")
+	if err != nil || len(manual) < 10 {
+		t.Fatalf("docs/manual: %d pages found (%v)", len(manual), err)
+	}
+	for i, doc := range append(docs, manual...) {
 		cmds := documentedCommands(t, doc)
-		if len(cmds) < 10 {
+		if i < len(docs) && len(cmds) < 10 {
 			t.Fatalf("%s: only %d commands found, the extraction is broken", doc, len(cmds))
 		}
 		for _, c := range cmds {
