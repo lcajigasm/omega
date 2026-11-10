@@ -3,6 +3,21 @@
   root.classList.remove("no-js");
   root.classList.add("js");
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // The page's own strings, in its language, written on <body> by the build.
+  const text = document.body.dataset;
+
+  // Language menu: remember the choice, so the home page stops following the
+  // browser's language, and close the menu like any other.
+  document.querySelectorAll("a[data-lang]").forEach((a) => {
+    a.addEventListener("click", () => {
+      try { localStorage.setItem("omega-lang", a.dataset.lang); } catch { /* private window */ }
+    });
+  });
+  const langMenu = document.querySelector("details.lang");
+  if (langMenu) {
+    document.addEventListener("click", (e) => { if (!langMenu.contains(e.target)) langMenu.open = false; });
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") langMenu.open = false; });
+  }
 
   // Copy a command, with explicit success and failure states. The status
   // line is the first .copy-status after the button's block.
@@ -15,15 +30,15 @@
     btn.addEventListener("click", async () => {
       try {
         await navigator.clipboard.writeText(btn.dataset.copy);
-        label.textContent = "Copied";
+        label.textContent = text.copied || "Copied";
         if (status) {
           status.classList.remove("error");
-          status.textContent = "Install command copied. Paste it into your terminal.";
+          status.textContent = text.copyOk || "Command copied. Paste it into your terminal.";
         }
       } catch {
         if (status) {
           status.classList.add("error");
-          status.textContent = "Copy failed. Select the command and copy it by hand.";
+          status.textContent = text.copyFailed || "Copy failed. Select the command and copy it by hand.";
         }
       }
       setTimeout(() => { label.textContent = original; }, 2000);
@@ -71,7 +86,7 @@
   if (toggle && menu) {
     const setMenu = (open) => {
       toggle.setAttribute("aria-expanded", String(open));
-      toggle.setAttribute("aria-label", open ? "Close menu" : "Open menu");
+      toggle.setAttribute("aria-label", open ? (text.menuClose || "Close menu") : (text.menuOpen || "Open menu"));
       document.body.style.overflow = open ? "hidden" : "";
       menu.hidden = !open;
     };

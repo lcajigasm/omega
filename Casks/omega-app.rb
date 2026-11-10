@@ -1,10 +1,9 @@
 # The desktop app, for macOS. brew install uses lcajigasm/homebrew-tap: the
 # release workflow rewrites version and sha256 here when a tag is published
 # and copies this file to that tap in the same pull request as the formula.
-# Until a release carries omega-macos-universal.dmg the sha256 is all zeros.
 cask "omega-app" do
-  version "0.16.0"
-  sha256 "0000000000000000000000000000000000000000000000000000000000000000"
+  version "0.17.0"
+  sha256 "bcc4abbb61f0dece911d634bcb367012aaa06ca4cb35bc30c3994780a99a3eef"
 
   url "https://github.com/lcajigasm/omega/releases/download/v#{version}/omega-macos-universal.dmg"
   name "omega"
@@ -28,7 +27,7 @@ cask "omega-app" do
     end
   end
 
-  depends_on macos: ">= :ventura"
+  depends_on macos: :ventura
 
   app "Omega.app"
 

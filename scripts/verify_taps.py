@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Check that lcajigasm/homebrew-tap installs the version of a release tag.
 
-Reads Formula/omega.rb from the public GitHub API. No token is sent.
-The release workflow opens a pull request with the new formula, so a
-mismatch is retried every five minutes until 75 minutes have passed,
+Reads Formula/omega.rb (the command) and Casks/omega-app.rb (the desktop
+app) from the public GitHub API. No token is sent. The release workflow
+opens a pull request with both, so a mismatch is retried every five minutes until 75 minutes have passed,
 then the command fails. --deadline 0 checks once and fails immediately.
 """
 
@@ -19,7 +19,9 @@ import urllib.request
 TAP = "lcajigasm/homebrew-tap"
 INTERVAL = 5 * 60
 DEADLINE = 75 * 60
-API = "https://api.github.com/repos/{repo}/contents/Formula/omega.rb"
+API = "https://api.github.com/repos/{repo}/contents/{path}"
+# What brew install reads: the command's formula and the desktop app's cask.
+FILES = ("Formula/omega.rb", "Casks/omega-app.rb")
 
 VERSION_LINE = re.compile(r'(?m)^\s*version\s+"(\d+\.\d+\.\d+)"')
 RELEASE_URL = re.compile(
@@ -58,9 +60,9 @@ def versions_in(text):
     return found.pop()
 
 
-def fetch_formula(repo):
+def fetch_formula(repo, path=FILES[0]):
     req = urllib.request.Request(
-        API.format(repo=repo),
+        API.format(repo=repo, path=path),
         headers={
             "Accept": "application/vnd.github+json",
             "User-Agent": "omega-verify-taps",
@@ -78,19 +80,21 @@ def fetch_formula(repo):
     return base64.b64decode(content).decode()
 
 
-def check_once(expected):
+def check_once(expected, fetch=fetch_formula):
     problems = []
-    try:
-        got = versions_in(fetch_formula(TAP))
-    except TapError as err:
-        problems.append(f"{TAP}: {err}")
-        print(f"{TAP}: {err}", flush=True)
-        return problems
-    if got != expected:
-        problems.append(f"{TAP}: {got}, want {expected}")
-        print(f"{TAP}: {got}, want {expected}", flush=True)
-    else:
-        print(f"{TAP}: {got}", flush=True)
+    for path in FILES:
+        name = f"{TAP} {path}"
+        try:
+            got = versions_in(fetch(TAP, path))
+        except TapError as err:
+            problems.append(f"{name}: {err}")
+            print(f"{name}: {err}", flush=True)
+            continue
+        if got != expected:
+            problems.append(f"{name}: {got}, want {expected}")
+            print(f"{name}: {got}, want {expected}", flush=True)
+        else:
+            print(f"{name}: {got}", flush=True)
     return problems
 
 
@@ -118,9 +122,9 @@ def main(argv=None):
             # instead of ending as a quiet retry.
             print(
                 "::error::lcajigasm/homebrew-tap must be updated by hand: "
-                f"Formula/omega.rb is not {expected}. Set the version and the "
-                "sha256 for darwin_arm64, darwin_amd64, linux_arm64 and "
-                "linux_amd64, or merge the tap pull request.",
+                f"{'; '.join(problems)}. Set the version and the sha256 values "
+                "in Formula/omega.rb and Casks/omega-app.rb, or merge the tap "
+                "pull request.",
                 file=sys.stderr,
             )
             print(

@@ -2,7 +2,7 @@ VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 REPO    := lcajigasm/omega
 LDFLAGS := -s -w -X main.version=$(VERSION)
 
-.PHONY: build install test lint clean formula cross capture gui gui-app gui-dmg
+.PHONY: build install test lint clean formula cross capture gui gui-app gui-dmg site
 
 build:
 	go build -ldflags "$(LDFLAGS)" -o bin/omega ./cmd/omega
@@ -62,6 +62,12 @@ cross:
 		echo "$$os/$$arch"; \
 		GOOS=$$os GOARCH=$$arch CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -o bin/omega-$$os-$$arch$$ext ./cmd/omega || exit 1; \
 	done
+
+# Write the website under docs/ from the templates and the string tables
+# under site/: one page per language the app speaks. docs/*.html are built
+# files; a test fails when they are not what site/ builds.
+site:
+	go run ./internal/site/cmd
 
 # Record README and Pages captures from the binary built in this checkout.
 capture:

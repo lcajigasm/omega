@@ -4,26 +4,44 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Privacy · omega</title>
-  <meta name="description" content="What omega stores on your Mac and what it sends to the AI provider you choose.">
+  <meta name="description" content="What omega stores on your machine and what it sends to the AI provider you choose.">
+  <link rel="canonical" href="https://lcajigasm.github.io/omega/privacy.html">
+  <link rel="alternate" hreflang="en" href="https://lcajigasm.github.io/omega/privacy.html">
+  <link rel="alternate" hreflang="es" href="https://lcajigasm.github.io/omega/es/privacy.html">
+  <link rel="alternate" hreflang="fr" href="https://lcajigasm.github.io/omega/fr/privacy.html">
+  <link rel="alternate" hreflang="de" href="https://lcajigasm.github.io/omega/de/privacy.html">
+  <link rel="alternate" hreflang="pt" href="https://lcajigasm.github.io/omega/pt/privacy.html">
+  <link rel="alternate" hreflang="x-default" href="https://lcajigasm.github.io/omega/privacy.html">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <meta name="theme-color" content="#000000">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;600&family=Geist+Mono:wght@400&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=18">
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
+  <link rel="stylesheet" href="styles.css?v=19">
 </head>
 <body class="page">
   <a class="skip" href="#main">Skip to content</a>
   <header class="nav-wrap">
     <nav class="nav" aria-label="Main">
       <a class="brand" href="./" aria-label="omega home"><span class="brand-mark" aria-hidden="true">Ω</span> omega</a>
+      <details class="lang">
+        <summary aria-label="Language"><i class="ph ph-translate" aria-hidden="true"></i><span>en</span></summary>
+        <ul>
+          <li><a href="privacy.html" lang="en" hreflang="en" data-lang="en" aria-current="true">English</a></li>
+          <li><a href="es/privacy.html" lang="es" hreflang="es" data-lang="es">Español</a></li>
+          <li><a href="fr/privacy.html" lang="fr" hreflang="fr" data-lang="fr">Français</a></li>
+          <li><a href="de/privacy.html" lang="de" hreflang="de" data-lang="de">Deutsch</a></li>
+          <li><a href="pt/privacy.html" lang="pt" hreflang="pt" data-lang="pt">Português</a></li>
+        </ul>
+      </details>
       <a class="btn btn-sm btn-primary" href="./">Back to home</a>
     </nav>
   </header>
   <main id="main">
     <div class="container narrow">
       <h1>Privacy</h1>
-      <p>omega is a command line tool that runs on your machine. It has no account, no server of its own, no analytics and no telemetry. This website sets no cookies.</p>
+      <p>omega is a command line tool and a desktop app. Both run on your machine. It has no account, no server of its own, no analytics and no telemetry. This website sets no cookies; when you pick a language, it remembers the choice in your browser.</p>
 
       <h2>What stays on your machine</h2>
       <p>Your API keys are stored in the macOS Keychain under the service <code>omega-cli</code>. On Windows they are stored in the Credential Manager. On Linux they are stored in the system keyring (Secret Service) or, when there is none, in <code>~/.config/omega/keys</code>, a file only your user can read. Your configuration lives in <code>~/.config/omega/config.toml</code>, the notes the agent keeps about your machine in <code>~/.config/omega/notes.md</code>, and a log of every run in <code>~/.local/state/omega/runs</code>. You can delete any of them at any time.</p>
@@ -32,13 +50,13 @@
       <p>omega talks only to the provider you configure: Anthropic, OpenAI, OpenRouter or OpenCode Zen. Each request contains omega's instructions, your notes, the trimmed output of the commands it ran and the contents of the configuration files it read. The agent is instructed not to read personal documents. That provider's own privacy policy and data retention terms apply to those requests.</p>
 
       <h2>The model catalogue</h2>
-      <p>To choose the models of automatic mode, omega downloads OpenRouter's public model list from <code>openrouter.ai</code> once a day, also when your provider is another one. It is a plain request with no key and nothing about you or your Mac in it; OpenRouter may log your IP address as part of serving it. <code>omega config set model_catalog off</code> stops it, and local providers never make it.</p>
+      <p>To choose the models of automatic mode, omega downloads OpenRouter's public model list from <code>openrouter.ai</code> once a day, also when your provider is another one. It is a plain request with no key and nothing about you or your machine in it; OpenRouter may log your IP address as part of serving it. <code>omega config set model_catalog off</code> stops it, and local providers never make it.</p>
 
       <h2>The version check</h2>
       <p><code>omega doctor</code> asks GitHub (<code>api.github.com</code>) for the tag of the latest omega release, to tell you when yours is older. The request carries nothing about you; GitHub may log your IP address. No other command makes it.</p>
 
       <h2>This website</h2>
-      <p>This page is hosted on GitHub Pages and loads fonts from Google Fonts and icons from unpkg. Those services may log your IP address as part of serving the files.</p>
+      <p>This site is hosted on GitHub Pages and loads fonts from Google Fonts, icons from unpkg and, on the home page, the session player from jsDelivr. Those services may log your IP address as part of serving the files.</p>
 
       <h2>Contact</h2>
       <p>Questions or concerns: open an issue at <a href="https://github.com/lcajigasm/omega/issues">github.com/lcajigasm/omega/issues</a>.</p>
@@ -54,7 +72,15 @@
         <li><a href="privacy.html" aria-current="page">Privacy</a></li>
         <li><a href="https://github.com/lcajigasm/omega/blob/main/LICENSE">License (terms)</a></li>
       </ul>
+      <ul class="footer-langs" aria-label="Language">
+        <li><a href="privacy.html" lang="en" hreflang="en" data-lang="en" aria-current="true">English</a></li>
+        <li><a href="es/privacy.html" lang="es" hreflang="es" data-lang="es">Español</a></li>
+        <li><a href="fr/privacy.html" lang="fr" hreflang="fr" data-lang="fr">Français</a></li>
+        <li><a href="de/privacy.html" lang="de" hreflang="de" data-lang="de">Deutsch</a></li>
+        <li><a href="pt/privacy.html" lang="pt" hreflang="pt" data-lang="pt">Português</a></li>
+      </ul>
     </div>
   </footer>
+  <script src="main.js?v=18"></script>
 </body>
 </html>

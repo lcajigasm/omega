@@ -3,6 +3,7 @@
 [omega](../../README.md) › [Manual](README.md) › Install and set up
 
 - [Installation](#installation)
+  - [Desktop app](#desktop-app)
 - [Getting started](#getting-started)
 
 ## Installation
@@ -59,6 +60,42 @@ Open a new terminal and run `omega setup`. Windows Terminal is recommended.
 
 omega supports **macOS, Linux and Windows**: see [what works on Linux](linux.md#linux)
 and [what works on Windows](windows.md#windows).
+
+### Desktop app
+
+The same agent in a window. It is a separate install from the command, and
+the two share their configuration and API keys.
+
+On macOS 13 or later, Apple Silicon and Intel:
+
+```bash
+brew install --cask lcajigasm/tap/omega-app
+xattr -dr com.apple.quarantine /Applications/Omega.app
+```
+
+or download
+[`omega-macos-universal.dmg`](https://github.com/lcajigasm/omega/releases/latest/download/omega-macos-universal.dmg),
+open it and drag Omega to Applications. The app is ad-hoc signed and not
+notarized yet, so macOS quarantines it: the `xattr` line clears that, once.
+`brew upgrade --cask omega-app` updates it.
+
+On Windows, take `omega-gui_<version>_windows_amd64.zip` (or `arm64`) from the
+[latest release](https://github.com/lcajigasm/omega/releases/latest), extract
+it and open `omega-gui.exe`. The build is not signed, so SmartScreen warns on
+the first run: choose **More info**, then **Run anyway**.
+
+On Linux, take `omega-gui_<version>_linux_amd64.tar.gz` (or `arm64`):
+
+```bash
+tar -xzf omega-gui_*_linux_amd64.tar.gz
+./omega-gui
+```
+
+It needs GTK 4 and WebKitGTK 6.0, which current desktop distributions ship
+(`libgtk-4-1` and `libwebkitgtk-6.0-4` on Debian and Ubuntu).
+
+The first time it opens, the app asks for a provider and its key, as
+`omega setup` does. If the command is already set up, the app is too.
 
 ### From source
 

@@ -1,8 +1,8 @@
 name: verify-taps
 
-# After a release, Formula/omega.rb on lcajigasm/homebrew-tap must match the
-# tag. This job reads that file from the public API, with no token, and fails
-# if it is still not the tag. fail_fast checks once: the release job uses it
+# After a release, Formula/omega.rb and Casks/omega-app.rb on
+# lcajigasm/homebrew-tap must match the tag. This job reads both from the
+# public API, with no token, and fails if either is still not the tag. fail_fast checks once: the release job uses it
 # when HOMEBREW_TAP_TOKEN is absent, so the miss is a red run immediately
 # instead of a 75 minute wait on a cron that may not run.
 on:

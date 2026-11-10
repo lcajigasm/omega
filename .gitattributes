@@ -1,1 +1,3 @@
 internal/ui/testdata/*.snap text eol=lf
+site/** text eol=lf
+docs/**/*.html text eol=lf

@@ -161,22 +161,39 @@ jobs:
       - name: formula
         # Record this tag's version and the sha256 of every archive in
         # Formula/omega.rb, and of the disk image in Casks/omega-app.rb, then
-        # fast-forward main. The tag itself is left where it is: a published
-        # release is never moved.
+        # push that commit to main. The tag itself is left where it is: a
+        # published release is never moved.
+        #
+        # The commit goes on top of main as it is now, not on top of the tag:
+        # main may have moved while the builds ran (v0.17.0 waited on a macOS
+        # runner, a pull request was merged meanwhile, and the push from the
+        # tag was rejected, which left the formula, the cask and the tap on
+        # the old version). The tool is built from the tag first, so the
+        # release decides how the files are written.
         run: |
           set -euo pipefail
           ver="${GITHUB_REF_NAME#v}"
-          go run ./internal/formula/cmd -version "$ver" -sums dist/SHA256SUMS -file Formula/omega.rb
-          go run ./internal/formula/cmd -version "$ver" -sums dist/SHA256SUMS -file Casks/omega-app.rb -cask
+          go build -o "$RUNNER_TEMP/formula" ./internal/formula/cmd
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Formula/omega.rb Casks/omega-app.rb
-          if git diff --cached --quiet; then
-            echo "formula already matches ${ver}"
-            exit 0
-          fi
-          git commit -m "formula: omega ${ver}"
-          git push origin HEAD:main
+          for attempt in 1 2 3; do
+            git fetch origin main
+            git checkout --detach origin/main
+            "$RUNNER_TEMP/formula" -version "$ver" -sums dist/SHA256SUMS -file Formula/omega.rb
+            "$RUNNER_TEMP/formula" -version "$ver" -sums dist/SHA256SUMS -file Casks/omega-app.rb -cask
+            git add Formula/omega.rb Casks/omega-app.rb
+            if git diff --cached --quiet; then
+              echo "formula already matches ${ver}"
+              exit 0
+            fi
+            git commit -m "formula: omega ${ver}"
+            if git push origin HEAD:main; then
+              exit 0
+            fi
+            echo "main moved during the push (attempt ${attempt}), trying again"
+          done
+          echo "::error::could not push the formula for ${ver} to main"
+          exit 1
       - name: open homebrew tap pull request
         # HOMEBREW_TAP_TOKEN can push to lcajigasm/homebrew-tap and open a
         # pull request. It is not created here. When it is missing, say so
@@ -200,7 +217,7 @@ jobs:
           base="$(git -C "$work" rev-parse --abbrev-ref HEAD)"
           branch="omega-${ver}"
           git -C "$work" checkout -B "$branch"
-          go run ./internal/formula/cmd -version "$ver" -sums dist/SHA256SUMS -file "$work/Formula/omega.rb" -tap
+          "$RUNNER_TEMP/formula" -version "$ver" -sums dist/SHA256SUMS -file "$work/Formula/omega.rb" -tap
           # The cask in the tap is this repository's, as the step above left
           # it: this release's version and the sha256 of its disk image.
           mkdir -p "$work/Casks"
