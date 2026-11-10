@@ -5,8 +5,10 @@ package steps
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 
 	"github.com/lcajigasm/omega/internal/runner"
 	"github.com/lcajigasm/omega/internal/safety"
@@ -54,6 +56,21 @@ func dirExists(rel string) func() bool {
 	}
 }
 
+// selfManaged reports whether a tool was installed by its own installer and
+// not by Homebrew: only then does its self-update command work.
+func selfManaged(bin string) func() bool {
+	return func() bool {
+		p, err := exec.LookPath(bin)
+		if err != nil {
+			return false
+		}
+		if r, err := filepath.EvalSymlinks(p); err == nil {
+			p = r
+		}
+		return !strings.Contains(p, "/Cellar/") && !strings.Contains(p, "/Caskroom/") && !strings.Contains(p, "/homebrew/")
+	}
+}
+
 // All is the full step catalogue, in the order omega runs them.
 var All = []Step{
 	// Checks (read-only).
@@ -72,6 +89,16 @@ var All = []Step{
 			`echo '== Processes logging faults, last 30 min'; /usr/bin/log show --last 30m --style compact --predicate 'messageType == fault' 2>/dev/null | awk 'NR>1 {print $4}' | sed 's/\[.*//' | sort | uniq -c | sort -rn | head -10; ` +
 			`echo '== Log folder sizes'; du -sh ~/Library/Logs /Library/Logs /private/var/log 2>/dev/null`},
 
+	{ID: "dev-artifacts", Name: "Stale project build folders", Category: Check, Risk: safety.Safe,
+		Description: "node_modules, target, .venv, Pods and similar folders in projects not touched for 60 days, largest first (size in KB)",
+		Command: `for d in ~/Dev ~/Developer ~/dev ~/Projects ~/projects ~/Code ~/code ~/src ~/work ~/Work ~/Sites ~/repos ~/git ~/Documents/GitHub; do [ -d "$d" ] && echo "$d"; done | ` +
+			`while read -r root; do find "$root" -maxdepth 6 -type d \( -name node_modules -o -name target -o -name .venv -o -name venv -o -name .next -o -name .nuxt ` +
+			`-o -name .turbo -o -name Pods -o -name .gradle -o -name DerivedData -o -name .tox -o -name .parcel-cache \) -prune -mtime +60 -print0 2>/dev/null; done | ` +
+			`xargs -0 du -sk 2>/dev/null | sort -rn | head -40`},
+	{ID: "shell-startup", Name: "Shell startup time", Category: Check, Risk: safety.Safe, Requires: "zsh",
+		Description: "How long an interactive zsh takes to start, three times",
+		Command:     `for i in 1 2 3; do /usr/bin/time -p zsh -i -c exit 2>&1 | grep real; done`},
+
 	// Updates (topgrade equivalents).
 	{ID: "brew", Name: "Homebrew", Category: Update, Command: "brew update && brew upgrade", Risk: safety.Normal, Requires: "brew",
 		Description: "Upgrades formulae and casks"},
@@ -86,6 +113,34 @@ var All = []Step{
 	{ID: "rustup", Name: "Rust toolchains", Category: Update, Command: "rustup update", Risk: safety.Normal, Requires: "rustup"},
 	{ID: "cargo", Name: "cargo binaries", Category: Update, Command: "cargo install-update -a", Risk: safety.Normal, Requires: "cargo-install-update", Install: "cargo install cargo-update"},
 	{ID: "gh-ext", Name: "gh extensions", Category: Update, Command: "gh extension upgrade --all", Risk: safety.Normal, Requires: "gh"},
+	{ID: "mise", Name: "mise tools", Category: Update, Command: "mise upgrade", Risk: safety.Normal, Requires: "mise",
+		Description: "Upgrades the language versions and tools mise manages, within what each project pins"},
+	{ID: "asdf", Name: "asdf plugins", Category: Update, Command: "asdf plugin update --all", Risk: safety.Normal, Requires: "asdf"},
+	{ID: "gem", Name: "RubyGems", Category: Update, Command: "gem update", Risk: safety.Normal, Requires: "gem",
+		Description: "Only for a Ruby you installed: the one macOS ships needs sudo and is left alone",
+		Detect: func() bool {
+			p, err := exec.LookPath("gem")
+			return err == nil && !strings.HasPrefix(p, "/usr/bin/")
+		}},
+	{ID: "composer", Name: "Composer global packages", Category: Update, Command: "composer global update", Risk: safety.Normal, Requires: "composer",
+		Detect: dirExists(".composer")},
+	{ID: "deno", Name: "Deno", Category: Update, Command: "deno upgrade", Risk: safety.Normal, Requires: "deno", Detect: selfManaged("deno")},
+	{ID: "poetry", Name: "Poetry", Category: Update, Command: "poetry self update", Risk: safety.Normal, Requires: "poetry", Detect: selfManaged("poetry")},
+	{ID: "conda", Name: "conda", Category: Update, Command: "conda update -n base -y conda", Risk: safety.Normal, Requires: "conda"},
+	{ID: "go-bins", Name: "Go binaries", Category: Update, Command: "gup update", Risk: safety.Normal, Requires: "gup", Install: "brew install gup",
+		Description: "Binaries installed with go install"},
+	{ID: "dotnet-tools", Name: ".NET global tools", Category: Update, Command: "dotnet tool update --global --all", Risk: safety.Normal, Requires: "dotnet"},
+	{ID: "flutter", Name: "Flutter", Category: Update, Command: "flutter upgrade", Risk: safety.Normal, Requires: "flutter", Detect: selfManaged("flutter")},
+	{ID: "vscode-ext", Name: "VS Code extensions", Category: Update, Command: "code --update-extensions", Risk: safety.Normal, Requires: "code"},
+	{ID: "claude-code", Name: "Claude Code", Category: Update, Command: "claude update", Risk: safety.Normal, Requires: "claude", Detect: selfManaged("claude")},
+	{ID: "tldr", Name: "tldr pages", Category: Update, Command: "tldr --update", Risk: safety.Normal, Requires: "tldr"},
+	{ID: "helm-repos", Name: "Helm repositories", Category: Update, Command: "helm repo update", Risk: safety.Normal, Requires: "helm"},
+	{ID: "gcloud", Name: "Google Cloud CLI components", Category: Update, Command: "gcloud components update --quiet", Risk: safety.Normal, Requires: "gcloud",
+		Detect: selfManaged("gcloud")},
+	{ID: "tmux-plugins", Name: "tmux plugins", Category: Update, Command: "~/.tmux/plugins/tpm/bin/update_plugins all", Risk: safety.Normal,
+		Detect: dirExists(".tmux/plugins/tpm")},
+	{ID: "nvim-plugins", Name: "Neovim plugins (lazy.nvim)", Category: Update, Command: `nvim --headless "+Lazy! sync" +qa`, Risk: safety.Normal, Requires: "nvim",
+		Detect: dirExists(".local/share/nvim/lazy")},
 	{ID: "omz", Name: "Oh My Zsh", Category: Update, Command: "sh ~/.oh-my-zsh/tools/upgrade.sh", Risk: safety.Dangerous, Detect: dirExists(".oh-my-zsh")},
 	{ID: "macos", Name: "macOS (softwareupdate)", Category: Update, Command: "sudo softwareupdate --install --all", Risk: safety.Dangerous,
 		Description: "Needs sudo; may require a restart", Detect: darwinOnly},
@@ -99,6 +154,33 @@ var All = []Step{
 	{ID: "pip-cache", Name: "pip cache", Category: Clean, Command: "pip3 cache purge", Risk: safety.Dangerous, Requires: "pip3"},
 	{ID: "uv-cache", Name: "uv cache", Category: Clean, Command: "uv cache prune", Risk: safety.Dangerous, Requires: "uv"},
 	{ID: "go-cache", Name: "Go build cache", Category: Clean, Command: "go clean -cache", Risk: safety.Dangerous, Requires: "go"},
+	{ID: "go-modcache", Name: "Go module cache", Category: Clean, Command: "go clean -modcache", Risk: safety.Dangerous, Requires: "go",
+		Description: "Every downloaded module; they are downloaded again on the next build"},
+	{ID: "yarn-cache", Name: "Yarn cache", Category: Clean, Command: "yarn cache clean", Risk: safety.Dangerous, Requires: "yarn"},
+	{ID: "bun-cache", Name: "Bun cache", Category: Clean, Command: "bun pm cache rm", Risk: safety.Dangerous, Requires: "bun"},
+	{ID: "deno-cache", Name: "Deno cache", Category: Clean, Command: "deno clean", Risk: safety.Dangerous, Requires: "deno"},
+	{ID: "cargo-cache", Name: "Cargo registry cache", Category: Clean, Command: "cargo cache --autoclean", Risk: safety.Dangerous, Requires: "cargo-cache",
+		Install: "cargo install cargo-cache", Description: "Extracted crate sources and old git checkouts; the compressed crates stay"},
+	{ID: "gem-cleanup", Name: "Old gem versions", Category: Clean, Command: "gem cleanup", Risk: safety.Dangerous, Requires: "gem",
+		Detect: func() bool {
+			p, err := exec.LookPath("gem")
+			return err == nil && !strings.HasPrefix(p, "/usr/bin/")
+		}},
+	{ID: "composer-cache", Name: "Composer cache", Category: Clean, Command: "composer clear-cache", Risk: safety.Dangerous, Requires: "composer"},
+	{ID: "cocoapods-cache", Name: "CocoaPods cache", Category: Clean, Command: "pod cache clean --all", Risk: safety.Dangerous, Requires: "pod"},
+	{ID: "gradle-cache", Name: "Gradle caches", Category: Clean, Command: "rm -rf ~/.gradle/caches/* ~/.gradle/daemon/*", Risk: safety.Dangerous,
+		Detect: dirExists(".gradle/caches"), Description: "Downloaded dependencies and build caches; the next build downloads them again"},
+	{ID: "conda-clean", Name: "conda caches", Category: Clean, Command: "conda clean --all -y", Risk: safety.Dangerous, Requires: "conda"},
+	{ID: "mise-prune", Name: "Unused mise versions", Category: Clean, Command: "mise prune -y", Risk: safety.Dangerous, Requires: "mise",
+		Description: "Versions no mise config file refers to any more"},
+	{ID: "nuget-cache", Name: "NuGet caches", Category: Clean, Command: "dotnet nuget locals all --clear", Risk: safety.Dangerous, Requires: "dotnet"},
+	{ID: "flutter-cache", Name: "Dart pub cache", Category: Clean, Command: "flutter pub cache clean -f", Risk: safety.Dangerous, Requires: "flutter"},
+	{ID: "pre-commit-gc", Name: "pre-commit environments", Category: Clean, Command: "pre-commit gc", Risk: safety.Dangerous, Requires: "pre-commit",
+		Description: "Hook environments no repository uses any more"},
+	{ID: "playwright-cache", Name: "Playwright browsers", Category: Clean, Command: "rm -rf ~/Library/Caches/ms-playwright/*", Risk: safety.Dangerous,
+		Detect: dirExists("Library/Caches/ms-playwright"), Description: "Downloaded browsers; `npx playwright install` brings them back"},
+	{ID: "ios-device-support", Name: "Xcode device support files", Category: Clean, Command: `rm -rf ~/Library/Developer/Xcode/iOS\ DeviceSupport/*`, Risk: safety.Dangerous,
+		Detect: dirExists("Library/Developer/Xcode/iOS DeviceSupport"), Description: "Symbols copied from every device once connected; Xcode copies them again when needed"},
 	{ID: "xcode-derived", Name: "Xcode DerivedData", Category: Clean, Command: "rm -rf ~/Library/Developer/Xcode/DerivedData/*", Risk: safety.Dangerous,
 		Detect: dirExists("Library/Developer/Xcode/DerivedData")},
 	{ID: "simulators", Name: "Unavailable simulators", Category: Clean, Command: "xcrun simctl delete unavailable", Risk: safety.Dangerous, Requires: "xcrun",

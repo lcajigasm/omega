@@ -37,6 +37,9 @@ var blocked = []*regexp.Regexp{
 	regexp.MustCompile(`\bchmod\s+(-R\s+)?[0-7]*777\s+/(\s|$)`),
 	regexp.MustCompile(`\bfdesetup\b`),
 	regexp.MustCompile(`\btmutil\s+(delete|disable)`),
+	// The privacy database is only ever changed through tccutil: a direct
+	// write can grant a permission the user never approved.
+	regexp.MustCompile(`(?i)TCC\.db.*\b(insert|update|delete|replace|drop|alter)\b|\b(insert|update|delete|replace|drop|alter)\b.*TCC\.db`),
 }
 
 // Read-only command prefixes.

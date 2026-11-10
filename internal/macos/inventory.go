@@ -9,7 +9,7 @@ import (
 )
 
 // Sections of the inventory.
-var Sections = []string{"login", "background", "menubar", "dock", "shortcuts"}
+var Sections = []string{"login", "background", "menubar", "dock", "shortcuts", "permissions", "apps"}
 
 // Inventory is everything omega mac looks at, read once.
 type Inventory struct {
@@ -25,6 +25,13 @@ type Inventory struct {
 	// NoBTM is set when Background Task Management did not answer: login
 	// items and app helpers are missing, only launchd jobs are listed.
 	NoBTM bool
+
+	Permissions []Permission
+	// NoTCC is set when the user's privacy database could not be read: the
+	// terminal needs Full Disk Access. System-wide entries are still listed.
+	NoTCC     bool
+	AppList   []AppInfo
+	Leftovers []Leftover
 }
 
 // Load reads the sections asked for (all when none is given).
@@ -48,6 +55,19 @@ func Load(p *UserPolicy, sections ...string) (*Inventory, error) {
 		}()
 	}
 	inv.Apps = InstalledApps()
+	// Sizing every app is slow too: do it while the rest is read.
+	appsDone := make(chan struct{})
+	go func() {
+		defer close(appsDone)
+		if all || want["apps"] {
+			inv.AppList = Apps(p, inv.Apps, inv.Now)
+			inv.Leftovers = Leftovers(p, inv.Apps)
+		}
+	}()
+	defer func() { <-appsDone }()
+	if all || want["permissions"] {
+		inv.Permissions, inv.NoTCC = Permissions(p, inv.Apps)
+	}
 	if all || want["dock"] {
 		d, err := ReadDock(true)
 		if err != nil {
@@ -199,6 +219,34 @@ func (inv *Inventory) Resolve(id string) (Change, error) {
 			return Change{}, fmt.Errorf("dock-set needs key=value, e.g. dock-set:autohide=true")
 		}
 		return inv.Dock.SettingChange(key, val)
+	case "perm-reset":
+		for _, x := range inv.Permissions {
+			if x.ID() == arg {
+				return x.ResetChange(), nil
+			}
+		}
+		return Change{}, fmt.Errorf("no privacy entry %q; ids look like perm-reset:SystemPolicyAllFiles:/path/to/node", arg)
+	case "perm-reset-all":
+		for _, x := range inv.Permissions {
+			if ShortService(x.Service) == ShortService(arg) {
+				return ResetServiceChange(x.Service), nil
+			}
+		}
+		return Change{}, fmt.Errorf("no privacy entries for %q", arg)
+	case "app-remove":
+		for _, a := range inv.AppList {
+			if a.Bundle == arg || strings.EqualFold(a.Name, arg) {
+				return a.UninstallChange(time.Now()), nil
+			}
+		}
+		return Change{}, fmt.Errorf("no installed app %q", arg)
+	case "leftover-trash":
+		for _, l := range inv.Leftovers {
+			if strings.EqualFold(l.Bundle, arg) {
+				return l.TrashChange(time.Now()), nil
+			}
+		}
+		return Change{}, fmt.Errorf("no leftovers for %q", arg)
 	case "hotkey-off":
 		h, ok := FindHotkey(inv.Hotkeys, arg)
 		if !ok {
@@ -348,7 +396,99 @@ func (inv *Inventory) Report(section string) string {
 			fmt.Fprintf(&b, "\nRunning menu bar apps whose shortcuts omega does not know (they may register global shortcuts): %s\n", strings.Join(unknown, ", "))
 		}
 	}
+	if all || section == "permissions" {
+		inv.reportPermissions(&b)
+	}
+	if all || section == "apps" {
+		inv.reportApps(&b)
+	}
 	return b.String()
+}
+
+func (inv *Inventory) reportPermissions(b *strings.Builder) {
+	b.WriteString("\n## Privacy permissions (System Settings → Privacy & Security)\n")
+	if inv.NoTCC {
+		b.WriteString("NOTE: the user's privacy database could not be read, so only system-wide permissions (Full Disk Access, Accessibility, " +
+			"Screen Recording, Input Monitoring, Developer Tools, App Management) are listed. To see the rest (Files & Folders, Automation, " +
+			"Camera, Microphone, data from other apps), the terminal that runs omega needs Full Disk Access: tell the user, and offer to open " +
+			"the pane with `" + PrivacyPane("SystemPolicyAllFiles") + "`.\n")
+	}
+	stale := inv.StalePermissions()
+	fmt.Fprintf(b, "%d entries, %d left over.\n", len(inv.Permissions), len(stale))
+	for _, x := range stale {
+		what := "binary whose path no longer exists"
+		if x.Why == WhyNotInstalled {
+			what = "no installed app has this bundle id (Spotlight found none either)"
+		}
+		copies := ""
+		if x.Copies > 1 {
+			copies = fmt.Sprintf(", one of %d entries named %s", x.Copies, filepath.Base(x.Client))
+		}
+		fmt.Fprintf(b, "- %s — %s [%s] verdict=%s (%s%s) — change: perm-reset:%s\n", ServiceName(x.Service), x.Name, x.Client, x.Verdict, what, copies, x.ID())
+	}
+	// Binaries that exist, grouped: several live copies under one name are
+	// worth explaining even though none is removed.
+	type key struct{ service, base string }
+	live := map[key][]Permission{}
+	var order []key
+	for _, x := range inv.Permissions {
+		if x.IsPath && !x.Missing {
+			k := key{x.Service, filepath.Base(x.Client)}
+			if len(live[k]) == 0 {
+				order = append(order, k)
+			}
+			live[k] = append(live[k], x)
+		}
+	}
+	for _, k := range order {
+		if len(live[k]) < 2 {
+			continue
+		}
+		fmt.Fprintf(b, "- %s lists %d different %q binaries that all still exist:", ServiceName(k.service), len(live[k]), k.base)
+		for _, x := range live[k] {
+			fmt.Fprintf(b, " %s;", x.Client)
+		}
+		b.WriteString(" (each change: perm-reset:<Service>:<path>)\n")
+	}
+	b.WriteString("Removing an entry cannot be undone, but it is harmless: the app or binary asks again when it needs the permission. " +
+		"perm-reset-all:<Service> forgets a permission for every app; offer it only when single entries could not be removed.\n")
+}
+
+func (inv *Inventory) reportApps(b *strings.Builder) {
+	b.WriteString("\n## Installed apps (Apple's own left out), largest first\n")
+	for i, a := range inv.AppList {
+		if a.Verdict == Keep && i >= 15 {
+			continue
+		}
+		used := "last opened unknown"
+		if !a.LastUsed.IsZero() {
+			used = fmt.Sprintf("last opened %d days ago", int(inv.Now.Sub(a.LastUsed).Hours()/24))
+		}
+		var notes []string
+		if s := a.Source(); s != "" {
+			notes = append(notes, "from "+s)
+		}
+		if a.Intel {
+			notes = append(notes, "Intel only: runs under Rosetta")
+		}
+		fmt.Fprintf(b, "- %s [%s] %s, %s%s verdict=%s%s — change: app-remove:%s\n", a.Name, a.Bundle, HumanSize(a.Size), used,
+			why(strings.Join(notes, ", ")), a.Verdict, why(a.Why), a.Bundle)
+	}
+	b.WriteString("app-remove uninstalls through Homebrew when a cask installed the app, otherwise moves it to the Trash. Never preselect it: " +
+		"the user decides which apps go. For Intel-only apps, check whether an Apple silicon build exists before suggesting anything.\n")
+	b.WriteString("\n## Leftovers in ~/Library of apps that are no longer installed\n")
+	if len(inv.Leftovers) == 0 {
+		b.WriteString("None above 5 MB.\n")
+	}
+	for _, l := range inv.Leftovers {
+		note := ""
+		if l.Vendor {
+			note = " (another app of the same vendor is installed and may use it)"
+		}
+		fmt.Fprintf(b, "- %s %s in %d places%s — change: leftover-trash:%s\n", l.Bundle, HumanSize(l.Size), len(l.Paths), note, l.Bundle)
+	}
+	b.WriteString("leftover-trash moves the files to the Trash (undo puts them back). Application Support can hold the user's own data: " +
+		"say what each one is before offering it, and never preselect one you cannot identify.\n")
 }
 
 func orDash(s string) string {

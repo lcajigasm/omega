@@ -62,7 +62,7 @@ func Execute(v string) error {
 		Args:          cobra.MaximumNArgs(1),
 		SilenceUsage:  true,
 		SilenceErrors: true,
-		ValidArgs:     []string{agent.TaskFull, agent.TaskUpdate, agent.TaskClean, agent.TaskAnalyze, agent.TaskFix, agent.TaskTune},
+		ValidArgs:     []string{agent.TaskFull, agent.TaskUpdate, agent.TaskClean, agent.TaskAnalyze, agent.TaskFix, agent.TaskTune, agent.TaskDev},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			task := agent.TaskFull
 			if len(args) == 1 {
@@ -73,7 +73,7 @@ func Execute(v string) error {
 	}
 	bindRunFlags(root.Flags(), &f)
 
-	root.AddCommand(setupCmd(), authCmd(), modelCmd(), modelsCmd(), dockerCmd(), macCmd(), configCmd(), stepsCmd(), notesCmd(), logsCmd(), doctorCmd())
+	root.AddCommand(setupCmd(), authCmd(), modelCmd(), modelsCmd(), dockerCmd(), macCmd(), devCmd(), menuCmd(), configCmd(), stepsCmd(), notesCmd(), logsCmd(), doctorCmd())
 	return root.Execute()
 }
 

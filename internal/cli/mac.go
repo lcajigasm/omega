@@ -47,6 +47,8 @@ func macCmd() *cobra.Command {
 		section("menubar", "cmd.mac_menubar", macMenuBar, "menubar"),
 		section("dock", "cmd.mac_dock", macDock, "dock"),
 		section("shortcuts", "cmd.mac_shortcuts", macShortcuts, "shortcuts"),
+		section("permissions", "cmd.mac_permissions", macPermissions, "permissions"),
+		section("apps", "cmd.mac_apps", macApps, "apps"),
 		macPolicyCmd(), macUndoCmd(), macOpCmd(),
 	)
 	return c
@@ -67,6 +69,9 @@ func loadInventory(sections ...string) (*macos.Inventory, error) {
 	inv, err := macos.Load(p, sections...)
 	if err == nil && inv.NoBTM && needBTM {
 		fmt.Println(i18n.T("mac.no_btm"))
+	}
+	if err == nil && inv.NoTCC {
+		fmt.Println(i18n.T("mac.no_tcc"))
 	}
 	return inv, err
 }
@@ -150,7 +155,89 @@ func printStatus(inv *macos.Inventory) {
 			fmt.Printf("    %s %-14s %s\n", mark, h.Owner, h.Action)
 		}
 	}
+	fmt.Printf("\n%s\n", i18n.T("mac.h.permissions"))
+	stale := inv.StalePermissions()
+	fmt.Println("  " + i18n.T("mac.perm_summary", len(inv.Permissions), len(stale)))
+	for _, x := range stale {
+		fmt.Printf("  %-34s %-30s %s\n", cut(x.Name, 34), cut(macos.ServiceName(x.Service), 30), permWhy(x))
+	}
+	fmt.Printf("\n%s\n", i18n.T("mac.h.apps"))
+	for _, a := range inv.ReviewApps() {
+		fmt.Printf("  %-34s %9s  %s\n", cut(a.Name, 34), macos.HumanSize(a.Size), appWhy(inv, a))
+	}
+	if len(inv.ReviewApps()) == 0 {
+		fmt.Println("  " + i18n.T("mac.none_found"))
+	}
+	if len(inv.Leftovers) > 0 {
+		fmt.Printf("\n%s\n", i18n.T("mac.h.leftovers"))
+		for _, l := range inv.Leftovers {
+			fmt.Printf("  %-34s %9s\n", cut(l.Bundle, 34), macos.HumanSize(l.Size))
+		}
+	}
 	fmt.Println("\n" + i18n.T("mac.status_next"))
+}
+
+func permWhy(x macos.Permission) string {
+	if x.Why == macos.WhyNotInstalled {
+		return i18n.T("mac.not_installed")
+	}
+	return i18n.T("mac.perm_gone")
+}
+
+func appWhy(inv *macos.Inventory, a macos.AppInfo) string {
+	var parts []string
+	if !a.LastUsed.IsZero() {
+		parts = append(parts, i18n.T("mac.unused", int(inv.Now.Sub(a.LastUsed).Hours()/24)))
+	}
+	if a.Intel {
+		parts = append(parts, i18n.T("mac.intel"))
+	}
+	if s := a.Source(); s != "" {
+		parts = append(parts, s)
+	}
+	return strings.Join(parts, " · ")
+}
+
+// macPermissions offers the privacy entries that point at nothing: binaries
+// whose path is gone (preselected) and apps that are no longer installed.
+func macPermissions(inv *macos.Inventory, tty bool) error {
+	var opts []ui.Option
+	changes := map[string]macos.Change{}
+	for _, x := range inv.StalePermissions() {
+		c := x.ResetChange()
+		changes[c.ID] = c
+		detail := x.Client
+		if x.IsPath {
+			detail = strings.Replace(x.Client, macos.Home, "~", 1)
+		}
+		opts = append(opts, ui.Option{ID: c.ID, Label: x.Label(), Detail: detail, Badge: permWhy(x),
+			Risk: verdictRisk(x.Verdict), Selected: x.Verdict == macos.Disable})
+	}
+	fmt.Println(i18n.T("mac.perm_summary", len(inv.Permissions), len(opts)))
+	return applyChanges(pickChanges(i18n.T("mac.pick.permissions"), opts, changes, tty))
+}
+
+// macApps offers the apps not opened in months or still built for Intel, and
+// what removed apps left in ~/Library. Nothing is preselected.
+func macApps(inv *macos.Inventory, tty bool) error {
+	var opts []ui.Option
+	changes := map[string]macos.Change{}
+	now := time.Now()
+	for _, a := range inv.ReviewApps() {
+		c := a.UninstallChange(now)
+		changes[c.ID] = c
+		opts = append(opts, ui.Option{ID: c.ID, Label: c.Title, Detail: appWhy(inv, a), Badge: macos.HumanSize(a.Size), Risk: "dangerous"})
+	}
+	for _, l := range inv.Leftovers {
+		c := l.TrashChange(now)
+		changes[c.ID] = c
+		detail := i18n.T("mac.leftover_places", len(l.Paths))
+		if l.Vendor {
+			detail += " · " + i18n.T("mac.leftover_vendor")
+		}
+		opts = append(opts, ui.Option{ID: c.ID, Label: c.Title, Detail: detail, Badge: macos.HumanSize(l.Size), Risk: "normal"})
+	}
+	return applyChanges(pickChanges(i18n.T("mac.pick.apps"), opts, changes, tty))
 }
 
 // cut shortens s to n characters so the columns stay aligned.
@@ -515,9 +602,14 @@ func macUndoCmd() *cobra.Command {
 // changes omega shows and journals call it.
 func macOpCmd() *cobra.Command {
 	return &cobra.Command{
-		Use: "op <dock-remove|dock-add> <app> [index]", Hidden: true, Args: cobra.RangeArgs(2, 3),
+		Use: "op <dock-remove|dock-add|perm-reset> <app> [index]", Hidden: true, Args: cobra.RangeArgs(2, 3),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			switch args[0] {
+			case "perm-reset":
+				if len(args) != 3 {
+					return fmt.Errorf("perm-reset needs a permission and a client")
+				}
+				return macos.ResetPermission(args[1], args[2])
 			case "dock-remove":
 				return macos.DockRemove(args[1])
 			case "dock-add":

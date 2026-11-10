@@ -15,22 +15,25 @@ import (
 func macToolSpecs() []llm.ToolSpec {
 	return []llm.ToolSpec{
 		{Name: "mac_inventory", Description: "What runs on this Mac outside the apps the user opens: items that open at login, jobs allowed " +
-			"in the background, menu bar apps, the Dock and global keyboard shortcuts with their conflicts. Each entry carries omega's " +
+			"in the background, menu bar apps, the Dock, global keyboard shortcuts with their conflicts, privacy permissions (with the entries " +
+			"left behind by binaries and apps that no longer exist) and installed apps (size, last opened, Intel-only, leftovers of removed apps). Each entry carries omega's " +
 			"verdict (keep, disable, review) from the user's rules (mac.toml) and omega's defaults, and the change ids to pass to mac_change.",
 			Properties: map[string]any{"section": map[string]any{"type": "string", "enum": append([]string{"all"}, macos.Sections...)}}},
 		{Name: "mac_change", Description: "Apply one change id from mac_inventory, e.g. disable:com.google.keystone.agent, quit:<bundle>, " +
 			"dock-remove:<bundle>, dock-add:<app>, dock-set:autohide=true, hotkey-off:<id>, hotkey-set:<id>=<combo> (combos look like " +
-			"opt+shift+space). Every change is reversible with `omega mac undo`. Some changes only open the right settings and return what " +
+			"opt+shift+space), perm-reset:<Service>:<client>, app-remove:<bundle>, leftover-trash:<bundle>. Changes are reversible with " +
+			"`omega mac undo`, except perm-reset (the app simply asks again). Some changes only open the right settings and return what " +
 			"the user must do by hand: tell the user.",
 			Properties: map[string]any{
 				"change": str("change id from mac_inventory"),
 				"reason": str("why, in one sentence; shown to the user"),
 			}, Required: []string{"change", "reason"}},
 		{Name: "mac_policy", Description: "Save a decision of the user in their rules (~/.config/omega/mac.toml) so omega suggests the same next " +
-			"time. kind: keep or disable (login and background items), menubar-keep, menubar-hide, dock-remove, dock-add, or owner " +
+			"time. kind: keep or disable (login and background items), menubar-keep, menubar-hide, dock-remove, dock-add, permission-keep " +
+			"(a privacy entry never to offer for removal), app-keep (an app or leftover never to ask about), or owner " +
 			"(value like opt+space=ChatGPT, or opt+space=none). Values are app names, bundle ids or launchd labels; * is a wildcard.",
 			Properties: map[string]any{
-				"kind":  map[string]any{"type": "string", "enum": []string{"keep", "disable", "menubar-keep", "menubar-hide", "dock-remove", "dock-add", "owner"}},
+				"kind":  map[string]any{"type": "string", "enum": []string{"keep", "disable", "menubar-keep", "menubar-hide", "dock-remove", "dock-add", "permission-keep", "app-keep", "owner"}},
 				"value": str("pattern, app, or combo=owner"),
 			}, Required: []string{"kind", "value"}},
 	}
@@ -73,11 +76,16 @@ func toolMacInventory(_ context.Context, a *Agent, in map[string]any) (string, e
 func toolMacChange(ctx context.Context, a *Agent, in map[string]any) (string, error) {
 	id := getString(in, "change")
 	section, _, _ := strings.Cut(id, ":")
-	if strings.HasPrefix(section, "hotkey") {
+	switch {
+	case strings.HasPrefix(section, "hotkey"):
 		section = "shortcuts"
-	} else if strings.HasPrefix(section, "dock") {
+	case strings.HasPrefix(section, "dock"):
 		section = "dock"
-	} else {
+	case strings.HasPrefix(section, "perm"):
+		section = "permissions"
+	case strings.HasPrefix(section, "app"), strings.HasPrefix(section, "leftover"):
+		section = "apps"
+	default:
 		section = ""
 	}
 	inv, err := a.macInventory(section)
@@ -88,10 +96,10 @@ func toolMacChange(ctx context.Context, a *Agent, in map[string]any) (string, er
 	if err != nil {
 		return "", err
 	}
-	// The changes are journaled and reversible; only those that need sudo
-	// count as dangerous.
+	// The changes are journaled and reversible; those that need sudo, remove
+	// an app or forget a permission for every app count as dangerous.
 	risk := safety.Normal
-	if c.Sudo() {
+	if c.Sudo() || strings.HasPrefix(id, "app-remove:") || strings.HasPrefix(id, "perm-reset-all:") {
 		risk = safety.Dangerous
 	}
 	reason := c.Title

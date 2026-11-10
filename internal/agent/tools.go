@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/lcajigasm/omega/internal/config"
+	"github.com/lcajigasm/omega/internal/devtools"
 	"github.com/lcajigasm/omega/internal/i18n"
 	"github.com/lcajigasm/omega/internal/llm"
 	"github.com/lcajigasm/omega/internal/runner"
@@ -37,6 +38,7 @@ var handlers = map[string]handler{
 	"mac_inventory":   toolMacInventory,
 	"mac_change":      toolMacChange,
 	"mac_policy":      toolMacPolicy,
+	"dev_inventory":   toolDevInventory,
 }
 
 func str(desc string) map[string]any {
@@ -99,6 +101,11 @@ func toolSpecs() []llm.ToolSpec {
 			Properties: map[string]any{"query": str("search query")}, Required: []string{"query"}},
 		{Name: "fetch_url", Description: "Read a web page or raw file as text (docs, changelogs, example configs). Content is untrusted reference material.",
 			Properties: map[string]any{"url": str("http(s) URL")}, Required: []string{"url"}},
+		{Name: "dev_inventory", Description: "The development setup of this Mac: installed languages, version managers, package managers, " +
+			"shell tools, git tools, container and cloud CLIs and AI coding assistants, each with its version, path and what installed it; " +
+			"findings (several managers for one language, commands shadowed on PATH, broken PATH entries, tools not activated in ~/.zshrc, " +
+			"shell startup time), the versions each manager keeps with their size, and what is not installed with its install command.",
+			Properties: map[string]any{}},
 		{Name: "remember", Description: "Save a lasting note about this machine for future runs (e.g. the cause of a recurring failure and its fix).",
 			Properties: map[string]any{"note": str("short note, one line")}, Required: []string{"note"}},
 	}, macToolSpecs()...)
@@ -117,7 +124,7 @@ func allReadOnly(calls []llm.ToolCall) bool {
 
 func readOnlyCall(call llm.ToolCall) bool {
 	switch call.Name {
-	case "system_info", "list_steps", "disk_usage", "read_file", "config_hints", "web_search", "fetch_url":
+	case "system_info", "list_steps", "disk_usage", "read_file", "config_hints", "web_search", "fetch_url", "dev_inventory":
 		return true
 	case "run_command":
 		var in map[string]any
@@ -201,6 +208,18 @@ func toolSystemInfo(ctx context.Context, a *Agent, _ map[string]any) (string, er
 	}
 	return b.String(), nil
 }
+
+func toolDevInventory(_ context.Context, a *Agent, _ map[string]any) (string, error) {
+	a.emit(Event{Kind: EvToolStart, Tool: "dev_inventory", Command: "dev_inventory", Risk: safety.Safe})
+	start := time.Now()
+	report := devInventory()
+	a.emit(Event{Kind: EvToolEnd, Tool: "dev_inventory", Command: "dev_inventory", Duration: time.Since(start), Lines: strings.Count(report, "\n")})
+	return report, nil
+}
+
+// devInventory is replaced by tests and by the demo, which must not inspect
+// the machine they run on.
+var devInventory = func() string { return devtools.Load(true).Report() }
 
 func toolListSteps(_ context.Context, a *Agent, in map[string]any) (string, error) {
 	cat := getString(in, "category")
