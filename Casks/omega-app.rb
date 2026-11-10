@@ -27,7 +27,7 @@ cask "omega-app" do
     end
   end
 
-  depends_on macos: ">= :ventura"
+  depends_on macos: :ventura
 
   app "Omega.app"
 
