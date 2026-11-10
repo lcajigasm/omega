@@ -392,7 +392,7 @@ func stepsCmd() *cobra.Command {
 				return err
 			}
 			cat := ""
-			for _, s := range steps.All {
+			for _, s := range steps.Grouped(steps.All) {
 				if s.Category != cat {
 					cat = s.Category
 					fmt.Printf("\n%s\n", i18n.T("cat."+cat))

@@ -131,6 +131,25 @@ func For(goos string) []Step {
 	return out
 }
 
+// Categories is the order the categories are listed in.
+var Categories = []string{Check, Update, Clean, Backend}
+
+// Grouped returns the steps with each category together, in Categories
+// order, keeping the catalogue's order inside a category. The catalogue
+// itself is in running order, where a check can sit next to the cleanup it
+// belongs to (docker-df before the Docker prunes).
+func Grouped(list []Step) []Step {
+	out := make([]Step, 0, len(list))
+	for _, cat := range Categories {
+		for _, s := range list {
+			if s.Category == cat {
+				out = append(out, s)
+			}
+		}
+	}
+	return out
+}
+
 // Known reports whether an id names a step on any operating system, so a
 // configuration shared between machines can skip steps this one lacks.
 func Known(id string) bool {
@@ -170,7 +189,7 @@ var catalog = []Step{
 	{OS: linux, ID: "disk", Name: "Disk space", Category: Check, Risk: safety.Safe,
 		Command:     "df -h / && du -sh ~/.cache ~/.local/share/Trash /var/cache /var/log 2>/dev/null; true",
 		Description: "Free space and size of caches, logs and Trash"},
-	{OS: linux, ID: "apt-outdated", Name: "Outdated apt packages", Category: Check, Command: "apt list --upgradable", Risk: safety.Safe, Requires: "apt-get",
+	{OS: linux, ID: "apt-outdated", Name: "Outdated apt packages", Category: Check, Command: "apt list --upgradable 2>/dev/null", Risk: safety.Safe, Requires: "apt-get",
 		Description: "From the package lists as last refreshed; the apt step refreshes them"},
 	{OS: linux, ID: "dnf-outdated", Name: "Outdated dnf packages", Category: Check, Command: "dnf check-update; test $? -ne 1", Risk: safety.Safe, Requires: "dnf"},
 	{OS: linux, ID: "pacman-outdated", Name: "Outdated pacman packages", Category: Check, Command: "pacman -Qu; test $? -le 1", Risk: safety.Safe, Requires: "pacman",

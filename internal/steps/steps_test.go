@@ -145,3 +145,45 @@ func TestLinuxRisk(t *testing.T) {
 		}
 	}
 }
+
+// The listing shows each category once, on every system, with every step
+// and the catalogue's order kept inside a category.
+func TestGroupedListsEachCategoryOnce(t *testing.T) {
+	for _, goos := range []string{"darwin", "linux", "windows"} {
+		all := For(goos)
+		grouped := Grouped(all)
+		if len(grouped) != len(all) {
+			t.Fatalf("%s: %d steps grouped, %d in the catalogue", goos, len(grouped), len(all))
+		}
+		var headers []string
+		last := ""
+		for _, s := range grouped {
+			if s.Category != last {
+				headers = append(headers, s.Category)
+				last = s.Category
+			}
+		}
+		if strings.Join(headers, ",") != "check,update,clean,backend" {
+			t.Errorf("%s: categories listed as %v", goos, headers)
+		}
+		for _, cat := range Categories {
+			var want, got []string
+			for _, s := range all {
+				if s.Category == cat {
+					want = append(want, s.ID)
+				}
+			}
+			for _, s := range grouped {
+				if s.Category == cat {
+					got = append(got, s.ID)
+				}
+			}
+			if strings.Join(want, ",") != strings.Join(got, ",") {
+				t.Errorf("%s/%s: order changed: %v, want %v", goos, cat, got, want)
+			}
+		}
+	}
+	if s := ids(For("linux"))["apt-outdated"]; !strings.Contains(s.Command, "2>/dev/null") || safety.Classify(s.Command) != safety.Safe {
+		t.Errorf("apt-outdated must hide apt's script warning and stay read-only: %q", s.Command)
+	}
+}
