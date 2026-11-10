@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="no-js">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -27,7 +27,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
   <script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=16">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/asciinema-player@3.8.2/dist/bundle/asciinema-player.css">
   <script src="https://cdn.jsdelivr.net/npm/asciinema-player@3.8.2/dist/bundle/asciinema-player.min.js" defer></script>
 
@@ -94,14 +94,11 @@
     <nav class="nav" aria-label="Main">
       <a class="brand" href="#top" aria-label="omega home"><span class="brand-mark" aria-hidden="true">Ω</span> omega</a>
       <ul class="nav-links">
-        <li><a href="#how">How it works</a></li>
+        <li><a href="#features">Features</a></li>
+        <li><a href="#platforms">Platforms</a></li>
+        <li><a href="#interface">Interface</a></li>
         <li><a href="#safety">Safety</a></li>
-        <li><a href="#gallery">Screens</a></li>
-        <li><a href="#keys">Keys</a></li>
-        <li><a href="#mac">Your Mac</a></li>
-        <li><a href="#linux">Linux</a></li>
-        <li><a href="#dev">Dev tools</a></li>
-        <li><a href="#providers">Models</a></li>
+        <li><a href="#models">Models</a></li>
         <li><a href="#faq">FAQ</a></li>
       </ul>
       <a class="nav-gh" href="https://github.com/lcajigasm/omega" aria-label="omega on GitHub"><i class="ph ph-github-logo" aria-hidden="true"></i></a>
@@ -114,14 +111,11 @@
 
   <div class="mobile-menu" id="mobile-menu" hidden>
     <ul>
-      <li><a href="#how">How it works</a></li>
+      <li><a href="#features">Features</a></li>
+      <li><a href="#platforms">Platforms</a></li>
+      <li><a href="#interface">Interface</a></li>
       <li><a href="#safety">Safety</a></li>
-      <li><a href="#gallery">Screens</a></li>
-      <li><a href="#keys">Keys</a></li>
-      <li><a href="#mac">Your Mac</a></li>
-      <li><a href="#linux">Linux</a></li>
-      <li><a href="#dev">Dev tools</a></li>
-      <li><a href="#providers">Models</a></li>
+      <li><a href="#models">Models</a></li>
       <li><a href="#faq">FAQ</a></li>
       <li><a href="https://github.com/lcajigasm/omega">GitHub</a></li>
       <li><a href="#install">Install</a></li>
@@ -131,31 +125,35 @@
   <main id="main">
     <!-- Hero -->
     <section class="hero" id="top">
-      <div class="container hero-inner">
-        <p class="eyebrow"><i class="ph ph-apple-logo" aria-hidden="true"></i><i class="ph ph-linux-logo" aria-hidden="true"></i> For macOS and Linux · free and open source</p>
-        <h1 class="hero-title">Updates that fix<br> their own errors</h1>
-        <p class="hero-sub">omega updates and cleans your Mac or your Linux machine like topgrade and Mole, then reads every failure, finds the cause and fixes the config. You pick what it does from a card and approve anything risky. A routine run costs under one cent, or nothing on a local model.</p>
+      <div class="container hero-grid">
+        <div>
+          <p class="eyebrow"><i class="ph ph-apple-logo" aria-hidden="true"></i><i class="ph ph-linux-logo" aria-hidden="true"></i> macOS and Linux · free and open source</p>
+          <h1 class="hero-title">Updates that fix <em>their own errors</em></h1>
+          <p class="hero-sub">omega updates and cleans your Mac or your Linux machine like topgrade and Mole, then reads every failure, finds the cause and fixes it. You pick what it does from a card and approve anything risky.</p>
 
-        <div class="install" id="install-hero">
-          <code class="install-cmd">brew install lcajigasm/tap/omega</code>
-          <button class="btn btn-primary copy-btn" type="button" data-copy="brew install lcajigasm/tap/omega">
-            <i class="ph ph-copy" aria-hidden="true"></i><span class="copy-label">Copy install command</span>
-          </button>
-        </div>
-        <p class="copy-status" role="status" aria-live="polite"></p>
-        <p class="section-sub">Homebrew on macOS and on Linux. No Homebrew on Linux? <a href="#install">Install from the release archive</a>. The previous tap still works: <code>brew install lcajigasm/omega/omega</code>.</p>
+          <div class="install" data-tabs>
+            <div class="tabs" role="tablist" aria-label="How to install">
+              <button class="tab" type="button" role="tab" aria-selected="true" aria-controls="get-brew" id="tab-brew"><i class="ph ph-beer-bottle" aria-hidden="true"></i> Homebrew</button>
+              <button class="tab" type="button" role="tab" aria-selected="false" aria-controls="get-linux" id="tab-linux"><i class="ph ph-linux-logo" aria-hidden="true"></i> Linux archive</button>
+            </div>
+            <div class="install-row" role="tabpanel" id="get-brew" aria-labelledby="tab-brew">
+              <code class="install-cmd">brew install lcajigasm/tap/omega</code>
+              <button class="btn btn-primary btn-sm copy-btn" type="button" data-copy="brew install lcajigasm/tap/omega"><i class="ph ph-copy" aria-hidden="true"></i><span class="copy-label">Copy</span></button>
+            </div>
+            <div class="install-row" role="tabpanel" id="get-linux" aria-labelledby="tab-linux" hidden>
+              <code class="install-cmd multi">tar -xzf omega_*_linux_amd64.tar.gz
+sudo install -m 755 omega /usr/local/bin/omega</code>
+              <a class="btn btn-ghost btn-sm" href="https://github.com/lcajigasm/omega/releases/latest">Get the archive</a>
+            </div>
+          </div>
+          <p class="copy-status" role="status" aria-live="polite"></p>
+          <p class="hero-note">Homebrew works on macOS and on Linux. Then run <code>omega setup</code>.</p>
 
-        <p class="proof"><i class="ph ph-check-circle" aria-hidden="true"></i> 78 maintenance steps on macOS, 90 on Linux · cloud or local models · 5 interface languages · binaries on GitHub Releases · MIT licensed</p>
-
-        <div class="works-with" aria-label="Works with these AI providers">
-          <p class="works-label">Works with</p>
-          <ul class="logo-strip">
-            <li><svg class="logo" aria-hidden="true"><use href="#logo-anthropic"/></svg>Anthropic</li>
-            <li><svg class="logo" aria-hidden="true"><use href="#logo-openai"/></svg>OpenAI</li>
-            <li><svg class="logo" aria-hidden="true"><use href="#logo-openrouter"/></svg>OpenRouter</li>
-            <li><svg class="logo" aria-hidden="true"><use href="#logo-opencode"/></svg>OpenCode Zen</li>
-            <li><svg class="logo" aria-hidden="true"><use href="#logo-ollama"/></svg>Ollama</li>
-            <li><svg class="logo" aria-hidden="true"><use href="#logo-lmstudio"/></svg>LM Studio</li>
+          <ul class="chips" aria-label="At a glance">
+            <li class="chip"><i class="ph ph-check" aria-hidden="true"></i> 78 steps on macOS, 90 on Linux</li>
+            <li class="chip"><i class="ph ph-check" aria-hidden="true"></i> Cloud or local models</li>
+            <li class="chip"><i class="ph ph-check" aria-hidden="true"></i> Under one cent a run</li>
+            <li class="chip"><i class="ph ph-check" aria-hidden="true"></i> MIT licensed</li>
           </ul>
         </div>
 
@@ -173,18 +171,36 @@
             <p class="t-line"><span class="t-ok">✓</span> pipx reinstall-all <span class="t-muted">· 41s</span></p>
             <p class="t-line"><span class="t-ok">✓</span> brew cleanup --prune=all <span class="t-muted">· 12s</span></p>
             <p class="t-line">Done: 23 packages updated, 6.4 GB freed, pipx repaired and noted for next time.</p>
-            <p class="t-line t-muted">⏵⏵ asks before risky actions                       ↑94k ↓4.6k · $0.0061 · 3m12s</p>
+            <p class="t-line t-muted">⏵⏵ asks before risky actions · ↑94k ↓4.6k · $0.0061 · 3m12s</p>
           </div>
           <figcaption class="sr-only">An illustrative omega run: an update step fails, omega diagnoses it, asks for approval, fixes it and summarises.</figcaption>
         </figure>
       </div>
     </section>
 
-    <!-- Problem to solution -->
-    <section class="section reveal" id="problem" aria-labelledby="problem-title">
+    <!-- Providers -->
+    <section class="strip" aria-label="Works with these AI providers">
+      <div class="container strip-inner">
+        <p class="strip-label">Works with</p>
+        <ul class="logo-strip">
+          <li><svg class="logo" aria-hidden="true"><use href="#logo-anthropic"/></svg>Anthropic</li>
+          <li><svg class="logo" aria-hidden="true"><use href="#logo-openai"/></svg>OpenAI</li>
+          <li><svg class="logo" aria-hidden="true"><use href="#logo-openrouter"/></svg>OpenRouter</li>
+          <li><svg class="logo" aria-hidden="true"><use href="#logo-opencode"/></svg>OpenCode Zen</li>
+          <li><svg class="logo" aria-hidden="true"><use href="#logo-ollama"/></svg>Ollama</li>
+          <li><svg class="logo" aria-hidden="true"><use href="#logo-lmstudio"/></svg>LM Studio</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Why -->
+    <section class="section reveal" id="why" aria-labelledby="why-title">
       <div class="container">
-        <h2 class="section-title" id="problem-title">Your update script fails.<br> Then you debug it all evening.</h2>
-        <div class="compare">
+        <div class="section-head">
+          <p class="kicker">The problem</p>
+          <h2 class="section-title" id="why-title">Your update script fails. Then you debug it all evening.</h2>
+        </div>
+        <div class="grid grid-2">
           <article class="card">
             <h3 class="card-title"><i class="ph ph-x-circle t-err" aria-hidden="true"></i> Running topgrade and Mole by hand</h3>
             <ul class="list">
@@ -207,62 +223,58 @@
       </div>
     </section>
 
-    <!-- Tagline reveal -->
-    <section class="tagline" aria-label="What omega promises">
+    <!-- Features -->
+    <section class="section reveal" id="features" aria-labelledby="features-title">
       <div class="container">
-        <p class="tagline-text" data-words>Your machine stays current and clean. You only step in when something could be lost.</p>
-      </div>
-    </section>
-
-    <!-- Benefits -->
-    <section class="section reveal" id="benefits" aria-labelledby="benefits-title">
-      <div class="container">
-        <h2 class="section-title" id="benefits-title">What changes when an agent runs your maintenance</h2>
+        <div class="section-head">
+          <p class="kicker">What it does</p>
+          <h2 class="section-title" id="features-title">What changes when an agent runs your maintenance</h2>
+        </div>
         <div class="grid grid-3">
-          <article class="card feature">
-            <i class="ph ph-wrench feature-icon" aria-hidden="true"></i>
+          <article class="card">
+            <span class="feature-icon"><i class="ph ph-wrench" aria-hidden="true"></i></span>
             <h3 class="card-title">Failures get fixed, not just reported</h3>
-            <p>omega reads the output, checks the config behind it and retries with the fix. It also reads the system logs for crash loops and failing agents, and offers to install what a cleanup needs.</p>
+            <p>omega reads the output, checks the config behind it and retries with the fix. It also reads the system logs for crash loops and failing services.</p>
           </article>
-          <article class="card feature">
-            <i class="ph ph-check-square feature-icon" aria-hidden="true"></i>
+          <article class="card">
+            <span class="feature-icon"><i class="ph ph-check-square" aria-hidden="true"></i></span>
             <h3 class="card-title">You pick, it does</h3>
             <p>Recommendations arrive on a card with their impact. Tick one or several, and omega carries out exactly those. Nothing else.</p>
           </article>
-          <article class="card feature">
-            <i class="ph ph-coins feature-icon" aria-hidden="true"></i>
-            <h3 class="card-title">The best value model, checked daily</h3>
-            <p>omega reads current prices and benchmark scores once a day and picks a fast model for routine work and a stronger one for failures. It switches only when a step fails, and shows the cost as it goes.</p>
-          </article>
-          <article class="card feature">
-            <i class="ph ph-sliders-horizontal feature-icon" aria-hidden="true"></i>
-            <h3 class="card-title">Tunes your tools with current docs</h3>
-            <p><code>omega tune</code> reviews the config of what you have installed, reads the official documentation on the web and proposes improvements with their source.</p>
-          </article>
-          <article class="card feature">
-            <i class="ph ph-cube feature-icon" aria-hidden="true"></i>
-            <h3 class="card-title">Docker back under control</h3>
-            <p><code>omega docker</code> shows what images, volumes and build cache take, and cleans only what you tick. Docker cleanups always ask you first.</p>
-          </article>
-          <article class="card feature">
-            <i class="ph ph-shield-check feature-icon" aria-hidden="true"></i>
+          <article class="card">
+            <span class="feature-icon"><i class="ph ph-shield-check" aria-hidden="true"></i></span>
             <h3 class="card-title">Nothing risky runs without you</h3>
-            <p>Every command is classified before it runs. Deletes and config edits wait for your yes, sudo asks for the password inside the interface, and the truly destructive commands never run.</p>
+            <p>Every command is classified before it runs. Deletes and config edits wait for your yes, and the truly destructive commands never run.</p>
           </article>
-          <article class="card feature">
-            <i class="ph ph-lock-key feature-icon" aria-hidden="true"></i>
-            <h3 class="card-title">A privacy list you can read again</h3>
-            <p><code>omega mac permissions</code> finds the entries macOS keeps for binaries that no longer exist, such as one <code>node</code> per app update, names each with its version and removes the ones you pick.</p>
+          <article class="card">
+            <span class="feature-icon"><i class="ph ph-coins" aria-hidden="true"></i></span>
+            <h3 class="card-title">The best value model, checked daily</h3>
+            <p>omega reads current prices and benchmark scores once a day and picks a fast model for routine work and a stronger one for failures.</p>
           </article>
-          <article class="card feature">
-            <i class="ph ph-terminal-window feature-icon" aria-hidden="true"></i>
+          <article class="card">
+            <span class="feature-icon"><i class="ph ph-sliders-horizontal" aria-hidden="true"></i></span>
+            <h3 class="card-title">Tunes your tools with current docs</h3>
+            <p><code>omega tune</code> reviews the config of what you have installed, reads the official documentation and proposes improvements with their source.</p>
+          </article>
+          <article class="card">
+            <span class="feature-icon"><i class="ph ph-terminal-window" aria-hidden="true"></i></span>
             <h3 class="card-title">Your toolchain, installed and in order</h3>
-            <p><code>omega dev</code> knows more than 70 languages, version managers and command-line tools. It installs what you pick, activates it in your shell and finds what overlaps.</p>
+            <p><code>omega dev</code> knows more than 70 languages, version managers and command-line tools. It installs what you pick and finds what overlaps.</p>
           </article>
-          <article class="card feature">
-            <i class="ph ph-chat-text feature-icon" aria-hidden="true"></i>
+          <article class="card">
+            <span class="feature-icon"><i class="ph ph-cube" aria-hidden="true"></i></span>
+            <h3 class="card-title">Docker back under control</h3>
+            <p><code>omega docker</code> shows what images, volumes and build cache take, and cleans only what you tick. Docker cleanups always ask first.</p>
+          </article>
+          <article class="card">
+            <span class="feature-icon"><i class="ph ph-list-magnifying-glass" aria-hidden="true"></i></span>
+            <h3 class="card-title">A menu for everything</h3>
+            <p><code>omega menu</code> lists every command, with its options and settings to pick from. Type a few letters to find anything.</p>
+          </article>
+          <article class="card">
+            <span class="feature-icon"><i class="ph ph-chat-text" aria-hidden="true"></i></span>
             <h3 class="card-title">Ask in words</h3>
-            <p>Inside a session you can type "install fzf and mise", "undo yesterday's Dock change" or "what failed last time?". Everything omega does from the command line, the agent can do too.</p>
+            <p>Type <code>omega why is my disk full</code>, or "undo yesterday's Dock change" inside a session. What the command line does, the agent can do too.</p>
           </article>
         </div>
       </div>
@@ -271,226 +283,203 @@
     <!-- How it works -->
     <section class="section reveal" id="how" aria-labelledby="how-title">
       <div class="container">
-        <h2 class="section-title" id="how-title">Running in three commands</h2>
-        <ol class="steps">
+        <div class="section-head">
+          <p class="kicker">Getting started</p>
+          <h2 class="section-title" id="how-title">Running in three commands</h2>
+        </div>
+        <ol class="grid grid-3 steps">
           <li class="card step">
-            <span class="step-num">1</span>
-            <h3 class="card-title">Install and connect a model</h3>
-            <p>The setup asks for your provider, stores the key in the macOS Keychain (the system keyring on Linux) and lets you pick a model.</p>
-            <pre><code>brew install lcajigasm/tap/omega
-omega setup</code></pre>
+            <h3 class="card-title">Connect a model</h3>
+            <p>The setup asks for your provider, stores the key in the macOS Keychain or the Linux keyring, and lets you pick a model.</p>
+            <pre><code>omega setup</code></pre>
           </li>
           <li class="card step">
-            <span class="step-num">2</span>
             <h3 class="card-title">Get a report first</h3>
-            <p>Analyze mode is read only. You see disk usage, outdated software and config problems before anything changes.</p>
+            <p>Analyze is read only. You see disk usage, outdated software and config problems before anything changes.</p>
             <pre><code>omega analyze</code></pre>
           </li>
           <li class="card step">
-            <span class="step-num">3</span>
             <h3 class="card-title">Let it do the maintenance</h3>
-            <p>Updates, cleanup and a summary, with your approval on anything risky. Then tune your tools, open the home screen with every command or, on a Mac, review what runs on it.</p>
+            <p>Updates, cleanup and a summary, with your approval on anything risky. Or open the menu and pick.</p>
             <pre><code>omega
-omega tune
-omega menu
-omega mac      # macOS</code></pre>
+omega menu</code></pre>
           </li>
         </ol>
       </div>
     </section>
 
-    <!-- Gallery -->
-    <section class="section reveal" id="gallery" aria-labelledby="gallery-title">
+    <!-- Platforms -->
+    <section class="section reveal" id="platforms" aria-labelledby="platforms-title">
       <div class="container">
-        <h2 class="section-title" id="gallery-title">Inside the terminal</h2>
-        <p class="section-sub">A full screen interface in the style of Claude Code: tool calls as they happen, live tokens and cost, and cards for every decision.</p>
+        <div class="section-head">
+          <p class="kicker">Platforms</p>
+          <h2 class="section-title" id="platforms-title">It knows the system it runs on</h2>
+          <p class="section-sub">The same agent, with each system's own steps. On a Mac it also reviews what runs outside the apps you open.</p>
+        </div>
+        <div data-tabs>
+          <div class="panel-tabs" role="tablist" aria-label="Platform">
+            <button class="tab" type="button" role="tab" aria-selected="true" aria-controls="panel-mac" id="ptab-mac"><i class="ph ph-apple-logo" aria-hidden="true"></i> macOS</button>
+            <button class="tab" type="button" role="tab" aria-selected="false" aria-controls="panel-linux" id="ptab-linux"><i class="ph ph-linux-logo" aria-hidden="true"></i> Linux</button>
+            <button class="tab" type="button" role="tab" aria-selected="false" aria-controls="panel-dev" id="ptab-dev"><i class="ph ph-terminal-window" aria-hidden="true"></i> Developer tools</button>
+          </div>
+
+          <div class="panel" role="tabpanel" id="panel-mac" aria-labelledby="ptab-mac">
+            <h3 class="panel-name"><i class="ph ph-apple-logo" aria-hidden="true"></i> macOS</h3>
+            <p class="panel-intro">Apps add themselves to login, keep helpers running in the background, grab shortcuts other apps already use and leave permissions and files behind when they go. <code>omega mac</code> reviews all of it, asks you on cards and applies only what you pick. Every change can be undone.</p>
+            <div class="split">
+              <dl class="deflist">
+                <div><dt>login</dt><dd>Apps that open at login: updaters and apps you open when needed go, VPN, security and sync stay</dd></div>
+                <div><dt>background</dt><dd>Launch agents, daemons and app helpers, including leftovers of uninstalled apps</dd></div>
+                <div><dt>menubar</dt><dd>Menu bar apps: quit them, stop them at login, or hide them with Bartender, Ice or Thaw</dd></div>
+                <div><dt>dock</dt><dd>Apps no longer installed or not opened in 90 days, and the Dock settings you prefer</dd></div>
+                <div><dt>shortcuts</dt><dd>Who keeps each contested shortcut; the others move to a free one</dd></div>
+                <div><dt>permissions</dt><dd>Privacy &amp; Security entries whose binary or app is gone, each named with its version so the copies can be told apart</dd></div>
+                <div><dt>apps</dt><dd>Apps not opened in 180 days, apps built only for Intel, and what removed apps left in <code>~/Library</code></dd></div>
+              </dl>
+              <figure class="terminal" aria-label="A shortcut conflict card">
+                <div class="terminal-bar"><span></span><span></span><span></span><p>omega mac shortcuts</p></div>
+                <div class="terminal-body">
+                  <p><span class="t-accent">Who keeps ⌥Space?</span></p>
+                  <p><span class="t-accent">❯ ◉ Alfred · Show Alfred</span>  <span class="t-muted">suggested</span></p>
+                  <p>  ○ ChatGPT · Open the ChatGPT launcher</p>
+                  <p>  ○ Claude · Quick Entry</p>
+                  <p>  ○ Nobody: turn it off for all of them</p>
+                  <p class="t-gap t-muted">the others get a free shortcut</p>
+                  <p><span class="t-strong">ChatGPT</span> <span class="t-muted">→ ⌃⌥Space</span></p>
+                  <p><span class="t-strong">Claude</span>  <span class="t-muted">→ ⌥⇧⌘Space</span></p>
+                  <p class="t-gap"><span class="t-strong">undo</span>    <span class="t-muted">omega mac undo</span></p>
+                </div>
+                <figcaption class="sr-only">ChatGPT, Claude and Alfred all want Option Space. omega suggests Alfred, moves the others to free shortcuts and remembers the choice.</figcaption>
+              </figure>
+            </div>
+          </div>
+
+          <div class="panel" role="tabpanel" id="panel-linux" aria-labelledby="ptab-linux" hidden>
+            <h3 class="panel-name"><i class="ph ph-linux-logo" aria-hidden="true"></i> Linux</h3>
+            <p class="panel-intro">On Debian, Ubuntu, Fedora, Arch, openSUSE and their relatives, omega knows which distribution it runs on and uses its package manager. The steps that need <code>sudo</code> wait for your approval and ask for the password inside the interface.</p>
+            <div class="split">
+              <dl class="deflist">
+                <div><dt>packages</dt><dd>Check, update and clean with <code>apt</code>, <code>dnf</code>, <code>pacman</code> or <code>zypper</code>, including orphaned packages and the package cache</dd></div>
+                <div><dt>flatpak, snap</dt><dd>Updates, unused runtimes and old snap revisions</dd></div>
+                <div><dt>journal, disk</dt><dd>Failed units, errors since boot, core dumps, the size of the journal, <code>~/.cache</code> and the Trash</dd></div>
+                <div><dt>keys</dt><dd>In the system keyring (GNOME Keyring, KWallet) or, on a server with none, in a file only you can read. omega says which</dd></div>
+                <div><dt>homebrew</dt><dd>With Homebrew on Linux, the <code>brew</code> steps work as they do on a Mac</dd></div>
+              </dl>
+              <figure class="terminal" aria-label="omega steps on Ubuntu">
+                <div class="terminal-bar"><span></span><span></span><span></span><p>omega steps · Ubuntu 24.04</p></div>
+                <div class="terminal-body">
+                  <p><span class="t-accent">CHECKS</span></p>
+                  <p><span class="t-ok">✓</span> disk             <span class="t-muted">read-only</span></p>
+                  <p><span class="t-ok">✓</span> apt-outdated     <span class="t-muted">read-only</span></p>
+                  <p><span class="t-ok">✓</span> journal-size     <span class="t-muted">read-only</span></p>
+                  <p><span class="t-ok">✓</span> system-logs      <span class="t-muted">read-only</span></p>
+                  <p class="t-gap"><span class="t-accent">UPDATES</span></p>
+                  <p><span class="t-ok">✓</span> apt              <span class="t-warn">dangerous</span></p>
+                  <p><span class="t-ok">✓</span> snap             <span class="t-warn">dangerous</span></p>
+                  <p class="t-gap"><span class="t-accent">CLEANUP</span></p>
+                  <p><span class="t-ok">✓</span> apt-autoremove   <span class="t-warn">dangerous</span></p>
+                  <p><span class="t-ok">✓</span> journal-vacuum   <span class="t-warn">dangerous</span></p>
+                </div>
+                <figcaption class="sr-only">A selection of the steps omega detects on Ubuntu 24.04, taken from a run on a GitHub Ubuntu runner with the developer-tool steps left out: read-only checks, and apt and snap updates and cleanups marked dangerous because they use sudo.</figcaption>
+              </figure>
+            </div>
+            <ul class="facts">
+              <li><i class="ph ph-apple-logo" aria-hidden="true"></i> The Mac review (omega mac) and the Mac-only steps do not exist on Linux, and say so</li>
+              <li><i class="ph ph-cube" aria-hidden="true"></i> Without apt, dnf, pacman or zypper (Alpine, NixOS, Void) the system-package steps do not appear</li>
+              <li><i class="ph ph-lock-simple" aria-hidden="true"></i> Immutable systems such as Fedora Silverblue are not adapted yet</li>
+              <li><i class="ph ph-windows-logo" aria-hidden="true"></i> Windows is not supported: the binaries start, but there are no Windows steps</li>
+            </ul>
+          </div>
+
+          <div class="panel" role="tabpanel" id="panel-dev" aria-labelledby="ptab-dev" hidden>
+            <h3 class="panel-name"><i class="ph ph-terminal-window" aria-hidden="true"></i> Developer tools</h3>
+            <p class="panel-intro">Languages and version managers pile up: two of them managing Node, a command that resolves to the wrong copy, a <code>PATH</code> entry that points nowhere. <code>omega dev</code> shows what is installed and who installed it, and fixes what you pick. On both systems.</p>
+            <div class="split">
+              <dl class="deflist">
+                <div><dt>dev status</dt><dd>What is installed, by which manager, and what stands out: overlapping version managers, shadowed commands, a broken <code>PATH</code>, shell startup time</dd></div>
+                <div><dt>dev install</dt><dd>Pick from a card or name the tools: more than 70 languages, version managers and command-line tools, installed with Homebrew or your distribution's packages</dd></div>
+                <div><dt>dev activate</dt><dd>Adds the line a tool needs to <code>~/.zshrc</code>, or <code>~/.bashrc</code> for bash, after saving a copy of the file</dd></div>
+                <div><dt>dev</dt><dd>The guided review: the agent reads the inventory, explains each finding and applies what you approve</dd></div>
+              </dl>
+              <figure class="terminal" aria-label="Findings from omega dev status">
+                <div class="terminal-bar"><span></span><span></span><span></span><p>omega dev status</p></div>
+                <div class="terminal-body">
+                  <p><span class="t-accent">Findings</span></p>
+                  <p><span class="t-warn">!</span> node is managed by nvm and mise</p>
+                  <p><span class="t-warn">!</span> python3 resolves to /usr/bin before Homebrew</p>
+                  <p><span class="t-warn">!</span> PATH has 2 folders that do not exist</p>
+                  <p><span class="t-warn">!</span> zoxide is installed but not activated</p>
+                  <p class="t-gap t-muted">shell starts in 0.41 s</p>
+                  <p class="t-gap"><span class="t-strong">omega dev</span>           <span class="t-muted">guided fix</span></p>
+                  <p><span class="t-strong">omega dev activate</span>  <span class="t-muted">shell lines</span></p>
+                  <p><span class="t-strong">omega dev install</span>   <span class="t-muted">add tools</span></p>
+                </div>
+                <figcaption class="sr-only">An illustration of what omega dev status reports: node managed by two version managers, python3 resolving to the system copy, PATH folders that do not exist and a tool that is not activated.</figcaption>
+              </figure>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Interface -->
+    <section class="section reveal" id="interface" aria-labelledby="interface-title">
+      <div class="container">
+        <div class="section-head">
+          <p class="kicker">Interface</p>
+          <h2 class="section-title" id="interface-title">Inside the terminal</h2>
+          <p class="section-sub">A full screen interface: tool calls as they happen, a session panel with steps, disk and cost, and a card for every decision.</p>
+        </div>
         <div class="gallery">
-          <figure class="shot">
-            <img src="assets/confirm.png" width="1280" height="820" loading="lazy" alt="omega diagnoses a failed pipx upgrade, switches to a stronger model and asks before reinstalling">
-            <figcaption>A failure is diagnosed on a stronger model, then the fix waits for your approval.</figcaption>
+          <figure class="shot shot-wide">
+            <img src="assets/confirm.png" width="1280" height="820" loading="lazy" alt="omega diagnoses a failed pipx upgrade, switches to a stronger model and asks before reinstalling; a session panel on the right shows steps, disk and tokens">
+            <figcaption>A failure is diagnosed on a stronger model, then the fix waits for your approval. The panel on the right follows the session.</figcaption>
           </figure>
           <figure class="shot">
             <img src="assets/card.png" width="1280" height="820" loading="lazy" alt="A selection card with three cleanup actions ticked and the space each one frees">
             <figcaption>Recommendations on a card: tick what you want, omega does exactly that.</figcaption>
           </figure>
           <figure class="shot">
-            <img src="assets/model.png" width="1280" height="560" loading="lazy" alt="The model picker with Automatic recommended and the price of each model">
-            <figcaption>Automatic model choice by default, with prices for every option.</figcaption>
+            <img src="assets/menu.png" width="1280" height="820" loading="lazy" alt="The home screen: disk space, model and every omega command grouped by area">
+            <figcaption>The home screen lists every command. Enter opens or runs, typing searches.</figcaption>
           </figure>
           <figure class="shot">
             <img src="assets/docker-confirm.png" width="1280" height="820" loading="lazy" alt="A Docker build cache cleanup that always asks for confirmation">
             <figcaption>Docker cleanups always ask, even when everything else is approved.</figcaption>
           </figure>
-        </div>
-        <p class="section-sub center gallery-note">Recorded from the <code>omega</code> binary by <code>scripts/capture.sh</code> (<code>omega --demo</code> and a local test model; no paid API). <a href="assets/shortcuts.cast">This short asciinema</a> shows <kbd>?</kbd>, Esc and a denial.</p>
-        <div class="cast">
-          <asciinema-player src="assets/shortcuts.cast" cols="100" rows="32" preload="true" title="omega: help, Esc and a denial"></asciinema-player>
-        </div>
-      </div>
-    </section>
-
-    <!-- Keyboard -->
-    <section class="section reveal" id="keys" aria-labelledby="keys-title">
-      <div class="container">
-        <h2 class="section-title" id="keys-title">Drive it from the keyboard</h2>
-        <p class="section-sub">The shortcuts you know from other AI tools in the terminal. Change how much omega may do, or which model it uses, without stopping the run.</p>
-        <div class="keys">
-          <div class="card keys-list">
-            <h3 class="card-title"><i class="ph ph-keyboard" aria-hidden="true"></i> Shortcuts</h3>
-            <dl>
-              <div><dt><kbd>?</kbd></dt><dd>Show or hide the shortcut card, without leaving the run</dd></div>
-              <div><dt><kbd>shift</kbd> <kbd>tab</kbd></dt><dd>Cycle the approval mode: asks before risky actions, auto approve, read only</dd></div>
-              <div><dt><kbd>ctrl</kbd> <kbd>p</kbd></dt><dd>Switch to the next model of the run, from the next turn</dd></div>
-              <div><dt><kbd>ctrl</kbd> <kbd>o</kbd></dt><dd>Expand or collapse the output of every tool call</dd></div>
-              <div><dt><kbd>ctrl</kbd> <kbd>b</kbd></dt><dd>Show or hide the session panel: steps done and failed, disk space freed, tokens and activity</dd></div>
-              <div><dt><kbd>ctrl</kbd> <kbd>y</kbd></dt><dd>Copy the focused tool output to the clipboard</dd></div>
-              <div><dt><kbd>ctrl</kbd> <kbd>f</kbd></dt><dd>Search the transcript. Enter jumps to the next match, Ctrl+P to the previous</dd></div>
-              <div><dt><kbd>/</kbd></dt><dd>Open the command menu. <code>/update</code>, <code>/clean</code>, <code>/dev</code>, <code>/disk</code>, <code>/models</code>, <code>/undo</code> and twenty-one more start another task in the same session</dd></div>
-              <div><dt><kbd>ctrl</kbd> <kbd>c</kbd></dt><dd>Cancel the run</dd></div>
-            </dl>
-          </div>
-          <figure class="terminal keys-demo" aria-label="The command menu under the input box">
-            <div class="terminal-bar"><span></span><span></span><span></span><p>omega · commands</p></div>
-            <div class="terminal-body">
-              <p class="k-input"><span class="t-muted">›</span> /mo<span class="k-caret" aria-hidden="true"></span></p>
-              <p><span class="t-accent">❯ /mode [ask|auto|readonly]</span>  <span class="t-muted">approval mode</span></p>
-              <p>  /model [name]              <span class="t-muted">switch model</span></p>
-              <p class="k-status"><span class="t-warn">⏵⏵ auto approve</span> <span class="t-muted">(shift+tab)</span></p>
-              <dl class="k-cmds">
-                <div><dt>/help</dt><dd>all commands</dd></div>
-                <div><dt>/mode</dt><dd>approval mode</dd></div>
-                <div><dt>/model</dt><dd>switch model</dd></div>
-                <div><dt>/clean</dt><dd>start a cleanup</dd></div>
-                <div><dt>/install</dt><dd>developer tools</dd></div>
-                <div><dt>/undo</dt><dd>revert a Mac change</dd></div>
-                <div><dt>/exit</dt><dd>end the session</dd></div>
-              </dl>
-            </div>
-            <figcaption class="sr-only">Typing /mo shows /mode and /model with their descriptions; Tab completes and Enter runs the highlighted command.</figcaption>
+          <figure class="shot">
+            <img src="assets/model.png" width="1280" height="560" loading="lazy" alt="The model picker listing the models a provider offers">
+            <figcaption>Pick a model from a card, or leave the choice to omega.</figcaption>
+          </figure>
+          <figure class="shot">
+            <img src="assets/summary.png" width="1280" height="820" loading="lazy" alt="The summary at the end of a session: what was updated, what was freed and what failed">
+            <figcaption>Every session ends with what changed, what it freed and what it cost.</figcaption>
           </figure>
         </div>
-      </div>
-    </section>
+        <p class="note">Recorded from the <code>omega</code> binary by <code>scripts/capture.sh</code>, with <code>omega --demo</code> and a local test model; no paid API.</p>
 
-    <!-- Your Mac -->
-    <section class="section reveal" id="mac" aria-labelledby="mac-title">
-      <div class="container">
-        <p class="eyebrow section-eyebrow"><i class="ph ph-apple-logo" aria-hidden="true"></i> macOS only</p>
-        <h2 class="section-title" id="mac-title">Your Mac, back on your terms</h2>
-        <p class="section-sub">Apps add themselves to login, keep helpers running in the background, fill the menu bar, grab shortcuts other apps already use and leave permissions and files behind when they go. <code>omega mac</code> reviews all of it with your rules and sensible defaults, asks you on cards and applies only what you pick. Every change can be undone.</p>
-        <div class="keys">
-          <div class="card keys-list">
-            <h3 class="card-title"><i class="ph ph-sliders" aria-hidden="true"></i> Seven areas, one review</h3>
-            <dl>
-              <div><dt><code>login</code></dt><dd>Apps that open at login: updaters and apps you open when needed go, VPN, security and sync stay</dd></div>
-              <div><dt><code>background</code></dt><dd>Launch agents, daemons and app helpers allowed in the background, including leftovers of uninstalled apps</dd></div>
-              <div><dt><code>menubar</code></dt><dd>Menu bar apps: quit them, stop them at login, or hide them with Bartender, Ice or Thaw</dd></div>
-              <div><dt><code>dock</code></dt><dd>Apps no longer installed or not opened in 90 days, and the Dock settings you prefer</dd></div>
-              <div><dt><code>shortcuts</code></dt><dd>Who keeps each contested shortcut; the others move to a free one</dd></div>
-              <div><dt><code>permissions</code></dt><dd>Privacy &amp; Security entries whose binary or app is gone, each named with its version so the copies can be told apart</dd></div>
-              <div><dt><code>apps</code></dt><dd>Apps not opened in 180 days, apps built only for Intel, and what removed apps left in <code>~/Library</code>. Removals go to the Trash</dd></div>
-            </dl>
-          </div>
-          <figure class="terminal keys-demo" aria-label="A shortcut conflict card">
-            <div class="terminal-bar"><span></span><span></span><span></span><p>omega mac shortcuts</p></div>
-            <div class="terminal-body">
-              <p><span class="t-accent">Who keeps ⌥Space?</span></p>
-              <p><span class="t-accent">❯ ◉ Alfred · Show Alfred</span>  <span class="t-muted">suggested</span></p>
-              <p>  ○ ChatGPT · Open the ChatGPT launcher</p>
-              <p>  ○ Claude · Quick Entry</p>
-              <p>  ○ Nobody: turn it off for all of them</p>
-              <p class="k-status"><span class="t-muted">the others get a free shortcut</span></p>
-              <dl class="k-cmds">
-                <div><dt>ChatGPT</dt><dd>→ ⌃⌥Space</dd></div>
-                <div><dt>Claude</dt><dd>→ ⌥⇧⌘Space</dd></div>
-                <div><dt>undo</dt><dd>omega mac undo</dd></div>
-              </dl>
+        <h3 class="subhead">Drive it from the keyboard</h3>
+        <div class="split">
+          <dl class="deflist keys">
+            <div><dt><kbd>?</kbd></dt><dd>Show or hide the shortcut card, without leaving the run</dd></div>
+            <div><dt><kbd>shift</kbd> <kbd>tab</kbd></dt><dd>Cycle the approval mode: asks before risky actions, auto approve, read only</dd></div>
+            <div><dt><kbd>ctrl</kbd> <kbd>p</kbd></dt><dd>Switch to the next model of the run, from the next turn</dd></div>
+            <div><dt><kbd>ctrl</kbd> <kbd>b</kbd></dt><dd>Show or hide the session panel</dd></div>
+            <div><dt><kbd>ctrl</kbd> <kbd>o</kbd></dt><dd>Expand or collapse the output of every tool call</dd></div>
+            <div><dt><kbd>ctrl</kbd> <kbd>f</kbd></dt><dd>Search the transcript</dd></div>
+            <div><dt><kbd>ctrl</kbd> <kbd>y</kbd></dt><dd>Copy the focused tool output</dd></div>
+            <div><dt><kbd>ctrl</kbd> <kbd>c</kbd></dt><dd>Cancel the run and leave</dd></div>
+          </dl>
+          <div>
+            <div class="slash" aria-label="Slash commands">
+              <code>/update</code><code>/clean</code><code>/analyze</code><code>/tune</code><code>/fix</code><code>/docker</code><code>/dev</code><code>/install</code><code>/disk</code><code>/logs</code><code>/shell</code><code>/steps</code><code>/mac</code><code>/permissions</code><code>/apps</code><code>/login</code><code>/dock</code><code>/shortcuts</code><code>/undo</code><code>/models</code><code>/settings</code><code>/notes</code><code>/history</code><code>/doctor</code><code>/mode</code><code>/model</code><code>/help</code>
             </div>
-            <figcaption class="sr-only">ChatGPT, Claude and Alfred all want Option Space. omega suggests Alfred, moves the others to free shortcuts and remembers the choice.</figcaption>
-          </figure>
-        </div>
-      </div>
-    </section>
-
-    <!-- Linux -->
-    <section class="section reveal" id="linux" aria-labelledby="linux-title">
-      <div class="container">
-        <p class="eyebrow section-eyebrow"><i class="ph ph-linux-logo" aria-hidden="true"></i> Debian, Ubuntu, Fedora, Arch, openSUSE and relatives</p>
-        <h2 class="section-title" id="linux-title">The same agent on Linux</h2>
-        <p class="section-sub">On Linux omega knows which distribution it runs on and uses its package manager, not a Mac's. The steps that need <code>sudo</code> wait for your approval and ask for the password inside the interface.</p>
-        <div class="keys">
-          <div class="card keys-list">
-            <h3 class="card-title"><i class="ph ph-package" aria-hidden="true"></i> What it looks after</h3>
-            <dl>
-              <div><dt>System packages</dt><dd>Check, update and clean with <code>apt</code>, <code>dnf</code>, <code>pacman</code> or <code>zypper</code>, including orphaned packages and the package cache</dd></div>
-              <div><dt>Flatpak and snap</dt><dd>Updates, unused runtimes and old snap revisions</dd></div>
-              <div><dt>Journal and disk</dt><dd>Failed units, errors since boot, core dumps, the size of the journal, <code>~/.cache</code> and the Trash</dd></div>
-              <div><dt>API keys</dt><dd>In the system keyring (GNOME Keyring, KWallet) or, on a server with none, in a file only you can read. omega says which</dd></div>
-              <div><dt>Developer tools</dt><dd>The same 46 steps as on a Mac, and <code>omega dev install</code> with your distribution's packages, for zsh and bash</dd></div>
-              <div><dt>Homebrew</dt><dd>With Homebrew on Linux, the <code>brew</code> steps work as they do on a Mac</dd></div>
-            </dl>
+            <p class="slash-note">Type <kbd>/</kbd> in the input box for the command menu: each of these starts another task in the same session, with a description as you type.</p>
+            <details class="cast">
+              <summary><i class="ph ph-play-circle" aria-hidden="true"></i> Watch a recorded session: help, Esc and a denial</summary>
+              <asciinema-player src="assets/shortcuts.cast" cols="100" rows="32" preload="true" title="omega: help, Esc and a denial"></asciinema-player>
+            </details>
           </div>
-          <figure class="terminal keys-demo" aria-label="omega steps on Ubuntu">
-            <div class="terminal-bar"><span></span><span></span><span></span><p>omega steps · Ubuntu 24.04</p></div>
-            <div class="terminal-body">
-              <p><span class="t-accent">CHECKS</span></p>
-              <p><span class="t-ok">✓</span> disk             <span class="t-muted">read-only</span></p>
-              <p><span class="t-ok">✓</span> apt-outdated     <span class="t-muted">read-only</span></p>
-              <p><span class="t-ok">✓</span> snap-outdated    <span class="t-muted">read-only</span></p>
-              <p><span class="t-ok">✓</span> journal-size     <span class="t-muted">read-only</span></p>
-              <p><span class="t-ok">✓</span> system-logs      <span class="t-muted">read-only</span></p>
-              <p><span class="t-accent">UPDATES</span></p>
-              <p><span class="t-ok">✓</span> apt              <span class="t-warn">dangerous</span></p>
-              <p><span class="t-ok">✓</span> snap             <span class="t-warn">dangerous</span></p>
-              <p><span class="t-accent">CLEANUP</span></p>
-              <p><span class="t-ok">✓</span> apt-clean        <span class="t-warn">dangerous</span></p>
-              <p><span class="t-ok">✓</span> apt-autoremove   <span class="t-warn">dangerous</span></p>
-              <p><span class="t-ok">✓</span> journal-vacuum   <span class="t-warn">dangerous</span></p>
-            </div>
-            <figcaption class="sr-only">A selection of the steps omega detects on Ubuntu 24.04: disk, outdated apt packages and snaps, journal size and system logs as read-only checks, and the apt and snap updates and cleanups marked dangerous because they use sudo. Taken from a run on a GitHub Ubuntu runner, with the developer-tool steps left out.</figcaption>
-          </figure>
-        </div>
-        <ul class="facts">
-          <li><i class="ph ph-apple-logo" aria-hidden="true"></i> The Mac review (omega mac) and the Mac-only steps do not exist on Linux, and say so</li>
-          <li><i class="ph ph-cube" aria-hidden="true"></i> Without apt, dnf, pacman or zypper (Alpine, NixOS, Void) the system-package steps do not appear</li>
-          <li><i class="ph ph-lock-simple" aria-hidden="true"></i> Immutable systems such as Fedora Silverblue are not adapted yet</li>
-          <li><i class="ph ph-windows-logo" aria-hidden="true"></i> Windows is not supported: the binaries start, but there are no Windows steps</li>
-        </ul>
-      </div>
-    </section>
-
-    <!-- Developer tools -->
-    <section class="section reveal" id="dev" aria-labelledby="dev-title">
-      <div class="container">
-        <h2 class="section-title" id="dev-title">A toolchain that stays in order</h2>
-        <p class="section-sub">Languages and version managers pile up: two of them managing Node, a command that resolves to the wrong copy, a <code>PATH</code> entry that points nowhere. <code>omega dev</code> shows what is installed and who installed it, and fixes what you pick.</p>
-        <div class="keys">
-          <div class="card keys-list">
-            <h3 class="card-title"><i class="ph ph-terminal-window" aria-hidden="true"></i> Four commands</h3>
-            <dl>
-              <div><dt><code>dev status</code></dt><dd>What is installed, by which manager, and what stands out: overlapping version managers, shadowed commands, a broken <code>PATH</code>, shell startup time</dd></div>
-              <div><dt><code>dev install</code></dt><dd>Pick from a card or name the tools. More than 70 languages, version managers and command-line tools</dd></div>
-              <div><dt><code>dev activate</code></dt><dd>Adds the line a tool needs to <code>~/.zshrc</code>, or <code>~/.bashrc</code> for bash, after saving a copy of the file</dd></div>
-              <div><dt><code>dev</code></dt><dd>The guided review: the agent reads the inventory, explains each finding and applies what you approve</dd></div>
-            </dl>
-          </div>
-          <figure class="terminal keys-demo" aria-label="Findings from omega dev status">
-            <div class="terminal-bar"><span></span><span></span><span></span><p>omega dev status</p></div>
-            <div class="terminal-body">
-              <p><span class="t-accent">Findings</span></p>
-              <p><span class="t-warn">!</span> node is managed by nvm and mise</p>
-              <p><span class="t-warn">!</span> python3 resolves to /usr/bin before Homebrew</p>
-              <p><span class="t-warn">!</span> PATH has 2 folders that do not exist</p>
-              <p><span class="t-warn">!</span> zoxide is installed but not activated</p>
-              <p class="k-status"><span class="t-muted">shell starts in 0.41 s</span></p>
-              <dl class="k-cmds">
-                <div><dt>dev</dt><dd>guided fix</dd></div>
-                <div><dt>dev activate</dt><dd>shell lines</dd></div>
-                <div><dt>dev install</dt><dd>add tools</dd></div>
-              </dl>
-            </div>
-            <figcaption class="sr-only">omega dev status reports that node is managed by two version managers, that python3 resolves to the system copy, that PATH has folders that do not exist and that zoxide is not activated.</figcaption>
-          </figure>
         </div>
       </div>
     </section>
@@ -498,116 +487,129 @@ omega mac      # macOS</code></pre>
     <!-- Safety -->
     <section class="section reveal" id="safety" aria-labelledby="safety-title">
       <div class="container">
-        <h2 class="section-title" id="safety-title">Four risk levels.<br> You decide on the ones that matter.</h2>
-        <p class="section-sub">Compound commands are split and checked part by part. The highest risk wins.</p>
-        <div class="risk-grid">
-          <article class="card risk">
+        <div class="section-head">
+          <p class="kicker">Safety</p>
+          <h2 class="section-title" id="safety-title">Four risk levels. You decide on the ones that matter.</h2>
+          <p class="section-sub">Compound commands are split and checked part by part, through wrappers such as <code>env</code>, <code>sudo</code> and <code>sh -c</code>. The highest risk wins.</p>
+        </div>
+        <div class="grid grid-4">
+          <article class="card risk risk-ok">
             <p class="risk-label"><i class="ph ph-eye" aria-hidden="true"></i> Read only</p>
             <p class="risk-rule">Runs straight away</p>
-            <code>brew outdated</code><code>df -h</code><code>topgrade --dry-run</code>
+            <p class="risk-cmds"><code>brew outdated</code><code>df -h</code><code>apt list --upgradable</code></p>
           </article>
-          <article class="card risk">
+          <article class="card risk risk-ok">
             <p class="risk-label"><i class="ph ph-arrows-clockwise" aria-hidden="true"></i> Normal</p>
             <p class="risk-rule">Runs straight away</p>
-            <code>brew upgrade</code><code>npm update -g</code><code>rustup update</code>
+            <p class="risk-cmds"><code>brew upgrade</code><code>npm update -g</code><code>rustup update</code></p>
           </article>
           <article class="card risk risk-warn">
             <p class="risk-label"><i class="ph ph-hand" aria-hidden="true"></i> Dangerous</p>
-            <p class="risk-rule">Waits for your approval. Docker cleanups ask every time.</p>
-            <code>rm</code><code>sudo</code><code>docker … prune</code>
+            <p class="risk-rule">Waits for your approval. Docker cleanups ask every time</p>
+            <p class="risk-cmds"><code>rm</code><code>sudo</code><code>docker … prune</code></p>
           </article>
           <article class="card risk risk-block">
             <p class="risk-label"><i class="ph ph-prohibit" aria-hidden="true"></i> Blocked</p>
-            <p class="risk-rule">Never runs, even with --yes</p>
-            <code>rm -rf ~</code><code>diskutil erase</code><code>curl … | sh</code>
+            <p class="risk-rule">Never runs, even with <code>--yes</code></p>
+            <p class="risk-cmds"><code>rm -rf ~</code><code>diskutil erase</code><code>curl … | sh</code></p>
           </article>
         </div>
         <ul class="facts">
+          <li><i class="ph ph-key" aria-hidden="true"></i> The agent cannot read your API keys: not from the keychain, a key file or an environment variable</li>
+          <li><i class="ph ph-lock" aria-hidden="true"></i> It cannot change the provider or lower its own approval policy</li>
           <li><i class="ph ph-keyboard" aria-hidden="true"></i> Commands run with stdin closed, so nothing hangs on a hidden prompt</li>
           <li><i class="ph ph-floppy-disk" aria-hidden="true"></i> Config edits show a diff and keep a timestamped backup</li>
           <li><i class="ph ph-file-text" aria-hidden="true"></i> Every run is logged, including what you approved and denied</li>
-          <li><i class="ph ph-key" aria-hidden="true"></i> Private keys and credential files are never sent to the model</li>
-          <li><i class="ph ph-lock" aria-hidden="true"></i> The agent cannot read your API keys, change the provider or lower its own approval policy</li>
+          <li><i class="ph ph-arrow-counter-clockwise" aria-hidden="true"></i> Changes to your Mac are recorded and can be undone one by one</li>
         </ul>
       </div>
     </section>
 
-    <!-- Providers -->
-    <section class="section reveal" id="providers" aria-labelledby="providers-title">
+    <!-- Models -->
+    <section class="section reveal" id="models" aria-labelledby="models-title">
       <div class="container">
-        <h2 class="section-title" id="providers-title">The model you trust, at the size the job needs</h2>
-        <p class="section-sub">Automatic by default: a fast model for routine work, a stronger one when something fails. Which two is decided from live data: once a day omega reads public list prices and benchmark scores and picks by score per dollar among the models your key can use. <code>omega models</code> shows the table. Pin any model with <code>omega model</code>, or switch mid-run with <kbd>ctrl</kbd> <kbd>p</kbd>.</p>
-        <figure class="terminal models-demo" aria-label="The model table from omega models">
-          <div class="terminal-bar"><span></span><span></span><span></span><p>omega models</p></div>
-          <div class="terminal-body">
+        <div class="section-head">
+          <p class="kicker">Models</p>
+          <h2 class="section-title" id="models-title">The model you trust, at the size the job needs</h2>
+          <p class="section-sub">Automatic by default: a fast model for routine work, a stronger one when something fails. Pin any model with <code>omega model</code>, or switch mid-run with <kbd>ctrl</kbd> <kbd>p</kbd>.</p>
+        </div>
+        <div class="split">
+          <div>
+            <h3 class="card-title">Picked from live data, once a day</h3>
+            <p class="panel-intro" style="margin-bottom:0">omega reads public list prices and benchmark scores, keeps the models your key can use and picks two.</p>
+            <ul class="rule">
+              <li><strong>Fast</strong>, for routine work: the best score per dollar among models with at least 40% of the best score. Price weighs most.</li>
+              <li><strong>Smart</strong>, when a step fails: the best value among models within 20% of the best score. Score weighs most.</li>
+              <li>A pick changes only when another model beats it by more than 10%, so two close models do not alternate.</li>
+              <li><code>omega models</code> shows the table. <code>omega config set model_catalog off</code> stops the download.</li>
+            </ul>
+          </div>
+          <figure class="terminal" aria-label="The model table from omega models">
+            <div class="terminal-bar"><span></span><span></span><span></span><p>omega models</p></div>
+            <div class="terminal-body">
 <pre><span class="t-muted">  model              score   in  out $/M</span>
   claude-fable-5-2    64.6   $8  $40
   claude-opus-5-5     59.1   $4  $20
 <span class="t-accent">▸ claude-sonnet-5-5   54.5   $2  $10  smart</span>
   claude-fable-5-1    50.0  $10  $50
 <span class="t-accent">▸ claude-haiku-5-5    36.5 $0.1 $0.5  fast</span></pre>
-          </div>
-          <figcaption class="sr-only">omega models lists each model with its benchmark score and price per million tokens, and marks claude-haiku-5-5 as the fast pick and claude-sonnet-5-5 as the smart pick. Figures of 10 November 2026.</figcaption>
-        </figure>
-        <div class="grid grid-3">
+            </div>
+            <figcaption class="sr-only">omega models lists each model with its benchmark score and price per million tokens, and marks claude-haiku-5-5 as the fast pick and claude-sonnet-5-5 as the smart pick. Figures of 10 November 2026.</figcaption>
+          </figure>
+        </div>
+        <div class="grid grid-3" style="margin-top:var(--s-7)">
           <article class="card provider">
             <span class="provider-logo"><svg class="logo" aria-hidden="true"><use href="#logo-anthropic"/></svg></span>
-            <h3 class="card-title">Anthropic</h3>
-            <p>Official Go SDK with conversation caching.</p>
-            <code>claude-haiku-5-5 → claude-sonnet-5-5</code>
+            <div><h3>Anthropic</h3><p>Official Go SDK with conversation caching.</p></div>
           </article>
           <article class="card provider">
             <span class="provider-logo"><svg class="logo" aria-hidden="true"><use href="#logo-openai"/></svg></span>
-            <h3 class="card-title">OpenAI</h3>
-            <p>Chat Completions with tool calling. The two models are picked from today's list.</p>
-            <code>omega models openai</code>
+            <div><h3>OpenAI</h3><p>Chat Completions with tool calling.</p></div>
           </article>
           <article class="card provider">
             <span class="provider-logo"><svg class="logo" aria-hidden="true"><use href="#logo-openrouter"/></svg></span>
-            <h3 class="card-title">OpenRouter</h3>
-            <p>Hundreds of models behind one key, compared across vendors.</p>
-            <code>omega models openrouter</code>
+            <div><h3>OpenRouter</h3><p>Hundreds of models behind one key, compared across vendors.</p></div>
           </article>
           <article class="card provider">
             <span class="provider-logo"><svg class="logo" aria-hidden="true"><use href="#logo-opencode"/></svg></span>
-            <h3 class="card-title">OpenCode Zen</h3>
-            <p>Claude, Qwen, GLM, Kimi and more.</p>
-            <code>omega models opencode</code>
+            <div><h3>OpenCode Zen</h3><p>Claude, Qwen, GLM, Kimi and more.</p></div>
           </article>
           <article class="card provider">
-            <span class="provider-logo"><svg class="logo" aria-hidden="true"><use href="#logo-ollama"/></svg><svg class="logo" aria-hidden="true"><use href="#logo-lmstudio"/></svg></span>
-            <h3 class="card-title">Ollama and LM Studio</h3>
-            <p>Fully local and free. Nothing leaves your machine but the docs it reads.</p>
-            <code>qwen3:14b · any model with tools</code>
+            <span class="provider-logo"><svg class="logo" aria-hidden="true"><use href="#logo-ollama"/></svg></span>
+            <div><h3>Ollama and LM Studio</h3><p>Fully local and free. Nothing leaves your machine but the docs it reads.</p></div>
           </article>
           <article class="card provider">
             <span class="provider-logo"><i class="ph ph-plugs-connected" aria-hidden="true"></i></span>
-            <h3 class="card-title">Any compatible endpoint</h3>
-            <p>MLX, llama.cpp, vLLM or a company gateway through a base URL.</p>
-            <code>provider = "custom"</code>
+            <div><h3>Any compatible endpoint</h3><p>MLX, llama.cpp, vLLM or a company gateway through a base URL.</p></div>
           </article>
         </div>
       </div>
     </section>
 
-    <!-- Proof -->
-    <section class="section reveal" id="proof" aria-labelledby="proof-title">
+    <!-- Numbers -->
+    <section class="section reveal" id="open" aria-labelledby="open-title">
       <div class="container">
-        <h2 class="section-title" id="proof-title">Built in the open</h2>
+        <div class="section-head">
+          <p class="kicker">Open source</p>
+          <h2 class="section-title" id="open-title">Built in the open</h2>
+          <p class="section-sub">Read every line before you run it: <a class="link" href="https://github.com/lcajigasm/omega">github.com/lcajigasm/omega</a></p>
+        </div>
         <div class="stats">
-          <div class="stat"><p class="stat-num">43</p><p class="stat-label">maintenance steps, from Homebrew to Docker</p></div>
-          <div class="stat"><p class="stat-num">12</p><p class="stat-label">narrow tools the agent can use, nothing more</p></div>
+          <div class="stat"><p class="stat-num">90</p><p class="stat-label">maintenance steps on Linux, 78 on macOS</p></div>
+          <div class="stat"><p class="stat-num">25</p><p class="stat-label">narrow tools the agent can use, nothing more</p></div>
           <div class="stat"><p class="stat-num">5</p><p class="stat-label">interface languages, checked by tests</p></div>
           <div class="stat"><p class="stat-num">&lt;1¢</p><p class="stat-label">for a typical run on the automatic model</p></div>
         </div>
-        <p class="section-sub center">Read every line before you run it: <a href="https://github.com/lcajigasm/omega">github.com/lcajigasm/omega</a></p>
       </div>
     </section>
 
     <!-- FAQ -->
     <section class="section reveal" id="faq" aria-labelledby="faq-title">
-      <div class="container narrow">
-        <h2 class="section-title" id="faq-title">Questions</h2>
+      <div class="container">
+        <div class="section-head">
+          <p class="kicker">FAQ</p>
+          <h2 class="section-title" id="faq-title">Questions</h2>
+        </div>
         <div class="faq">
           <details><summary><span>Does omega replace topgrade and Mole?</span></summary><p>For a typical developer machine, yes. omega has its own steps for Homebrew, the Mac App Store and macOS on a Mac, for apt, dnf, pacman, zypper, Flatpak and snap on Linux, and on both for npm, pnpm, bun, pipx, uv, rustup, cargo, gh extensions, Oh My Zsh, caches, Docker and the Trash. If topgrade or Mole are installed, it also uses them and can fix their configuration with <code>omega fix</code>.</p></details>
           <details><summary><span>What does omega send to the AI provider?</span></summary><p>Its instructions, the trimmed output of the commands it runs and the configuration files it reads. It is instructed never to open your documents. Every run is logged to <code>~/.local/state/omega/runs</code>. <code>omega logs</code> lists those transcripts and <code>omega logs view</code> prints one. omega keeps the newest 30.</p></details>
@@ -634,23 +636,33 @@ omega mac      # macOS</code></pre>
       </div>
     </section>
 
-    <!-- Final CTA -->
+    <!-- Install -->
     <section class="section final reveal" id="install" aria-labelledby="final-title">
-      <div class="container narrow center">
-        <h2 class="section-title" id="final-title">Start with a report that changes nothing</h2>
-        <p class="section-sub">Free and open source under the MIT license. <code>omega analyze</code> is read only, so you can see what it would do before you let it do anything.</p>
-        <div class="install">
-          <code class="install-cmd">brew install lcajigasm/tap/omega</code>
-          <button class="btn btn-primary copy-btn" type="button" data-copy="brew install lcajigasm/tap/omega">
-            <i class="ph ph-copy" aria-hidden="true"></i><span class="copy-label">Copy install command</span>
-          </button>
+      <div class="container">
+        <div class="section-head">
+          <p class="kicker">Install</p>
+          <h2 class="section-title" id="final-title">Start with a report that changes nothing</h2>
+          <p class="section-sub">Free and open source under the MIT license. <code>omega analyze</code> is read only, so you can see what it would do before you let it do anything.</p>
         </div>
-        <p class="copy-status" role="status" aria-live="polite"></p>
-        <p class="section-sub">That command is for macOS, and for Linux with Homebrew. On Linux without it, take the archive for your architecture from <a href="https://github.com/lcajigasm/omega/releases/latest">GitHub Releases</a>:</p>
-        <pre class="install-steps"><code>tar -xzf omega_*_linux_amd64.tar.gz        # or linux_arm64
+        <div class="get">
+          <article class="card">
+            <h3 class="card-title"><i class="ph ph-beer-bottle" aria-hidden="true"></i> Homebrew, on macOS and Linux</h3>
+            <pre><code>brew install lcajigasm/tap/omega
+omega setup
+omega analyze</code></pre>
+            <p>Update later with <code>brew update &amp;&amp; brew upgrade omega</code>. The previous tap, <code>lcajigasm/omega/omega</code>, still works.</p>
+            <button class="btn btn-primary copy-btn" type="button" data-copy="brew install lcajigasm/tap/omega"><i class="ph ph-copy" aria-hidden="true"></i><span class="copy-label">Copy install command</span></button>
+          </article>
+          <article class="card">
+            <h3 class="card-title"><i class="ph ph-linux-logo" aria-hidden="true"></i> Linux without Homebrew</h3>
+            <pre><code>tar -xzf omega_*_linux_amd64.tar.gz   # or linux_arm64
 sha256sum -c SHA256SUMS --ignore-missing
 sudo install -m 755 omega /usr/local/bin/omega</code></pre>
-        <p class="section-sub">Every release has archives for macOS and Linux, amd64 and arm64, with checksums. Windows archives are published too, but Windows is not supported.</p>
+            <p>Every release has archives for macOS and Linux, amd64 and arm64, with checksums. Windows archives are published too, but Windows is not supported.</p>
+            <a class="btn btn-ghost" href="https://github.com/lcajigasm/omega/releases/latest"><i class="ph ph-download-simple" aria-hidden="true"></i> Download from GitHub Releases</a>
+          </article>
+        </div>
+        <p class="copy-status" role="status" aria-live="polite"></p>
       </div>
     </section>
   </main>
@@ -669,6 +681,6 @@ sudo install -m 755 omega /usr/local/bin/omega</code></pre>
     </div>
   </footer>
 
-  <script src="main.js"></script>
+  <script src="main.js?v=16"></script>
 </body>
 </html>
