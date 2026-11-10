@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Check that both Homebrew taps install the version of a release tag.
+"""Check that lcajigasm/homebrew-tap installs the version of a release tag.
 
 Reads Formula/omega.rb from the public GitHub API. No token is sent.
-The taps refresh themselves about once an hour, so a mismatch is retried
-every five minutes until 75 minutes have passed, then the command fails.
+The release workflow opens a pull request with the new formula, so a
+mismatch is retried every five minutes until 75 minutes have passed,
+then the command fails. --deadline 0 checks once and fails immediately.
 """
 
 import argparse
@@ -15,7 +16,7 @@ import time
 import urllib.error
 import urllib.request
 
-TAPS = ("lcajigasm/homebrew-omega", "lcajigasm/homebrew-tap")
+TAP = "lcajigasm/homebrew-tap"
 INTERVAL = 5 * 60
 DEADLINE = 75 * 60
 API = "https://api.github.com/repos/{repo}/contents/Formula/omega.rb"
@@ -79,18 +80,17 @@ def fetch_formula(repo):
 
 def check_once(expected):
     problems = []
-    for repo in TAPS:
-        try:
-            got = versions_in(fetch_formula(repo))
-        except TapError as err:
-            problems.append(f"{repo}: {err}")
-            print(f"{repo}: {err}", flush=True)
-            continue
-        if got != expected:
-            problems.append(f"{repo}: {got}, want {expected}")
-            print(f"{repo}: {got}, want {expected}", flush=True)
-        else:
-            print(f"{repo}: {got}", flush=True)
+    try:
+        got = versions_in(fetch_formula(TAP))
+    except TapError as err:
+        problems.append(f"{TAP}: {err}")
+        print(f"{TAP}: {err}", flush=True)
+        return problems
+    if got != expected:
+        problems.append(f"{TAP}: {got}, want {expected}")
+        print(f"{TAP}: {got}, want {expected}", flush=True)
+    else:
+        print(f"{TAP}: {got}", flush=True)
     return problems
 
 
@@ -109,12 +109,22 @@ def main(argv=None):
         print(f"attempt {attempt} at +{elapsed}s, want {expected}", flush=True)
         problems = check_once(expected)
         if not problems:
-            print("both taps match", flush=True)
+            print("tap matches", flush=True)
             return 0
         remaining = args.deadline - (time.monotonic() - started)
         if remaining <= 0:
+            # ::error:: is the Actions annotation. The formula on the tap is
+            # what brew install reads, so a mismatch has to fail in the log
+            # instead of ending as a quiet retry.
             print(
-                f"giving up after {attempt} attempts; taps were not {expected}",
+                "::error::lcajigasm/homebrew-tap must be updated by hand: "
+                f"Formula/omega.rb is not {expected}. Set the version and the "
+                "sha256 for darwin_arm64, darwin_amd64, linux_arm64 and "
+                "linux_amd64, or merge the tap pull request.",
+                file=sys.stderr,
+            )
+            print(
+                f"giving up after {attempt} attempts; the tap was not {expected}",
                 file=sys.stderr,
             )
             return 1

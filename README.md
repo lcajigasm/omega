@@ -145,7 +145,7 @@ brew install lcajigasm/tap/omega
 This works on macOS and on Linux with [Homebrew on Linux](https://docs.brew.sh/Homebrew-on-Linux).
 
 > The formula is published from [`lcajigasm/homebrew-tap`](https://github.com/lcajigasm/homebrew-tap).
-> The previous tap still works: `brew install lcajigasm/omega/omega`.
+> If omega came from the old tap, run `brew update && brew upgrade omega` so Homebrew follows the migration, or reinstall from `lcajigasm/tap`.
 > homebrew-core already has a formula called `omega` (a Xapian search engine),
 > so always use the full name.
 
@@ -1237,7 +1237,7 @@ internal/demo/      scripted session for screenshots
 internal/config/    configuration and paths
 internal/secrets/   API keys: macOS Keychain, Windows Credential Manager, Linux Secret Service or a 0600 file
 docs/               website (GitHub Pages) and README assets
-Formula/omega.rb    Homebrew formula rewritten when a tag is published
+Formula/omega.rb    template of the Homebrew formula (not an install path)
 ```
 
 ## Troubleshooting
@@ -1336,17 +1336,23 @@ git tag v0.10.0 && git push origin v0.10.0
 
 The release workflow builds the archives, publishes them with `SHA256SUMS`, and
 rewrites `Formula/omega.rb` in this repository (version and the sha256 of each
-archive) on `main`. It does not move the tag. This repository does not push to
-either Homebrew tap.
+archive) on `main`. That file is a template. It is not an install path:
+`brew install` uses [`lcajigasm/homebrew-tap`](https://github.com/lcajigasm/homebrew-tap)
+(`brew install lcajigasm/tap/omega`). The workflow does not move the tag.
 
-[`lcajigasm/homebrew-tap`](https://github.com/lcajigasm/homebrew-tap) and
-[`lcajigasm/homebrew-omega`](https://github.com/lcajigasm/homebrew-omega) refresh
-`Formula/omega.rb` on their own, about once an hour. The release job then starts
-`verify-taps`: a release created by the workflow token does not start other
-workflows on its own. That workflow reads both formulas from the public GitHub
-API (no token) and compares their version with the tag. It tries again every
-5 minutes for up to 75 minutes, and the run fails if either tap is still on
-another version. Check a tag by hand with:
+After the release exists, the job opens a pull request on `lcajigasm/homebrew-tap`
+that sets `Formula/omega.rb` to this version and the sha256 of `darwin_arm64`,
+`darwin_amd64`, `linux_arm64` and `linux_amd64` from `SHA256SUMS`. It does that
+only when the `HOMEBREW_TAP_TOKEN` secret is present. When the secret is absent,
+the job prints an error that the tap must be updated by hand and `verify-taps`
+fails on the first check instead of waiting.
+
+`verify-taps` reads `Formula/omega.rb` from `lcajigasm/homebrew-tap` on the
+public GitHub API (no token) and compares its version with the tag. It tries
+again every 5 minutes for up to 75 minutes, and the run fails if the formula
+is still on another version. A release created by the workflow token does not
+start other workflows, so the release job starts this one. Check a tag by hand
+with:
 
 ```bash
 gh workflow run verify-taps.yml --ref main -f tag=v0.10.0
