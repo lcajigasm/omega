@@ -27,7 +27,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
   <script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
-  <link rel="stylesheet" href="styles.css?v=17">
+  <link rel="stylesheet" href="styles.css?v=18">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/asciinema-player@3.8.2/dist/bundle/asciinema-player.css">
   <script src="https://cdn.jsdelivr.net/npm/asciinema-player@3.8.2/dist/bundle/asciinema-player.min.js" defer></script>
 
@@ -98,6 +98,7 @@
         <li><a href="#features">Features</a></li>
         <li><a href="#platforms">Platforms</a></li>
         <li><a href="#interface">Interface</a></li>
+        <li><a href="#app">App</a></li>
         <li><a href="#safety">Safety</a></li>
         <li><a href="#models">Models</a></li>
         <li><a href="#faq">FAQ</a></li>
@@ -115,6 +116,7 @@
       <li><a href="#features">Features</a></li>
       <li><a href="#platforms">Platforms</a></li>
       <li><a href="#interface">Interface</a></li>
+      <li><a href="#app">App</a></li>
       <li><a href="#safety">Safety</a></li>
       <li><a href="#models">Models</a></li>
       <li><a href="#faq">FAQ</a></li>
@@ -525,6 +527,58 @@ omega full</code></pre>
               <asciinema-player src="assets/shortcuts.cast" cols="100" rows="32" preload="true" title="omega: help, Esc and a denial"></asciinema-player>
             </details>
           </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Desktop app -->
+    <section class="section reveal" id="app" aria-labelledby="app-title">
+      <div class="container">
+        <div class="section-head">
+          <p class="kicker">Desktop app · preview</p>
+          <h2 class="section-title" id="app-title">The same agent, in a window</h2>
+          <p class="section-sub">For when a terminal is not where you want to be. The app runs the same tasks under the same safety policy, with the same configuration and keys as the command, on macOS, Linux and Windows.</p>
+        </div>
+        <div class="gallery">
+          <figure class="shot shot-wide shot-center">
+            <img src="assets/gui-confirm.png" width="1280" height="820" loading="lazy" alt="The omega app during a full maintenance: steps with their result, a failed pipx step diagnosed on a stronger model, and a card asking before the fix runs">
+            <figcaption>Steps as they finish, a failure diagnosed on a stronger model, and the fix waiting for your approval.</figcaption>
+          </figure>
+          <figure class="shot shot-center">
+            <img src="assets/gui-home.png" width="1280" height="820" loading="lazy" alt="The app's home screen: six tasks as buttons and a field to say what you need">
+            <figcaption>Pick a task, or say what you need in words.</figcaption>
+          </figure>
+          <figure class="shot shot-center">
+            <img src="assets/gui-card.png" width="1280" height="820" loading="lazy" alt="A selection card in the app with cleanup actions ticked and the space each one frees">
+            <figcaption>Tick the cleanups you want. omega does exactly those.</figcaption>
+          </figure>
+          <figure class="shot shot-center">
+            <img src="assets/gui-summary.png" width="1280" height="820" loading="lazy" alt="The end of a session in the app: what was updated, fixed and freed, with tokens and cost below">
+            <figcaption>The session ends with what changed, and stays open for a follow-up.</figcaption>
+          </figure>
+          <figure class="shot shot-center">
+            <img src="assets/gui-output.png" width="1280" height="820" loading="lazy" alt="A failed step opened in the app, showing the command's output and the error">
+            <figcaption>Open any step to read what the command printed.</figcaption>
+          </figure>
+          <figure class="shot shot-center">
+            <img src="assets/gui-setup.png" width="1280" height="820" loading="lazy" alt="The app's setup screen listing the providers and a field for the API key">
+            <figcaption>Choose a provider and paste its key. It is checked before it is stored in the keychain.</figcaption>
+          </figure>
+        </div>
+        <p class="note">Recorded from the app by <code>scripts/capture_gui.mjs</code>, in its demo mode: no paid API and no real commands.</p>
+        <div class="grid grid-3">
+          <article class="card">
+            <h3 class="card-title">One agent, two faces</h3>
+            <p>Approvals, selection cards and the sudo password arrive as cards in the window. What the command line learns between runs, the app knows too.</p>
+          </article>
+          <article class="card">
+            <h3 class="card-title">Light on the machine</h3>
+            <p>It draws with the webview the system already has, so the download is about 25 MB and there is no bundled browser.</p>
+          </article>
+          <article class="card">
+            <h3 class="card-title">Arriving with the next release</h3>
+            <p>A disk image for macOS (<code>brew install --cask lcajigasm/tap/omega-app</code>) and archives for Linux and Windows. The builds are not signed yet, so macOS and Windows ask before the first run. Until then, <code>make gui</code> builds it from source.</p>
+          </article>
         </div>
       </div>
     </section>

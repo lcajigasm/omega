@@ -1223,6 +1223,7 @@ Code layout:
 
 ```text
 cmd/omega/          entry point
+cmd/omega-gui/      desktop app (Wails, build tag gui) and its frontend
 internal/cli/       commands (setup, model, docker, mac, auth, config, steps, notes, logs, doctor), key checks
 internal/agent/     agent loop, tools, config hints, web tools, prompt, events, run log
 internal/llm/       providers (Anthropic SDK, OpenAI-compatible, OpenCode), tiers, prices
@@ -1232,12 +1233,14 @@ internal/sudo/      sudo bridge: wrapper, askpass helper and password checks
 internal/steps/     step catalogue
 internal/macos/     login and background items, menu bar, Dock, keyboard shortcuts, defaults, undo journal
 internal/ui/        TUI (Bubble Tea, glamour), selection cards, plain output
+internal/gui/       bridge between the agent's events and the desktop app's window
 internal/i18n/      translations (en, es, fr, de, pt)
 internal/demo/      scripted session for screenshots
 internal/config/    configuration and paths
 internal/secrets/   API keys: macOS Keychain, Windows Credential Manager, Linux Secret Service or a 0600 file
 docs/               website (GitHub Pages) and README assets
 Formula/omega.rb    template of the Homebrew formula (not an install path)
+Casks/omega-app.rb  the desktop app's cask, copied to the tap by a release
 ```
 
 ## Troubleshooting
@@ -1315,6 +1318,42 @@ make cross     # linux, macOS and windows binaries under ./bin
 scripts/capture.sh                 # re-record README and Pages captures from that binary
 ```
 
+### Desktop app (preview)
+
+`cmd/omega-gui` is the same agent in a window, for macOS, Linux and Windows:
+a home screen with the tasks, the session with its steps and live output,
+cards for approvals, selections and the sudo password, and a setup screen for
+the provider and its key. It is built with
+[Wails](https://wails.io) on the system webview and shares the agent, the
+safety policy, the configuration and the translations with the command.
+The model is chosen automatically: `omega model` is still the way to fix one.
+
+No release carries it yet. From the first one that does, a release publishes
+`omega-macos-universal.dmg` (`Omega.app`, Apple Silicon and Intel),
+`omega-gui_<version>_linux_{amd64,arm64}.tar.gz` and
+`omega-gui_<version>_windows_{amd64,arm64}.zip`, and on macOS it installs with
+`brew install --cask lcajigasm/tap/omega-app`. The app is ad-hoc signed and
+not notarized, so macOS quarantines it: run
+`xattr -dr com.apple.quarantine /Applications/Omega.app` after installing.
+The Windows build is not signed either, and SmartScreen warns on first run.
+The command stays its own formula; the two share configuration and keys.
+
+![The omega app asking before it runs a fix](docs/assets/gui-confirm.png)
+
+*Recorded from the app by `scripts/capture_gui.mjs`, in its demo mode.*
+
+```bash
+make gui                           # builds ./bin/omega-gui (cgo on macOS and Linux)
+make gui-app                       # macOS: wraps it in ./bin/Omega.app, ad-hoc signed
+make gui-dmg                       # macOS: universal app in ./bin/omega-macos-universal.dmg
+./bin/omega-gui --demo             # scripted session, no API calls, no real commands
+node scripts/capture_gui.mjs       # re-record the app's captures (docs/assets/gui-*.png)
+```
+
+On Linux it needs `libgtk-4-dev` and `libwebkitgtk-6.0-dev` to build and GTK 4
+with WebKitGTK 6.0 to run. The agent's events reach the window through
+`internal/gui`, which has no toolkit in it and is tested like the rest.
+
 Terminal captures in this README are produced only by `scripts/capture.sh`
 (see [CONTRIBUTING.md](CONTRIBUTING.md)).
 
@@ -1339,6 +1378,12 @@ rewrites `Formula/omega.rb` in this repository (version and the sha256 of each
 archive) on `main`. That file is a template. It is not an install path:
 `brew install` uses [`lcajigasm/homebrew-tap`](https://github.com/lcajigasm/homebrew-tap)
 (`brew install lcajigasm/tap/omega`). The workflow does not move the tag.
+
+The same run builds the desktop app: the universal disk image on a macOS
+runner (`scripts/package_macos.sh`), the Linux archives on amd64 and arm64
+runners and the Windows archives by cross-compiling. `SHA256SUMS` lists them
+too, and `Casks/omega-app.rb` here gets this version and the sha256 of the
+disk image. The pull request on the tap carries that cask next to the formula.
 
 After the release exists, the job opens a pull request on `lcajigasm/homebrew-tap`
 that sets `Formula/omega.rb` to this version and the sha256 of `darwin_arm64`,

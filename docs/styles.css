@@ -257,6 +257,9 @@ kbd {
 /* The first capture is the lead: two columns wide and two rows tall, with
    two smaller ones stacked beside it. */
 .shot-wide { grid-column: span 2; grid-row: span 2; }
+/* App captures are centred in their window; terminal ones start at the left. */
+.shot-center img { object-position: center top; background: #121214; }
+.note + .grid { margin-top: var(--s-5); }
 .shot-wide img { aspect-ratio: auto; }
 .subhead { margin: var(--s-8) 0 var(--s-5); font-size: 24px; }
 .slash { display: flex; flex-wrap: wrap; gap: var(--s-2); }

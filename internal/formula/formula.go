@@ -1,4 +1,5 @@
-// Package formula rewrites Formula/omega.rb from the checksums of a release.
+// Package formula rewrites Formula/omega.rb and Casks/omega-app.rb from the
+// checksums of a release.
 package formula
 
 import (
@@ -157,6 +158,46 @@ func rewrite(src, version string, sums map[string]string, template bool) (string
 		if wins != 2 {
 			return "", fmt.Errorf("formula has %d windows checksum comments, want 2", wins)
 		}
+	}
+	return strings.Join(lines, "\n"), nil
+}
+
+// DiskImage is the release file the cask installs.
+const DiskImage = "omega-macos-universal.dmg"
+
+var (
+	caskVersion = regexp.MustCompile(`^  version "[^"]*"$`)
+	caskSHA     = regexp.MustCompile(`^  sha256 ("[0-9a-f]{64}"|:no_check)$`)
+)
+
+// Cask rewrites Casks/omega-app.rb: the version and the sha256 of the disk
+// image. The url is built from the version, so it needs no change. The file
+// must have exactly one of each line.
+func Cask(src, version string, sums map[string]string) (string, error) {
+	if !semver.MatchString(version) {
+		return "", fmt.Errorf("version %q is not x.y.z", version)
+	}
+	sum := sums[DiskImage]
+	if len(sum) != 64 {
+		return "", fmt.Errorf("missing sha256 for %s", DiskImage)
+	}
+	if !strings.Contains(src, "/v#{version}/"+DiskImage) {
+		return "", fmt.Errorf("cask does not download %s of its version", DiskImage)
+	}
+	lines := strings.Split(src, "\n")
+	versions, shas := 0, 0
+	for i, line := range lines {
+		switch {
+		case caskVersion.MatchString(line):
+			lines[i] = `  version "` + version + `"`
+			versions++
+		case caskSHA.MatchString(line):
+			lines[i] = `  sha256 "` + sum + `"`
+			shas++
+		}
+	}
+	if versions != 1 || shas != 1 {
+		return "", fmt.Errorf("cask has %d version lines and %d sha256 lines, want 1 and 1", versions, shas)
 	}
 	return strings.Join(lines, "\n"), nil
 }

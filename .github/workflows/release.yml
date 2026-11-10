@@ -68,8 +68,70 @@ jobs:
           path: dist/*
           if-no-files-found: error
 
+  # The desktop app. macOS and Linux need the system webview's headers, so
+  # each builds on its own runner; Windows needs no cgo and is cross-compiled.
+  gui:
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: macos
+            arch: universal
+            os: macos-latest
+          - target: linux
+            arch: amd64
+            os: ubuntu-latest
+          - target: linux
+            arch: arm64
+            os: ubuntu-24.04-arm
+          - target: windows
+            arch: amd64
+            os: ubuntu-latest
+          - target: windows
+            arch: arm64
+            os: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: disk image
+        if: matrix.target == 'macos'
+        run: scripts/package_macos.sh "$GITHUB_REF_NAME" dist
+      - name: webview libraries
+        if: matrix.target == 'linux'
+        run: sudo apt-get update && sudo apt-get install -y libgtk-4-dev libwebkitgtk-6.0-dev
+      - name: package
+        if: matrix.target != 'macos'
+        env:
+          TARGET: ${{ matrix.target }}
+          GOARCH: ${{ matrix.arch }}
+        run: |
+          set -euo pipefail
+          ver="${GITHUB_REF_NAME#v}"
+          name="omega-gui_${ver}_${TARGET}_${GOARCH}"
+          stage="$(mktemp -d)"
+          flags="-s -w -X main.version=${GITHUB_REF_NAME}"
+          mkdir -p dist
+          cp LICENSE "${stage}/LICENSE"
+          if [ "$TARGET" = "windows" ]; then
+            # -H windowsgui: no console window behind the app.
+            GOOS=windows CGO_ENABLED=0 go build -trimpath -tags gui,production -ldflags "${flags} -H windowsgui" -o "${stage}/omega-gui.exe" ./cmd/omega-gui
+            (cd "$stage" && zip -q "${GITHUB_WORKSPACE}/dist/${name}.zip" omega-gui.exe LICENSE)
+          else
+            GOOS=linux CGO_ENABLED=1 go build -trimpath -tags gui,production -ldflags "${flags}" -o "${stage}/omega-gui" ./cmd/omega-gui
+            tar -C "$stage" -czf "dist/${name}.tar.gz" omega-gui LICENSE
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: omega-gui-${{ matrix.target }}-${{ matrix.arch }}
+          path: dist/*
+          if-no-files-found: error
+
   publish:
-    needs: build
+    needs: [build, gui]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -84,7 +146,7 @@ jobs:
         run: |
           set -euo pipefail
           cd dist
-          sha256sum omega_* > SHA256SUMS
+          sha256sum omega_* omega-* > SHA256SUMS
       - name: publish
         env:
           GH_TOKEN: ${{ github.token }}
@@ -98,15 +160,17 @@ jobs:
           go-version-file: go.mod
       - name: formula
         # Record this tag's version and the sha256 of every archive in
-        # Formula/omega.rb, then fast-forward main. The tag itself is left
-        # where it is: a published release is never moved.
+        # Formula/omega.rb, and of the disk image in Casks/omega-app.rb, then
+        # fast-forward main. The tag itself is left where it is: a published
+        # release is never moved.
         run: |
           set -euo pipefail
           ver="${GITHUB_REF_NAME#v}"
           go run ./internal/formula/cmd -version "$ver" -sums dist/SHA256SUMS -file Formula/omega.rb
+          go run ./internal/formula/cmd -version "$ver" -sums dist/SHA256SUMS -file Casks/omega-app.rb -cask
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Formula/omega.rb
+          git add Formula/omega.rb Casks/omega-app.rb
           if git diff --cached --quiet; then
             echo "formula already matches ${ver}"
             exit 0
@@ -137,9 +201,13 @@ jobs:
           branch="omega-${ver}"
           git -C "$work" checkout -B "$branch"
           go run ./internal/formula/cmd -version "$ver" -sums dist/SHA256SUMS -file "$work/Formula/omega.rb" -tap
-          git -C "$work" add Formula/omega.rb
+          # The cask in the tap is this repository's, as the step above left
+          # it: this release's version and the sha256 of its disk image.
+          mkdir -p "$work/Casks"
+          cp Casks/omega-app.rb "$work/Casks/omega-app.rb"
+          git -C "$work" add Formula/omega.rb Casks/omega-app.rb
           if git -C "$work" diff --cached --quiet; then
-            echo "lcajigasm/homebrew-tap Formula/omega.rb already matches ${ver}"
+            echo "lcajigasm/homebrew-tap Formula/omega.rb and Casks/omega-app.rb already match ${ver}"
             exit 0
           fi
           git -C "$work" commit -m "omega ${ver}"
@@ -156,11 +224,13 @@ jobs:
             exit 0
           fi
           body="$(printf '%s\n' \
-            "Update Formula/omega.rb to omega ${ver}." \
+            "Update Formula/omega.rb and Casks/omega-app.rb to omega ${ver}." \
             "" \
             "The version is in the archive URLs. The sha256 values for darwin_arm64, darwin_amd64, linux_arm64 and linux_amd64 come from this release's SHA256SUMS." \
             "" \
-            "Opened by the omega release workflow. Merging publishes the formula that brew install lcajigasm/tap/omega installs.")"
+            "Casks/omega-app.rb is the desktop app: its version and the sha256 of omega-macos-universal.dmg." \
+            "" \
+            "Opened by the omega release workflow. Merging publishes the formula that brew install lcajigasm/tap/omega installs and the cask that brew install --cask lcajigasm/tap/omega-app installs.")"
           gh pr create \
             --repo lcajigasm/homebrew-tap \
             --base "$base" \

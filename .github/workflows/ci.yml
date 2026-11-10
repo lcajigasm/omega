@@ -5,6 +5,30 @@ on:
   pull_request:
 
 jobs:
+  # The desktop app has its own build tag, so the jobs below never compile
+  # it. Build it on the three systems it ships for and check its packages.
+  gui:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: webview libraries
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libgtk-4-dev libwebkitgtk-6.0-dev
+      - name: vet
+        run: go vet -tags gui ./cmd/omega-gui
+      - name: build
+        run: make gui
+      - name: bundle
+        if: runner.os == 'macOS'
+        run: make gui-app && plutil -lint bin/Omega.app/Contents/Info.plist && codesign --verify bin/Omega.app
+
   test:
     strategy:
       fail-fast: false

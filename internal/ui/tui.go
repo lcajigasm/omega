@@ -1183,3 +1183,7 @@ func truncate(s string, n int) string {
 	}
 	return string(r[:n-1]) + "…"
 }
+
+// ToolLabel names a tool call the way the interface shows it: a short name
+// and its argument. The desktop app uses the same names as the terminal.
+func ToolLabel(tool, command string) (name, arg string) { return toolLabel(tool, command) }
