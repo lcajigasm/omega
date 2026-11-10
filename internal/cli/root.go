@@ -46,9 +46,7 @@ var version string
 func Execute(v string) error {
 	version = v
 	runner.ExtendPath()
-	for _, name := range secrets.EnvVar {
-		runner.Withhold(name)
-	}
+	withholdProviderKeys()
 	// The language must be known before the commands' help text is built.
 	if cfg, err := config.Load(); err == nil {
 		i18n.Init(cfg.Language)
@@ -261,4 +259,12 @@ func providerNames() string {
 		names = append(names, p.Name)
 	}
 	return strings.Join(names, ", ")
+}
+
+// withholdProviderKeys keeps every provider's API key variable away from the
+// commands omega runs. omega reads them itself, from its own environment.
+func withholdProviderKeys() {
+	for _, name := range secrets.EnvVar {
+		runner.Withhold(name)
+	}
 }

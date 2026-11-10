@@ -1,11 +1,15 @@
 package cli
 
 import (
+	"context"
+	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/lcajigasm/omega/internal/devtools"
 	"github.com/lcajigasm/omega/internal/i18n"
+	"github.com/lcajigasm/omega/internal/runner"
 	"github.com/lcajigasm/omega/internal/secrets"
 )
 
@@ -106,5 +110,32 @@ func TestPipedInstallerAlwaysAsks(t *testing.T) {
 	}
 	if ok, err := allowInstaller(jq, false, answer("n")); !ok || err != nil || asked != 0 {
 		t.Fatalf("a package install is not this card's business: %v %v, asked %d", ok, err, asked)
+	}
+}
+
+// Every provider key variable is withheld from the commands omega runs, and
+// omega itself still reads the key from its own environment.
+func TestProviderKeysAreWithheldFromCommandsOnly(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the command below is written for a POSIX shell")
+	}
+	withholdProviderKeys()
+	t.Setenv("HOME", t.TempDir())
+	var script []string
+	for provider, name := range secrets.EnvVar {
+		t.Setenv(name, "sk-leak-test-"+provider+"-0123456789")
+		script = append(script, `echo "`+name+`=[$`+name+`]"`)
+	}
+	res := runner.Run(context.Background(), strings.Join(script, "; ")+"; env", 15*time.Second, nil)
+	if strings.Contains(res.Output, "sk-leak-test-") {
+		t.Fatalf("a provider key reached a command: %q", res.Output)
+	}
+	for provider, name := range secrets.EnvVar {
+		if !strings.Contains(res.Output, name+"=[]") {
+			t.Errorf("%s was not checked: %q", name, res.Output)
+		}
+		if key, src, err := secrets.Get(provider); err != nil || src != secrets.FromEnv || key != "sk-leak-test-"+provider+"-0123456789" {
+			t.Errorf("omega must still read %s itself: %q %s %v", name, key, src, err)
+		}
 	}
 }
