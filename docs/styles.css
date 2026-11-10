@@ -342,6 +342,8 @@ kbd {
 .keys-list dl > div { display: grid; grid-template-columns: 128px 1fr; gap: var(--s-200); align-items: baseline; }
 .keys-list dt { white-space: nowrap; }
 .keys-list dd { margin: 0; color: var(--text-muted); font-size: 14px; line-height: 20px; }
+.models-demo { margin: 0 auto var(--s-400); }
+.models-demo pre { margin: 0; font: inherit; white-space: pre; }
 .keys-demo { margin: 0; max-width: none; }
 .keys-demo .terminal-body p { white-space: pre; margin-bottom: var(--s-50); }
 .k-input { padding: var(--s-75) var(--s-100); margin-bottom: var(--s-100) !important; border: 1px solid var(--border-strong); border-radius: 8px; }

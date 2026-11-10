@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>omega · AI maintenance for your Mac</title>
-  <meta name="description" content="omega updates and cleans your Mac like topgrade and Mole, then reads every failure, finds the cause and fixes the config. Runs on a cheap model by default, or fully local with Ollama or LM Studio. Free and open source.">
+  <meta name="description" content="omega updates and cleans your Mac like topgrade and Mole, then reads every failure, finds the cause and fixes the config. It also clears stale privacy permissions, reviews your apps and sets up your developer tools. Picks the best value model from live prices, or runs fully local. Free and open source.">
   <link rel="canonical" href="https://lcajigasm.github.io/omega/">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="icon" href="favicon.png" type="image/png" sizes="64x64">
@@ -51,9 +51,13 @@
     "mainEntity": [
       {"@type": "Question", "name": "Does omega replace topgrade and Mole?", "acceptedAnswer": {"@type": "Answer", "text": "For a typical developer Mac, yes. omega has its own steps for Homebrew, the Mac App Store, npm, pnpm, bun, pipx, uv, rustup, cargo, gh extensions, Oh My Zsh, macOS, caches, Xcode, Docker and the Trash. If topgrade or Mole are installed, it also uses them and can fix their configuration."}},
       {"@type": "Question", "name": "What does omega send to the AI provider?", "acceptedAnswer": {"@type": "Answer", "text": "Its instructions, the trimmed output of the commands it runs and the configuration files it reads. It is instructed never to open your documents. Every run is logged to ~/.local/state/omega/runs. omega logs lists those transcripts and omega logs view prints one. omega keeps the newest 30."}},
-      {"@type": "Question", "name": "What does omega doctor check?", "acceptedAnswer": {"@type": "Answer", "text": "The config file, whether the API key looks like a key, whether the provider answers, and which maintenance steps are installed. It lists models or probes a local server and never sends a chat message, so it does not spend tokens."}},
+      {"@type": "Question", "name": "What does omega doctor check?", "acceptedAnswer": {"@type": "Answer", "text": "The config file, whether the API key looks like a key, whether the provider answers, and which maintenance steps are installed. It also reports the two models automatic mode will use. It lists models or probes a local server and never sends a chat message, so it does not spend tokens."}},
       {"@type": "Question", "name": "Can omega delete my files?", "acceptedAnswer": {"@type": "Answer", "text": "Only after you approve it. Deleting, sudo, editing config files and any unknown command need your confirmation. Commands like rm -rf ~ or rm -rf / (extra flags still count), diskutil erase or curl piped into a shell are blocked and never run, even with --yes."}},
       {"@type": "Question", "name": "Which AI models work with omega?", "acceptedAnswer": {"@type": "Answer", "text": "Any model with tool calling from Anthropic, OpenAI, OpenRouter or OpenCode Zen, or a local model through Ollama, LM Studio or any OpenAI compatible endpoint. By default omega uses a fast model and switches to a stronger one when a step fails."}},
+      {"@type": "Question", "name": "How does omega choose the model?", "acceptedAnswer": {"@type": "Answer", "text": "From live data. Once a day it reads OpenRouter's public model catalogue, with list prices and the Artificial Analysis index, keeps the models your key can use and picks a fast and a smart model by score per dollar. omega models shows the table. The request carries nothing about you and omega config set model_catalog off stops it."}},
+      {"@type": "Question", "name": "Can omega clean the list of privacy permissions?", "acceptedAnswer": {"@type": "Answer", "text": "Yes, with omega mac permissions. It finds the Privacy & Security entries whose binary or app is gone, names each with its version and removes the ones you pick after saving a copy of the database. Entries macOS protects system-wide are found but have to be removed in System Settings."}},
+      {"@type": "Question", "name": "Can omega install and set up my developer tools?", "acceptedAnswer": {"@type": "Answer", "text": "Yes, with omega dev. It knows more than 70 languages, version managers and command-line tools, shows what is installed and by which manager, installs what you pick and adds the shell line a tool needs to ~/.zshrc."}},
+      {"@type": "Question", "name": "Can I just tell it what I want?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. In a session the agent can install tools, revert Mac changes, read earlier runs, manage its notes, change settings and run the setup check, asking before each change. It cannot read your API keys, change the provider or change the approval policy."}},
       {"@type": "Question", "name": "Can I change the mode or the model during a run?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Shift+Tab cycles between asking before risky actions, auto approve and read only, and Ctrl+P switches to the next model of the run. Press ? for the shortcut card, or type / for commands such as /mode, /model and /exit, with a menu that explains each one as you type. Ctrl+F searches the transcript: Enter jumps to the next match and Ctrl+P to the previous while search is open. Ctrl+Y copies the focused tool output. Click a card row to select it, and click the key line to confirm."}},
       {"@type": "Question", "name": "Where do I download omega?", "acceptedAnswer": {"@type": "Answer", "text": "On a Mac, brew install lcajigasm/tap/omega. The previous tap, brew install lcajigasm/omega/omega, still works. GitHub Releases also attach Linux, macOS and Windows archives for each version. Maintenance steps target macOS."}},
       {"@type": "Question", "name": "How much does a run cost?", "acceptedAnswer": {"@type": "Answer", "text": "On the automatic model a typical run costs under one cent. omega shows tokens and cost live. Local models cost nothing."}},
@@ -92,6 +96,7 @@
         <li><a href="#gallery">Screens</a></li>
         <li><a href="#keys">Keys</a></li>
         <li><a href="#mac">Your Mac</a></li>
+        <li><a href="#dev">Dev tools</a></li>
         <li><a href="#providers">Models</a></li>
         <li><a href="#faq">FAQ</a></li>
       </ul>
@@ -110,6 +115,7 @@
       <li><a href="#gallery">Screens</a></li>
       <li><a href="#keys">Keys</a></li>
       <li><a href="#mac">Your Mac</a></li>
+      <li><a href="#dev">Dev tools</a></li>
       <li><a href="#providers">Models</a></li>
       <li><a href="#faq">FAQ</a></li>
       <li><a href="https://github.com/lcajigasm/omega">GitHub</a></li>
@@ -220,8 +226,8 @@
           </article>
           <article class="card feature">
             <i class="ph ph-coins feature-icon" aria-hidden="true"></i>
-            <h3 class="card-title">Small model first</h3>
-            <p>Routine work runs on Claude Haiku or GPT mini. omega switches to a stronger model only when a step fails, and shows the cost as it goes.</p>
+            <h3 class="card-title">The best value model, checked daily</h3>
+            <p>omega reads current prices and benchmark scores once a day and picks a fast model for routine work and a stronger one for failures. It switches only when a step fails, and shows the cost as it goes.</p>
           </article>
           <article class="card feature">
             <i class="ph ph-sliders-horizontal feature-icon" aria-hidden="true"></i>
@@ -237,6 +243,21 @@
             <i class="ph ph-shield-check feature-icon" aria-hidden="true"></i>
             <h3 class="card-title">Nothing risky runs without you</h3>
             <p>Every command is classified before it runs. Deletes and config edits wait for your yes, sudo asks for the password inside the interface, and the truly destructive commands never run.</p>
+          </article>
+          <article class="card feature">
+            <i class="ph ph-lock-key feature-icon" aria-hidden="true"></i>
+            <h3 class="card-title">A privacy list you can read again</h3>
+            <p><code>omega mac permissions</code> finds the entries macOS keeps for binaries that no longer exist, such as one <code>node</code> per app update, names each with its version and removes the ones you pick.</p>
+          </article>
+          <article class="card feature">
+            <i class="ph ph-terminal-window feature-icon" aria-hidden="true"></i>
+            <h3 class="card-title">Your toolchain, installed and in order</h3>
+            <p><code>omega dev</code> knows more than 70 languages, version managers and command-line tools. It installs what you pick, activates it in your shell and finds what overlaps.</p>
+          </article>
+          <article class="card feature">
+            <i class="ph ph-chat-text feature-icon" aria-hidden="true"></i>
+            <h3 class="card-title">Ask in words</h3>
+            <p>Inside a session you can type "install fzf and mise", "undo yesterday's Dock change" or "what failed last time?". Everything omega does from the command line, the agent can do too.</p>
           </article>
         </div>
       </div>
@@ -263,10 +284,11 @@ omega setup</code></pre>
           <li class="card step">
             <span class="step-num">3</span>
             <h3 class="card-title">Let it do the maintenance</h3>
-            <p>Updates, cleanup and a summary, with your approval on anything risky. Then tune your tools or free Docker space.</p>
+            <p>Updates, cleanup and a summary, with your approval on anything risky. Then tune your tools, review your Mac or open the home screen with every command.</p>
             <pre><code>omega
 omega tune
-omega docker</code></pre>
+omega mac
+omega menu</code></pre>
           </li>
         </ol>
       </div>
@@ -315,9 +337,10 @@ omega docker</code></pre>
               <div><dt><kbd>shift</kbd> <kbd>tab</kbd></dt><dd>Cycle the approval mode: asks before risky actions, auto approve, read only</dd></div>
               <div><dt><kbd>ctrl</kbd> <kbd>p</kbd></dt><dd>Switch to the next model of the run, from the next turn</dd></div>
               <div><dt><kbd>ctrl</kbd> <kbd>o</kbd></dt><dd>Expand or collapse the output of every tool call</dd></div>
+              <div><dt><kbd>ctrl</kbd> <kbd>b</kbd></dt><dd>Show or hide the session panel: steps done and failed, disk space freed, tokens and activity</dd></div>
               <div><dt><kbd>ctrl</kbd> <kbd>y</kbd></dt><dd>Copy the focused tool output to the clipboard</dd></div>
               <div><dt><kbd>ctrl</kbd> <kbd>f</kbd></dt><dd>Search the transcript. Enter jumps to the next match, Ctrl+P to the previous</dd></div>
-              <div><dt><kbd>/</kbd></dt><dd>Open the command menu</dd></div>
+              <div><dt><kbd>/</kbd></dt><dd>Open the command menu. <code>/update</code>, <code>/clean</code>, <code>/dev</code>, <code>/undo</code> and eleven more start another task in the same session</dd></div>
               <div><dt><kbd>ctrl</kbd> <kbd>c</kbd></dt><dd>Cancel the run</dd></div>
             </dl>
           </div>
@@ -332,7 +355,9 @@ omega docker</code></pre>
                 <div><dt>/help</dt><dd>all commands</dd></div>
                 <div><dt>/mode</dt><dd>approval mode</dd></div>
                 <div><dt>/model</dt><dd>switch model</dd></div>
-                <div><dt>/expand</dt><dd>tool output</dd></div>
+                <div><dt>/clean</dt><dd>start a cleanup</dd></div>
+                <div><dt>/install</dt><dd>developer tools</dd></div>
+                <div><dt>/undo</dt><dd>revert a Mac change</dd></div>
                 <div><dt>/exit</dt><dd>end the session</dd></div>
               </dl>
             </div>
@@ -346,16 +371,18 @@ omega docker</code></pre>
     <section class="section reveal" id="mac" aria-labelledby="mac-title">
       <div class="container">
         <h2 class="section-title" id="mac-title">Your Mac, back on your terms</h2>
-        <p class="section-sub">Apps add themselves to login, keep helpers running in the background, fill the menu bar and grab shortcuts other apps already use. <code>omega mac</code> reviews all of it with your rules and sensible defaults, asks you on cards and applies only what you pick. Every change can be undone.</p>
+        <p class="section-sub">Apps add themselves to login, keep helpers running in the background, fill the menu bar, grab shortcuts other apps already use and leave permissions and files behind when they go. <code>omega mac</code> reviews all of it with your rules and sensible defaults, asks you on cards and applies only what you pick. Every change can be undone.</p>
         <div class="keys">
           <div class="card keys-list">
-            <h3 class="card-title"><i class="ph ph-sliders" aria-hidden="true"></i> Five areas, one review</h3>
+            <h3 class="card-title"><i class="ph ph-sliders" aria-hidden="true"></i> Seven areas, one review</h3>
             <dl>
               <div><dt><code>login</code></dt><dd>Apps that open at login: updaters and apps you open when needed go, VPN, security and sync stay</dd></div>
               <div><dt><code>background</code></dt><dd>Launch agents, daemons and app helpers allowed in the background, including leftovers of uninstalled apps</dd></div>
               <div><dt><code>menubar</code></dt><dd>Menu bar apps: quit them, stop them at login, or hide them with Bartender, Ice or Thaw</dd></div>
               <div><dt><code>dock</code></dt><dd>Apps no longer installed or not opened in 90 days, and the Dock settings you prefer</dd></div>
               <div><dt><code>shortcuts</code></dt><dd>Who keeps each contested shortcut; the others move to a free one</dd></div>
+              <div><dt><code>permissions</code></dt><dd>Privacy &amp; Security entries whose binary or app is gone, each named with its version so the copies can be told apart</dd></div>
+              <div><dt><code>apps</code></dt><dd>Apps not opened in 180 days, apps built only for Intel, and what removed apps left in <code>~/Library</code>. Removals go to the Trash</dd></div>
             </dl>
           </div>
           <figure class="terminal keys-demo" aria-label="A shortcut conflict card">
@@ -374,6 +401,42 @@ omega docker</code></pre>
               </dl>
             </div>
             <figcaption class="sr-only">ChatGPT, Claude and Alfred all want Option Space. omega suggests Alfred, moves the others to free shortcuts and remembers the choice.</figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <!-- Developer tools -->
+    <section class="section reveal" id="dev" aria-labelledby="dev-title">
+      <div class="container">
+        <h2 class="section-title" id="dev-title">A toolchain that stays in order</h2>
+        <p class="section-sub">Languages and version managers pile up: two of them managing Node, a command that resolves to the wrong copy, a <code>PATH</code> entry that points nowhere. <code>omega dev</code> shows what is installed and who installed it, and fixes what you pick.</p>
+        <div class="keys">
+          <div class="card keys-list">
+            <h3 class="card-title"><i class="ph ph-terminal-window" aria-hidden="true"></i> Four commands</h3>
+            <dl>
+              <div><dt><code>dev status</code></dt><dd>What is installed, by which manager, and what stands out: overlapping version managers, shadowed commands, a broken <code>PATH</code>, shell startup time</dd></div>
+              <div><dt><code>dev install</code></dt><dd>Pick from a card or name the tools. More than 70 languages, version managers and command-line tools</dd></div>
+              <div><dt><code>dev activate</code></dt><dd>Adds the line a tool needs to <code>~/.zshrc</code>, after saving a copy of the file</dd></div>
+              <div><dt><code>dev</code></dt><dd>The guided review: the agent reads the inventory, explains each finding and applies what you approve</dd></div>
+            </dl>
+          </div>
+          <figure class="terminal keys-demo" aria-label="Findings from omega dev status">
+            <div class="terminal-bar"><span></span><span></span><span></span><p>omega dev status</p></div>
+            <div class="terminal-body">
+              <p><span class="t-accent">Findings</span></p>
+              <p><span class="t-warn">!</span> node is managed by nvm and mise</p>
+              <p><span class="t-warn">!</span> python3 resolves to /usr/bin before Homebrew</p>
+              <p><span class="t-warn">!</span> PATH has 2 folders that do not exist</p>
+              <p><span class="t-warn">!</span> zoxide is installed but not activated</p>
+              <p class="k-status"><span class="t-muted">shell starts in 0.41 s</span></p>
+              <dl class="k-cmds">
+                <div><dt>dev</dt><dd>guided fix</dd></div>
+                <div><dt>dev activate</dt><dd>shell lines</dd></div>
+                <div><dt>dev install</dt><dd>add tools</dd></div>
+              </dl>
+            </div>
+            <figcaption class="sr-only">omega dev status reports that node is managed by two version managers, that python3 resolves to the system copy, that PATH has folders that do not exist and that zoxide is not activated.</figcaption>
           </figure>
         </div>
       </div>
@@ -411,6 +474,7 @@ omega docker</code></pre>
           <li><i class="ph ph-floppy-disk" aria-hidden="true"></i> Config edits show a diff and keep a timestamped backup</li>
           <li><i class="ph ph-file-text" aria-hidden="true"></i> Every run is logged, including what you approved and denied</li>
           <li><i class="ph ph-key" aria-hidden="true"></i> Private keys and credential files are never sent to the model</li>
+          <li><i class="ph ph-lock" aria-hidden="true"></i> The agent cannot read your API keys, change the provider or lower its own approval policy</li>
         </ul>
       </div>
     </section>
@@ -419,7 +483,19 @@ omega docker</code></pre>
     <section class="section reveal" id="providers" aria-labelledby="providers-title">
       <div class="container">
         <h2 class="section-title" id="providers-title">The model you trust, at the size the job needs</h2>
-        <p class="section-sub">Automatic by default: a fast model for routine work, a stronger one when something fails. Pin any model with <code>omega model</code>, or switch mid-run with <kbd>ctrl</kbd> <kbd>p</kbd>.</p>
+        <p class="section-sub">Automatic by default: a fast model for routine work, a stronger one when something fails. Which two is decided from live data: once a day omega reads public list prices and benchmark scores and picks by score per dollar among the models your key can use. <code>omega models</code> shows the table. Pin any model with <code>omega model</code>, or switch mid-run with <kbd>ctrl</kbd> <kbd>p</kbd>.</p>
+        <figure class="terminal models-demo" aria-label="The model table from omega models">
+          <div class="terminal-bar"><span></span><span></span><span></span><p>omega models</p></div>
+          <div class="terminal-body">
+<pre><span class="t-muted">  model              score   in  out $/M</span>
+  claude-fable-5-2    64.6   $8  $40
+  claude-opus-5-5     59.1   $4  $20
+<span class="t-accent">▸ claude-sonnet-5-5   54.5   $2  $10  smart</span>
+  claude-fable-5-1    50.0  $10  $50
+<span class="t-accent">▸ claude-haiku-5-5    36.5 $0.1 $0.5  fast</span></pre>
+          </div>
+          <figcaption class="sr-only">omega models lists each model with its benchmark score and price per million tokens, and marks claude-haiku-5-5 as the fast pick and claude-sonnet-5-5 as the smart pick. Figures of 10 November 2026.</figcaption>
+        </figure>
         <div class="grid grid-3">
           <article class="card provider">
             <span class="provider-logo"><svg class="logo" aria-hidden="true"><use href="#logo-anthropic"/></svg></span>
@@ -430,20 +506,20 @@ omega docker</code></pre>
           <article class="card provider">
             <span class="provider-logo"><svg class="logo" aria-hidden="true"><use href="#logo-openai"/></svg></span>
             <h3 class="card-title">OpenAI</h3>
-            <p>Chat Completions with tool calling.</p>
-            <code>gpt-5.4-mini → gpt-5.5</code>
+            <p>Chat Completions with tool calling. The two models are picked from today's list.</p>
+            <code>omega models openai</code>
           </article>
           <article class="card provider">
             <span class="provider-logo"><svg class="logo" aria-hidden="true"><use href="#logo-openrouter"/></svg></span>
             <h3 class="card-title">OpenRouter</h3>
-            <p>Hundreds of models behind one key.</p>
-            <code>anthropic/claude-haiku-5.5 → sonnet</code>
+            <p>Hundreds of models behind one key, compared across vendors.</p>
+            <code>omega models openrouter</code>
           </article>
           <article class="card provider">
             <span class="provider-logo"><svg class="logo" aria-hidden="true"><use href="#logo-opencode"/></svg></span>
             <h3 class="card-title">OpenCode Zen</h3>
             <p>Claude, Qwen, GLM, Kimi and more.</p>
-            <code>claude-sonnet-4-6</code>
+            <code>omega models opencode</code>
           </article>
           <article class="card provider">
             <span class="provider-logo"><svg class="logo" aria-hidden="true"><use href="#logo-ollama"/></svg><svg class="logo" aria-hidden="true"><use href="#logo-lmstudio"/></svg></span>
@@ -482,9 +558,10 @@ omega docker</code></pre>
         <div class="faq">
           <details><summary><span>Does omega replace topgrade and Mole?</span></summary><p>For a typical developer Mac, yes. omega has its own steps for Homebrew, the Mac App Store, npm, pnpm, bun, pipx, uv, rustup, cargo, gh extensions, Oh My Zsh, macOS, caches, Xcode, Docker and the Trash. If topgrade or Mole are installed, it also uses them and can fix their configuration with <code>omega fix</code>.</p></details>
           <details><summary><span>What does omega send to the AI provider?</span></summary><p>Its instructions, the trimmed output of the commands it runs and the configuration files it reads. It is instructed never to open your documents. Every run is logged to <code>~/.local/state/omega/runs</code>. <code>omega logs</code> lists those transcripts and <code>omega logs view</code> prints one. omega keeps the newest 30.</p></details>
-          <details><summary><span>What does <code>omega doctor</code> check?</span></summary><p>The config file, whether the API key looks like a key, whether the provider answers, and which maintenance steps are installed. It lists models or probes a local server and never sends a chat message, so it does not spend tokens.</p></details>
+          <details><summary><span>What does <code>omega doctor</code> check?</span></summary><p>The config file, whether the API key looks like a key, whether the provider answers, and which maintenance steps are installed. It also reports the two models automatic mode will use. It lists models or probes a local server and never sends a chat message, so it does not spend tokens.</p></details>
           <details><summary><span>Can omega delete my files?</span></summary><p>Only after you approve it. Deleting, sudo, editing config files and any unknown command need your confirmation. Commands like <code>rm -rf ~</code> or <code>rm -rf /</code> (extra flags still count), <code>diskutil erase</code> or <code>curl</code> piped into a shell are blocked and never run, even with <code>--yes</code>.</p></details>
-          <details><summary><span>Which AI models work with omega?</span></summary><p>Any model with tool calling from Anthropic, OpenAI, OpenRouter or OpenCode Zen, or a local one through Ollama, LM Studio or any OpenAI compatible endpoint. By default omega uses a fast model such as Claude Haiku 5.5 and switches to a stronger one when a step fails. Choose with <code>omega model</code>.</p></details>
+          <details><summary><span>Which AI models work with omega?</span></summary><p>Any model with tool calling from Anthropic, OpenAI, OpenRouter or OpenCode Zen, or a local one through Ollama, LM Studio or any OpenAI compatible endpoint. By default omega uses a fast model and switches to a stronger one when a step fails. Choose with <code>omega model</code>.</p></details>
+          <details><summary><span>How does omega choose the model?</span></summary><p>From live data, not from a list built into the program. Once a day it reads OpenRouter's public model catalogue, which carries list prices and the Artificial Analysis index, keeps the models your key can use and picks two: the fast one by score per dollar among models with at least 40% of the best score, and the smart one among models within 20% of the best. <code>omega models</code> shows the table and the picks. The request carries nothing about you, and <code>omega config set model_catalog off</code> stops it. The score is a general benchmark, not a test of maintenance work.</p></details>
           <details><summary><span>Can I change the mode or the model during a run?</span></summary><p>Yes. <kbd>shift</kbd> <kbd>tab</kbd> cycles between asking before risky actions, auto approve and read only, and <kbd>ctrl</kbd> <kbd>p</kbd> switches to the next model of the run. Press <kbd>?</kbd> for the shortcut card. In the input box, type <code>/</code> for commands such as <code>/mode</code>, <code>/model</code> and <code>/exit</code>: a menu explains each one as you type. A model you pick by hand is kept for the rest of the run. The first <kbd>esc</kbd> clears a line you have started; the next one ends the session. <kbd>ctrl</kbd> <kbd>f</kbd> searches the transcript: Enter jumps to the next match and Ctrl+P to the previous while search is open. <kbd>ctrl</kbd> <kbd>y</kbd> copies the focused tool output. Click a card row to select it, and click the key line to confirm.</p></details>
           <details><summary><span>How much does a run cost?</span></summary><p>On the automatic model a typical run costs under one cent: a full configuration review on a real Mac came to $0.009. omega shows tokens and cost live in the status bar and in the final summary. Local models cost nothing.</p></details>
           <details><summary><span>Can it run on a local model?</span></summary><p>Yes. Start Ollama or the LM Studio server and pick the provider in <code>omega setup</code>. Apple Intelligence's on device model is only reachable from Swift and its 4,096 token context is too small for this kind of agent, so omega uses local servers instead.</p></details>
@@ -492,6 +569,9 @@ omega docker</code></pre>
           <details><summary><span>Can omega run unattended?</span></summary><p>Yes. Run <code>omega update --yes --no-tui --once</code> from launchd or cron. Blocked commands stay blocked, Docker is never cleaned without you, and recommendations go into the summary instead of a card.</p></details>
           <details><summary><span>What happens when something needs admin access?</span></summary><p>Commands run detached from your terminal, so nothing can write over the interface. When a tool such as Mole or softwareupdate asks for sudo, omega shows a password card, checks the password with sudo and keeps it in memory for that run only. It is never logged or sent to the AI. Press Esc to skip the steps that need it.</p></details>
           <details><summary><span>Can omega sort out login items, the menu bar and shortcut conflicts?</span></summary><p>Yes, with <code>omega mac</code>. It lists what opens at login, what is allowed in the background, menu bar apps, the Dock and global keyboard shortcuts, and suggests changes from your rules (<code>~/.config/omega/mac.toml</code>) and its defaults: updaters off, chat and AI assistants opened when needed, VPN, security and sync kept, and AI assistants that grab a shortcut on install moved to a free one. Your choices are saved for next time, and <code>omega mac undo</code> reverts any change.</p></details>
+          <details><summary><span>Can omega clean the list of privacy permissions?</span></summary><p>Yes, with <code>omega mac permissions</code>. It finds the entries in System Settings → Privacy &amp; Security whose binary no longer exists (an app that bundles <code>node</code> in a versioned folder leaves one per update) or whose app is gone, names each with its version, and removes the ones you pick after saving a copy of the database. Reading your own list needs Full Disk Access for the terminal. Entries macOS protects system-wide, such as Full Disk Access, Accessibility and Screen Recording, are found but have to be removed by you in System Settings.</p></details>
+          <details><summary><span>Can omega install and set up my developer tools?</span></summary><p>Yes, with <code>omega dev</code>. It knows more than 70 languages, version managers and command-line tools. <code>omega dev status</code> shows what is installed and by which manager, and points out overlapping version managers, commands that resolve to the wrong copy and <code>PATH</code> entries that do not exist. <code>omega dev install</code> installs what you pick and <code>omega dev activate</code> adds the shell line a tool needs to <code>~/.zshrc</code>, keeping a copy of the file.</p></details>
+          <details><summary><span>Can I just tell it what I want?</span></summary><p>Yes. In a session, type what you need: "install fzf and mise", "undo yesterday's Dock change", "what failed last time?", "which model should I use?". The agent can install tools, revert Mac changes, read earlier runs, manage its notes, change settings and run the setup check, asking before each change. It cannot read your API keys, change the provider or change the approval policy: for those it gives you the command.</p></details>
           <details><summary><span>Where are my API keys stored?</span></summary><p>In the macOS Keychain, under the service <code>omega-cli</code>. Environment variables such as <code>ANTHROPIC_API_KEY</code> take precedence when set.</p></details>
           <details><summary><span>Which languages does the interface support?</span></summary><p>English, Spanish, French, German and Portuguese. omega follows your system locale, and you can override it with <code>omega config set language</code>. The agent replies in the same language.</p></details>
         </div>
