@@ -1,7 +1,7 @@
-# Installed from the release archives. The release workflow rewrites version,
-# urls and sha256 when a tag is published. The Homebrew taps refresh their own
-# copy of this file; this repository does not push to them. verify-taps checks
-# that both copies match the tag.
+# Template, not an install path. brew install uses lcajigasm/homebrew-tap.
+# The release workflow rewrites version, urls and sha256 here when a tag is
+# published, and opens a pull request on that tap with the same version and
+# the four Homebrew sha256. verify-taps checks the tap copy against the tag.
 class Omega < Formula
   desc "AI-driven macOS maintenance: updates like topgrade, cleans like Mole"
   homepage "https://github.com/lcajigasm/omega"

@@ -3,7 +3,7 @@
 
 import unittest
 
-from verify_taps import TapError, normalize, versions_in
+from verify_taps import TAP, TapError, normalize, versions_in
 
 
 class VersionsTest(unittest.TestCase):
@@ -43,6 +43,10 @@ class VersionsTest(unittest.TestCase):
     def test_normalize_tag(self):
         self.assertEqual(normalize("v0.10.0"), "0.10.0")
         self.assertEqual(normalize(" 0.10.0 "), "0.10.0")
+
+    def test_only_homebrew_tap(self):
+        self.assertEqual(TAP, "lcajigasm/homebrew-tap")
+        self.assertNotIn("homebrew-omega", TAP)
 
 
 if __name__ == "__main__":

@@ -113,9 +113,64 @@ jobs:
           fi
           git commit -m "formula: omega ${ver}"
           git push origin HEAD:main
+      - name: open homebrew tap pull request
+        # HOMEBREW_TAP_TOKEN can push to lcajigasm/homebrew-tap and open a
+        # pull request. It is not created here. When it is missing, say so
+        # and fail verify-taps on the first check. A skipped step would let
+        # the release look green while brew install stays on the old formula.
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          ver="${GITHUB_REF_NAME#v}"
+          if [ -z "${HOMEBREW_TAP_TOKEN}" ]; then
+            echo "::error::HOMEBREW_TAP_TOKEN is not set. The tap must be updated by hand: set the version and the sha256 for darwin_arm64, darwin_amd64, linux_arm64 and linux_amd64 in lcajigasm/homebrew-tap Formula/omega.rb. verify-taps fails until that formula matches this release."
+            gh workflow run verify-taps.yml --ref main -f tag="$GITHUB_REF_NAME" -f fail_fast=true
+            exit 1
+          fi
+          work="$(mktemp -d)"
+          git clone --depth 1 https://github.com/lcajigasm/homebrew-tap.git "$work"
+          git -C "$work" config user.name "github-actions[bot]"
+          git -C "$work" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          base="$(git -C "$work" rev-parse --abbrev-ref HEAD)"
+          branch="omega-${ver}"
+          git -C "$work" checkout -B "$branch"
+          go run ./internal/formula/cmd -version "$ver" -sums dist/SHA256SUMS -file "$work/Formula/omega.rb" -tap
+          git -C "$work" add Formula/omega.rb
+          if git -C "$work" diff --cached --quiet; then
+            echo "lcajigasm/homebrew-tap Formula/omega.rb already matches ${ver}"
+            exit 0
+          fi
+          git -C "$work" commit -m "omega ${ver}"
+          remote_sha="$(git ls-remote --heads https://github.com/lcajigasm/homebrew-tap.git "refs/heads/${branch}" | awk '{print $1}')"
+          export GH_TOKEN="$HOMEBREW_TAP_TOKEN"
+          gh auth setup-git
+          if [ -n "$remote_sha" ]; then
+            git -C "$work" push --force-with-lease="refs/heads/${branch}:${remote_sha}" origin "HEAD:refs/heads/${branch}"
+          else
+            git -C "$work" push -u origin "HEAD:refs/heads/${branch}"
+          fi
+          if url="$(gh pr view --repo lcajigasm/homebrew-tap "$branch" --json url -q .url 2>/dev/null)"; then
+            echo "updated ${url}"
+            exit 0
+          fi
+          body="$(printf '%s\n' \
+            "Update Formula/omega.rb to omega ${ver}." \
+            "" \
+            "The version is in the archive URLs. The sha256 values for darwin_arm64, darwin_amd64, linux_arm64 and linux_amd64 come from this release's SHA256SUMS." \
+            "" \
+            "Opened by the omega release workflow. Merging publishes the formula that brew install lcajigasm/tap/omega installs.")"
+          gh pr create \
+            --repo lcajigasm/homebrew-tap \
+            --base "$base" \
+            --head "$branch" \
+            --title "omega ${ver}" \
+            --body "$body"
       - name: start tap check
         # A release created with this token does not start other workflows.
-        # verify-taps reads both Homebrew formulas from the public API.
+        # verify-taps reads Formula/omega.rb from lcajigasm/homebrew-tap.
+        # The pull request above has to be merged before this check can pass.
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run verify-taps.yml --ref main -f tag="$GITHUB_REF_NAME"

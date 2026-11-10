@@ -13,9 +13,10 @@ func main() {
 	version := flag.String("version", "", "release version, x.y.z, without the v prefix")
 	sumsPath := flag.String("sums", "", "path to SHA256SUMS")
 	file := flag.String("file", "Formula/omega.rb", "formula to rewrite")
+	tap := flag.Bool("tap", false, "patch a lcajigasm/homebrew-tap formula: version in the archive URLs and the four Homebrew sha256, without requiring a version line or windows comments")
 	flag.Parse()
 	if *version == "" || *sumsPath == "" {
-		fmt.Fprintln(os.Stderr, "usage: formula -version 0.10.0 -sums dist/SHA256SUMS [-file Formula/omega.rb]")
+		fmt.Fprintln(os.Stderr, "usage: formula -version 0.10.0 -sums dist/SHA256SUMS [-file Formula/omega.rb] [-tap]")
 		os.Exit(2)
 	}
 	raw, err := os.ReadFile(*sumsPath)
@@ -33,7 +34,11 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	out, err := formula.Update(string(src), *version, sums)
+	rewrite := formula.Update
+	if *tap {
+		rewrite = formula.Patch
+	}
+	out, err := rewrite(string(src), *version, sums)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

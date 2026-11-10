@@ -33,8 +33,9 @@ cross:
 capture:
 	scripts/capture.sh
 
-# Rewrite Formula/omega.rb from a SHA256SUMS file. The release workflow does
-# this when a tag is published; the tap repository is not touched.
+# Rewrite the Formula/omega.rb template from a SHA256SUMS file. The release
+# workflow does this when a tag is published. brew install uses
+# lcajigasm/homebrew-tap; the release opens a pull request there.
 formula:
 	@test -n "$(VERSION)" && test -n "$(SUMS)" || (echo "usage: make formula VERSION=0.10.0 SUMS=dist/SHA256SUMS" && exit 1)
 	go run ./internal/formula/cmd -version "$(VERSION)" -sums "$(SUMS)" -file Formula/omega.rb
