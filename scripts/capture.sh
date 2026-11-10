@@ -115,6 +115,10 @@ python3 -c 'import urllib.request; urllib.request.urlopen("http://127.0.0.1:1808
 write_config "http://127.0.0.1:18080/v1"
 vhs docs/assets/model.tape
 cleanup_models
+
+echo "capture: home screen"
+write_config "http://127.0.0.1:18080/v1" "omega-local-test"
+vhs docs/assets/menu.tape
 trap - EXIT
 
 if [ "${OMEGA_CAPTURE_SUDO:-1}" = "0" ]; then
