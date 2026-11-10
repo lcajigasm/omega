@@ -166,8 +166,9 @@ func rewrite(src, version string, sums map[string]string, template bool) (string
 const DiskImage = "omega-macos-universal.dmg"
 
 var (
-	caskVersion = regexp.MustCompile(`^  version "[^"]*"$`)
-	caskSHA     = regexp.MustCompile(`^  sha256 ("[0-9a-f]{64}"|:no_check)$`)
+	// \r?: a Windows checkout has CRLF line ends, and they are kept.
+	caskVersion = regexp.MustCompile(`^  version "[^"]*"(\r?)$`)
+	caskSHA     = regexp.MustCompile(`^  sha256 (?:"[0-9a-f]{64}"|:no_check)(\r?)$`)
 )
 
 // Cask rewrites Casks/omega-app.rb: the version and the sha256 of the disk
@@ -187,12 +188,11 @@ func Cask(src, version string, sums map[string]string) (string, error) {
 	lines := strings.Split(src, "\n")
 	versions, shas := 0, 0
 	for i, line := range lines {
-		switch {
-		case caskVersion.MatchString(line):
-			lines[i] = `  version "` + version + `"`
+		if m := caskVersion.FindStringSubmatch(line); m != nil {
+			lines[i] = `  version "` + version + `"` + m[1]
 			versions++
-		case caskSHA.MatchString(line):
-			lines[i] = `  sha256 "` + sum + `"`
+		} else if m := caskSHA.FindStringSubmatch(line); m != nil {
+			lines[i] = `  sha256 "` + sum + `"` + m[1]
 			shas++
 		}
 	}

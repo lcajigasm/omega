@@ -198,6 +198,15 @@ func TestCask(t *testing.T) {
 	if again, err := Cask(out, "9.9.9", map[string]string{DiskImage: sum}); err != nil || again != out {
 		t.Fatalf("not stable: %v", err)
 	}
+	// A Windows checkout has CRLF line ends: they are kept, not a failure.
+	lf := strings.ReplaceAll(string(src), "\r\n", "\n")
+	crlf, err := Cask(strings.ReplaceAll(lf, "\n", "\r\n"), "9.9.9", map[string]string{DiskImage: sum})
+	if err != nil {
+		t.Fatalf("CRLF: %v", err)
+	}
+	if !strings.Contains(crlf, "  version \"9.9.9\"\r\n") || strings.Count(crlf, "\r\n") != strings.Count(lf, "\n") {
+		t.Fatal("CRLF line ends were not kept")
+	}
 	if _, err := Cask(string(src), "9.9.9", map[string]string{}); err == nil {
 		t.Fatal("a release with no disk image was accepted")
 	}
