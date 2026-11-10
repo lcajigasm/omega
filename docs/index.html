@@ -66,7 +66,7 @@
       {"@type": "Question", "name": "How does omega tune know the right settings?", "acceptedAnswer": {"@type": "Answer", "text": "It reads the current official documentation of each installed tool on the web and proposes changes with their source. You pick which ones to apply, or use --auto for the low risk ones."}},
       {"@type": "Question", "name": "Can omega run unattended?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Run omega update --yes --no-tui --once from launchd or cron. Blocked commands stay blocked and Docker is never cleaned without you."}},
       {"@type": "Question", "name": "What happens when something needs admin access?", "acceptedAnswer": {"@type": "Answer", "text": "omega shows a password card, checks the password with sudo and keeps it in memory for that run only. It is never logged or sent to the AI."}},
-      {"@type": "Question", "name": "Where are my API keys stored?", "acceptedAnswer": {"@type": "Answer", "text": "In the macOS Keychain, under the service omega-cli. Environment variables take precedence when set."}},
+      {"@type": "Question", "name": "Where are my API keys stored?", "acceptedAnswer": {"@type": "Answer", "text": "In the macOS Keychain, under the service omega-cli. On Linux, in the system keyring (Secret Service) when one answers, otherwise in ~/.config/omega/keys, a file only you can read; omega says which one it used. Environment variables take precedence when set."}},
       {"@type": "Question", "name": "Which languages does the interface support?", "acceptedAnswer": {"@type": "Answer", "text": "English, Spanish, French, German and Portuguese. omega follows your system locale and the agent replies in the same language."}}
     ]
   }
@@ -272,7 +272,7 @@
           <li class="card step">
             <span class="step-num">1</span>
             <h3 class="card-title">Install and connect a model</h3>
-            <p>The setup asks for your provider, stores the key in the macOS Keychain and lets you pick a model.</p>
+            <p>The setup asks for your provider, stores the key in the macOS Keychain (the system keyring on Linux) and lets you pick a model.</p>
             <pre><code>brew install lcajigasm/tap/omega
 omega setup</code></pre>
           </li>
@@ -418,7 +418,7 @@ omega menu</code></pre>
             <dl>
               <div><dt><code>dev status</code></dt><dd>What is installed, by which manager, and what stands out: overlapping version managers, shadowed commands, a broken <code>PATH</code>, shell startup time</dd></div>
               <div><dt><code>dev install</code></dt><dd>Pick from a card or name the tools. More than 70 languages, version managers and command-line tools</dd></div>
-              <div><dt><code>dev activate</code></dt><dd>Adds the line a tool needs to <code>~/.zshrc</code>, after saving a copy of the file</dd></div>
+              <div><dt><code>dev activate</code></dt><dd>Adds the line a tool needs to <code>~/.zshrc</code>, or <code>~/.bashrc</code> for bash, after saving a copy of the file</dd></div>
               <div><dt><code>dev</code></dt><dd>The guided review: the agent reads the inventory, explains each finding and applies what you approve</dd></div>
             </dl>
           </div>
@@ -574,7 +574,7 @@ omega menu</code></pre>
           <details><summary><span>Can omega clean the list of privacy permissions?</span></summary><p>Yes, with <code>omega mac permissions</code>. It finds the entries in System Settings → Privacy &amp; Security whose binary no longer exists (an app that bundles <code>node</code> in a versioned folder leaves one per update) or whose app is gone, names each with its version, and removes the ones you pick after saving a copy of the database. Reading your own list needs Full Disk Access for the terminal. Entries macOS protects system-wide, such as Full Disk Access, Accessibility and Screen Recording, are found but have to be removed by you in System Settings.</p></details>
           <details><summary><span>Can omega install and set up my developer tools?</span></summary><p>Yes, with <code>omega dev</code>. It knows more than 70 languages, version managers and command-line tools. <code>omega dev status</code> shows what is installed and by which manager, and points out overlapping version managers, commands that resolve to the wrong copy and <code>PATH</code> entries that do not exist. <code>omega dev install</code> installs what you pick and <code>omega dev activate</code> adds the shell line a tool needs to <code>~/.zshrc</code>, keeping a copy of the file.</p></details>
           <details><summary><span>Can I just tell it what I want?</span></summary><p>Yes. In a session, type what you need: "install fzf and mise", "undo yesterday's Dock change", "what failed last time?", "which model should I use?". The agent can install tools, revert Mac changes, read earlier runs, manage its notes, change settings and run the setup check, asking before each change. It cannot read your API keys, change the provider or change the approval policy: for those it gives you the command.</p></details>
-          <details><summary><span>Where are my API keys stored?</span></summary><p>In the macOS Keychain, under the service <code>omega-cli</code>. Environment variables such as <code>ANTHROPIC_API_KEY</code> take precedence when set.</p></details>
+          <details><summary><span>Where are my API keys stored?</span></summary><p>In the macOS Keychain, under the service <code>omega-cli</code>. On Linux, in the system keyring (Secret Service) when one answers, otherwise in <code>~/.config/omega/keys</code>, a file only you can read; omega says which one it used. Environment variables such as <code>ANTHROPIC_API_KEY</code> take precedence when set.</p></details>
           <details><summary><span>Which languages does the interface support?</span></summary><p>English, Spanish, French, German and Portuguese. omega follows your system locale, and you can override it with <code>omega config set language</code>. The agent replies in the same language.</p></details>
         </div>
       </div>

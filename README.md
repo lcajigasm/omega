@@ -111,7 +111,7 @@ an AI model with a narrow set of tools and a strict safety policy.
 - **Developer tools** (`omega dev`): knows more than 70 languages, version managers and
   command-line tools. It shows what is installed and by which manager, finds
   overlapping version managers, shadowed commands and a broken `PATH`, installs
-  what you pick and adds the shell line a tool needs to `~/.zshrc`.
+  what you pick and adds the shell line a tool needs to `~/.zshrc` or `~/.bashrc`.
 - **Safety policy**: every command is classified (read-only, normal, dangerous,
   blocked); dangerous ones need your approval.
 - **Memory**: learns from each run and takes it into account next time.
@@ -293,7 +293,7 @@ available to the AI in a session:
 
 | You say | The AI uses |
 |---|---|
-| "install fzf and mise" | `dev_install`, then `dev_activate` for the line in `~/.zshrc` |
+| "install fzf and mise" | `dev_install`, then `dev_activate` for the line in `~/.zshrc` or `~/.bashrc` |
 | "undo what you changed in the Dock yesterday" | `mac_history`, `mac_undo` |
 | "what failed last time?" | `run_history` (the end of an earlier transcript) |
 | "forget the note about pipx" | `notes` |
