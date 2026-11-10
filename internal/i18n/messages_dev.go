@@ -380,12 +380,100 @@ pastas de compilação esquecidas e ferramentas em falta. Pergunta com cartões 
 		"omega menu braucht ein Terminal; in Skripten die Befehle direkt aufrufen",
 		"o omega menu precisa de um terminal; em scripts, chama os comandos diretamente",
 	},
+	"cmd.models_long": {
+		"Lists the provider's models with their benchmark score and list price, best first, and marks the two that automatic mode uses.",
+		"Lista los modelos del proveedor con su nota en pruebas de rendimiento y su precio, de mejor a peor, y marca los dos que usa el modo automático.",
+		"Liste les modèles du fournisseur avec leur score et leur prix, du meilleur au moins bon, et marque les deux qu'utilise le mode automatique.",
+		"Listet die Modelle des Anbieters mit Benchmark-Wert und Listenpreis, die besten zuerst, und markiert die zwei des automatischen Modus.",
+		"Lista os modelos do fornecedor com a nota em testes de desempenho e o preço, do melhor para o pior, e marca os dois que o modo automático usa.",
+	},
 	"menu.back": {
 		"Enter returns to the menu · ctrl+c leaves ",
 		"Enter vuelve al menú · ctrl+c sale ",
 		"Entrée revient au menu · ctrl+c quitte ",
 		"Enter zurück zum Menü · Strg+C beendet ",
 		"Enter volta ao menu · ctrl+c sai ",
+	},
+
+	// ---- model catalogue ----
+	"models.col_model": {"model", "modelo", "modèle", "Modell", "modelo"},
+	"models.col_score": {"score", "nota", "score", "Wert", "nota"},
+	"models.col_in":    {"in $/M", "entrada $/M", "entrée $/M", "Eingabe $/M", "entrada $/M"},
+	"models.col_out":   {"out $/M", "salida $/M", "sortie $/M", "Ausgabe $/M", "saída $/M"},
+	"models.mark_fast": {"fast", "rápido", "rapide", "schnell", "rápido"},
+	"models.mark_smart": {
+		"smart", "potente", "puissant", "stark", "potente",
+	},
+	"models.mark_both": {"fast and smart", "rápido y potente", "rapide et puissant", "schnell und stark", "rápido e potente"},
+	"models.estimated": {
+		"~ score estimated from other benchmarks; not used for the automatic choice while measured ones exist",
+		"~ nota estimada a partir de otras pruebas; no se usa en la elección automática mientras haya notas medidas",
+		"~ score estimé à partir d'autres tests ; ignoré par le choix automatique tant qu'il existe des scores mesurés",
+		"~ Wert aus anderen Benchmarks geschätzt; für die automatische Wahl nicht benutzt, solange gemessene vorliegen",
+		"~ nota estimada a partir de outros testes; não é usada na escolha automática enquanto houver notas medidas",
+	},
+	"models.source": {
+		"Prices and scores: OpenRouter's public catalogue (Artificial Analysis index), read %s.",
+		"Precios y notas: catálogo público de OpenRouter (índice de Artificial Analysis), leído el %s.",
+		"Prix et scores : catalogue public d'OpenRouter (indice Artificial Analysis), lu le %s.",
+		"Preise und Werte: öffentlicher Katalog von OpenRouter (Artificial-Analysis-Index), gelesen am %s.",
+		"Preços e notas: catálogo público da OpenRouter (índice Artificial Analysis), lido em %s.",
+	},
+	"models.none": {
+		"No model catalogue yet: automatic mode uses the names built into omega.",
+		"Aún no hay catálogo de modelos: el modo automático usa los nombres incluidos en omega.",
+		"Pas encore de catalogue de modèles : le mode automatique utilise les noms intégrés à omega.",
+		"Noch kein Modellkatalog: der automatische Modus benutzt die in omega eingebauten Namen.",
+		"Ainda não há catálogo de modelos: o modo automático usa os nomes incluídos no omega.",
+	},
+	"models.off": {
+		"The model catalogue is off (model_catalog = \"off\"): automatic mode uses the names built into omega.",
+		"El catálogo de modelos está desactivado (model_catalog = \"off\"): el modo automático usa los nombres incluidos en omega.",
+		"Le catalogue de modèles est désactivé (model_catalog = \"off\") : le mode automatique utilise les noms intégrés à omega.",
+		"Der Modellkatalog ist aus (model_catalog = \"off\"): der automatische Modus benutzt die in omega eingebauten Namen.",
+		"O catálogo de modelos está desativado (model_catalog = \"off\"): o modo automático usa os nomes incluídos no omega.",
+	},
+	"models.auto": {
+		"Automatic mode: %s for routine work, %s when a step fails and for fix.",
+		"Modo automático: %s para lo rutinario, %s cuando un paso falla y en fix.",
+		"Mode automatique : %s pour la routine, %s quand une étape échoue et pour fix.",
+		"Automatischer Modus: %s für Routine, %s wenn ein Schritt scheitert und für fix.",
+		"Modo automático: %s para o rotineiro, %s quando um passo falha e em fix.",
+	},
+	"models.fixed": {
+		"The model is fixed to %s. Automatic mode would use %s and %s (omega model auto).",
+		"El modelo está fijado en %s. El modo automático usaría %s y %s (omega model auto).",
+		"Le modèle est fixé sur %s. Le mode automatique utiliserait %s et %s (omega model auto).",
+		"Das Modell ist auf %s festgelegt. Der automatische Modus würde %s und %s benutzen (omega model auto).",
+		"O modelo está fixado em %s. O modo automático usaria %s e %s (omega model auto).",
+	},
+	"models.since": {
+		"These two have been the choice since %s.", "Estos dos son la elección desde el %s.", "Ces deux là sont le choix depuis le %s.",
+		"Diese beiden sind die Wahl seit dem %s.", "Estes dois são a escolha desde %s.",
+	},
+	"models.fetch_failed": {
+		"could not refresh the model catalogue: %v", "no se pudo actualizar el catálogo de modelos: %v",
+		"impossible d'actualiser le catalogue de modèles : %v", "Modellkatalog konnte nicht aktualisiert werden: %v",
+		"não foi possível atualizar o catálogo de modelos: %v",
+	},
+	"flag.refresh": {
+		"download the model catalogue again and choose again", "descargar de nuevo el catálogo de modelos y volver a elegir",
+		"télécharger à nouveau le catalogue de modèles et choisir à nouveau", "Modellkatalog neu laden und neu wählen",
+		"descarregar de novo o catálogo de modelos e voltar a escolher",
+	},
+	"config.bad_catalog": {
+		"model_catalog must be live or off", "model_catalog debe ser live u off", "model_catalog doit être live ou off",
+		"model_catalog muss live oder off sein", "model_catalog deve ser live ou off",
+	},
+	"doctor.models_auto": {
+		"models: automatic, %s → %s (catalogue of %s)", "modelos: automático, %s → %s (catálogo del %s)",
+		"modèles : automatique, %s → %s (catalogue du %s)", "Modelle: automatisch, %s → %s (Katalog vom %s)",
+		"modelos: automático, %s → %s (catálogo de %s)",
+	},
+	"doctor.models_builtin": {
+		"models: automatic, %s → %s (built-in names; no catalogue)", "modelos: automático, %s → %s (nombres incluidos; sin catálogo)",
+		"modèles : automatique, %s → %s (noms intégrés ; pas de catalogue)", "Modelle: automatisch, %s → %s (eingebaute Namen; kein Katalog)",
+		"modelos: automático, %s → %s (nomes incluídos; sem catálogo)",
 	},
 }
 

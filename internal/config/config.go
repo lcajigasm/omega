@@ -23,6 +23,12 @@ const (
 	ApproveNever     = "never"     // never ask (still refuses blocked commands)
 )
 
+// Values of model_catalog.
+const (
+	CatalogLive = "live"
+	CatalogOff  = "off"
+)
+
 // ProviderConfig holds per-provider overrides.
 type ProviderConfig struct {
 	Model      string `toml:"model,omitempty"`       // fixed model; empty or "auto" picks per task
@@ -33,13 +39,16 @@ type ProviderConfig struct {
 
 // Config is the user configuration stored in config.toml.
 type Config struct {
-	Provider  string                    `toml:"provider"`
-	Model     string                    `toml:"model,omitempty"`
-	Effort    string                    `toml:"effort,omitempty"` // Claude models: low|medium|high|xhigh|max
-	Approval  string                    `toml:"approval"`
-	Language  string                    `toml:"language"` // en, es, fr, de, pt or auto (system locale)
-	SkipSteps []string                  `toml:"skip_steps,omitempty"`
-	Timeout   string                    `toml:"command_timeout"`
+	Provider  string   `toml:"provider"`
+	Model     string   `toml:"model,omitempty"`
+	Effort    string   `toml:"effort,omitempty"` // Claude models: low|medium|high|xhigh|max
+	Approval  string   `toml:"approval"`
+	Language  string   `toml:"language"` // en, es, fr, de, pt or auto (system locale)
+	SkipSteps []string `toml:"skip_steps,omitempty"`
+	Timeout   string   `toml:"command_timeout"`
+	// Catalog is "off" to stop omega from downloading the public model
+	// catalogue that automatic model selection uses; empty or "live" allows it.
+	Catalog   string                    `toml:"model_catalog,omitempty"`
 	Providers map[string]ProviderConfig `toml:"providers,omitempty"`
 }
 
@@ -124,6 +133,11 @@ func (c *Config) Validate() error {
 		default:
 			return fmt.Errorf("%s", i18n.T("config.bad_effort"))
 		}
+	}
+	switch c.Catalog {
+	case "", CatalogLive, CatalogOff:
+	default:
+		return fmt.Errorf("%s", i18n.T("config.bad_catalog"))
 	}
 	for _, id := range c.SkipSteps {
 		if _, ok := steps.Find(id); !ok {

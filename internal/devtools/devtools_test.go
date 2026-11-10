@@ -3,6 +3,7 @@ package devtools
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -99,6 +100,9 @@ func TestActivationAndAddInit(t *testing.T) {
 }
 
 func TestShadows(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell PATH lookups and the executable bit are Unix notions")
+	}
 	h := withHome(t)
 	mk := func(dir, name, content string) string {
 		os.MkdirAll(filepath.Join(h, dir), 0o755)

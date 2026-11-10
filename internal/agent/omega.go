@@ -57,6 +57,10 @@ func omegaToolSpecs() []llm.ToolSpec {
 				"key":    map[string]any{"type": "string", "enum": []string{"language", "effort", "command_timeout", "skip_steps", "model"}},
 				"value":  str("new value"),
 			}, Required: []string{"action"}},
+		{Name: "model_ranking", Description: "The models the configured provider offers, with their benchmark score and list price from the " +
+			"live catalogue, best first, and the two that automatic mode uses (fast for routine work, smart when a step fails). Use it " +
+			"when the user asks which model to use, what a run costs, or why omega picked a model. Read-only.",
+			Properties: map[string]any{}},
 		{Name: "omega_doctor", Description: "omega's preflight check: configuration valid, API key present and well-formed, provider reachable, configured " +
 			"model known, and which catalogue steps are installed. Read-only; never shows the key.",
 			Properties: map[string]any{}},
@@ -406,6 +410,17 @@ func toolOmegaSettings(ctx context.Context, a *Agent, in map[string]any) (string
 		note = "Saved. It applies from the next omega run, not to this session."
 	}
 	return note, nil
+}
+
+func toolModelRanking(_ context.Context, a *Agent, _ map[string]any) (string, error) {
+	if a.opts.Models == nil {
+		return "The model catalogue is not available in this session; the user can run `omega models`.", nil
+	}
+	start := time.Now()
+	a.emit(Event{Kind: EvToolStart, Tool: "model_ranking", Command: "omega models", Risk: safety.Safe})
+	out := a.opts.Models()
+	a.quiet("model_ranking", "omega models", start, out, nil)
+	return out, nil
 }
 
 func toolOmegaDoctor(_ context.Context, a *Agent, _ map[string]any) (string, error) {

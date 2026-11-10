@@ -107,12 +107,15 @@ func resolveProvider(cfg *config.Config, name, model, effort, task string) (llm.
 	if effort == "" {
 		effort = cfg.Effort
 	}
+	p, perr := newProvider(cfg, info, effort)
+	// The catalogue only decides the automatic choice, but it also carries
+	// the prices, so it is loaded even when the model is fixed.
+	loadModels(cfg, info, p, false)
 	plan, err := planModel(cfg, info, model, task)
 	if err != nil {
 		return nil, plan, err
 	}
-	p, err := newProvider(cfg, info, effort)
-	return p, plan, err
+	return p, plan, perr
 }
 
 func runTask(task string, f runFlags) error {
@@ -178,6 +181,15 @@ func runTask(task string, f runFlags) error {
 		Timeout:      timeout,
 		Config:       cfg,
 		SudoPassword: sudoPassword,
+		Models: func() string {
+			info, _ := llm.Lookup(p.Name())
+			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+			defer cancel()
+			available, _ := p.Models(ctx)
+			var b strings.Builder
+			modelsReport(&b, cfg, info, available, "")
+			return b.String()
+		},
 		Doctor: func() string {
 			var b strings.Builder
 			if err := runDoctor(&b); err != nil {

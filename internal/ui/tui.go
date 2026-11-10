@@ -273,6 +273,8 @@ func toolLabel(tool, command string) (string, string) {
 		name = "Settings"
 	case tool == "omega_doctor":
 		name, arg = "Doctor", ""
+	case tool == "model_ranking":
+		name, arg = "Models", ""
 	}
 	return name, homeTilde(arg)
 }

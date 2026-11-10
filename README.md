@@ -272,6 +272,7 @@ available to the AI in a session:
 | "forget the note about pipx" | `notes` |
 | "stop running the macOS update step" | `omega_settings` (`skip_steps`) |
 | "is omega set up correctly?" | `omega_doctor` |
+| "which model should I use?", "why this model?" | `model_ranking` |
 
 Installs, edits to `~/.zshrc`, deleting a note and changing a setting all ask
 first, like any other change. Three things stay yours alone, and the AI answers
@@ -312,23 +313,59 @@ Enter for none.
 ![The model picker](docs/assets/model.png)
 
 Routine maintenance does not need the biggest model. With the default
-**automatic** choice omega runs on the provider's fast model and switches to the
-smart one the first time a step fails, to diagnose it:
+**automatic** choice omega runs on a fast model and switches to a smart one the
+first time a step fails, to diagnose it.
 
-| Provider | Fast (routine) | Smart (failures, `fix`) |
-|---|---|---|
-| `anthropic` | `claude-haiku-5-5` · $0.10 / $0.50 per M tokens | `claude-sonnet-5-5` · $2 / $10 |
-| `openai` | `gpt-5.4-mini` · $0.75 / $4.50 | `gpt-5.5` · $5 / $30 |
-| `openrouter` | `anthropic/claude-haiku-5.5` | `anthropic/claude-sonnet-5.5` |
-| `opencode` | `claude-sonnet-4-6` | `claude-sonnet-4-6` |
-| local | the model you pick | the model you pick |
+Which two models those are is decided from live data, not from a list compiled
+into omega. Once a day omega reads OpenRouter's public model catalogue, which
+carries each model's list price and its benchmark score (the Artificial
+Analysis intelligence index), keeps the models your key can actually use, and
+picks:
+
+- **fast**: the best score per dollar among the models that reach at least 40%
+  of the best score on offer (score² ÷ price). Price weighs most.
+- **smart**: the best value among the models within 20% of the best score
+  (score³ ÷ price). Score weighs most, but a model that costs four times more
+  for a few points does not win.
+
+Price is the blend a maintenance run pays: three parts input to one part
+output. Only models that call tools, answer in text, have a measured score and
+are not free, batch or about-to-be-removed routes are eligible. A pick is kept
+until another model beats it by more than 10%, so two models that trade places
+by a decimal do not alternate.
+
+```bash
+omega models                   # every model: score, price, and the two picks
+omega models --refresh         # read the catalogue again now
+omega models openrouter flash  # another provider, filtered
+```
+
+```text
+  model                                      score    in $/M   out $/M
+  claude-fable-5-2                            64.6        $8       $40
+  claude-opus-5-5                             59.1        $4       $20
+▸ claude-sonnet-5-5                           54.5        $2       $10  smart
+▸ claude-haiku-5-5                            36.5      $0.1      $0.5  fast
+```
+
+The download is a plain request to `openrouter.ai` with nothing about you in
+it, also when your provider is another one. `omega config set model_catalog off`
+stops it. Without a catalogue (first run offline, or switched off) omega uses
+the names it was built with: `claude-haiku-5-5` → `claude-sonnet-5-5` for
+Anthropic, `gpt-5.4-mini` → `gpt-5.5` for OpenAI, the same Claude pair on
+OpenRouter and `claude-sonnet-4-6` on OpenCode Zen. Local providers use the
+model you pick.
+
+Limits worth knowing: the score is a general benchmark, not a measure of how
+well a model does maintenance; the catalogue has no speed figures; and on
+OpenCode Zen the prices used for the comparison are OpenRouter's, which may
+differ from what Zen charges.
 
 ```bash
 omega model                    # card: Automatic, the two tiers, or any model of the provider
 omega model claude-sonnet-5-5  # pin a model
 omega model auto               # back to automatic
 omega --model claude-opus-5-5 fix   # one run with a specific model
-omega models anthropic haiku   # list models with their prices
 ```
 
 During a run, `ctrl+p` (or `/model` in the input box) switches between the
@@ -336,9 +373,10 @@ run's models from the next turn. A model you pick by hand stays for the rest
 of the run, so the automatic switch on failure no longer applies.
 
 Override the tiers per provider with `fast_model` and `smart_model` (see
-[Configuration](#configuration)). The status bar and the final summary show the
-tokens used, including prompt cache reads, and the cost when the model's price
-is known. omega caches the conversation with the Anthropic API, so long sessions
+[Configuration](#configuration)); they win over the automatic picks. The status
+bar and the final summary show the tokens used, including prompt cache reads,
+and the cost when the model's price is known; prices come from the same
+catalogue, so a model released after your copy of omega is still priced. omega caches the conversation with the Anthropic API, so long sessions
 mostly bill cache reads at a tenth of the input price.
 
 As a reference, a read only `omega tune` session on a real Mac (about 190k input
@@ -760,6 +798,7 @@ effort = "medium"               # Claude models only: low|medium|high|xhigh|max
 approval = "dangerous"          # dangerous | all | never
 language = "auto"               # en | es | fr | de | pt | auto (system locale)
 command_timeout = "45m"         # time limit per command
+# model_catalog = "off"         # do not download the public model catalogue (automatic mode then uses built-in names)
 skip_steps = ["macos"]
 
 [providers.anthropic]

@@ -47,6 +47,7 @@ var handlers = map[string]handler{
 	"notes":           toolNotes,
 	"omega_settings":  toolOmegaSettings,
 	"omega_doctor":    toolOmegaDoctor,
+	"model_ranking":   toolModelRanking,
 }
 
 func str(desc string) map[string]any {
@@ -132,7 +133,7 @@ func allReadOnly(calls []llm.ToolCall) bool {
 
 func readOnlyCall(call llm.ToolCall) bool {
 	switch call.Name {
-	case "system_info", "list_steps", "disk_usage", "read_file", "config_hints", "web_search", "fetch_url", "dev_inventory", "run_history", "mac_history", "omega_doctor":
+	case "system_info", "list_steps", "disk_usage", "read_file", "config_hints", "web_search", "fetch_url", "dev_inventory", "run_history", "mac_history", "omega_doctor", "model_ranking":
 		return true
 	case "run_command":
 		var in map[string]any

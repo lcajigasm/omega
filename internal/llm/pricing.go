@@ -32,10 +32,20 @@ var prices = map[string]Price{
 	"gpt-5-mini":        {0.25, 2},
 }
 
+// LivePrice, when set, answers with the current list price of a model from
+// the live catalogue. It is asked before the table above, which only knows
+// the models that existed when omega was built.
+var LivePrice func(provider, model string) (Price, bool)
+
 // PriceFor returns the known price of a model. Local providers are free.
 func PriceFor(provider, model string) (Price, bool) {
 	if info, ok := Lookup(provider); ok && info.Local {
 		return Price{}, true
+	}
+	if LivePrice != nil {
+		if p, ok := LivePrice(provider, model); ok {
+			return p, true
+		}
 	}
 	id := model
 	if i := strings.LastIndex(id, "/"); i >= 0 {

@@ -109,6 +109,15 @@ func doctorProvider(w io.Writer, cfg *config.Config) int {
 		fmt.Fprintln(w, i18n.T("doctor.provider_bad", err.Error()))
 		return 1
 	}
+	if m := cfg.ModelFor(info.Name); m == "" || m == "auto" {
+		loadModels(cfg, info, p, false)
+		fast, smart := tiers(cfg, info)
+		if live := livePicks(cfg, info.Name); live.Fast != "" {
+			fmt.Fprintln(w, i18n.T("doctor.models_auto", fast, smart, modelStore.Fetched.Local().Format("2006-01-02")))
+		} else {
+			fmt.Fprintln(w, i18n.T("doctor.models_builtin", fast, smart))
+		}
+	}
 	want := explicitModels(cfg, info.Name)
 	if len(want) == 0 {
 		return 0

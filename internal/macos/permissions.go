@@ -3,6 +3,7 @@ package macos
 import (
 	"fmt"
 	"os"
+	posix "path"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -141,15 +142,17 @@ var pathVersion = regexp.MustCompile(`^(?:.*[@_-])?v?(\d+\.\d+(?:\.\d+)*)$`)
 // binaryName is a binary's name with the version found in its path, which is
 // what tells apart the copies System Settings lists under one name.
 func binaryName(path string) string {
-	name := filepath.Base(path)
+	// These are paths from the Mac's database: always with forward slashes,
+	// whatever system the code is built for.
+	name := posix.Base(path)
 	if i := strings.Index(path, ".app/"); i > 0 {
-		app := strings.TrimSuffix(filepath.Base(path[:i+4]), ".app")
+		app := strings.TrimSuffix(posix.Base(path[:i+4]), ".app")
 		if !strings.EqualFold(app, name) {
 			name += " (" + app + ")"
 		}
 	}
 	// The folder closest to the binary names its version: python@3.13/3.13.2/bin.
-	parts := strings.Split(filepath.Dir(path), "/")
+	parts := strings.Split(posix.Dir(path), "/")
 	for i := len(parts) - 1; i >= 0; i-- {
 		if m := pathVersion.FindStringSubmatch(parts[i]); m != nil {
 			return name + " " + m[1]

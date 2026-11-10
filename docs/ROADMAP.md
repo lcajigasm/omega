@@ -64,6 +64,7 @@ robust, obvious to drive, and downloadable. Items already shipped are checked.
 - [x] **Home screen.** `omega menu` lists every command by area with disk space and the last run.
 - [x] **Task commands.** `/full`, `/update`, `/clean`, `/analyze`, `/tune`, `/fix`, `/mac`, `/permissions`, `/apps`, `/dev`, `/install`, `/docker`, `/undo`, `/history` and `/doctor` start another task in the running session.
 - [x] **The AI reaches every feature.** New tools install and activate developer tools, revert `omega mac` changes, read earlier runs, manage the notes, change settings and run the preflight check. Each change asks first. API keys, the provider and the approval policy stay with the user: the model is told the command to give instead.
+- [x] **Automatic models from live data.** Once a day omega reads OpenRouter's public catalogue (list prices and the Artificial Analysis index) and picks the fast and the smart model by score per dollar among the models the key can use. `omega models` shows the table and the picks, `omega doctor` reports them, the AI has `model_ranking`, and `model_catalog = "off"` disables the download.
 
 ## Next
 
