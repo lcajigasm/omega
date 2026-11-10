@@ -209,7 +209,7 @@
   "app.8": "L'image disque fonctionne sous macOS 13 ou ultérieur, sur Apple Silicon et Intel. Pour Windows et Linux, prenez l'archive <code>omega-gui</code> pour amd64 ou arm64 dans la version publiée.",
   "app.9": "L'app omega pendant une maintenance complète : les étapes avec leur résultat, une étape pipx en échec diagnostiquée avec un modèle plus puissant, et une carte qui demande avant d'exécuter le correctif",
   "app.10": "Les étapes à mesure qu'elles se terminent, un échec diagnostiqué avec un modèle plus puissant, et le correctif qui attend votre approbation.",
-  "app.11": "L'écran d'accueil de l'app : six tâches sous forme de boutons et un champ pour dire ce qu'il vous faut",
+  "app.11": "L'écran d'accueil de l'app : les tâches sous forme de boutons et un champ pour dire ce qu'il vous faut",
   "app.12": "Choisissez une tâche, ou dites ce qu'il vous faut avec vos mots.",
   "app.13": "Une carte de sélection dans l'app, avec des actions de nettoyage cochées et l'espace que chacune libère",
   "app.14": "Cochez les nettoyages que vous voulez. omega fait exactement ceux-là.",

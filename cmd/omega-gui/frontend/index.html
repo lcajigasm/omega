@@ -7,73 +7,195 @@
 <link rel="stylesheet" href="app.css">
 </head>
 <body>
-<main id="home" hidden>
-  <div class="hero">
-    <div class="logo">Ω</div>
-    <h1>omega</h1>
-    <p id="tagline"></p>
-    <p id="demo" class="pill" hidden></p>
-  </div>
-  <div id="tasks" class="tasks"></div>
-  <form id="ask" class="ask">
-    <input id="ask-text" type="text" autocomplete="off" spellcheck="false">
-    <button type="submit" id="ask-send"></button>
-  </form>
-  <label class="check"><input id="dry" type="checkbox"> <span id="dry-label"></span></label>
-  <div id="home-error" class="error" hidden></div>
-  <div class="provider">
-    <span id="provider" class="muted"></span>
-    <button id="setup-open" type="button" class="quiet"></button>
-  </div>
-  <footer id="version"></footer>
-</main>
+<!-- Texts come from omega: data-t names the message an element shows,
+     data-ph the one its placeholder shows. -->
+<nav id="nav" hidden>
+  <div class="brand"><span class="logo">Ω</span><span class="label">omega</span></div>
+  <button type="button" data-view="home"><i data-icon="home"></i><span class="label" data-t="gui.nav.home"></span></button>
+  <button type="button" data-view="session"><i data-icon="session"></i><span class="label" data-t="gui.nav.session"></span><span id="nav-badge" class="badge-dot" hidden></span></button>
+  <button type="button" data-view="history"><i data-icon="history"></i><span class="label" data-t="gui.nav.history"></span></button>
+  <button type="button" data-view="system"><i data-icon="system"></i><span class="label" data-t="gui.nav.system"></span></button>
+  <button type="button" data-view="settings"><i data-icon="settings"></i><span class="label" data-t="gui.nav.settings"></span></button>
+  <span class="grow"></span>
+  <p id="demo" class="pill label" data-t="gui.demo" hidden></p>
+  <button type="button" id="nav-provider" class="provider"><span id="provider-dot" class="dot"></span><span id="provider" class="label"></span></button>
+  <div id="version" class="label"></div>
+</nav>
 
-<main id="setup" hidden>
-  <div class="setup">
-    <h2 id="setup-title"></h2>
-    <p id="setup-intro" class="muted"></p>
-    <form id="setup-form">
-      <div id="providers" class="providers"></div>
-      <div id="key-row" class="field" hidden>
-        <label id="key-label" for="key"></label>
-        <input id="key" type="password" autocomplete="off" spellcheck="false">
-        <a id="key-link" href="#"></a>
+<main id="views" hidden>
+  <section id="home" class="view" hidden>
+    <div class="page">
+      <header class="head">
+        <h1 data-t="gui.home.title"></h1>
+        <p id="tagline" class="muted"></p>
+      </header>
+      <div id="home-alert" class="alert" hidden>
+        <span id="home-alert-text"></span>
+        <button type="button" id="home-alert-go" class="primary"></button>
       </div>
-      <div id="url-row" class="field" hidden>
-        <label id="url-label" for="url"></label>
-        <input id="url" type="text" autocomplete="off" spellcheck="false" placeholder="http://localhost:8080/v1">
-      </div>
-      <div id="setup-result" class="result" hidden></div>
-      <div class="buttons">
-        <button id="setup-save" type="submit" class="primary"></button>
-        <button id="setup-back" type="button"></button>
-      </div>
-    </form>
-  </div>
-</main>
+      <button type="button" id="lead" class="lead">
+        <i data-icon="full"></i>
+        <span class="body"><b id="lead-title"></b><span id="lead-detail"></span></span>
+        <span class="go"><span data-t="gui.home.start"></span> →</span>
+      </button>
+      <h2 data-t="gui.home.more"></h2>
+      <div id="tasks" class="tasks"></div>
+      <h2 data-t="gui.home.ask_title"></h2>
+      <form id="ask" class="ask">
+        <input id="ask-text" type="text" autocomplete="off" spellcheck="false" data-ph="gui.ask">
+        <button type="submit" class="primary" data-t="gui.send"></button>
+      </form>
+      <label class="check"><input id="dry" type="checkbox"> <span data-t="gui.dry_run"></span></label>
+      <p class="facts muted">
+        <span data-t="gui.home.provider"></span>: <b id="fact-provider"></b>
+        <span class="sep">·</span>
+        <span data-t="gui.home.last_run"></span>: <b id="fact-last"></b>
+      </p>
+    </div>
+  </section>
 
-<main id="session" hidden>
-  <header class="bar">
-    <span class="logo small">Ω</span>
-    <span id="s-task" class="strong"></span>
-    <span id="s-model" class="muted"></span>
-    <span class="grow"></span>
-    <select id="mode" aria-label="mode"></select>
-    <button id="stop" class="quiet"></button>
-    <button id="new" class="primary" hidden></button>
-  </header>
-  <div id="log" class="log"></div>
-  <div id="status" class="status">
-    <span id="spinner" class="spinner" hidden></span>
-    <span id="state"></span>
-    <span class="grow"></span>
-    <span id="stats" class="muted"></span>
-  </div>
-  <form id="reply" class="ask reply">
-    <input id="reply-text" type="text" autocomplete="off" spellcheck="false" disabled>
-    <button type="submit" id="reply-send" disabled></button>
-  </form>
+  <section id="session" class="view" hidden>
+    <div id="session-none" class="empty">
+      <i data-icon="session"></i>
+      <p data-t="gui.session.none"></p>
+      <button type="button" class="primary" data-go="home" data-t="gui.nav.home"></button>
+    </div>
+    <div id="session-body" class="column" hidden>
+      <header class="bar">
+        <div class="title">
+          <b id="s-task"></b>
+          <span id="s-model" class="muted"></span>
+        </div>
+        <span class="grow"></span>
+        <div id="mode" class="seg" role="group">
+          <button type="button" data-mode="ask" data-t="gui.mode.ask" data-title="ui.mode_ask"></button>
+          <button type="button" data-mode="auto" data-t="gui.mode.auto" data-title="ui.mode_auto"></button>
+          <button type="button" data-mode="readonly" data-t="gui.mode.readonly" data-title="ui.mode_readonly"></button>
+        </div>
+        <button type="button" id="stop" class="danger" data-t="gui.stop"></button>
+        <button type="button" id="new" class="primary" data-t="gui.new" hidden></button>
+      </header>
+      <div id="log" class="log"></div>
+      <div id="status" class="status">
+        <span id="spinner" class="spinner" hidden></span>
+        <span id="state"></span>
+        <span class="grow"></span>
+        <span id="stats" class="muted"></span>
+      </div>
+      <form id="reply" class="ask reply">
+        <input id="reply-text" type="text" autocomplete="off" spellcheck="false" data-ph="gui.reply" disabled>
+        <button type="submit" id="reply-send" class="primary" data-t="gui.send" disabled></button>
+      </form>
+    </div>
+  </section>
+
+  <section id="history" class="view" hidden>
+    <div class="split">
+      <aside class="list">
+        <header class="head">
+          <h1 data-t="gui.nav.history"></h1>
+          <p class="muted" data-t="gui.history.intro"></p>
+        </header>
+        <div id="runs"></div>
+      </aside>
+      <div class="column">
+        <header id="run-bar" class="bar" hidden>
+          <div class="title"><b id="run-when"></b><span id="run-title" class="muted"></span></div>
+          <span class="grow"></span>
+          <button type="button" id="run-copy" data-t="gui.copy"></button>
+        </header>
+        <div id="run-none" class="empty"><i data-icon="history"></i><p id="run-none-text"></p></div>
+        <div id="run-text" class="log transcript" hidden></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="system" class="view" hidden>
+    <div class="page">
+      <header class="head"><h1 data-t="gui.nav.system"></h1></header>
+      <div class="panel">
+        <div class="panel-head">
+          <div><h2 data-t="gui.system.check"></h2><p class="muted" data-t="gui.system.check_intro"></p></div>
+          <button type="button" id="check-run" class="primary" data-t="gui.system.run"></button>
+        </div>
+        <div id="check" hidden>
+          <p id="check-verdict" class="verdict"></p>
+          <ul id="check-lines" class="lines"></ul>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <div><h2 data-t="gui.system.steps"></h2><p class="muted" data-t="gui.system.steps_intro"></p></div>
+          <span id="steps-count" class="muted nowrap"></span>
+        </div>
+        <div id="steps"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <div><h2 data-t="gui.system.notes"></h2><p class="muted" data-t="gui.system.notes_intro"></p></div>
+          <button type="button" id="notes-clear" data-t="gui.system.notes_clear"></button>
+        </div>
+        <pre id="notes" class="notes"></pre>
+      </div>
+    </div>
+  </section>
+
+  <section id="settings" class="view" hidden>
+    <div class="page">
+      <header class="head"><h1 data-t="gui.nav.settings"></h1></header>
+      <form id="setup-form" class="panel">
+        <div class="panel-head">
+          <div><h2 data-t="gui.setup"></h2><p class="muted" data-t="gui.setup_intro"></p></div>
+        </div>
+        <div id="providers" class="providers"></div>
+        <div id="key-row" class="field" hidden>
+          <label for="key" data-t="gui.key"></label>
+          <input id="key" type="password" autocomplete="off" spellcheck="false">
+          <a id="key-link" href="#"></a>
+        </div>
+        <div id="url-row" class="field" hidden>
+          <label for="url" data-t="gui.base_url"></label>
+          <input id="url" type="text" autocomplete="off" spellcheck="false" placeholder="http://localhost:8080/v1">
+        </div>
+        <div id="setup-result" class="result" hidden></div>
+        <div class="buttons"><button id="setup-save" type="submit" class="primary" data-t="gui.save"></button></div>
+      </form>
+      <div class="panel">
+        <div class="row">
+          <div><h2 data-t="gui.set.model"></h2><p class="muted" data-t="gui.set.model_intro"></p><p id="model-note" class="muted small" hidden></p></div>
+          <select id="set-model"></select>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><div><h2 data-t="gui.set.general"></h2></div></div>
+        <div class="row">
+          <div><b data-t="gui.set.language"></b><p class="muted" data-t="gui.set.language_sub"></p></div>
+          <select id="set-language"></select>
+        </div>
+        <div class="row">
+          <div><b data-t="gui.set.approval"></b><p class="muted" data-t="gui.set.approval_sub"></p></div>
+          <select id="set-approval"></select>
+        </div>
+        <div class="row">
+          <div><b data-t="gui.set.effort"></b><p class="muted" data-t="gui.set.effort_sub"></p></div>
+          <select id="set-effort"></select>
+        </div>
+        <div class="row">
+          <div><b data-t="gui.set.timeout"></b></div>
+          <select id="set-timeout"></select>
+        </div>
+        <div class="row">
+          <div><b data-t="gui.set.catalog"></b><p class="muted" data-t="gui.set.catalog_sub"></p></div>
+          <label class="switch"><input id="set-catalog" type="checkbox"><span></span></label>
+        </div>
+        <div class="row">
+          <div><b data-t="gui.set.file"></b><p id="set-path" class="muted mono selectable"></p></div>
+        </div>
+      </div>
+    </div>
+  </section>
 </main>
+<div id="toast" class="toast" hidden></div>
 <script type="module" src="app.js"></script>
 </body>
 </html>

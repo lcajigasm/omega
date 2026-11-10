@@ -130,7 +130,7 @@ async function main() {
   await shot("gui-home.png");
 
   // Full maintenance: a step fails, omega diagnoses it and asks before the fix.
-  await click("#tasks button");
+  await click("#lead");
   await until("the approval card", `!!document.querySelector(".card:not(.done) .cmd")`);
   await shot("gui-confirm.png");
 
@@ -154,8 +154,7 @@ async function main() {
 
   await click("#stop");
   await until("the session to close", `!document.getElementById("new").hidden`);
-  await click("#new");
-  await click("#setup-open");
+  await click("#nav [data-view=settings]");
   await until("the setup screen", `document.querySelectorAll("#providers label").length > 0`);
   await shot("gui-setup.png");
   ws.close();

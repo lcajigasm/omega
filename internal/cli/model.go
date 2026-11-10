@@ -155,10 +155,11 @@ func byScore(cfg *config.Config, info llm.Info, names []string) []string {
 	return out
 }
 
-// chooseModel shows the model card for a provider and saves the choice.
-func chooseModel(cfg *config.Config, info llm.Info, p llm.Provider) error {
-	fast, smart := tiers(cfg, info)
-	var opts []ui.Option
+// modelOptions lists what a provider's model can be set to: automatic when
+// the provider has tiers, then every model it offers, best first. listErr is
+// why the provider's own list could not be read, if it could not.
+func modelOptions(cfg *config.Config, info llm.Info, p llm.Provider) (opts []ui.Option, fast, smart string, listErr error) {
+	fast, smart = tiers(cfg, info)
 	seen := map[string]bool{}
 	if fast != "" {
 		opts = append(opts, ui.Option{ID: "auto", Label: i18n.T("model.auto"),
@@ -171,11 +172,8 @@ func chooseModel(cfg *config.Config, info llm.Info, p llm.Provider) error {
 		}
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	models, err := p.Models(ctx)
+	models, listErr := p.Models(ctx)
 	cancel()
-	if err != nil {
-		fmt.Println(i18n.T("setup.models_failed", err))
-	}
 	sort.Strings(models)
 	models = byScore(cfg, info, models)
 	for _, m := range models {
@@ -189,6 +187,30 @@ func chooseModel(cfg *config.Config, info llm.Info, p llm.Provider) error {
 		}
 		opts = append(opts, ui.Option{ID: m, Label: m, Badge: badge})
 	}
+	return opts, fast, smart, listErr
+}
+
+// saveModel fixes a provider's model; "auto" lets omega pick per task.
+func saveModel(cfg *config.Config, provider, choice string) error {
+	pc := cfg.Providers[provider]
+	if choice == "auto" {
+		pc.Model = ""
+	} else {
+		pc.Model = choice
+	}
+	cfg.Providers[provider] = pc
+	if cfg.Provider == provider {
+		cfg.Model = pc.Model
+	}
+	return cfg.Save()
+}
+
+// chooseModel shows the model card for a provider and saves the choice.
+func chooseModel(cfg *config.Config, info llm.Info, p llm.Provider) error {
+	opts, fast, smart, err := modelOptions(cfg, info, p)
+	if err != nil {
+		fmt.Println(i18n.T("setup.models_failed", err))
+	}
 	if len(opts) == 0 {
 		return fmt.Errorf("%s", i18n.T("model.need_local", info.Name))
 	}
@@ -198,17 +220,7 @@ func chooseModel(cfg *config.Config, info llm.Info, p llm.Provider) error {
 		return err
 	}
 	choice := ids[0]
-	pc := cfg.Providers[info.Name]
-	if choice == "auto" {
-		pc.Model = ""
-	} else {
-		pc.Model = choice
-	}
-	cfg.Providers[info.Name] = pc
-	if cfg.Provider == info.Name {
-		cfg.Model = pc.Model
-	}
-	if err := cfg.Save(); err != nil {
+	if err := saveModel(cfg, info.Name, choice); err != nil {
 		return err
 	}
 	shown := choice

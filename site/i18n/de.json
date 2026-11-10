@@ -209,7 +209,7 @@
   "app.8": "Das Disk-Image läuft unter macOS 13 oder neuer, auf Apple Silicon und Intel. Für Windows und Linux nimm das <code>omega-gui</code>-Archiv für amd64 oder arm64 aus dem Release.",
   "app.9": "Die omega-App während einer kompletten Wartung: Schritte mit ihrem Ergebnis, ein fehlgeschlagener pipx-Schritt, mit einem stärkeren Modell diagnostiziert, und eine Karte, die fragt, bevor die Korrektur läuft",
   "app.10": "Schritte, sobald sie fertig sind, ein Fehler, mit einem stärkeren Modell diagnostiziert, und die Korrektur, die auf deine Genehmigung wartet.",
-  "app.11": "Der Startbildschirm der App: sechs Aufgaben als Schaltflächen und ein Feld, in dem du sagst, was du brauchst",
+  "app.11": "Der Startbildschirm der App: die Aufgaben als Schaltflächen und ein Feld, in dem du sagst, was du brauchst",
   "app.12": "Wähle eine Aufgabe oder sag in Worten, was du brauchst.",
   "app.13": "Eine Auswahlkarte in der App mit angehakten Aufräumaktionen und dem Platz, den jede freigibt",
   "app.14": "Hake die Aufräumaktionen an, die du willst. omega macht genau diese.",

@@ -34,6 +34,12 @@ type Task struct {
 	Detail string `json:"detail"`
 }
 
+// Language is one language the interface can be shown in.
+type Language struct {
+	Code string `json:"code"`
+	Name string `json:"name"` // in that language
+}
+
 // Info is what the frontend needs before any session exists.
 type Info struct {
 	Version string `json:"version"`
@@ -41,12 +47,16 @@ type Info struct {
 	Lang    string `json:"lang"`
 	Demo    bool   `json:"demo"`
 	Tagline string `json:"tagline"`
-	Tasks   []Task `json:"tasks"`
+	// Tasks are the presets; the first is the one the home screen leads with.
+	Tasks     []Task     `json:"tasks"`
+	Languages []Language `json:"languages"`
 	// Provider is the configured provider; Ready says it can be used as it
 	// is (it has a key, or needs none).
-	Provider string            `json:"provider"`
-	Ready    bool              `json:"ready"`
-	Text     map[string]string `json:"text"`
+	Provider string `json:"provider"`
+	Ready    bool   `json:"ready"`
+	// LastRun says how long ago the last session was; empty when none.
+	LastRun string            `json:"lastRun"`
+	Text    map[string]string `json:"text"`
 }
 
 // SessionInfo describes a session that has just started.
@@ -57,19 +67,75 @@ type SessionInfo struct {
 	Mode     string `json:"mode"`
 }
 
-var homeTasks = []string{agent.TaskFull, agent.TaskUpdate, agent.TaskClean, agent.TaskAnalyze, agent.TaskFix, agent.TaskTune}
+// homeTasks are the presets in the order the home screen shows them. The
+// ones this system has no prompt for are left out.
+var homeTasks = []string{agent.TaskFull, agent.TaskUpdate, agent.TaskClean, agent.TaskAnalyze, agent.TaskHealth,
+	agent.TaskFix, agent.TaskTune, agent.TaskDev, agent.TaskMac, agent.TaskDocker}
 
-// Info returns the texts and the tasks of the home screen.
+// Info returns the texts and the tasks of the home screen. The frontend asks
+// again after the language changes.
 func (a *App) Info() Info {
 	in := Info{Version: cli.Version(), OS: runtime.GOOS, Lang: i18n.Lang(), Demo: a.demo,
-		Tagline: i18n.T("ui.welcome_tagline"),
-		Text:    i18n.WithPrefix("gui.", "setup.no_key", "ui.mode_", "ui.password_", "ui.always_note", "ui.denied", "ui.confirm", "ui.model_switch")}
+		Tagline: i18n.T("ui.welcome_tagline"), LastRun: cli.LastRun(),
+		Text: i18n.WithPrefix("gui.", "setup.no_key", "ui.mode_", "ui.password_", "ui.always_note", "ui.denied", "ui.confirm",
+			"ui.model_switch", "logs.empty", "notes.empty")}
 	in.Provider, in.Ready = cli.CurrentProvider()
 	for _, id := range homeTasks {
+		if _, ok := agent.TaskPrompts[id]; !ok || (id == agent.TaskMac && runtime.GOOS != "darwin") {
+			continue
+		}
 		in.Tasks = append(in.Tasks, Task{ID: id, Title: i18n.T("gui.task." + id), Detail: i18n.T("gui.task." + id + ".detail")})
+	}
+	for _, code := range i18n.Supported {
+		in.Languages = append(in.Languages, Language{Code: code, Name: i18n.Native[code]})
 	}
 	return in
 }
+
+// Settings returns the values of the settings screen.
+func (a *App) Settings() (cli.Settings, error) { return cli.GetSettings() }
+
+// SetSetting changes one setting: language, approval, effort,
+// command_timeout or model_catalog.
+func (a *App) SetSetting(key, value string) error {
+	switch key {
+	case "language", "approval", "effort", "command_timeout", "model_catalog":
+		return cli.SetConfig(key, value)
+	}
+	return errors.New("unknown setting: " + key)
+}
+
+// Models lists what the configured provider's model can be set to.
+func (a *App) Models() ([]cli.ModelChoice, error) {
+	if a.demo {
+		return []cli.ModelChoice{{ID: "auto", Label: i18n.T("model.auto")}}, nil
+	}
+	return cli.ModelChoices()
+}
+
+// SetModel fixes the model, or frees it with "auto".
+func (a *App) SetModel(choice string) error { return cli.SetModel(choice) }
+
+// Steps lists the maintenance steps of this machine.
+func (a *App) Steps() ([]cli.StepInfo, error) { return cli.StepList() }
+
+// SkipStep turns a step off or back on.
+func (a *App) SkipStep(id string, skip bool) error { return cli.SkipStep(id, skip) }
+
+// Check runs the setup checks of `omega doctor`.
+func (a *App) Check() cli.Check { return cli.RunCheck() }
+
+// Runs lists the saved sessions, newest first.
+func (a *App) Runs() ([]cli.RunInfo, error) { return cli.RunList() }
+
+// RunText returns the transcript of a saved session.
+func (a *App) RunText(name string) (string, error) { return cli.RunText(name) }
+
+// Notes is what omega remembers about this machine.
+func (a *App) Notes() string { return cli.Notes() }
+
+// ClearNotes forgets it.
+func (a *App) ClearNotes() error { return cli.ClearNotes() }
 
 // Providers lists the providers for the setup screen.
 func (a *App) Providers() ([]cli.ProviderStatus, error) { return cli.SetupProviders() }

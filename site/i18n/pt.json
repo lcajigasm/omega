@@ -209,7 +209,7 @@
   "app.8": "A imagem de disco corre no macOS 13 ou posterior, em Apple Silicon e Intel. Para Windows e Linux, vai buscar à versão publicada o arquivo <code>omega-gui</code> para amd64 ou arm64.",
   "app.9": "A app do omega durante uma manutenção completa: passos com o respetivo resultado, um passo do pipx que falhou diagnosticado com um modelo mais potente e um cartão a perguntar antes de a correção correr",
   "app.10": "Os passos à medida que terminam, uma falha diagnosticada com um modelo mais potente e a correção à espera da tua aprovação.",
-  "app.11": "O ecrã inicial da app: seis tarefas em botões e um campo para dizeres o que precisas",
+  "app.11": "O ecrã inicial da app: as tarefas em botões e um campo para dizeres o que precisas",
   "app.12": "Escolhe uma tarefa, ou diz o que precisas por palavras.",
   "app.13": "Um cartão de seleção na app com ações de limpeza marcadas e o espaço que cada uma liberta",
   "app.14": "Marca as limpezas que queres. O omega faz exatamente essas.",

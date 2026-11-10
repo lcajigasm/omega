@@ -28,6 +28,16 @@ var Names = map[string]string{
 	"pt": "Portuguese",
 }
 
+// Native maps each supported code to the language's own name, which is what
+// a language picker shows.
+var Native = map[string]string{
+	"en": "English",
+	"es": "Español",
+	"fr": "Français",
+	"de": "Deutsch",
+	"pt": "Português",
+}
+
 var current = "en"
 
 // Init selects the language: OMEGA_LANG, then the configured language, then
