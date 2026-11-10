@@ -2,10 +2,10 @@
 
 [Website](https://lcajigasm.github.io/omega/) · [Releases](https://github.com/lcajigasm/omega/releases) · [Homebrew tap](https://github.com/lcajigasm/homebrew-tap)
 
-**AI-driven macOS maintenance.** omega combines what
+**AI-driven maintenance for macOS, Linux and Windows.** omega combines what
 [topgrade](https://github.com/topgrade-rs/topgrade) does (update all installed
 software) and what [Mole](https://github.com/tw93/Mole) does (clean and optimise
-your Mac) in a single terminal tool, and puts an AI model in charge: it runs each
+your machine) in a single terminal tool, and puts an AI model in charge: it runs each
 step, **reads the errors, diagnoses them and fixes the configuration**, instead of
 leaving the failure on your screen.
 
@@ -40,6 +40,7 @@ Esc and a denial (`asciinema play docs/assets/shortcuts.cast`).
 - [Your Mac: login, background, menu bar, Dock and shortcuts](#your-mac-login-background-menu-bar-dock-and-shortcuts)
 - [Privacy permissions, apps and leftovers](#privacy-permissions-apps-and-leftovers)
 - [Linux](#linux)
+- [Windows](#windows)
 - [Safety and approvals](#safety-and-approvals)
 - [Step catalogue](#step-catalogue)
 - [Memory between runs](#memory-between-runs)
@@ -123,11 +124,15 @@ an AI model with a narrow set of tools and a strict safety policy.
   mode and `ctrl+p` the model without stopping the run; type `/` for a command
   menu (`/mode`, `/model`, `/help`, `/exit`…) that explains each one as you type.
 - **Five interface languages**, a complete log of every run, API keys in the
-  macOS Keychain or the Linux system keyring, a single Go binary installable
-  with **Homebrew**.
-- **macOS and Linux.** The same agent with each system's own steps: Homebrew,
-  `softwareupdate` and the Mac App Store on a Mac; apt, dnf, pacman, zypper,
-  Flatpak and snap on Linux. See [Linux](#linux) for exactly what works there.
+  macOS Keychain, the Windows Credential Manager or the Linux system keyring,
+  and a single Go binary.
+- **macOS, Linux and Windows.** The same agent with each system's own steps:
+  Homebrew, `softwareupdate` and the Mac App Store on a Mac; apt, dnf, pacman,
+  zypper, Flatpak and snap on Linux; winget, Scoop and Chocolatey on Windows.
+  See [Linux](#linux) and [Windows](#windows) for exactly what works on each.
+- **Everything, step by step** (`omega full`): a guided run through all of it.
+  You untick the steps you do not want, each one starts when the one before
+  ends, and you can skip the next or stop between them.
 
 ## Installation
 
@@ -170,9 +175,19 @@ sha256sum -c SHA256SUMS --ignore-missing   # with SHA256SUMS downloaded next to 
 sudo install -m 755 omega /usr/local/bin/omega
 ```
 
-omega supports **macOS and Linux** ([what works on Linux](#linux)). The Windows
-binaries exist and start, but Windows is **not supported**: there are no Windows
-steps and no key storage (only environment variables).
+On Windows, download the zip for your architecture, extract it and put the
+folder on your `PATH`. In PowerShell:
+
+```powershell
+Expand-Archive omega_*_windows_amd64.zip -DestinationPath "$env:LOCALAPPDATA\Programs\omega"   # or windows_arm64
+$dir = "$env:LOCALAPPDATA\Programs\omega"
+[Environment]::SetEnvironmentVariable("Path", [Environment]::GetEnvironmentVariable("Path", "User") + ";$dir", "User")
+```
+
+Open a new terminal and run `omega setup`. Windows Terminal is recommended.
+
+omega supports **macOS, Linux and Windows**: see [what works on Linux](#linux)
+and [what works on Windows](#windows).
 
 ### From source
 
@@ -203,15 +218,15 @@ omega              # complete maintenance
 `omega setup` shows the providers on a card (local servers that are running are
 marked), asks for the key with hidden input, **checks the key with the provider
 before saving it**, and then lets you pick a model. The key goes to the macOS
-Keychain; on Linux, to the system keyring (Secret Service, through
-`secret-tool`) or, when there is none, to a file only you can read. omega says
-which one it used.
+Keychain; on Windows, to the Credential Manager; on Linux, to the system
+keyring (Secret Service, through `secret-tool`) or, when there is none, to a
+file only you can read. omega says which one it used.
 
 ## Tasks
 
 | Task | What it does | Changes the system | Model (automatic) |
 |---|---|---|---|
-| `full` (default) | checks the state, updates everything, cleans up and summarises | yes | fast → smart on failure |
+| none (`omega` alone) | checks the state, updates everything, cleans up and summarises | yes | fast → smart on failure |
 | `update` | updates only (like topgrade) | yes | fast → smart on failure |
 | `clean` | measures what takes up space and cleans (like `mo clean`) | yes | fast → smart on failure |
 | `analyze` | report, then a card with the recommendations | only what you pick | fast → smart on failure |
@@ -221,6 +236,39 @@ which one it used.
 `omega mac` and `omega dev` are guided tasks of the same kind, for what runs on
 your Mac and for your development setup. `omega menu` lists everything on one
 screen and starts what you choose.
+
+### Everything, step by step
+
+```bash
+omega full                    # choose the steps on a card, then one at a time
+omega full --skip tune,dev    # the same, with two steps unticked from the start
+omega full --dry-run          # every step in read-only mode
+omega full --yes --skip mac   # unattended: every other step, one after another
+```
+
+`omega full` is the run that leaves the machine better than it found it. It
+shows every step that applies to this machine and lets you untick the ones you
+do not want:
+
+| Step | What it does |
+|---|---|
+| `omega doctor` | checks that omega itself is set up, without spending tokens |
+| `omega analyze` | a read-only report of the state of the machine |
+| `omega update` | updates everything installed |
+| `omega clean` | frees disk space, biggest wins first |
+| `omega tune` | reviews the configuration of your tools against the current docs |
+| `omega dev` | reviews languages, version managers and developer tools |
+| `omega docker` | frees Docker space; only when Docker is installed |
+| `omega mac` | reviews what runs on your Mac outside your apps; only on macOS |
+
+Each step is the ordinary command, with its own approvals and cards, and starts
+when the one before ends. Between two steps omega asks: Enter goes on, `s`
+skips the next step, `q` stops. At the end it lists what was done, what was
+skipped and what ended with an error. A step that fails does not stop the run.
+
+`omega` alone is still the quick maintenance (check, update, clean, summarise)
+in a single session. `omega full` used to be another name for it and is now the
+guided run; `omega all` and `omega everything` start it too.
 
 omega takes more than the exact names. All of these work:
 
@@ -785,9 +833,64 @@ keyring, so keys go to the `0600` file. Install `libsecret-tools` (Debian,
 Ubuntu), `libsecret` (Fedora, Arch) and log in to a desktop session to use the
 keyring; the next `omega auth set` moves the key there.
 
-**Windows** is not supported. The release archives include Windows binaries
-that start and show the interface, but there are no Windows steps and no key
-storage.
+## Windows
+
+Windows is omega's third platform, on Windows 10 and 11. This is exactly what
+works there and what does not.
+
+**Works**
+
+| Area | On Windows |
+|---|---|
+| The agent (`omega`, `full`, `update`, `clean`, `analyze`, `tune`, `fix`, `docker`, `dev`, `-p`) | Its instructions are written for Windows, and `system_info` reports the Windows version, whether omega runs elevated and whether a restart is pending |
+| Commands | Run in PowerShell: PowerShell 7 when it is installed, otherwise the Windows PowerShell that ships with Windows. Output is read as UTF-8 and a program's exit code is kept |
+| API keys | Environment variables first. `omega setup` and `omega auth set` save to the **Windows Credential Manager**, as a generic credential named `omega-cli:<provider>`, protected by your login |
+| Package managers | Check and update steps for **winget**, **Scoop** and **Chocolatey**, each shown only when it is installed |
+| Windows itself | `windows-update-check` lists the pending Windows updates; `system-logs` reviews the event log (errors by source, services that should be running and are not, application crashes); `wsl` updates the Windows Subsystem for Linux |
+| Disk and cleanup | `disk` (free space per drive, the temporary folders), `temp-files`, `recycle-bin`, `scoop-cleanup`, `component-store` |
+| Developer tools | The developer-tool steps that are single commands (npm, pnpm, uv, rustup, cargo, Go, .NET, Docker…), `omega dev status`, and `omega dev install` with Scoop or winget |
+| Interface | The TUI, plain output, the menu, the five languages, logs, notes, `omega doctor`, models and local models |
+
+**Does not work**
+
+- **`omega mac`** and `/mac`, `/permissions`, `/apps`, `/undo`: they are macOS
+  features and say so.
+- **Installing Windows updates.** omega lists what is pending and leaves the
+  installation, and any restart, to Windows Update.
+- **Elevation.** There is no `sudo`. The steps that need administrator rights
+  (`choco`, `component-store`) work when the terminal was opened as
+  administrator and fail with "access denied" otherwise; omega does not elevate
+  itself. `--sudo` does nothing on Windows.
+- **`omega dev activate`.** omega does not edit PowerShell profiles; a tool is
+  ready once it is on `PATH`.
+- **Tools made for Unix shells** (asdf, nvm, pyenv, rbenv, SDKMAN, tmux,
+  direnv, Oh My Zsh, Homebrew) and the steps written for a POSIX shell
+  (`dev-artifacts`, `shell-startup`) are not offered.
+- **Git Bash and WSL.** omega for Windows always uses PowerShell, also when a
+  POSIX shell is installed. Inside WSL, use the Linux build instead.
+- **Registry and system tuning.** omega does not "debloat" Windows, remove
+  built-in apps or disable services, and never turns off Microsoft Defender,
+  the firewall or UAC.
+
+The safety policy reads PowerShell too: read-only cmdlets (`Get-`, `Test-`,
+`Measure-`…) run straight away; a delete aimed at a whole drive, your profile
+or the Windows directories, a download piped into `iex`, `Format-Volume` and
+anything that would reveal a provider key never run; everything else asks.
+
+| id | Category | Command | Risk |
+|---|---|---|---|
+| `disk` | check | free space per drive and the size of the temporary folders | read-only |
+| `winget-outdated` `scoop-outdated` `choco-outdated` | check | `winget upgrade`, `scoop status`, `choco outdated` | read-only |
+| `windows-update-check` | check | asks Windows Update what is pending | read-only |
+| `system-logs` | check | the event log, failing services and application crashes | read-only |
+| `winget` | update | `winget upgrade --all` (installers may ask for administrator rights in their own window) | dangerous |
+| `scoop` | update | `scoop update; scoop update *` | normal |
+| `choco` | update | `choco upgrade all -y` (elevated terminal) | dangerous |
+| `wsl` | update | `wsl --update` | dangerous |
+| `scoop-cleanup` | clean | old versions and the download cache | dangerous |
+| `temp-files` | clean | empties your temporary folder; files in use are skipped | dangerous |
+| `recycle-bin` | clean | `Clear-RecycleBin` | dangerous |
+| `component-store` | clean | `Dism.exe /Online /Cleanup-Image /StartComponentCleanup` (elevated terminal) | dangerous |
 
 ## Safety and approvals
 
@@ -993,6 +1096,7 @@ model = "my-model"
 | macOS Keychain, service `omega-cli` | API keys on macOS |
 | Secret Service, attributes `service=omega-cli account=<provider>` | API keys on Linux with a keyring |
 | `~/.config/omega/keys` (mode `0600`) | API keys on Linux without a keyring |
+| Windows Credential Manager, generic credential `omega-cli:<provider>` | API keys on Windows |
 
 ## Command reference
 
@@ -1021,6 +1125,7 @@ omega [task] [flags]
 | `omega models [provider] [filter]` | list models with prices |
 | `omega docker` | measure Docker and clean what you select |
 | `omega menu` | home screen: every command on one screen, started with Enter |
+| `omega full` | everything, one step at a time: choose the steps, skip any, stop when you like |
 | `omega mac [status\|login\|background\|menubar\|dock\|shortcuts]` | review what runs at login and in the background, the menu bar, the Dock and shortcut conflicts (AI-guided without a subcommand) |
 | `omega mac permissions` | remove privacy entries of binaries and apps that are gone |
 | `omega mac apps` | unused apps, Intel-only apps and leftovers of removed apps |
@@ -1130,7 +1235,7 @@ internal/ui/        TUI (Bubble Tea, glamour), selection cards, plain output
 internal/i18n/      translations (en, es, fr, de, pt)
 internal/demo/      scripted session for screenshots
 internal/config/    configuration and paths
-internal/secrets/   API keys: macOS Keychain, Linux Secret Service or a 0600 file
+internal/secrets/   API keys: macOS Keychain, Windows Credential Manager, Linux Secret Service or a 0600 file
 docs/               website (GitHub Pages) and README assets
 Formula/omega.rb    Homebrew formula rewritten when a tag is published
 ```
@@ -1190,8 +1295,10 @@ through apt, dnf, pacman, zypper, Flatpak, snap and Homebrew on Linux, keeps
 API keys in the system keyring (or a `0600` file when there is none) and
 installs developer tools with your distribution's packages. `omega mac` and the
 Mac-only steps do not exist there; [Linux](#linux) has the full list. Windows:
-no. The release archives include Windows binaries, but there are no Windows
-steps and no key storage, and it is not supported.
+yes. omega runs its commands in PowerShell, updates through winget, Scoop and
+Chocolatey, keeps API keys in the Credential Manager and cleans temporary
+files, the Recycle Bin and the component store; [Windows](#windows) has what
+works and what does not.
 
 **Can I add a language?** Add a column to `internal/i18n/messages.go` and the code
 to `i18n.Supported` and `i18n.Names`; a test checks every key is translated with

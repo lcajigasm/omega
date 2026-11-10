@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;600&family=Geist+Mono:wght@400&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=16">
+  <link rel="stylesheet" href="styles.css?v=17">
 </head>
 <body class="page">
   <a class="skip" href="#main">Skip to content</a>
@@ -23,10 +23,10 @@
   <main id="main">
     <div class="container narrow">
       <h1>Privacy</h1>
-      <p>omega is a command line tool that runs on your Mac. It has no account, no server of its own, no analytics and no telemetry. This website sets no cookies.</p>
+      <p>omega is a command line tool that runs on your machine. It has no account, no server of its own, no analytics and no telemetry. This website sets no cookies.</p>
 
-      <h2>What stays on your Mac</h2>
-      <p>Your API keys are stored in the macOS Keychain under the service <code>omega-cli</code>. On Linux they are stored in the system keyring (Secret Service) or, when there is none, in <code>~/.config/omega/keys</code>, a file only your user can read. Your configuration lives in <code>~/.config/omega/config.toml</code>, the notes the agent keeps about your machine in <code>~/.config/omega/notes.md</code>, and a log of every run in <code>~/.local/state/omega/runs</code>. You can delete any of them at any time.</p>
+      <h2>What stays on your machine</h2>
+      <p>Your API keys are stored in the macOS Keychain under the service <code>omega-cli</code>. On Windows they are stored in the Credential Manager. On Linux they are stored in the system keyring (Secret Service) or, when there is none, in <code>~/.config/omega/keys</code>, a file only your user can read. Your configuration lives in <code>~/.config/omega/config.toml</code>, the notes the agent keeps about your machine in <code>~/.config/omega/notes.md</code>, and a log of every run in <code>~/.local/state/omega/runs</code>. You can delete any of them at any time.</p>
 
       <h2>What goes to your AI provider</h2>
       <p>omega talks only to the provider you configure: Anthropic, OpenAI, OpenRouter or OpenCode Zen. Each request contains omega's instructions, your notes, the trimmed output of the commands it ran and the contents of the configuration files it read. The agent is instructed not to read personal documents. That provider's own privacy policy and data retention terms apply to those requests.</p>
