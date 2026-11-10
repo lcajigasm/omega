@@ -222,6 +222,22 @@ which one it used.
 your Mac and for your development setup. `omega menu` lists everything on one
 screen and starts what you choose.
 
+omega takes more than the exact names. All of these work:
+
+| You type | omega runs |
+|---|---|
+| `omega upgrade`, `omega actualizar`, `omega upd` | `omega update`: other words for a task in the five languages, or the start of its name when only one task starts that way |
+| `omega cleanup`, `omega repair`, `omega optimize`, `omega report` | `omega clean`, `fix`, `tune`, `analyze` |
+| `omega perms`, `omega apps`, `omega undo`, `omega dock` | `omega mac permissions`, `mac apps`, `mac undo`, `mac dock` |
+| `omega install fzf mise` | `omega dev install fzf mise` |
+| `omega history`, `omega settings`, `omega keys`, `omega status` | `omega logs`, `config show`, `auth status`, `doctor` |
+| `omega doc`, `omega mac perm` | nothing if the start is ambiguous (`doc` could be `docker` or `doctor`); the command when it is not (`omega mac perm` is `omega mac permissions`) |
+| `omega why is my disk full` | the same as `omega -p "why is my disk full"`: three words or more are a request for the agent |
+| `omega menuu` | an error that says `Did you mean omega menu?` |
+
+One or two words that omega does not recognise are never guessed at, so a
+typo cannot start a paid session.
+
 You can also give it a free-form task:
 
 ```bash
@@ -298,6 +314,10 @@ type; `↑` `↓` move, `Tab` completes and `Enter` runs the highlighted one. Af
 | `/undo` | see what omega changed on this Mac and revert what you pick |
 | `/history` | what failed or was left undone in earlier runs |
 | `/doctor` | check that omega itself is set up correctly |
+| `/disk`, `/logs`, `/shell` | where the disk space goes, what keeps failing in the system logs, why the shell is slow to start |
+| `/steps` | the maintenance steps detected on this machine |
+| `/login`, `/background`, `/menubar`, `/dock`, `/shortcuts` | one area of the Mac review at a time |
+| `/models`, `/settings`, `/notes` | the provider's models with score and price, omega's settings, what omega has noted |
 
 You can also just ask in words. Everything omega does from the command line is
 available to the AI in a session:
@@ -320,9 +340,25 @@ model that could lower its own approval policy or read a key would defeat both.
 | `/exit`, `/quit` | end the session and quit |
 
 `omega menu` (or `omega home`) is the home screen: free disk space, the
-configured model, when omega last ran, and every command grouped by area. Move
-with the arrows, type to filter, Enter runs the entry and returns to the menu
-when it ends.
+configured model, when omega last ran, and everything omega can do, to pick
+instead of remember. It is built from the command tree, so it lists every
+command and subcommand of the version you have.
+
+- **Enter** opens a row marked `›` (a command with subcommands, or a setting
+  with its values) and runs any other row. **←** or **Esc** goes back.
+- **→** on a row marked `+` shows the other ways to run it: read-only
+  (`--dry-run`), automatic (`--auto`), without questions (`--yes`), with the
+  sudo password up front, or as plain text.
+- A row marked `…` asks for a value first: a request in your own words, a
+  model name, the tools to install, a time limit.
+- **Typing searches every row at any depth**, also by what it is for: `perm`
+  finds `omega mac permissions`, `language` finds the six values of
+  `omega config set language`.
+- Settings are picked, not typed: `omega config set` lists each key and the
+  values it accepts; `omega auth set` lists the providers; `omega steps run`
+  lists the steps installed on this machine.
+
+When the command ends, Enter returns to the menu.
 
 ![The home screen with every command grouped by area](docs/assets/menu.png)
 

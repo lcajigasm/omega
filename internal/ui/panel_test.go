@@ -88,8 +88,8 @@ func TestTaskCommandStartsTheNextJob(t *testing.T) {
 			}
 		}
 	}
-	if tasks != 15 {
-		t.Errorf("%d task commands, want 15", tasks)
+	if tasks != 27 {
+		t.Errorf("%d task commands, want 27", tasks)
 	}
 }
 
@@ -104,43 +104,123 @@ func TestHelpCardFitsASmallTerminal(t *testing.T) {
 
 func TestMenu(t *testing.T) {
 	testModel(t) // language and state dirs
-	items := []MenuItem{
-		{ID: "", Group: "MAINTENANCE", Label: "omega", Detail: "Full maintenance"},
-		{ID: "update", Group: "MAINTENANCE", Label: "omega update", Detail: "Update all installed software"},
-		{ID: "mac permissions", Group: "YOUR MAC", Label: "omega mac permissions", Detail: "Remove privacy permissions"},
-		{ID: "dev", Group: "DEVELOPMENT", Label: "omega dev", Detail: "Review languages"},
+	key := func(m *menuModel, k tea.KeyType) tea.Cmd { _, cmd := m.Update(tea.KeyMsg{Type: k}); return cmd }
+	typeIn := func(m *menuModel, text string) {
+		for _, r := range text {
+			m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+		}
 	}
-	m := &menuModel{info: MenuInfo{Version: "1.0", Provider: "anthropic", Model: "auto", LastRun: "2 days ago"}, items: items, total: 500 << 30, free: 100 << 30}
-	m.refilter()
+	items := func() []MenuItem {
+		return []MenuItem{
+			{Group: "MAINTENANCE", Label: "omega", Detail: "Full maintenance"},
+			{Group: "MAINTENANCE", Label: "omega update", Detail: "Update all installed software", Args: []string{"update"},
+				Options: []MenuItem{{Label: "omega update --dry-run", Detail: "read-only", Args: []string{"update", "--dry-run"}}}},
+			{Group: "MAINTENANCE", Label: `omega -p "…"`, Detail: "Ask in words", Args: []string{"-p"}, Ask: "what you want"},
+			{Group: "YOUR MAC", Label: "omega mac", Detail: "Review your Mac", Children: []MenuItem{
+				{Label: "omega mac permissions", Detail: "Remove privacy permissions", Args: []string{"mac", "permissions"}},
+				{Label: "omega mac undo", Detail: "Revert changes", Args: []string{"mac", "undo"}},
+			}},
+			{Group: "SETTINGS", Label: "omega config set language", Detail: "Language of the interface", Children: []MenuItem{
+				{Label: "omega config set language es", Args: []string{"config", "set", "language", "es"}},
+			}},
+		}
+	}
+	m := newMenu(MenuInfo{Version: "1.0", Provider: "anthropic", Model: "auto", LastRun: "2 days ago"}, items())
+	m.total, m.free = 500<<30, 100<<30
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	view := stripANSI(m.View())
-	for _, want := range []string{"omega 1.0", "100.0 GB free of 500.0 GB", "2 days ago", "MAINTENANCE", "YOUR MAC", "❯ omega ", "omega mac permissions"} {
+	for _, want := range []string{"omega 1.0", "100.0 GB free of 500.0 GB", "2 days ago", "MAINTENANCE", "YOUR MAC", "❯ omega ", "omega mac ›", "omega update +"} {
 		if !strings.Contains(view, want) {
 			t.Errorf("menu lacks %q:\n%s", want, view)
 		}
 	}
-	m.Update(tea.KeyMsg{Type: tea.KeyDown})
-	m.Update(tea.KeyMsg{Type: tea.KeyDown})
-	if _, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter}); cmd == nil || !m.started || m.picked != "mac permissions" {
-		t.Fatalf("enter starts the highlighted entry: started=%v picked=%q", m.started, m.picked)
+
+	// Enter on a row with a list opens it; Enter on a row of that list runs it.
+	key(m, tea.KeyDown)
+	key(m, tea.KeyDown)
+	key(m, tea.KeyDown)
+	if cmd := key(m, tea.KeyEnter); cmd != nil || len(m.stack) != 2 {
+		t.Fatalf("enter on a command with subcommands opens them: depth %d", len(m.stack))
+	}
+	if view := stripANSI(m.View()); !strings.Contains(view, "omega mac permissions") || strings.Contains(view, "omega update") {
+		t.Fatalf("the submenu shows only its rows:\n%s", view)
+	}
+	key(m, tea.KeyDown)
+	if cmd := key(m, tea.KeyEnter); cmd == nil || !m.started || strings.Join(m.picked, " ") != "mac undo" {
+		t.Fatalf("enter runs the highlighted row: started=%v picked=%v", m.started, m.picked)
 	}
 
-	m = &menuModel{items: items}
-	m.refilter()
+	// Left and Esc go back one level; Esc at the top leaves.
+	m = newMenu(MenuInfo{}, items())
+	key(m, tea.KeyDown)
+	key(m, tea.KeyDown)
+	key(m, tea.KeyDown)
+	key(m, tea.KeyEnter)
+	key(m, tea.KeyLeft)
+	if len(m.stack) != 1 || m.top().cursor != 3 {
+		t.Fatalf("left goes back to where the user was: depth %d cursor %d", len(m.stack), m.top().cursor)
+	}
+	key(m, tea.KeyEnter)
+	if cmd := key(m, tea.KeyEsc); cmd != nil || len(m.stack) != 1 {
+		t.Fatal("esc in a submenu goes back, it does not quit")
+	}
+	if cmd := key(m, tea.KeyEsc); cmd == nil || m.started {
+		t.Fatal("esc at the top leaves without starting anything")
+	}
+
+	// The right arrow opens the other ways to run a row.
+	m = newMenu(MenuInfo{}, items())
+	key(m, tea.KeyDown)
+	key(m, tea.KeyRight)
+	if len(m.stack) != 2 {
+		t.Fatal("right opens the run options")
+	}
+	if cmd := key(m, tea.KeyEnter); cmd == nil || strings.Join(m.picked, " ") != "update --dry-run" {
+		t.Fatalf("picked %v", m.picked)
+	}
+
+	// Typing searches every row at any depth, also by what a setting is for.
+	m = newMenu(MenuInfo{}, items())
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
-	for _, r := range "perm" {
-		m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+	typeIn(m, "perm")
+	if len(m.hits) != 1 || m.hits[0].Label != "omega mac permissions" {
+		t.Fatalf("typing finds a row inside a submenu: %+v", m.hits)
 	}
-	if len(m.shown) != 1 || items[m.shown[0]].ID != "mac permissions" {
-		t.Fatalf("typing filters the list: %v", m.shown)
+	key(m, tea.KeyEsc)
+	if m.filter != "" || m.started {
+		t.Fatal("the first Esc clears the search")
 	}
-	m.Update(tea.KeyMsg{Type: tea.KeyEsc})
-	if m.filter != "" || len(m.shown) != 4 || m.started {
-		t.Fatal("the first Esc clears the filter")
+	typeIn(m, "interface")
+	if len(m.hits) != 1 || m.hits[0].Label != "omega config set language es" {
+		t.Fatalf("a value is found by what its setting is for: %+v", m.hits)
 	}
-	// The first entry has an empty id (bare omega): starting it is not the same as leaving.
-	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	if !m.started || m.picked != "" {
-		t.Fatalf("full maintenance is started=%v picked=%q", m.started, m.picked)
+	typeIn(m, "zzz")
+	if view := stripANSI(m.View()); !strings.Contains(view, "Nothing matches") {
+		t.Fatalf("no match is said:\n%s", view)
+	}
+
+	// A row that needs a value asks for it and appends it.
+	m = newMenu(MenuInfo{}, items())
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	key(m, tea.KeyDown)
+	key(m, tea.KeyDown)
+	if cmd := key(m, tea.KeyEnter); cmd != nil || m.asking == nil {
+		t.Fatal("enter on a row that needs a value asks for it")
+	}
+	if cmd := key(m, tea.KeyEnter); cmd != nil || m.started {
+		t.Fatal("an empty value runs nothing")
+	}
+	typeIn(m, "why is the disk full")
+	if view := stripANSI(m.View()); !strings.Contains(view, "what you want: why is the disk full") {
+		t.Fatalf("the value is shown while typing:\n%s", view)
+	}
+	if cmd := key(m, tea.KeyEnter); cmd == nil || len(m.picked) != 2 || m.picked[0] != "-p" || m.picked[1] != "why is the disk full" {
+		t.Fatalf("picked %q", m.picked)
+	}
+
+	// q leaves only at the top with nothing typed.
+	m = newMenu(MenuInfo{}, items())
+	if _, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}}); cmd == nil {
+		t.Fatal("q leaves the menu")
 	}
 }

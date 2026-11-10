@@ -6,8 +6,6 @@ import (
 	"sort"
 	"strings"
 	"testing"
-
-	"github.com/lcajigasm/omega/internal/agent"
 )
 
 var (
@@ -72,7 +70,16 @@ func TestDocumentedCommandsExist(t *testing.T) {
 			if c == "" {
 				continue
 			}
-			words := strings.Fields(c)
+			// The documentation also shows two things omega refuses on purpose.
+			if c == "menuu" || c == "doc" {
+				if _, _, err := interpret(root, strings.Fields(c)); err == nil {
+					t.Errorf("%s shows `omega %s` as an error, but omega accepts it", doc, c)
+				}
+				continue
+			}
+			// Resolve the words the way the binary does: shortcuts first, then
+			// commands by name or unique prefix, then tasks and sentences.
+			words := expandShortcut(root, strings.Fields(c))
 			cmd, rest, err := root.Find(words)
 			if err != nil {
 				t.Errorf("%s shows `omega %s`: %v", doc, c, err)
@@ -81,9 +88,8 @@ func TestDocumentedCommandsExist(t *testing.T) {
 			switch {
 			case len(rest) == 0:
 			case cmd == root:
-				// A task, optionally followed by free words the extraction kept.
-				if _, ok := agent.TaskPrompts[rest[0]]; !ok {
-					t.Errorf("%s shows `omega %s`, but %q is neither a command nor a task", doc, c, rest[0])
+				if _, _, err := interpret(root, rest); err != nil {
+					t.Errorf("%s shows `omega %s`, which omega answers with: %v", doc, c, err)
 				}
 			case cmd.HasSubCommands():
 				t.Errorf("%s shows `omega %s`, but `omega %s` has no subcommand %q", doc, c, strings.TrimPrefix(cmd.CommandPath(), "omega "), rest[0])
@@ -96,11 +102,8 @@ func TestUnknownCommandSaysHowToUpdate(t *testing.T) {
 	old := version
 	version = "v0.13.0"
 	t.Cleanup(func() { version = old })
-	var f runFlags
-	root := newRoot(&f)
 	for _, args := range [][]string{{"menuu"}, {"dev2", "status"}, {"update", "now"}} {
-		root.SetArgs(args)
-		err := root.Execute()
+		_, _, err := interpret(testRoot(), args)
 		if err == nil {
 			t.Fatalf("%v: no error", args)
 		}

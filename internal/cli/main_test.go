@@ -3,6 +3,8 @@ package cli
 import (
 	"os"
 	"testing"
+
+	"github.com/spf13/cobra"
 )
 
 // The tests never download the model catalogue or ask GitHub for the latest
@@ -10,5 +12,6 @@ import (
 func TestMain(m *testing.M) {
 	catalogDisabled = true
 	latestRelease = func() string { return "" }
+	cobra.EnablePrefixMatching = true // as Execute sets it
 	os.Exit(m.Run())
 }
