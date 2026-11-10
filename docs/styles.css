@@ -124,6 +124,26 @@ kbd {
 .nav > .btn { margin-left: auto; }
 .nav-links ~ .nav-gh { margin-left: 0; }
 .nav-links ~ .btn { margin-left: 0; }
+/* Language menu: a <details>, so it opens without the script too. */
+.lang { position: relative; }
+.lang summary {
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: var(--radius-sm);
+  color: var(--text-muted); font: 500 13px/20px var(--mono); text-transform: uppercase; cursor: pointer; list-style: none;
+}
+.lang summary::-webkit-details-marker { display: none; }
+.lang summary i.ph { font-size: 18px; }
+.lang summary:hover, .lang[open] summary { color: var(--text); background: var(--surface-2); }
+.lang ul {
+  position: absolute; right: 0; top: calc(100% + var(--s-2)); z-index: 60; min-width: 168px; padding: var(--s-1);
+  border: 1px solid var(--border-strong); border-radius: 12px; background: var(--surface-1); box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+}
+.lang a { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-radius: var(--radius-sm); color: var(--text-soft); font-size: 14px; text-decoration: none; }
+.lang a:hover { color: var(--text); background: var(--surface-3); }
+.lang a[aria-current] { color: var(--text); }
+.lang a[aria-current]::after { content: "✓"; color: var(--accent); }
+.nav > .lang { margin-left: auto; }
+.nav-links ~ .lang { margin-left: 0; }
+.lang ~ .btn { margin-left: 0; }
 .menu-toggle {
   display: none; width: 40px; height: 40px; padding: 0; margin-left: auto;
   border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: transparent; cursor: pointer;
@@ -156,7 +176,8 @@ kbd {
 
 /* Install: tabs, one command, a copy button. */
 .install { margin-top: var(--s-6); max-width: 560px; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--surface-1); overflow: hidden; }
-.tabs { display: flex; gap: var(--s-1); padding: var(--s-2) var(--s-2) 0; border-bottom: 1px solid var(--border); }
+.tabs { display: flex; gap: var(--s-1); padding: var(--s-2) var(--s-2) 0; border-bottom: 1px solid var(--border); overflow-x: auto; scrollbar-width: none; }
+.tabs .tab { flex-shrink: 0; white-space: nowrap; }
 .tab {
   padding: 8px 14px; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px;
   background: transparent; color: var(--text-muted); font: 500 14px/20px var(--font); cursor: pointer;
@@ -166,7 +187,7 @@ kbd {
 .tab[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); }
 .tab i.ph { font-size: 16px; }
 .install-row { display: flex; align-items: center; gap: var(--s-3); padding: var(--s-3) var(--s-3) var(--s-3) var(--s-4); }
-.install-cmd { flex: 1; min-width: 0; overflow-x: auto; white-space: pre; color: var(--text); font: 14px/22px var(--mono); padding: 0; background: none; }
+.install-cmd { flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; white-space: pre; color: var(--text); font: 14px/22px var(--mono); padding: 0; background: none; }
 .install-cmd::before { content: "$ "; color: var(--text-muted); }
 .install-cmd.multi::before { content: none; }
 .copy-btn { flex-shrink: 0; align-self: flex-start; }
@@ -252,15 +273,20 @@ kbd {
 /* ---------- Interface ---------- */
 .gallery { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-5); }
 .shot { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-1); overflow: hidden; }
-.shot img { flex: 1; min-height: 0; width: 100%; aspect-ratio: 1280 / 820; object-fit: cover; object-position: left top; border-bottom: 1px solid var(--border); background: #1e1e2e; }
-.shot figcaption { padding: var(--s-3) var(--s-4); color: var(--text-muted); font-size: 14px; line-height: 1.5; }
+/* A capture is never cropped: it keeps the proportions of its width and
+   height attributes, and the caption takes whatever height is left over. */
+.shot img { width: 100%; height: auto; border-bottom: 1px solid var(--border); background: #1e1e2e; }
+.shot figcaption { flex: 1; padding: var(--s-3) var(--s-4); color: var(--text-muted); font-size: 14px; line-height: 1.5; }
 /* The first capture is the lead: two columns wide and two rows tall, with
    two smaller ones stacked beside it. */
 .shot-wide { grid-column: span 2; grid-row: span 2; }
-/* App captures are centred in their window; terminal ones start at the left. */
-.shot-center img { object-position: center top; background: #121214; }
+.shot-wide figcaption { font-size: 15px; }
+.shot-center img { background: #121214; }
 .note + .grid { margin-top: var(--s-5); }
-.shot-wide img { aspect-ratio: auto; }
+/* The desktop app's install line and download buttons. */
+.app-install { margin-top: 0; }
+.downloads { display: flex; flex-wrap: wrap; gap: var(--s-3); margin-top: var(--s-3); }
+.downloads-note { max-width: 720px; margin-bottom: var(--s-7); }
 .subhead { margin: var(--s-8) 0 var(--s-5); font-size: 24px; }
 .slash { display: flex; flex-wrap: wrap; gap: var(--s-2); }
 .slash code { padding: 4px 10px; border: 1px solid var(--border); background: var(--surface-1); font-size: 13px; }
@@ -322,6 +348,9 @@ kbd {
 .footer-links { display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-5); justify-content: flex-end; }
 .footer-links a { color: var(--text-muted); font-size: 14px; text-decoration: none; }
 .footer-links a:hover { color: var(--text); }
+.footer-langs { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-5); padding-top: var(--s-4); border-top: 1px solid var(--border); }
+.footer-langs a { color: var(--text-muted); font-size: 14px; text-decoration: none; }
+.footer-langs a:hover, .footer-langs a[aria-current] { color: var(--text); }
 .footer-note { grid-column: 1 / -1; color: var(--text-muted); font-size: 13px; line-height: 1.6; }
 
 /* ---------- Simple pages (privacy, 404) ---------- */
@@ -346,12 +375,12 @@ kbd {
   .hero-title { font-size: 52px; }
   .nav-links { display: none; }
   .nav-gh, .nav > .nav-cta { display: none; }
-  .menu-toggle { display: block; }
+  .menu-toggle { display: block; margin-left: 0; }
+  .nav-links ~ .lang { margin-left: auto; }
   .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .get-3 { grid-template-columns: minmax(0, 1fr); }
   .grid-3, .gallery { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .shot-wide { grid-row: auto; }
-  .shot-wide img { aspect-ratio: 1280 / 820; }
   .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .stat:nth-child(3) { border-left: 0; }
   .stat:nth-child(n+3) { border-top: 1px solid var(--border); }
@@ -367,7 +396,6 @@ kbd {
   .hero-sub { font-size: 17px; }
   .grid-2, .grid-3, .grid-4, .gallery, .get, .facts { grid-template-columns: minmax(0, 1fr); }
   .shot-wide { grid-column: auto; grid-row: auto; }
-  .shot-wide img { aspect-ratio: 1280 / 820; }
   .faq { columns: 1; }
   .deflist > div, .deflist.keys > div { grid-template-columns: minmax(0, 1fr); gap: var(--s-1); }
   .install-row { flex-direction: column; align-items: stretch; padding: var(--s-3); }

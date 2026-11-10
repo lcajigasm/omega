@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{t "notfound.title"}}</title>
+  <meta name="robots" content="noindex">
+  <link rel="icon" href="/omega/favicon.svg" type="image/svg+xml">
+  <meta name="theme-color" content="#000000">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;600&family=Geist+Mono:wght@400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/omega/styles.css?v=19">
+</head>
+<body class="page">
+  <a class="skip" href="#main" data-k="page.1">{{t "page.1"}}</a>
+  <main id="main">
+    <div class="container narrow">
+      <div class="terminal" style="margin: 0 0 32px;">
+        <div class="terminal-bar"><span></span><span></span><span></span><p>omega</p></div>
+        <div class="terminal-body">
+          <p class="t-line" style="opacity:1;transform:none"><span class="t-err">✗ exit 404</span> <span data-k="notfound.cmd">{{t "notfound.cmd"}}</span></p>
+          <p class="t-line t-muted" style="opacity:1;transform:none">  │ <span data-k="notfound.err">{{t "notfound.err"}}</span></p>
+        </div>
+      </div>
+      <h1 data-k="notfound.heading">{{t "notfound.heading"}}</h1>
+      <p data-k="notfound.body">{{t "notfound.body"}}</p>
+      <a class="btn btn-primary" href="/omega/" id="home" data-k="privacy.back">{{t "privacy.back"}}</a>
+    </div>
+  </main>
+  <!-- GitHub Pages serves this one file for every missing address, so the
+       language comes from the address, then from the visitor. -->
+  <script>
+  (function () {
+    var all = {{all "page.1" "notfound.title" "notfound.cmd" "notfound.err" "notfound.heading" "notfound.body" "privacy.back"}};
+    var m = location.pathname.match(/^\/omega\/([a-z]{2})(\/|$)/), lang = m && m[1];
+    try {
+      if (!all[lang]) lang = (localStorage.getItem("omega-lang") || navigator.language || "").slice(0, 2).toLowerCase();
+    } catch (e) {}
+    var strings = all[lang];
+    if (!strings) return;
+    document.documentElement.lang = lang;
+    document.title = strings["notfound.title"];
+    document.querySelectorAll("[data-k]").forEach(function (el) { el.innerHTML = strings[el.getAttribute("data-k")]; });
+    document.getElementById("home").href = "/omega/" + lang + "/";
+  })();
+  </script>
+</body>
+</html>

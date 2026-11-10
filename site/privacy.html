@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="{{.Lang}}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{t "privacy.title"}}</title>
+  <meta name="description" content="{{attr "privacy.description"}}">
+  <link rel="canonical" href="{{.URL}}">
+{{range langs}}  <link rel="alternate" hreflang="{{.Code}}" href="{{.URL}}">
+{{end}}  <link rel="alternate" hreflang="x-default" href="{{.DefaultURL}}">
+  <link rel="icon" href="{{.Root}}favicon.svg" type="image/svg+xml">
+  <meta name="theme-color" content="#000000">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
+  <link rel="stylesheet" href="{{.Root}}styles.css?v=19">
+</head>
+<body class="page">
+  <a class="skip" href="#main">{{t "page.1"}}</a>
+  <header class="nav-wrap">
+    <nav class="nav" aria-label="{{attr "nav.1"}}">
+      <a class="brand" href="./" aria-label="{{attr "nav.2"}}"><span class="brand-mark" aria-hidden="true">Ω</span> omega</a>
+      <details class="lang">
+        <summary aria-label="{{attr "nav.language"}}"><i class="ph ph-translate" aria-hidden="true"></i><span>{{.Lang}}</span></summary>
+        <ul>
+{{range langs}}          <li><a href="{{.Href}}" lang="{{.Code}}" hreflang="{{.Code}}" data-lang="{{.Code}}"{{if .Current}} aria-current="true"{{end}}>{{.Name}}</a></li>
+{{end}}        </ul>
+      </details>
+      <a class="btn btn-sm btn-primary" href="./">{{t "privacy.back"}}</a>
+    </nav>
+  </header>
+  <main id="main">
+    <div class="container narrow">
+      <h1>{{t "privacy.2"}}</h1>
+      <p>{{t "privacy.3"}}</p>
+
+      <h2>{{t "privacy.4"}}</h2>
+      <p>{{t "privacy.5"}}</p>
+
+      <h2>{{t "privacy.6"}}</h2>
+      <p>{{t "privacy.7"}}</p>
+
+      <h2>{{t "privacy.8"}}</h2>
+      <p>{{t "privacy.9"}}</p>
+
+      <h2>{{t "privacy.10"}}</h2>
+      <p>{{t "privacy.11"}}</p>
+
+      <h2>{{t "privacy.12"}}</h2>
+      <p>{{t "privacy.13"}}</p>
+
+      <h2>{{t "privacy.14"}}</h2>
+      <p>{{t "privacy.15"}}</p>
+
+      <a class="btn btn-primary" href="./">{{t "privacy.back"}}</a>
+    </div>
+  </main>
+  <footer class="footer">
+    <div class="container footer-inner">
+      <p class="brand"><span class="brand-mark" aria-hidden="true">Ω</span> omega</p>
+      <ul class="footer-links">
+        <li><a href="https://github.com/lcajigasm/omega">GitHub</a></li>
+        <li><a href="privacy.html" aria-current="page">{{t "footer.3"}}</a></li>
+        <li><a href="https://github.com/lcajigasm/omega/blob/main/LICENSE">{{t "footer.4"}}</a></li>
+      </ul>
+      <ul class="footer-langs" aria-label="{{attr "nav.language"}}">
+{{range langs}}        <li><a href="{{.Href}}" lang="{{.Code}}" hreflang="{{.Code}}" data-lang="{{.Code}}"{{if .Current}} aria-current="true"{{end}}>{{.Name}}</a></li>
+{{end}}      </ul>
+    </div>
+  </footer>
+  <script src="{{.Root}}main.js?v=18"></script>
+</body>
+</html>

@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="pt">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Privacidade · omega</title>
+  <meta name="description" content="O que o omega guarda na tua máquina e o que envia ao fornecedor de IA que escolheres.">
+  <link rel="canonical" href="https://lcajigasm.github.io/omega/pt/privacy.html">
+  <link rel="alternate" hreflang="en" href="https://lcajigasm.github.io/omega/privacy.html">
+  <link rel="alternate" hreflang="es" href="https://lcajigasm.github.io/omega/es/privacy.html">
+  <link rel="alternate" hreflang="fr" href="https://lcajigasm.github.io/omega/fr/privacy.html">
+  <link rel="alternate" hreflang="de" href="https://lcajigasm.github.io/omega/de/privacy.html">
+  <link rel="alternate" hreflang="pt" href="https://lcajigasm.github.io/omega/pt/privacy.html">
+  <link rel="alternate" hreflang="x-default" href="https://lcajigasm.github.io/omega/privacy.html">
+  <link rel="icon" href="../favicon.svg" type="image/svg+xml">
+  <meta name="theme-color" content="#000000">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
+  <link rel="stylesheet" href="../styles.css?v=19">
+</head>
+<body class="page">
+  <a class="skip" href="#main">Saltar para o conteúdo</a>
+  <header class="nav-wrap">
+    <nav class="nav" aria-label="Principal">
+      <a class="brand" href="./" aria-label="Início do omega"><span class="brand-mark" aria-hidden="true">Ω</span> omega</a>
+      <details class="lang">
+        <summary aria-label="Idioma"><i class="ph ph-translate" aria-hidden="true"></i><span>pt</span></summary>
+        <ul>
+          <li><a href="../privacy.html" lang="en" hreflang="en" data-lang="en">English</a></li>
+          <li><a href="../es/privacy.html" lang="es" hreflang="es" data-lang="es">Español</a></li>
+          <li><a href="../fr/privacy.html" lang="fr" hreflang="fr" data-lang="fr">Français</a></li>
+          <li><a href="../de/privacy.html" lang="de" hreflang="de" data-lang="de">Deutsch</a></li>
+          <li><a href="../pt/privacy.html" lang="pt" hreflang="pt" data-lang="pt" aria-current="true">Português</a></li>
+        </ul>
+      </details>
+      <a class="btn btn-sm btn-primary" href="./">Voltar ao início</a>
+    </nav>
+  </header>
+  <main id="main">
+    <div class="container narrow">
+      <h1>Privacidade</h1>
+      <p>O omega é uma ferramenta de linha de comandos e uma app de secretária. Ambas correm na tua máquina. Não tem conta, nem servidor próprio, nem analítica, nem telemetria. Este site não define cookies; quando escolhes um idioma, guarda a escolha no teu navegador.</p>
+
+      <h2>O que fica na tua máquina</h2>
+      <p>As tuas chaves de API ficam guardadas no porta-chaves do macOS, no serviço <code>omega-cli</code>. No Windows, ficam guardadas no Gestor de Credenciais. No Linux, ficam guardadas no porta-chaves do sistema (Secret Service) ou, quando não há nenhum, em <code>~/.config/omega/keys</code>, um ficheiro que só o teu utilizador pode ler. A tua configuração está em <code>~/.config/omega/config.toml</code>, as notas que o agente guarda sobre a tua máquina em <code>~/.config/omega/notes.md</code> e um registo de cada execução em <code>~/.local/state/omega/runs</code>. Podes apagar qualquer um deles quando quiseres.</p>
+
+      <h2>O que vai para o teu fornecedor de IA</h2>
+      <p>O omega fala apenas com o fornecedor que configurares: Anthropic, OpenAI, OpenRouter ou OpenCode Zen. Cada pedido contém as instruções do omega, as tuas notas, a saída abreviada dos comandos que executou e o conteúdo dos ficheiros de configuração que leu. O agente tem instruções para não ler documentos pessoais. A esses pedidos aplicam-se a política de privacidade e os termos de retenção de dados desse fornecedor.</p>
+
+      <h2>O catálogo de modelos</h2>
+      <p>Para escolher os modelos do modo automático, o omega descarrega a lista pública de modelos da OpenRouter de <code>openrouter.ai</code> uma vez por dia, mesmo quando o teu fornecedor é outro. É um pedido simples, sem chave e sem nada sobre ti ou a tua máquina; a OpenRouter pode registar o teu endereço IP ao servi-lo. <code>omega config set model_catalog off</code> desativa-o, e os fornecedores locais nunca o fazem.</p>
+
+      <h2>A verificação de versão</h2>
+      <p><code>omega doctor</code> pede ao GitHub (<code>api.github.com</code>) a etiqueta da versão mais recente do omega, para te avisar quando a tua é mais antiga. O pedido não leva nada sobre ti; o GitHub pode registar o teu endereço IP. Nenhum outro comando o faz.</p>
+
+      <h2>Este site</h2>
+      <p>Este site está alojado no GitHub Pages e carrega tipos de letra do Google Fonts, ícones do unpkg e, na página inicial, o leitor de sessões do jsDelivr. Esses serviços podem registar o teu endereço IP ao servirem os ficheiros.</p>
+
+      <h2>Contacto</h2>
+      <p>Dúvidas ou preocupações: abre um issue em <a href="https://github.com/lcajigasm/omega/issues">github.com/lcajigasm/omega/issues</a>.</p>
+
+      <a class="btn btn-primary" href="./">Voltar ao início</a>
+    </div>
+  </main>
+  <footer class="footer">
+    <div class="container footer-inner">
+      <p class="brand"><span class="brand-mark" aria-hidden="true">Ω</span> omega</p>
+      <ul class="footer-links">
+        <li><a href="https://github.com/lcajigasm/omega">GitHub</a></li>
+        <li><a href="privacy.html" aria-current="page">Privacidade</a></li>
+        <li><a href="https://github.com/lcajigasm/omega/blob/main/LICENSE">Licença (termos)</a></li>
+      </ul>
+      <ul class="footer-langs" aria-label="Idioma">
+        <li><a href="../privacy.html" lang="en" hreflang="en" data-lang="en">English</a></li>
+        <li><a href="../es/privacy.html" lang="es" hreflang="es" data-lang="es">Español</a></li>
+        <li><a href="../fr/privacy.html" lang="fr" hreflang="fr" data-lang="fr">Français</a></li>
+        <li><a href="../de/privacy.html" lang="de" hreflang="de" data-lang="de">Deutsch</a></li>
+        <li><a href="../pt/privacy.html" lang="pt" hreflang="pt" data-lang="pt" aria-current="true">Português</a></li>
+      </ul>
+    </div>
+  </footer>
+  <script src="../main.js?v=18"></script>
+</body>
+</html>

@@ -10,23 +10,40 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;600&family=Geist+Mono:wght@400&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/omega/styles.css?v=18">
+  <link rel="stylesheet" href="/omega/styles.css?v=19">
 </head>
 <body class="page">
-  <a class="skip" href="#main">Skip to content</a>
+  <a class="skip" href="#main" data-k="page.1">Skip to content</a>
   <main id="main">
     <div class="container narrow">
       <div class="terminal" style="margin: 0 0 32px;">
         <div class="terminal-bar"><span></span><span></span><span></span><p>omega</p></div>
         <div class="terminal-body">
-          <p class="t-line" style="opacity:1;transform:none"><span class="t-err">✗ exit 404</span> open this page</p>
-          <p class="t-line t-muted" style="opacity:1;transform:none">  │ No such file or directory</p>
+          <p class="t-line" style="opacity:1;transform:none"><span class="t-err">✗ exit 404</span> <span data-k="notfound.cmd">open this page</span></p>
+          <p class="t-line t-muted" style="opacity:1;transform:none">  │ <span data-k="notfound.err">No such file or directory</span></p>
         </div>
       </div>
-      <h1>This page does not exist</h1>
-      <p>The link may be old, or the address may have a typo. Everything about omega is on the home page.</p>
-      <a class="btn btn-primary" href="/omega/">Back to home</a>
+      <h1 data-k="notfound.heading">This page does not exist</h1>
+      <p data-k="notfound.body">The link may be old, or the address may have a typo. Everything about omega is on the home page.</p>
+      <a class="btn btn-primary" href="/omega/" id="home" data-k="privacy.back">Back to home</a>
     </div>
   </main>
+  <!-- GitHub Pages serves this one file for every missing address, so the
+       language comes from the address, then from the visitor. -->
+  <script>
+  (function () {
+    var all = {"de":{"notfound.body":"Der Link ist vielleicht veraltet, oder die Adresse enthält einen Tippfehler. Alles über omega steht auf der Startseite.","notfound.cmd":"diese Seite öffnen","notfound.err":"Datei oder Verzeichnis nicht gefunden","notfound.heading":"Diese Seite existiert nicht","notfound.title":"Seite nicht gefunden · omega","page.1":"Zum Inhalt springen","privacy.back":"Zurück zur Startseite"},"es":{"notfound.body":"Puede que el enlace sea antiguo o que la dirección tenga una errata. Todo sobre omega está en la página de inicio.","notfound.cmd":"abrir esta página","notfound.err":"No existe el archivo o el directorio","notfound.heading":"Esta página no existe","notfound.title":"Página no encontrada · omega","page.1":"Saltar al contenido","privacy.back":"Volver al inicio"},"fr":{"notfound.body":"Le lien est peut-être ancien, ou l'adresse contient une faute de frappe. Tout ce qui concerne omega se trouve sur la page d'accueil.","notfound.cmd":"ouvrir cette page","notfound.err":"Aucun fichier ou dossier de ce type","notfound.heading":"Cette page n'existe pas","notfound.title":"Page introuvable · omega","page.1":"Aller au contenu","privacy.back":"Retour à l'accueil"},"pt":{"notfound.body":"A ligação pode ser antiga, ou o endereço pode ter uma gralha. Tudo sobre o omega está na página inicial.","notfound.cmd":"abrir esta página","notfound.err":"Ficheiro ou diretoria inexistente","notfound.heading":"Esta página não existe","notfound.title":"Página não encontrada · omega","page.1":"Saltar para o conteúdo","privacy.back":"Voltar ao início"}};
+    var m = location.pathname.match(/^\/omega\/([a-z]{2})(\/|$)/), lang = m && m[1];
+    try {
+      if (!all[lang]) lang = (localStorage.getItem("omega-lang") || navigator.language || "").slice(0, 2).toLowerCase();
+    } catch (e) {}
+    var strings = all[lang];
+    if (!strings) return;
+    document.documentElement.lang = lang;
+    document.title = strings["notfound.title"];
+    document.querySelectorAll("[data-k]").forEach(function (el) { el.innerHTML = strings[el.getAttribute("data-k")]; });
+    document.getElementById("home").href = "/omega/" + lang + "/";
+  })();
+  </script>
 </body>
 </html>

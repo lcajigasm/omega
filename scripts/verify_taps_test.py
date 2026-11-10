@@ -3,7 +3,7 @@
 
 import unittest
 
-from verify_taps import TAP, TapError, normalize, versions_in
+from verify_taps import FILES, TAP, TapError, check_once, normalize, versions_in
 
 
 class VersionsTest(unittest.TestCase):
@@ -47,6 +47,28 @@ class VersionsTest(unittest.TestCase):
     def test_only_homebrew_tap(self):
         self.assertEqual(TAP, "lcajigasm/homebrew-tap")
         self.assertNotIn("homebrew-omega", TAP)
+
+    def test_cask_version(self):
+        text = (
+            'cask "omega-app" do\n  version "0.17.0"\n  sha256 "abc"\n'
+            '  url "https://github.com/lcajigasm/omega/releases/download/'
+            'v#{version}/omega-macos-universal.dmg"\nend\n'
+        )
+        self.assertEqual(versions_in(text), "0.17.0")
+
+    def test_formula_and_cask_are_both_checked(self):
+        # The tap that has the new formula and no cask, or an old one, is
+        # the tap where brew install --cask omega-app does not work.
+        def fetch(repo, path):
+            if path == "Casks/omega-app.rb":
+                raise TapError("HTTP 404")
+            return 'version "0.17.0"\n'
+
+        self.assertEqual(FILES, ("Formula/omega.rb", "Casks/omega-app.rb"))
+        problems = check_once("0.17.0", fetch)
+        self.assertEqual(len(problems), 1)
+        self.assertIn("Casks/omega-app.rb", problems[0])
+        self.assertEqual(check_once("0.17.0", lambda repo, path: 'version "0.17.0"\n'), [])
 
 
 if __name__ == "__main__":

@@ -54,9 +54,11 @@ internal/ui/        TUI (Bubble Tea, glamour), selection cards, plain output
 internal/gui/       bridge between the agent's events and the desktop app's window
 internal/i18n/      translations (en, es, fr, de, pt)
 internal/demo/      scripted session for screenshots
+internal/site/      builds the website: one page per language in internal/i18n
 internal/config/    configuration and paths
 internal/secrets/   API keys: macOS Keychain, Windows Credential Manager, Linux Secret Service or a 0600 file
-docs/               website (GitHub Pages) and README assets
+site/               the website's templates and its strings in each language
+docs/               website as GitHub Pages serves it (built from site/) and README assets
 docs/manual/        this manual
 Formula/omega.rb    template of the Homebrew formula (not an install path)
 Casks/omega-app.rb  the desktop app's cask, copied to the tap by a release
@@ -73,7 +75,28 @@ make cross     # linux, macOS and windows binaries under ./bin
 scripts/capture.sh                 # re-record README and Pages captures from that binary
 ```
 
-### Desktop app (preview)
+### Website
+
+The website is in the languages the app speaks. `site/` holds the pages as
+templates (`index.html`, `privacy.html`, `404.html`) and one table of strings
+per language (`site/i18n/en.json`, `es.json`, `fr.json`, `de.json`,
+`pt.json`). `make site` writes `docs/`: English at the root and each other
+language in its folder (`docs/es/`, `docs/fr/`, ...). GitHub Pages serves
+`docs/` as it is, so the built pages are committed.
+
+```bash
+make site                          # writes docs/*.html and docs/<lang>/*.html from site/
+```
+
+To change a text, edit it in `site/i18n/en.json` and in the other four
+tables, then run `make site`. To change the layout, edit the template. Do not
+edit `docs/*.html` by hand: `go test ./internal/site` fails when `docs/` is
+not what `site/` builds, when a language the app has is missing or lacks a
+string, and when a translation changes a command, a key or the markup.
+The styles, the script and the captures (`docs/styles.css`, `docs/main.js`,
+`docs/assets/`) are shared by every language and edited in place.
+
+### Desktop app
 
 `cmd/omega-gui` is the same agent in a window, for macOS, Linux and Windows:
 a home screen with the tasks, the session with its steps and live output,
@@ -83,7 +106,7 @@ the provider and its key. It is built with
 safety policy, the configuration and the translations with the command.
 The model is chosen automatically: `omega model` is still the way to fix one.
 
-No release carries it yet. From the first one that does, a release publishes
+A release publishes
 `omega-macos-universal.dmg` (`Omega.app`, Apple Silicon and Intel),
 `omega-gui_<version>_linux_{amd64,arm64}.tar.gz` and
 `omega-gui_<version>_windows_{amd64,arm64}.zip`, and on macOS it installs with
@@ -130,7 +153,8 @@ git tag v0.10.0 && git push origin v0.10.0
 
 The release workflow builds the archives, publishes them with `SHA256SUMS`, and
 rewrites `Formula/omega.rb` in this repository (version and the sha256 of each
-archive) on `main`. That file is a template. It is not an install path:
+archive) on `main`. That commit goes on top of `main` as it is when the builds
+end, which may be ahead of the tag. That file is a template. It is not an install path:
 `brew install` uses [`lcajigasm/homebrew-tap`](https://github.com/lcajigasm/homebrew-tap)
 (`brew install lcajigasm/tap/omega`). The workflow does not move the tag.
 
@@ -147,10 +171,10 @@ only when the `HOMEBREW_TAP_TOKEN` secret is present. When the secret is absent,
 the job prints an error that the tap must be updated by hand and `verify-taps`
 fails on the first check instead of waiting.
 
-`verify-taps` reads `Formula/omega.rb` from `lcajigasm/homebrew-tap` on the
-public GitHub API (no token) and compares its version with the tag. It tries
-again every 5 minutes for up to 75 minutes, and the run fails if the formula
-is still on another version. A release created by the workflow token does not
+`verify-taps` reads `Formula/omega.rb` and `Casks/omega-app.rb` from
+`lcajigasm/homebrew-tap` on the public GitHub API (no token) and compares
+their version with the tag. It tries again every 5 minutes for up to 75
+minutes, and the run fails if either is still on another version. A release created by the workflow token does not
 start other workflows, so the release job starts this one. Check a tag by hand
 with:
 

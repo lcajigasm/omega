@@ -38,6 +38,10 @@ omega analyze                      # a first report that changes nothing
 omega                              # the maintenance: update, clean, summarise
 ```
 
+Prefer a window? `brew install --cask lcajigasm/tap/omega-app` installs the
+[desktop app](#desktop-app) on a Mac; Windows and Linux builds are on the
+release page.
+
 > [!TIP]
 > `omega analyze` is read only. You see what omega would do before you let it
 > do anything, and nothing changes until you tick it on a card.
@@ -225,7 +229,7 @@ own, choose **OpenAI-compatible endpoint** and give it the base URL, for
 example `http://localhost:8080/v1`. What to expect from a local model is in
 [Local models](docs/manual/models.md#local-models).
 
-## Desktop app <sup>preview</sup>
+## Desktop app
 
 The same agent in a window, for when a terminal is not where you want to be:
 the same tasks, safety policy, configuration and keys as the command.
@@ -243,15 +247,25 @@ the same tasks, safety policy, configuration and keys as the command.
 </tr>
 </table>
 
-It arrives with the next release: a disk image for macOS
-(`brew install --cask lcajigasm/tap/omega-app`) and archives for Linux and
-Windows. The builds are not signed yet, so macOS and Windows ask before the
-first run. Until then, `make gui` builds it from source; see
-[the desktop app](docs/manual/development.md#desktop-app-preview).
+```bash
+brew install --cask lcajigasm/tap/omega-app             # macOS 13 or later
+xattr -dr com.apple.quarantine /Applications/Omega.app   # once: the app is not notarized yet
+```
+
+| System | Download | Then |
+|---|---|---|
+| macOS, Apple Silicon and Intel | [`omega-macos-universal.dmg`](https://github.com/lcajigasm/omega/releases/latest/download/omega-macos-universal.dmg) | drag Omega to Applications and run the `xattr` line above |
+| Windows 10 and 11 | `omega-gui_<version>_windows_amd64.zip` or `arm64`, from the [latest release](https://github.com/lcajigasm/omega/releases/latest) | extract it and open `omega-gui.exe`; SmartScreen warns once: More info, then Run anyway |
+| Linux | `omega-gui_<version>_linux_amd64.tar.gz` or `arm64`, from the [latest release](https://github.com/lcajigasm/omega/releases/latest) | extract it and run `./omega-gui`; it needs GTK 4 and WebKitGTK 6.0 |
+
+The app and the command are separate installs that share their configuration
+and API keys: have both, or only one. More in
+[Install and set up](docs/manual/install.md#desktop-app).
 
 ## Also
 
-- **Speaks five languages**: English, Spanish, French, German and Portuguese.
+- **Speaks five languages**: English, Spanish, French, German and Portuguese,
+  in the command, in the app and on the [website](https://lcajigasm.github.io/omega/).
 - **Remembers**: it learns from each run and starts there next time.
 - **Runs unattended**: plain output for scripts, cron, launchd and CI
   ([how](docs/manual/tasks.md#unattended-runs)).
