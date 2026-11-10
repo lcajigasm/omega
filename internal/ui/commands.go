@@ -29,6 +29,7 @@ var slashCommands = []slashCommand{
 	{"/update", "", "slash.task_update"},
 	{"/clean", "", "slash.task_clean"},
 	{"/analyze", "", "slash.task_analyze"},
+	{"/health", "", "slash.task_health"},
 	{"/tune", "", "slash.task_tune"},
 	{"/mac", "", "slash.task_mac"},
 	{"/permissions", "", "slash.task_permissions"},
@@ -484,4 +485,13 @@ func (m *model) menuView() string {
 		}
 	}
 	return strings.TrimRight(b.String(), "\n")
+}
+
+// SlashCommands names the commands a session understands.
+func SlashCommands() []string {
+	out := make([]string, len(slashCommands))
+	for i, c := range slashCommands {
+		out[i] = c.name
+	}
+	return out
 }

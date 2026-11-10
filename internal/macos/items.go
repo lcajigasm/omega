@@ -57,6 +57,13 @@ func (it Item) ID() string {
 // AtLogin reports whether the item starts when the user logs in.
 func (it Item) AtLogin() bool { return it.Kind == KindLogin || it.RunAtLoad }
 
+// ManualOnly reports whether only the user can switch the item off: an
+// app's "Allow in the Background" entry has no launchd job to disable and
+// no public interface to turn it off.
+func (it Item) ManualOnly() bool {
+	return it.Kind == KindTask || (it.Kind != KindLogin && it.Label == "")
+}
+
 // Background reports whether the item is a job that runs in the background.
 func (it Item) Background() bool { return it.Kind != KindLogin }
 
@@ -387,7 +394,12 @@ func (it Item) DisableChange() Change {
 	case it.Kind == KindLogin:
 		c.Section = "login"
 		c.Title = i18n.T("mac.act.login_remove", it.Name)
-		c.Command = osascript(`tell application "System Events" to delete login item ` + appleScriptString(it.Name))
+		// System Events only knows the items the user or an older app added to
+		// the list. An app that registers itself (SMAppService) is not there:
+		// then the pane opens and the output says what is left to do, instead
+		// of an AppleScript error.
+		c.Command = osascript(`tell application "System Events" to delete login item `+appleScriptString(it.Name)) +
+			" >/dev/null 2>&1 || { " + openSettings(PaneLoginItems) + "; echo " + shellQuote(i18n.T("mac.login_self", it.Name)) + "; }"
 		if it.Path != "" {
 			c.Undo = osascript(`tell application "System Events" to make login item at end with properties {path:` +
 				appleScriptString(it.Path) + `, hidden:false}`)

@@ -88,8 +88,8 @@ func TestTaskCommandStartsTheNextJob(t *testing.T) {
 			}
 		}
 	}
-	if tasks != 27 {
-		t.Errorf("%d task commands, want 27", tasks)
+	if tasks != 28 {
+		t.Errorf("%d task commands, want 28", tasks)
 	}
 }
 

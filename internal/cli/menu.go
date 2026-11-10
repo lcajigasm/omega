@@ -25,6 +25,7 @@ var taskOrder = []struct{ task, detail string }{
 	{agent.TaskUpdate, "slash.task_update"},
 	{agent.TaskClean, "slash.task_clean"},
 	{agent.TaskAnalyze, "slash.task_analyze"},
+	{agent.TaskHealth, "slash.task_health"},
 	{agent.TaskTune, "slash.task_tune"},
 	{agent.TaskFix, "slash.task_fix"},
 }
@@ -71,7 +72,7 @@ func withRunOptions(it ui.MenuItem) ui.MenuItem {
 
 // agentCommands are the commands that start a session with the agent, and so
 // take the run options.
-var agentCommands = map[string]bool{"docker": true, "mac": true, "dev": true}
+var agentCommands = map[string]bool{"full": true, "mac": true, "dev": true}
 
 // menuFromCommand turns a command and everything under it into menu rows.
 // It is built from the command tree, so a new subcommand shows up here
@@ -185,7 +186,7 @@ var menuGroups = []struct {
 	group    string
 	commands []string
 }{
-	{"maintain", []string{"full", "docker"}},
+	{"maintain", []string{"docker"}},
 	{"mac", []string{"mac"}},
 	{"dev", []string{"dev"}},
 	{"models", []string{"setup", "model", "models", "auth"}},
@@ -198,6 +199,12 @@ var menuGroups = []struct {
 func menuTree(root *cobra.Command) []ui.MenuItem {
 	var items []ui.MenuItem
 	maintain := i18n.T("menu.g.maintain")
+	// The guided run comes first: it is the one that explains the others.
+	for _, c := range root.Commands() {
+		if c.Name() == "full" {
+			items = append(items, menuFromCommand(c, maintain))
+		}
+	}
 	for _, t := range taskOrder {
 		var args []string
 		if t.task != "" {
@@ -207,7 +214,7 @@ func menuTree(root *cobra.Command) []ui.MenuItem {
 	}
 	byName := map[string]*cobra.Command{}
 	for _, c := range root.Commands() {
-		if !c.Hidden && c.Name() != "help" && c.Name() != "completion" && c.Name() != "menu" {
+		if !c.Hidden && c.Name() != "help" && c.Name() != "completion" && c.Name() != "menu" && c.Name() != "full" {
 			byName[c.Name()] = c
 		}
 	}
@@ -238,6 +245,33 @@ func menuTree(root *cobra.Command) []ui.MenuItem {
 		ui.MenuItem{Group: last, Label: "omega --help", Detail: i18n.T("menu.help"), Args: []string{"--help"}},
 		ui.MenuItem{Group: last, Label: "omega --version", Detail: i18n.T("menu.version"), Args: []string{"--version"}})
 	return items
+}
+
+// fullScreen reports whether a command line opens the full-screen
+// interface: a task, a request in words, the guided run or one of the
+// reviews, unless --no-tui asks for lines.
+func fullScreen(args []string) bool {
+	var words []string
+	for _, a := range args {
+		switch {
+		case a == "--no-tui" || a == "--help" || a == "--version" || a == "-h":
+			return false
+		case a == "-p" || a == "--prompt":
+			return true
+		case !strings.HasPrefix(a, "-"):
+			words = append(words, a)
+		}
+	}
+	switch len(words) {
+	case 0:
+		return true
+	case 1:
+		if _, ok := taskFor(words[0]); ok {
+			return true
+		}
+		return words[0] == "full" || words[0] == "mac" || words[0] == "dev"
+	}
+	return false
 }
 
 func firstLine(s string) string {
@@ -300,10 +334,17 @@ func menuCmd() *cobra.Command {
 				}
 				c := exec.Command(exe, picked...)
 				c.Stdin, c.Stdout, c.Stderr = os.Stdin, os.Stdout, os.Stderr
-				if err := c.Run(); err != nil {
+				err = c.Run()
+				if err != nil {
 					if _, exited := err.(*exec.ExitError); !exited {
 						return err
 					}
+				}
+				// A session that had the whole screen already ended on its own
+				// last screen: asking for Enter again is one prompt too many.
+				// What printed lines, or failed, stays until it has been read.
+				if err == nil && fullScreen(picked) {
+					continue
 				}
 				fmt.Print("\n" + i18n.T("menu.back"))
 				if _, err := in.ReadString('\n'); err != nil {
