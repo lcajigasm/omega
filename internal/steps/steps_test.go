@@ -93,7 +93,7 @@ func TestWindowsCatalogue(t *testing.T) {
 		"disk": safety.Safe, "winget-outdated": safety.Safe, "scoop-outdated": safety.Safe, "choco-outdated": safety.Safe,
 		"windows-update-check": safety.Safe, "system-logs": safety.Safe,
 		"winget": safety.Dangerous, "scoop": safety.Normal, "choco": safety.Dangerous,
-		"temp-files": safety.Dangerous, "trash": safety.Dangerous, "scoop-cleanup": safety.Dangerous, "component-store": safety.Dangerous,
+		"temp-files": safety.Dangerous, "recycle-bin": safety.Dangerous, "scoop-cleanup": safety.Dangerous, "component-store": safety.Dangerous,
 	} {
 		s, ok := win[id]
 		if !ok {

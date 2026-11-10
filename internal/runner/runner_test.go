@@ -133,6 +133,10 @@ func TestPowerShellOnWindows(t *testing.T) {
 	if res := Run(context.Background(), `Get-Item C:\does-not-exist-omega -ErrorAction Stop`, 60*time.Second, nil); res.ExitCode == 0 {
 		t.Fatalf("a failed cmdlet reports success: %q", res.Output)
 	}
+	// A cmdlet that reports an error and carries on is not a failed command.
+	if res := Run(context.Background(), `Get-WinEvent -FilterHashtable @{LogName='Application'; ProviderName='omega-no-such-provider'} -MaxEvents 1 -ErrorAction SilentlyContinue`, 60*time.Second, nil); res.ExitCode != 0 {
+		t.Fatalf("a silenced, non-terminating error failed the command: %d %q", res.ExitCode, res.Output)
+	}
 	if res := Run(context.Background(), `Write-Output one; Write-Output two`, 60*time.Second, nil); res.ExitCode != 0 || !strings.Contains(res.Output, "two") {
 		t.Fatalf("two statements: %d %q", res.ExitCode, res.Output)
 	}

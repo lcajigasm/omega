@@ -73,8 +73,13 @@ func Shell() string {
 const psPrelude = "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; $ProgressPreference = 'SilentlyContinue'; "
 
 // psExit gives the script the exit status of its last command. Left alone,
-// `powershell -Command` answers 0 or 1 and loses a program's own code.
-const psExit = "\nif (-not $?) { if ($LASTEXITCODE) { exit $LASTEXITCODE } else { exit 1 } }"
+// `powershell -Command` answers 1 whenever the last statement set $? to
+// false, which a cmdlet does for any error it merely reports (no events
+// found, one locked file skipped), and it loses a program's own code. So: a
+// program that failed keeps its code, and a cmdlet that reported an error
+// and went on is not a failed command; its message is in the output. An
+// error that stops the script never reaches this line: PowerShell exits 1.
+const psExit = "\nif ($?) { exit 0 }; if ($LASTEXITCODE) { exit $LASTEXITCODE }; exit 0"
 
 // shellInvocation builds the argv that runs script. POSIX shells are login
 // shells so the user's PATH is present; the withheld variables are unset

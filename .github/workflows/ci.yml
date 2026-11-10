@@ -132,7 +132,7 @@ jobs:
           Check ($steps -match ' winget +dangerous') 'winget is not in the catalogue'
           Check ($steps -match ' scoop +normal') 'scoop is not in the catalogue'
           Check ($steps -match '✓ temp-files +dangerous') 'temp-files is not listed as available'
-          Check ($steps -match '✓ trash +dangerous') 'the Recycle Bin step is not listed as available'
+          Check ($steps -match '✓ recycle-bin +dangerous') 'the Recycle Bin step is not listed as available'
           Check ($steps -match '✓ system-logs +read-only') 'system-logs is not listed as available'
           # Nothing from macOS, Linux or a POSIX shell.
           Check (-not ($steps -match ' (macos|mas|brew|apt|dnf|journal-vacuum|xcode-derived|mole-clean|shell-startup|omz) ')) 'a step of another system is listed on Windows'
@@ -141,7 +141,7 @@ jobs:
           Check ($LASTEXITCODE -eq 0) 'the read-only steps failed'
           Check ($out -match 'DriveLetter') 'the disk step printed no drives'
           # A cleanup runs for real: the Recycle Bin of the runner.
-          ./omega.exe steps run --yes trash
+          ./omega.exe steps run --yes recycle-bin
           Check ($LASTEXITCODE -eq 0) 'the Recycle Bin step failed'
           # The development inventory works without a Unix shell.
           ./omega.exe dev status

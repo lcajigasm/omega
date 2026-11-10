@@ -144,6 +144,7 @@ var platformMessages = map[string][]string{
 	"step.choco":                {"Chocolatey packages", "Paquetes de Chocolatey", "Paquets Chocolatey", "Chocolatey-Pakete", "Pacotes Chocolatey"},
 	"step.wsl":                  {"Windows Subsystem for Linux", "Subsistema de Windows para Linux", "Sous-système Windows pour Linux", "Windows-Subsystem für Linux", "Subsistema Windows para Linux"},
 	"step.scoop-cleanup":        {"Old Scoop versions and cache", "Versiones antiguas y caché de Scoop", "Anciennes versions et cache de Scoop", "Alte Scoop-Versionen und Cache", "Versões antigas e cache do Scoop"},
+	"step.recycle-bin":          {"Recycle Bin", "Papelera de reciclaje", "Corbeille", "Papierkorb", "Reciclagem"},
 	"step.temp-files":           {"Temporary files", "Archivos temporales", "Fichiers temporaires", "Temporäre Dateien", "Ficheiros temporários"},
 	"step.component-store":      {"Windows component store", "Almacén de componentes de Windows", "Magasin de composants Windows", "Windows-Komponentenspeicher", "Armazenamento de componentes do Windows"},
 

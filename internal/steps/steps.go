@@ -453,7 +453,7 @@ var catalog = []Step{
 	{OS: windows, ID: "component-store", Name: "Windows component store", Category: Clean, Risk: safety.Dangerous, Requires: "dism",
 		Command:     "Dism.exe /Online /Cleanup-Image /StartComponentCleanup",
 		Description: "Removes superseded Windows components. Needs a terminal opened as administrator"},
-	{OS: windows, ID: "trash", Name: "Recycle Bin", Category: Clean, Command: "Clear-RecycleBin -Force -ErrorAction SilentlyContinue", Risk: safety.Dangerous},
+	{OS: windows, ID: "recycle-bin", Name: "Recycle Bin", Category: Clean, Command: "Clear-RecycleBin -Force -ErrorAction SilentlyContinue", Risk: safety.Dangerous},
 }
 
 // Find returns a step of this machine's catalogue by ID.
