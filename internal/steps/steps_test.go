@@ -78,10 +78,62 @@ func TestEachSystemGetsItsOwnSteps(t *testing.T) {
 			t.Errorf("%s missing on Linux", id)
 		}
 	}
-	// Another system gets the neutral steps only.
-	for _, s := range For("windows") {
+	// A system omega has no steps for gets the neutral ones only.
+	for _, s := range For("freebsd") {
 		if s.OS != "" {
 			t.Errorf("%s belongs to %s", s.ID, s.OS)
+		}
+	}
+}
+
+func TestWindowsCatalogue(t *testing.T) {
+	win := ids(For("windows"))
+	// Its own package managers and cleanups, each with the risk it deserves.
+	for id, risk := range map[string]safety.Risk{
+		"disk": safety.Safe, "winget-outdated": safety.Safe, "scoop-outdated": safety.Safe, "choco-outdated": safety.Safe,
+		"windows-update-check": safety.Safe, "system-logs": safety.Safe,
+		"winget": safety.Dangerous, "scoop": safety.Normal, "choco": safety.Dangerous,
+		"temp-files": safety.Dangerous, "recycle-bin": safety.Dangerous, "scoop-cleanup": safety.Dangerous, "component-store": safety.Dangerous,
+	} {
+		s, ok := win[id]
+		if !ok {
+			t.Errorf("%s missing on Windows", id)
+			continue
+		}
+		if s.Risk != risk {
+			t.Errorf("%s: risk %v, want %v", id, s.Risk, risk)
+		}
+	}
+	// The developer tools that are single commands work there too.
+	for _, id := range []string{"npm", "rustup", "cargo", "uv", "go-cache", "docker", "dotnet-tools", "topgrade"} {
+		if _, ok := win[id]; !ok {
+			t.Errorf("%s missing on Windows", id)
+		}
+	}
+	// Nothing written for a POSIX shell, Homebrew, macOS or a Linux package manager.
+	for _, id := range []string{"brew", "brew-cleanup", "dev-artifacts", "shell-startup", "omz", "tmux-plugins", "macos", "mas", "apt", "dnf", "journal-vacuum", "xcode-derived"} {
+		if _, ok := win[id]; ok {
+			t.Errorf("%s is offered on Windows", id)
+		}
+	}
+	for _, s := range For("windows") {
+		for _, posix := range []string{"&&", "2>/dev/null", "~/", "$(", "sudo ", "/usr/", "|| "} {
+			if strings.Contains(s.Command, posix) {
+				t.Errorf("%s on Windows uses POSIX syntax %q: %s", s.ID, posix, s.Command)
+			}
+		}
+	}
+	// A step declared read-only is read-only for the policy too, or a
+	// declared dangerous one: the policy never calls a Windows step safer
+	// than it is declared.
+	for _, s := range For("windows") {
+		if s.OS != "windows" {
+			continue
+		}
+		if got := safety.Classify(s.Command); got == safety.Blocked {
+			t.Errorf("%s is blocked by the policy: %s", s.ID, s.Command)
+		} else if s.Risk >= safety.Dangerous && got < safety.Dangerous {
+			t.Errorf("%s is declared %v but the policy reads it as %v", s.ID, s.Risk, got)
 		}
 	}
 }

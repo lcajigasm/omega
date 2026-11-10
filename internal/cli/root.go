@@ -87,15 +87,15 @@ func newRoot(f *runFlags) *cobra.Command {
 	}
 	bindRunFlags(root.Flags(), f)
 
-	root.AddCommand(setupCmd(), authCmd(), modelCmd(), modelsCmd(), dockerCmd(), macCmd(), devCmd(), menuCmd(), configCmd(), stepsCmd(), notesCmd(), logsCmd(), doctorCmd())
+	root.AddCommand(fullCmd(), setupCmd(), authCmd(), modelCmd(), modelsCmd(), dockerCmd(), macCmd(), devCmd(), menuCmd(), configCmd(), stepsCmd(), notesCmd(), logsCmd(), doctorCmd())
 	return root
 }
 
 // taskWords are other words for the tasks, in the five interface languages:
 // what someone types before reading the help.
 var taskWords = map[string]string{
-	"all": agent.TaskFull, "everything": agent.TaskFull, "maintain": agent.TaskFull, "maintenance": agent.TaskFull, "run": agent.TaskFull,
-	"todo": agent.TaskFull, "completo": agent.TaskFull, "mantenimiento": agent.TaskFull, "tout": agent.TaskFull, "alles": agent.TaskFull, "tudo": agent.TaskFull,
+	"maintain": agent.TaskFull, "maintenance": agent.TaskFull, "run": agent.TaskFull,
+	"completo": agent.TaskFull, "mantenimiento": agent.TaskFull, "tout": agent.TaskFull, "alles": agent.TaskFull, "tudo": agent.TaskFull,
 	"upgrade": agent.TaskUpdate, "updates": agent.TaskUpdate, "actualizar": agent.TaskUpdate, "actualiza": agent.TaskUpdate,
 	"aktualisieren": agent.TaskUpdate, "atualizar": agent.TaskUpdate,
 	"cleanup": agent.TaskClean, "clear": agent.TaskClean, "limpiar": agent.TaskClean, "limpia": agent.TaskClean, "limpieza": agent.TaskClean,
@@ -333,7 +333,9 @@ func runTask(task string, f runFlags) error {
 	defer cancel()
 
 	sudoPassword := ""
-	if f.sudo && !readOnly && stdinTTY {
+	if f.sudo && goos == "windows" {
+		fmt.Fprintln(os.Stderr, i18n.T("sudo.not_windows"))
+	} else if f.sudo && !readOnly && stdinTTY {
 		if sudoPassword, err = askSudo(); err != nil {
 			return err
 		}

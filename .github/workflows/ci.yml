@@ -117,6 +117,104 @@ jobs:
           ./omega auth remove openai
           if grep -q '^openai=.' "$keys" 2>/dev/null; then echo "the key is still in the file"; exit 1; fi
           ./omega auth status | grep -E 'openai +—'
+      # Windows is a supported platform: run its own paths on a real machine.
+      - name: windows steps
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $env:XDG_CONFIG_HOME = "$env:RUNNER_TEMP\omega-config"; $env:XDG_STATE_HOME = "$env:RUNNER_TEMP\omega-state"; $env:OMEGA_LANG = 'en'
+          function Check($ok, $what) { if (-not $ok) { throw $what } }
+          $steps = (./omega.exe steps | Out-String)
+          $steps
+          # The Windows catalogue, each step with the right risk.
+          Check ($steps -match '✓ disk +read-only') 'disk is not listed as available'
+          Check ($steps -match ' winget +dangerous') 'winget is not in the catalogue'
+          Check ($steps -match ' scoop +normal') 'scoop is not in the catalogue'
+          Check ($steps -match '✓ temp-files +dangerous') 'temp-files is not listed as available'
+          Check ($steps -match '✓ recycle-bin +dangerous') 'the Recycle Bin step is not listed as available'
+          Check ($steps -match '✓ system-logs +read-only') 'system-logs is not listed as available'
+          # Nothing from macOS, Linux or a POSIX shell.
+          Check (-not ($steps -match ' (macos|mas|brew|apt|dnf|journal-vacuum|xcode-derived|mole-clean|shell-startup|omz) ')) 'a step of another system is listed on Windows'
+          # Read-only steps run for real, in PowerShell.
+          $out = (./omega.exe steps run disk system-logs | Out-String); $out
+          Check ($LASTEXITCODE -eq 0) 'the read-only steps failed'
+          Check ($out -match 'DriveLetter') 'the disk step printed no drives'
+          # A cleanup runs for real: the Recycle Bin of the runner.
+          ./omega.exe steps run --yes recycle-bin
+          Check ($LASTEXITCODE -eq 0) 'the Recycle Bin step failed'
+          # The development inventory works without a Unix shell.
+          ./omega.exe dev status
+          Check ($LASTEXITCODE -eq 0) 'omega dev status failed'
+          # omega mac says plainly that it is Mac-only.
+          $ErrorActionPreference = 'Continue'
+          $mac = (./omega.exe mac status 2>&1 | Out-String)
+          Check ($LASTEXITCODE -ne 0) 'omega mac ran on Windows'
+          Check ($mac -match 'only works on macOS') "omega mac did not say it is Mac-only: $mac"
+          # The guided run lists its steps without a terminal only when told to run unattended.
+          $full = (./omega.exe full 2>&1 | Out-String)
+          Check ($LASTEXITCODE -ne 0) 'omega full ran without a terminal and without --yes'
+          Check ($full -match '--yes') "omega full did not say how to run unattended: $full"
+          exit 0
+      - name: windows key storage and doctor
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $env:XDG_CONFIG_HOME = "$env:RUNNER_TEMP\omega-keys"; $env:XDG_STATE_HOME = "$env:RUNNER_TEMP\omega-state"; $env:OMEGA_LANG = 'en'
+          Remove-Item Env:OPENAI_API_KEY -ErrorAction SilentlyContinue
+          function Check($ok, $what) { if (-not $ok) { throw $what } }
+          New-Item -ItemType Directory -Force "$env:XDG_CONFIG_HOME\omega" | Out-Null
+          $stub = Start-Process python -ArgumentList 'scripts/mock_provider.py','18090','models' -PassThru -NoNewWindow
+          try {
+            foreach ($i in 1..30) { try { Invoke-WebRequest http://127.0.0.1:18090/v1/models -UseBasicParsing | Out-Null; break } catch { Start-Sleep -Milliseconds 300 } }
+            Set-Content "$env:XDG_CONFIG_HOME\omega\config.toml" "provider = `"openai`"`nlanguage = `"en`"`nmodel = `"omega-local-test`"`nmodel_catalog = `"off`"`n`n[providers.openai]`nbase_url = `"http://127.0.0.1:18090/v1`"`n"
+
+            # No key yet: doctor fails and says where a key would go.
+            $doc = (./omega.exe doctor 2>&1 | Out-String); $doc
+            Check ($LASTEXITCODE -ne 0) 'doctor passed without a key'
+            Check ($doc -match 'key: missing') 'doctor did not say the key is missing'
+            Check ($doc -match 'Credential Manager') 'doctor did not name the Credential Manager'
+
+            # Save a key: it goes to the Windows Credential Manager, and omega says so.
+            $auth = ('sk-ci-credential-0123456789abcdef' | ./omega.exe auth set openai | Out-String); $auth
+            Check ($LASTEXITCODE -eq 0) 'auth set failed'
+            Check ($auth -match 'Credential Manager') 'auth set did not say where the key went'
+            Check ((cmdkey /list | Out-String) -match 'omega-cli:openai') 'the credential is not in the Credential Manager'
+            $status = (./omega.exe auth status | Out-String); $status
+            Check ($status -match 'openai +sk-ci-…cdef') 'auth status does not show the saved key'
+
+            # Load it: doctor reads the key back and reaches the stub provider.
+            $doc = (./omega.exe doctor | Out-String); $doc
+            Check ($doc -match 'key: ok \(the Windows Credential Manager\)') 'doctor did not read the key from the Credential Manager'
+            Check ($doc -match 'provider: reachable') 'doctor did not reach the provider'
+
+            # An environment variable takes precedence over the stored key.
+            $env:OPENAI_API_KEY = 'sk-ci-from-env-0123456789abcdef'
+            $doc = (./omega.exe doctor | Out-String)
+            Check ($doc -match 'key: ok \(an environment variable\)') 'the environment variable did not win'
+            Remove-Item Env:OPENAI_API_KEY
+
+            # Delete it.
+            ./omega.exe auth remove openai
+            Check ($LASTEXITCODE -eq 0) 'auth remove failed'
+            Check (-not ((cmdkey /list | Out-String) -match 'omega-cli:openai')) 'the credential is still there'
+            Check ((./omega.exe auth status | Out-String) -match 'openai +—') 'auth status still shows a key'
+          } finally { Stop-Process -Id $stub.Id -ErrorAction SilentlyContinue }
+          exit 0
+      # The winget ids of omega dev must exist. Not fatal: the runner may have no winget.
+      - name: windows winget ids
+        if: runner.os == 'Windows'
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          if (-not (Get-Command winget -ErrorAction SilentlyContinue)) { Write-Output 'winget is not on this runner; ids not checked'; exit 0 }
+          $bad = @()
+          foreach ($id in (go run ./internal/devtools/cmd/wingetids)) {
+            winget show --id $id --exact --accept-source-agreements --disable-interactivity | Out-Null
+            if ($LASTEXITCODE -ne 0) { $bad += $id }
+          }
+          if ($bad.Count) { Write-Output "::warning::winget ids not found: $($bad -join ', ')"; exit 1 }
+          Write-Output 'every winget id exists'
       - name: cross-compile
         if: runner.os == 'Linux'
         run: make cross

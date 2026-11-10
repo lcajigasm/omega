@@ -177,7 +177,7 @@ func TestEnvWinsAndOtherSystems(t *testing.T) {
 	if key, src, _ := Get("anthropic"); key != "sk-ant-env-0009" || src != FromEnv {
 		t.Fatalf("the environment wins: %q %s", key, src)
 	}
-	goos = "windows"
+	goos = "freebsd"
 	if _, err := Set("anthropic", "x"); err == nil || !strings.Contains(err.Error(), "ANTHROPIC_API_KEY") {
 		t.Fatalf("no key storage there: the error must point at the variable: %v", err)
 	}
@@ -272,5 +272,47 @@ func TestDeleteClearsBothStores(t *testing.T) {
 	}
 	if key, _, _ := Get("openai"); key != "sk-openai-BBBB-0002" {
 		t.Fatalf("Get after a new save: %q", key)
+	}
+}
+
+// Windows keeps keys in the Credential Manager; the test stands in for it.
+func TestWindowsUsesTheCredentialManager(t *testing.T) {
+	oldOS, oldR, oldW, oldD := goos, winRead, winWrite, winDelete
+	t.Cleanup(func() { goos, winRead, winWrite, winDelete = oldOS, oldR, oldW, oldD })
+	goos = "windows"
+	t.Setenv("ANTHROPIC_API_KEY", "")
+	store := map[string]string{}
+	winRead = func(p string) (string, error) { return store[p], nil }
+	winWrite = func(p, k string) error { store[p] = k; return nil }
+	winDelete = func(p string) (bool, error) { _, ok := store[p]; delete(store, p); return ok, nil }
+
+	if Store() != FromCredentials {
+		t.Fatalf("store %q", Store())
+	}
+	if _, _, err := Get("anthropic"); err == nil {
+		t.Fatal("no key yet")
+	}
+	where, err := Set("anthropic", "sk-ant-windows-0001")
+	if err != nil || where != FromCredentials {
+		t.Fatalf("set: %q %v", where, err)
+	}
+	key, src, err := Get("anthropic")
+	if err != nil || key != "sk-ant-windows-0001" || src != FromCredentials {
+		t.Fatalf("get: %q %q %v", key, src, err)
+	}
+	// The environment still wins.
+	t.Setenv("ANTHROPIC_API_KEY", "sk-from-env")
+	if key, src, _ := Get("anthropic"); key != "sk-from-env" || src != FromEnv {
+		t.Fatalf("env: %q %q", key, src)
+	}
+	t.Setenv("ANTHROPIC_API_KEY", "")
+	if err := Delete("anthropic"); err != nil {
+		t.Fatal(err)
+	}
+	if err := Delete("anthropic"); err == nil {
+		t.Fatal("deleting a key that is not there should say so")
+	}
+	if _, _, err := Get("anthropic"); err == nil {
+		t.Fatal("the key should be gone")
 	}
 }

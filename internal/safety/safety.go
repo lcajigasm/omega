@@ -276,7 +276,7 @@ func isRootTarget(arg string) bool {
 }
 
 func classifyOne(part string) Risk {
-	if wipesMachine(part) || leaksSecret(part) {
+	if wipesMachine(part) || leaksSecret(part) || windowsWipes(part) {
 		return Blocked
 	}
 	p := strings.TrimSpace(part)
@@ -311,6 +311,9 @@ func classifyOne(part string) Risk {
 		return classifyOne(strings.Join(f[i:], " "))
 	}
 	if risk, ok := queryTool(p); ok {
+		return risk
+	}
+	if risk, ok := classifyWindows(p); ok {
 		return risk
 	}
 	if dryRun.MatchString(p) || helpOnly.MatchString(p) {

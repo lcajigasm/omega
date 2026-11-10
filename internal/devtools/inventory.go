@@ -148,7 +148,9 @@ func managerOf(path string) string {
 	if r, err := filepath.EvalSymlinks(path); err == nil {
 		real = r
 	}
-	h := home()
+	// Windows paths are compared with forward slashes, like the rest.
+	real, path = filepath.ToSlash(real), filepath.ToSlash(path)
+	h := filepath.ToSlash(home())
 	in := func(parts ...string) bool {
 		for _, p := range parts {
 			if strings.Contains(real, p) || strings.Contains(path, p) {
@@ -158,6 +160,12 @@ func managerOf(path string) string {
 		return false
 	}
 	switch {
+	case in("/scoop/shims/", "/scoop/apps/"):
+		return "Scoop"
+	case in("/WinGet/Links/", "/WinGet/Packages/"):
+		return "winget"
+	case in("/chocolatey/"):
+		return "Chocolatey"
 	case in("/Cellar/", "/Caskroom/", "/opt/homebrew/", "/usr/local/Homebrew/", "/.linuxbrew/"):
 		return "Homebrew"
 	case strings.HasPrefix(real, "/snap/") || strings.HasPrefix(path, "/snap/"):
@@ -551,7 +559,12 @@ func Load(deep bool) *Inventory {
 			if len(args) == 0 {
 				args = []string{"--version"}
 			}
-			out, _ := run(6*time.Second, inv.Installed[i].Path, args...)
+			// Starting a process is slow on Windows, and they all start at once.
+			wait := 6 * time.Second
+			if inv.Platform.OS == "windows" {
+				wait = 20 * time.Second
+			}
+			out, _ := run(wait, inv.Installed[i].Path, args...)
 			inv.Installed[i].Version = parseVersion(out)
 		}(i)
 	}

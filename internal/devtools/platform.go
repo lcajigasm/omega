@@ -13,6 +13,8 @@ type Platform struct {
 	Brew  bool
 	Pkg   string // apt, dnf, pacman, zypper, or "" when none of them is there
 	Shell string // base name of $SHELL: zsh, bash, fish…
+	// Winget and Scoop say which Windows package managers are there.
+	Winget, Scoop bool
 }
 
 // pkgManagers are the Linux package managers omega installs with, by the
@@ -26,6 +28,13 @@ var Current = func() Platform {
 	p := Platform{OS: runtime.GOOS, Shell: userShell()}
 	_, err := lookPath("brew")
 	p.Brew = err == nil
+	if p.OS == "windows" {
+		_, err := lookPath("winget")
+		p.Winget = err == nil
+		_, err = lookPath("scoop")
+		p.Scoop = err == nil
+		p.Shell = "powershell"
+	}
 	if p.OS == "linux" {
 		for _, m := range pkgManagers {
 			if _, err := lookPath(m.bin); err == nil {
@@ -227,6 +236,16 @@ func forShell(line, shell string) string {
 // its install command, the line that activates it in the user's shell and
 // how it is detected.
 func resolve(t Tool, p Platform) Tool {
+	if p.OS == "windows" {
+		// PowerShell profiles are not edited: a tool is in order once it is
+		// on PATH. The Mac checks mean nothing here either.
+		t.Init, t.Mark, t.Check = "", "", ""
+		t.Install = windowsInstall(t, p)
+		if w := windowsTools[t.ID]; w.Bin != "" {
+			t.Bin = w.Bin
+		}
+		return t
+	}
 	t.Init, t.Mark = forShell(t.Init, p.Shell), forShell(t.Mark, p.Shell)
 	if p.OS != "linux" {
 		return t

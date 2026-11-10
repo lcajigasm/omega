@@ -30,7 +30,6 @@ func TestInterpretAcceptsOtherWordsAndSentences(t *testing.T) {
 		"informe":    agent.TaskAnalyze,
 		"repair":     agent.TaskFix,
 		"optimizar":  agent.TaskTune,
-		"todo":       agent.TaskFull,
 	} {
 		task, prompt, err := interpret(root, strings.Fields(words))
 		if err != nil || task != want || prompt != "" {
