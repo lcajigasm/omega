@@ -4,6 +4,7 @@ package ui
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -180,7 +181,10 @@ func RunTUI(ctx context.Context, cancel context.CancelFunc, ag *agent.Agent, h H
 	m.entries = append(m.entries, &entry{kind: enWelcome})
 	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithContext(ctx), tea.WithMouseCellMotion())
 	_, err := p.Run()
-	if err == tea.ErrProgramKilled {
+	// Cancelling (ctrl+c, a signal) stops the program through its context.
+	// Bubble Tea reports that as "program was killed: context canceled",
+	// wrapping the sentinel: it is the user leaving, not a failure.
+	if errors.Is(err, tea.ErrProgramKilled) || errors.Is(err, context.Canceled) {
 		err = nil
 	}
 	return err

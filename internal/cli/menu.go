@@ -15,32 +15,226 @@ import (
 	"github.com/lcajigasm/omega/internal/config"
 	"github.com/lcajigasm/omega/internal/i18n"
 	"github.com/lcajigasm/omega/internal/llm"
+	"github.com/lcajigasm/omega/internal/steps"
 	"github.com/lcajigasm/omega/internal/ui"
 )
 
-// menuEntries is everything the home screen starts: the command line of
-// each entry, grouped. The detail is the i18n key of its description.
-var menuEntries = []struct{ group, args, detail string }{
-	{"maintain", "", "slash.task_full"},
-	{"maintain", "update", "slash.task_update"},
-	{"maintain", "clean", "slash.task_clean"},
-	{"maintain", "analyze", "slash.task_analyze"},
-	{"maintain", "tune", "slash.task_tune"},
-	{"maintain", "fix", "slash.task_fix"},
-	{"maintain", "docker", "cmd.docker"},
-	{"mac", "mac", "slash.task_mac"},
-	{"mac", "mac status", "cmd.mac_status"},
-	{"mac", "mac permissions", "cmd.mac_permissions"},
-	{"mac", "mac apps", "cmd.mac_apps"},
-	{"mac", "mac undo", "cmd.mac_undo"},
-	{"dev", "dev", "slash.task_dev"},
-	{"dev", "dev status", "cmd.dev_status"},
-	{"dev", "dev install", "cmd.dev_install"},
-	{"setup", "doctor", "cmd.doctor"},
-	{"setup", "setup", "cmd.setup"},
-	{"setup", "model", "cmd.model"},
-	{"setup", "logs", "cmd.logs"},
-	{"setup", "steps", "cmd.steps"},
+// taskOrder is the order the maintenance tasks are listed in.
+var taskOrder = []struct{ task, detail string }{
+	{"", "slash.task_full"},
+	{agent.TaskUpdate, "slash.task_update"},
+	{agent.TaskClean, "slash.task_clean"},
+	{agent.TaskAnalyze, "slash.task_analyze"},
+	{agent.TaskTune, "slash.task_tune"},
+	{agent.TaskFix, "slash.task_fix"},
+}
+
+// runOptions are the other ways to start a run with the agent, offered with
+// the right arrow on every entry that starts one.
+var runOptions = []struct{ flag, detail string }{
+	{"--dry-run", "flag.dry_run"},
+	{"--auto", "flag.auto"},
+	{"--yes", "flag.yes"},
+	{"--sudo", "flag.sudo"},
+	{"--no-tui", "flag.no_tui"},
+}
+
+// settingValues are the values `omega config set` accepts for each key; a
+// key with none is typed.
+var settingValues = []struct {
+	key    string
+	values []string
+}{
+	{"language", []string{"auto", "en", "es", "fr", "de", "pt"}},
+	{"approval", []string{config.ApproveDangerous, config.ApproveAll, config.ApproveNever}},
+	{"effort", []string{"low", "medium", "high", "xhigh", "max"}},
+	{"model_catalog", []string{config.CatalogLive, config.CatalogOff}},
+	{"provider", nil}, // filled with the providers
+	{"model", nil},
+	{"command_timeout", nil},
+	{"skip_steps", nil},
+}
+
+func cmdLabel(args ...string) string { return strings.TrimSpace("omega " + strings.Join(args, " ")) }
+
+// withRunOptions adds the run variants to an entry that starts the agent.
+func withRunOptions(it ui.MenuItem) ui.MenuItem {
+	for _, o := range runOptions {
+		args := append(append([]string(nil), it.Args...), o.flag)
+		it.Options = append(it.Options, ui.MenuItem{Label: cmdLabel(args...), Detail: firstLine(i18n.T(o.detail)), Args: args})
+	}
+	return it
+}
+
+// agentCommands are the commands that start a session with the agent, and so
+// take the run options.
+var agentCommands = map[string]bool{"docker": true, "mac": true, "dev": true}
+
+// menuFromCommand turns a command and everything under it into menu rows.
+// It is built from the command tree, so a new subcommand shows up here
+// without anyone remembering to add it.
+func menuFromCommand(c *cobra.Command, group string) ui.MenuItem {
+	path := strings.Fields(strings.TrimPrefix(c.CommandPath(), "omega"))
+	it := ui.MenuItem{Group: group, Label: cmdLabel(path...), Detail: firstLine(c.Short), Args: path}
+	if agentCommands[strings.Join(path, " ")] {
+		it = withRunOptions(it)
+	}
+	switch strings.Join(path, " ") {
+	case "config set":
+		it.Children = settingRows()
+		return it
+	case "auth set", "auth remove":
+		for _, p := range llm.Providers {
+			args := append(append([]string(nil), path...), p.Name)
+			it.Children = append(it.Children, ui.MenuItem{Label: cmdLabel(args...), Detail: p.Label, Args: args})
+		}
+		return it
+	case "steps run":
+		for _, st := range steps.All {
+			if !st.Available() {
+				continue
+			}
+			args := append(append([]string(nil), path...), st.ID)
+			it.Children = append(it.Children, ui.MenuItem{Group: string(st.Category), Label: cmdLabel(args...), Detail: st.Name, Args: args})
+		}
+		return it
+	case "model":
+		it.Children = []ui.MenuItem{
+			{Label: cmdLabel("model"), Detail: firstLine(c.Short), Args: []string{"model"}},
+			{Label: cmdLabel("model", "auto"), Detail: i18n.T("model.auto"), Args: []string{"model", "auto"}},
+			{Label: cmdLabel("model", "…"), Detail: i18n.T("menu.type_model"), Args: []string{"model"}, Ask: i18n.T("ui.label_model")},
+		}
+		return it
+	case "models":
+		it.Children = []ui.MenuItem{
+			{Label: cmdLabel("models"), Detail: firstLine(c.Short), Args: []string{"models"}},
+			{Label: cmdLabel("models", "--refresh"), Detail: firstLine(i18n.T("flag.refresh")), Args: []string{"models", "--refresh"}},
+		}
+		for _, p := range llm.Providers {
+			if !p.Local {
+				it.Children = append(it.Children, ui.MenuItem{Label: cmdLabel("models", p.Name), Detail: p.Label, Args: []string{"models", p.Name}})
+			}
+		}
+		return it
+	case "dev install":
+		it.Children = []ui.MenuItem{
+			{Label: cmdLabel("dev", "install"), Detail: firstLine(c.Short), Args: path},
+			{Label: cmdLabel("dev", "install", "…"), Detail: i18n.T("menu.type_tools"), Args: path, Ask: i18n.T("menu.tools")},
+		}
+		return it
+	case "logs view":
+		it.Children = []ui.MenuItem{
+			{Label: cmdLabel("logs", "view"), Detail: firstLine(c.Short), Args: path},
+			{Label: cmdLabel("logs", "view", "…"), Detail: i18n.T("menu.type_run"), Args: path, Ask: "n"},
+		}
+		return it
+	}
+	var subs []*cobra.Command
+	for _, sub := range c.Commands() {
+		if !sub.Hidden && sub.Name() != "help" {
+			subs = append(subs, sub)
+		}
+	}
+	if len(subs) == 0 {
+		return it
+	}
+	if c.Runnable() {
+		self := it
+		self.Group, self.Children = "", nil
+		it.Children = append(it.Children, self)
+	}
+	for _, sub := range subs {
+		it.Children = append(it.Children, menuFromCommand(sub, ""))
+	}
+	it.Options = nil
+	return it
+}
+
+// settingRows lists every setting with the values it can take.
+func settingRows() []ui.MenuItem {
+	var rows []ui.MenuItem
+	for _, sv := range settingValues {
+		base := []string{"config", "set", sv.key}
+		row := ui.MenuItem{Label: cmdLabel(base...), Detail: i18n.T("menu.set." + sv.key), Args: base}
+		values := sv.values
+		if sv.key == "provider" {
+			for _, p := range llm.Providers {
+				values = append(values, p.Name)
+			}
+		}
+		if len(values) == 0 {
+			row.Label, row.Ask = cmdLabel(append(base, "…")...), sv.key
+			rows = append(rows, row)
+			continue
+		}
+		for _, v := range values {
+			args := append(append([]string(nil), base...), v)
+			row.Children = append(row.Children, ui.MenuItem{Label: cmdLabel(args...), Args: args})
+		}
+		rows = append(rows, row)
+	}
+	return rows
+}
+
+// menuGroups says which commands sit under which heading, in order. A
+// command missing from here is still listed, under the last heading.
+var menuGroups = []struct {
+	group    string
+	commands []string
+}{
+	{"maintain", []string{"docker"}},
+	{"mac", []string{"mac"}},
+	{"dev", []string{"dev"}},
+	{"models", []string{"setup", "model", "models", "auth"}},
+	{"state", []string{"doctor", "steps", "logs", "notes"}},
+	{"settings", []string{"config"}},
+}
+
+// menuTree is the whole home screen: the maintenance tasks, a way to ask in
+// words, and every command of the tree with what hangs from it.
+func menuTree(root *cobra.Command) []ui.MenuItem {
+	var items []ui.MenuItem
+	maintain := i18n.T("menu.g.maintain")
+	for _, t := range taskOrder {
+		var args []string
+		if t.task != "" {
+			args = []string{t.task}
+		}
+		items = append(items, withRunOptions(ui.MenuItem{Group: maintain, Label: cmdLabel(args...), Detail: firstLine(i18n.T(t.detail)), Args: args}))
+	}
+	byName := map[string]*cobra.Command{}
+	for _, c := range root.Commands() {
+		if !c.Hidden && c.Name() != "help" && c.Name() != "completion" && c.Name() != "menu" {
+			byName[c.Name()] = c
+		}
+	}
+	placed := map[string]bool{}
+	for _, g := range menuGroups {
+		if g.group == "mac" && goos != "darwin" {
+			placed["mac"] = true
+			continue
+		}
+		for _, name := range g.commands {
+			if c, ok := byName[name]; ok {
+				items = append(items, menuFromCommand(c, i18n.T("menu.g."+g.group)))
+				placed[name] = true
+			}
+		}
+		if g.group == "maintain" {
+			items = append(items, ui.MenuItem{Group: maintain, Label: `omega -p "…"`, Detail: i18n.T("menu.ask_words"),
+				Args: []string{"-p"}, Ask: i18n.T("menu.request")})
+		}
+	}
+	last := i18n.T("menu.g.settings")
+	for _, c := range root.Commands() {
+		if _, ok := byName[c.Name()]; ok && !placed[c.Name()] {
+			items = append(items, menuFromCommand(c, last))
+		}
+	}
+	items = append(items,
+		ui.MenuItem{Group: last, Label: "omega --help", Detail: i18n.T("menu.help"), Args: []string{"--help"}},
+		ui.MenuItem{Group: last, Label: "omega --version", Detail: i18n.T("menu.version"), Args: []string{"--version"}})
+	return items
 }
 
 func firstLine(s string) string {
@@ -93,21 +287,15 @@ func menuCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			var items []ui.MenuItem
-			for _, e := range menuEntries {
-				if e.group == "mac" && goos != "darwin" {
-					continue
-				}
-				items = append(items, ui.MenuItem{ID: e.args, Group: i18n.T("menu.g." + e.group),
-					Label: strings.TrimSpace("omega " + e.args), Detail: firstLine(i18n.T(e.detail))})
-			}
 			in := bufio.NewReader(os.Stdin)
 			for {
-				picked, err := ui.RunMenuOrQuit(menuInfo(), items)
-				if err != nil || picked == ui.MenuQuit {
+				// Built on every pass: a step installed or a key saved from
+				// the menu changes what it offers.
+				picked, ok, err := ui.RunMenu(menuInfo(), menuTree(cmd.Root()))
+				if err != nil || !ok {
 					return err
 				}
-				c := exec.Command(exe, strings.Fields(picked)...)
+				c := exec.Command(exe, picked...)
 				c.Stdin, c.Stdout, c.Stderr = os.Stdin, os.Stdout, os.Stderr
 				if err := c.Run(); err != nil {
 					if _, exited := err.(*exec.ExitError); !exited {

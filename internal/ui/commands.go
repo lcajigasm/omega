@@ -40,6 +40,18 @@ var slashCommands = []slashCommand{
 	{"/undo", "", "slash.task_undo"},
 	{"/history", "", "slash.task_history"},
 	{"/doctor", "", "slash.task_doctor"},
+	{"/disk", "", "slash.task_disk"},
+	{"/logs", "", "slash.task_logs"},
+	{"/shell", "", "slash.task_shell"},
+	{"/steps", "", "slash.task_steps"},
+	{"/login", "", "slash.task_login"},
+	{"/background", "", "slash.task_background"},
+	{"/menubar", "", "slash.task_menubar"},
+	{"/dock", "", "slash.task_dock"},
+	{"/shortcuts", "", "slash.task_shortcuts"},
+	{"/models", "", "slash.task_models"},
+	{"/settings", "", "slash.task_settings"},
+	{"/notes", "", "slash.task_notes"},
 	{"/exit", "", "slash.exit"},
 	{"/quit", "", "slash.exit"},
 }
@@ -48,7 +60,8 @@ var slashCommands = []slashCommand{
 var goos = runtime.GOOS
 
 // macOnlyCommands start the parts of omega that drive macOS itself.
-var macOnlyCommands = map[string]bool{"/mac": true, "/permissions": true, "/apps": true, "/undo": true}
+var macOnlyCommands = map[string]bool{"/mac": true, "/permissions": true, "/apps": true, "/undo": true,
+	"/login": true, "/background": true, "/menubar": true, "/dock": true, "/shortcuts": true}
 
 // offered reports whether a command is shown on this operating system. The
 // Mac-only ones are hidden elsewhere, and typing one says why.
@@ -229,6 +242,31 @@ func findCommand(name string) (slashCommand, bool) {
 // taskPrompts are the follow-up tasks a slash command starts in the running
 // session; the rest come from the agent's presets.
 var taskPrompts = map[string]string{
+	"disk": "Tell me where the disk space on this machine goes. Start with the disk step and disk_usage on the biggest folders of my " +
+		"home, then say in plain words what the largest items are and which are safe to remove. Offer the safe cleanups with " +
+		"propose_actions and change nothing I do not pick.",
+	"logs": "Review the system logs with the system-logs step: crash loops, services or launch agents that keep failing, what " +
+		"prevents sleep, and logs that grow too fast. Explain what matters, ignore the noise, and offer a fix for each real problem.",
+	"shell": "Find out why my shell takes the time it does to start. Run the shell-startup step, read my shell startup files, name " +
+		"what costs the most and propose changes with their effect. Apply only what I pick, showing the diff.",
+	"steps": "List the maintenance steps omega detects on this machine with list_steps, grouped by category. Say which are " +
+		"disabled or not installed, what each of those would add, and how to run one directly.",
+	"login": "Review what opens when I log in to this Mac with mac_inventory (section login). Say what each item is, suggest " +
+		"what to stop from opening and apply only what I pick with mac_change.",
+	"background": "Review what is allowed to run in the background on this Mac with mac_inventory (section background), including " +
+		"leftovers of apps that are gone. Explain what you do not recognise and apply only what I pick with mac_change.",
+	"menubar": "Review the apps in the menu bar of this Mac with mac_inventory (section menubar). Offer to quit, stop at login or " +
+		"hide the ones I do not need and apply only what I pick with mac_change.",
+	"dock": "Review the Dock of this Mac with mac_inventory (section dock): apps that are no longer installed or that I do not " +
+		"open, and the Dock settings. Apply only what I pick with mac_change.",
+	"shortcuts": "Find global keyboard shortcuts that several apps want on this Mac with mac_inventory (section shortcuts). For " +
+		"each conflict ask me who keeps it, move the others to a free shortcut with mac_change and remember my choice.",
+	"models": "Show me the models my provider offers with model_ranking: their score and price, which two automatic mode uses " +
+		"and why, and roughly what a run costs with each. Change the model only if I ask, with omega_settings.",
+	"settings": "Show omega's settings with omega_settings (show) and explain each one in a line. Ask me what I want to change and " +
+		"apply it with omega_settings (set); for the ones only I can change, give me the exact command.",
+	"notes": "Show what omega has noted about this machine (notes, list). Point out notes that look wrong or out of date and " +
+		"offer to forget them; forget only what I confirm.",
 	"permissions": "Review the privacy permissions of this Mac with mac_inventory (section permissions). Offer to remove the entries left " +
 		"behind by binaries whose path no longer exists and by apps that are no longer installed, explain any binary listed several times, " +
 		"and apply only what I pick with mac_change.",
