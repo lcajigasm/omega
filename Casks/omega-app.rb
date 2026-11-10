@@ -2,8 +2,8 @@
 # release workflow rewrites version and sha256 here when a tag is published
 # and copies this file to that tap in the same pull request as the formula.
 cask "omega-app" do
-  version "0.17.0"
-  sha256 "bcc4abbb61f0dece911d634bcb367012aaa06ca4cb35bc30c3994780a99a3eef"
+  version "0.18.0"
+  sha256 "7ef896b9a5cc6e2436c19ba3e6c2dd0847f850f2c488ef8b279b7efec6638cd1"
 
   url "https://github.com/lcajigasm/omega/releases/download/v#{version}/omega-macos-universal.dmg"
   name "omega"
