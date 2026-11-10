@@ -313,6 +313,8 @@ configured model, when omega last ran, and every command grouped by area. Move
 with the arrows, type to filter, Enter runs the entry and returns to the menu
 when it ends.
 
+![The home screen with every command grouped by area](docs/assets/menu.png)
+
 With `--no-tui`, or when the output is not a terminal, omega prints plain text
 with the same `⏺`/`⎿` structure. Without a terminal on standard input, any action
 that needs approval is **denied** unless you pass `--yes`, and cards are skipped.
