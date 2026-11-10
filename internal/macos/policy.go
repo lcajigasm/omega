@@ -53,6 +53,8 @@ var defaultRules = []rule{
 			"com.surteesstudios.Bartender*", "com.jordanbaird.Ice", "*thaw*", "com.dwarvesv.minimalbar",
 			"com.runningwithcrayons.Alfred*", "com.raycast.macos", "com.lcajigasm.omega*", "com.docker.vmnetd", "com.docker.socket",
 			"cc.ffitch.shottr", "pl.maketheweb.cleanshotx", "com.choosyosx.Choosy*", "com.izual.Easydict", "com.superultra.Homerow"}},
+	{Category: CatEssential, Why: "git's own scheduled upkeep of your repositories (git maintenance start); cheap, and it keeps fetches and status fast",
+		Patterns: []string{"org.git-scm.git.*"}},
 	{Category: CatOnDemand, Why: "does not need to start with the Mac or stay in the background; open it when you need it",
 		Patterns: []string{
 			"com.openai.*", "com.anthropic.*", "ai.perplexity.*", "com.perplexity.*", "com.microsoft.copilot*", "com.anysphere.sand", "com.x.grok*", "com.google.gemini*",

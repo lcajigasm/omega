@@ -72,7 +72,7 @@ func newRoot(f *runFlags) *cobra.Command {
 		Args:          cobra.ArbitraryArgs,
 		SilenceUsage:  true,
 		SilenceErrors: true,
-		ValidArgs:     []string{agent.TaskFull, agent.TaskUpdate, agent.TaskClean, agent.TaskAnalyze, agent.TaskFix, agent.TaskTune, agent.TaskDev},
+		ValidArgs:     []string{agent.TaskFull, agent.TaskUpdate, agent.TaskClean, agent.TaskAnalyze, agent.TaskHealth, agent.TaskFix, agent.TaskTune, agent.TaskDev},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			task, prompt, err := interpret(cmd.Root(), args)
 			if err != nil {
@@ -104,6 +104,8 @@ var taskWords = map[string]string{
 	"analizar": agent.TaskAnalyze, "analiza": agent.TaskAnalyze, "informe": agent.TaskAnalyze,
 	"analyser": agent.TaskAnalyze, "analysieren": agent.TaskAnalyze, "analisar": agent.TaskAnalyze,
 	"repair": agent.TaskFix, "reparar": agent.TaskFix, "arreglar": agent.TaskFix, "reparieren": agent.TaskFix,
+	"security": agent.TaskHealth, "checkup": agent.TaskHealth, "salud": agent.TaskHealth, "seguridad": agent.TaskHealth,
+	"santé": agent.TaskHealth, "gesundheit": agent.TaskHealth, "saúde": agent.TaskHealth,
 	"optimize": agent.TaskTune, "optimise": agent.TaskTune, "optimizar": agent.TaskTune, "ajustar": agent.TaskTune, "optimiser": agent.TaskTune, "otimizar": agent.TaskTune,
 }
 
@@ -121,7 +123,7 @@ var shortcuts = map[string][]string{
 	"version": {"--version"}, "ayuda": {"--help"},
 	"start": {"menu"}, "ui": {"menu"}, "inicio": {"menu"}, "menú": {"menu"},
 	// A bare "status" or "check" gets the check that costs nothing.
-	"diagnose": {"doctor"}, "health": {"doctor"}, "status": {"doctor"}, "check": {"doctor"}, "estado": {"doctor"}, "ranking": {"models"}, "modelos": {"models"},
+	"diagnose": {"doctor"}, "status": {"doctor"}, "check": {"doctor"}, "estado": {"doctor"}, "ranking": {"models"}, "modelos": {"models"},
 	"memory": {"notes"}, "notas": {"notes"}, "pasos": {"steps"}, "wizard": {"setup"}, "configure": {"setup"}, "init": {"setup"},
 }
 
@@ -173,7 +175,7 @@ func taskFor(word string) (string, bool) {
 }
 
 // rootTasks are the tasks `omega <task>` starts.
-var rootTasks = []string{agent.TaskFull, agent.TaskUpdate, agent.TaskClean, agent.TaskAnalyze, agent.TaskFix, agent.TaskTune}
+var rootTasks = []string{agent.TaskFull, agent.TaskUpdate, agent.TaskClean, agent.TaskAnalyze, agent.TaskHealth, agent.TaskFix, agent.TaskTune}
 
 // editDistance is the Levenshtein distance between two words.
 func editDistance(a, b string) int {
@@ -386,7 +388,7 @@ func runTask(task string, f runFlags) error {
 		// Drain so the agent goroutine can finish writing its log.
 		for range ag.Events() {
 		}
-		if path := ag.LogPath(); path != "" {
+		if path := ag.LogPath(); path != "" && !ui.Hosted() {
 			fmt.Println(i18n.T("run.log", path))
 		}
 	}
@@ -405,9 +407,16 @@ type exitCode int
 func (e exitCode) Error() string { return "" }
 func (e exitCode) ExitCode() int { return int(e) }
 
+// sudoAsked is the password a guided run asked for once, before its
+// interface took the terminal; every stage then uses it.
+var sudoAsked string
+
 // askSudo asks for the sudo password before the interface starts and checks
 // it, so sudo prompts during the run are answered without interrupting.
 func askSudo() (string, error) {
+	if sudoAsked != "" {
+		return sudoAsked, nil
+	}
 	fmt.Println(i18n.T("sudo.intro"))
 	for i := 0; i < 3; i++ {
 		pw, err := askSecret(i18n.T("sudo.prompt"))

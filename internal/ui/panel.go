@@ -95,6 +95,9 @@ func (m *model) panelView(height int) string {
 	row := func(k, v string) {
 		add(faintStyle.Render(lipgloss.NewStyle().Width(9).Render(k)) + v)
 	}
+	if m.g != nil {
+		lines = append(lines, m.routeLines(inner)...)
+	}
 	add(titleStyle.Render(i18n.T("panel.session")))
 	row(i18n.T("ui.label_task"), truncate(m.header.Task, inner-9))
 	row(i18n.T("panel.mode"), truncate(m.modeText(), inner-9))

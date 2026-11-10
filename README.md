@@ -130,9 +130,10 @@ an AI model with a narrow set of tools and a strict safety policy.
   Homebrew, `softwareupdate` and the Mac App Store on a Mac; apt, dnf, pacman,
   zypper, Flatpak and snap on Linux; winget, Scoop and Chocolatey on Windows.
   See [Linux](#linux) and [Windows](#windows) for exactly what works on each.
-- **Everything, step by step** (`omega full`): a guided run through all of it.
-  You untick the steps you do not want, each one starts when the one before
-  ends, and you can skip the next or stop between them.
+- **Everything, stage by stage** (`omega full`): a guided run through all of
+  it in one interface. A plan says what each stage does and why; you untick
+  the ones you do not want, watch the route as they run, and skip, repeat or
+  stop between them.
 
 ## Installation
 
@@ -230,6 +231,7 @@ file only you can read. omega says which one it used.
 | `update` | updates only (like topgrade) | yes | fast → smart on failure |
 | `clean` | measures what takes up space and cleans (like `mo clean`) | yes | fast → smart on failure |
 | `analyze` | report, then a card with the recommendations | only what you pick | fast → smart on failure |
+| `health` | disk and battery health, memory, backups, firewall, encryption, automatic updates and the system logs | only what you pick | fast → smart on failure |
 | `tune` | reviews your tools' configuration against the current docs | only what you pick | fast → smart on failure |
 | `fix` | runs the topgrade and Mole dry runs, diagnoses and fixes their config | yes (with approval) | smart |
 
@@ -237,34 +239,62 @@ file only you can read. omega says which one it used.
 your Mac and for your development setup. `omega menu` lists everything on one
 screen and starts what you choose.
 
-### Everything, step by step
+### Everything, stage by stage
 
 ```bash
-omega full                    # choose the steps on a card, then one at a time
-omega full --skip tune,dev    # the same, with two steps unticked from the start
-omega full --dry-run          # every step in read-only mode
-omega full --yes --skip mac   # unattended: every other step, one after another
+omega full                      # the plan first, then one stage at a time
+omega full --skip tune,dev      # the same, with two stages unticked from the start
+omega full --only update,clean  # only these two ticked
+omega full --dry-run            # every stage in read-only mode
+omega full --yes --skip mac     # unattended: every other stage, one after another
+omega full --no-tui             # the same run, line by line
 ```
 
-`omega full` is the run that leaves the machine better than it found it. It
-shows every step that applies to this machine and lets you untick the ones you
-do not want:
+`omega full` is the run that leaves the machine better than it found it, and
+it is one interface from start to end. It opens on the plan: every stage that
+applies to this machine, with what it does, why it is worth doing at that
+point and what it can change. Untick the ones you do not want and press Enter.
 
-| Step | What it does |
+| Stage | What it does | When |
+|---|---|---|
+| `doctor` | checks that omega itself is set up, without spending tokens | always |
+| `analyze` | a read-only report: disk space, outdated software, package manager problems | always |
+| `health` | disk and battery health, memory, backups, firewall, encryption, automatic updates and the system logs | always |
+| `update` | updates everything installed, and fixes what fails | always |
+| `clean` | frees disk space, biggest wins first | always |
+| `docker` | frees Docker space, only what you pick | Docker is installed |
+| `tune` | reviews the configuration of your tools against the current docs | always |
+| `dev` | reviews languages, version managers and developer tools | always |
+| `mac` | reviews what runs on your Mac outside your apps | macOS |
+| `fix` | repairs topgrade and Mole when they fail | topgrade or Mole is installed |
+| `history` | picks up what earlier runs left failed or undone | omega has run here before |
+
+The stages run one after another on the same screen. Each one opens with a
+heading that repeats what it does and why, then its session, with the same
+approvals and cards as the command on its own. The route is always in view:
+the panel lists every stage with how it went (`✓` done, `✗` failed, `■` stopped,
+`↷` skipped, `·` to come), and on a narrow terminal it becomes one line at the
+top.
+
+Between two stages a card says how the last one ended and what comes next:
+
+| Key | What it does |
 |---|---|
-| `omega doctor` | checks that omega itself is set up, without spending tokens |
-| `omega analyze` | a read-only report of the state of the machine |
-| `omega update` | updates everything installed |
-| `omega clean` | frees disk space, biggest wins first |
-| `omega tune` | reviews the configuration of your tools against the current docs |
-| `omega dev` | reviews languages, version managers and developer tools |
-| `omega docker` | frees Docker space; only when Docker is installed |
-| `omega mac` | reviews what runs on your Mac outside your apps; only on macOS |
+| `Enter` | starts the next stage |
+| `s` | skips it |
+| `r` | repeats the last stage, when it failed or you stopped it |
+| `p` | opens the plan again, to tick or untick what has not run |
+| `q` | ends the run here |
 
-Each step is the ordinary command, with its own approvals and cards, and starts
-when the one before ends. Between two steps omega asks: Enter goes on, `s`
-skips the next step, `q` stops. At the end it lists what was done, what was
-skipped and what ended with an error. A step that fails does not stop the run.
+Inside a stage, `Esc` on an empty input ends it and moves on, and `ctrl+c`
+stops that stage only. A stage that fails does not stop the run. The run ends
+with a summary of what was done, skipped, stopped and failed, with the time
+and the cost of each stage and the command that runs a pending one on its own;
+the same summary stays in the terminal after omega leaves.
+
+Without a terminal (a scheduled job) `omega full --yes` runs every ticked
+stage and exits with an error when one failed; `ctrl+c` stops the stage and
+the run.
 
 `omega` alone is still the quick maintenance (check, update, clean, summarise)
 in a single session. `omega full` used to be another name for it and is now the
@@ -275,7 +305,7 @@ omega takes more than the exact names. All of these work:
 | You type | omega runs |
 |---|---|
 | `omega upgrade`, `omega actualizar`, `omega upd` | `omega update`: other words for a task in the five languages, or the start of its name when only one task starts that way |
-| `omega cleanup`, `omega repair`, `omega optimize`, `omega report` | `omega clean`, `fix`, `tune`, `analyze` |
+| `omega cleanup`, `omega repair`, `omega optimize`, `omega report`, `omega security` | `omega clean`, `fix`, `tune`, `analyze`, `health` |
 | `omega perms`, `omega apps`, `omega undo`, `omega dock` | `omega mac permissions`, `mac apps`, `mac undo`, `mac dock` |
 | `omega install fzf mise` | `omega dev install fzf mise` |
 | `omega history`, `omega settings`, `omega keys`, `omega status` | `omega logs`, `config show`, `auth status`, `doctor` |
@@ -355,7 +385,7 @@ type; `↑` `↓` move, `Tab` completes and `Enter` runs the highlighted one. Af
 | `/model [name]` | switch model from the next turn (a card when no argument) |
 | `/expand` | expand or collapse the output of every tool call |
 | `/panel` | show or hide the session panel |
-| `/full`, `/update`, `/clean`, `/analyze`, `/tune`, `/fix` | start that task in the running session |
+| `/full`, `/update`, `/clean`, `/analyze`, `/health`, `/tune`, `/fix` | start that task in the running session |
 | `/mac`, `/permissions`, `/apps` | review what runs on your Mac, its privacy permissions or its apps |
 | `/dev`, `/install` | review your development setup, or pick tools to install |
 | `/docker` | free up the space Docker uses, only what you pick |
@@ -710,15 +740,20 @@ recorded in `~/.local/state/omega/mac-journal.jsonl` for `omega mac undo`:
 | Change | Command |
 |---|---|
 | launch agent or helper off | `launchctl bootout` + `launchctl disable gui/<uid>/<label>` (daemons need sudo, asked on the password card) |
-| app no longer opens at login | System Events `delete login item` |
+| app no longer opens at login | System Events `delete login item`; an app that adds itself to the list is not there, so omega opens the Login Items pane and says so |
 | macOS shortcut | `defaults write com.apple.symbolichotkeys … -dict-add <id>` + `activateSettings -u`, no logout needed |
 | app shortcut (KeyboardShortcuts, MASShortcut) | quit the app, `defaults write`, open it again |
 | Dock | edits `persistent-apps` and restarts the Dock |
 
-Some things macOS only lets you change by hand (background tasks registered with
-`SMAppService`, menu bar visibility, shortcuts of apps that keep them in their own
-storage). For those omega opens the right settings pane or app and tells you what
-to change. Reading the login and background items uses `sfltool dumpbtm`, which
+Some things macOS only lets you change by hand: an app's switch under "Allow in
+the Background", an app that adds itself to the login items, what is left over
+in the system-wide privacy lists, menu bar visibility, and shortcuts of apps
+that keep them in their own storage. omega knows which ones they are before it
+tries: the agent does not offer them as changes it will apply, it lists them
+together as what is left for you, opens the right settings pane or app once and
+tells you what to change. `disable:<bundle id>` reaches the item that is on:
+an app and its background entry share the id, and macOS keeps a switched-off
+record for every app that once asked to open at login. Reading the login and background items uses `sfltool dumpbtm`, which
 can take up to a minute; omega caches it for an hour and refreshes it after a change.
 
 ## Privacy permissions, apps and leftovers
@@ -762,7 +797,8 @@ from other apps) need **Full Disk Access** for the terminal that runs omega.
 Without it omega says so and lists only the system-wide permissions (Full Disk
 Access, Accessibility, Screen Recording, Input Monitoring, Developer Tools).
 Those live in a database macOS protects from every app, so omega can find the
-stale ones but you remove them in System Settings. The AI cannot touch either
+stale ones but you remove them in System Settings: for those omega does not try
+and fail, it opens the pane and names the entry to select. The AI cannot touch either
 database: a command that writes to `TCC.db` is blocked. The Local Network list
 is stored elsewhere and is not covered.
 
@@ -882,6 +918,9 @@ anything that would reveal a provider key never run; everything else asks.
 | `disk` | check | free space per drive and the size of the temporary folders | read-only |
 | `winget-outdated` `scoop-outdated` `choco-outdated` | check | `winget upgrade`, `scoop status`, `choco outdated` | read-only |
 | `windows-update-check` | check | asks Windows Update what is pending | read-only |
+| `health` | check | last start, a pending restart, disk health, memory, battery | read-only |
+| `security` | check | Microsoft Defender, the firewall profiles, drive encryption, User Account Control | read-only |
+| `defender-signatures` | update | `Update-MpSignature` | normal |
 | `system-logs` | check | the event log, failing services and application crashes | read-only |
 | `winget` | update | `winget upgrade --all` (installers may ask for administrator rights in their own window) | dangerous |
 | `scoop` | update | `scoop update; scoop update *` | normal |
@@ -937,6 +976,8 @@ commands with `&&`, `;`, `|`) and applies the highest risk level found:
 | `brew-outdated` | check | `brew outdated --verbose` | read-only |
 | `brew-doctor` | check | `brew doctor` | read-only |
 | `macos-check` | check | `softwareupdate --list` | read-only |
+| `health` | check | uptime and load, the disk's SMART status, battery condition, memory pressure, swap, Time Machine | read-only |
+| `security` | check | FileVault, the firewall, Gatekeeper, System Integrity Protection, automatic updates | read-only |
 | `system-logs` | check | crash reports, failing launch agents, sleep blockers, processes logging faults, log sizes | read-only |
 | `dev-artifacts` | check | build folders (`node_modules`, `target`, `.venv`, `Pods`…) in projects untouched for 60 days, largest first | read-only |
 | `shell-startup` | check | time three interactive zsh starts | read-only |
@@ -1009,6 +1050,10 @@ one only when its binary is installed:
 | `apt-outdated` `dnf-outdated` `pacman-outdated` `zypper-outdated` | check | `apt list --upgradable`, `dnf check-update`, `pacman -Qu`, `zypper list-updates` | read-only |
 | `flatpak-outdated` `snap-outdated` | check | `flatpak remote-ls --updates`, `snap refresh --list` | read-only |
 | `journal-size` | check | `journalctl --disk-usage` | read-only |
+| `health` | check | uptime and load, a pending restart, memory and swap, inodes, disks, battery | read-only |
+| `security` | check | the firewall, automatic security updates, SSH logins, disk encryption | read-only |
+| `firmware-check` | check | `fwupdmgr get-updates` | read-only |
+| `firmware` | update | `fwupdmgr refresh` and `fwupdmgr update` | dangerous |
 | `system-logs` | check | failed units, errors since boot, core dumps, journal and log sizes | read-only |
 | `apt` | update | `sudo apt-get update && sudo apt-get -y upgrade` (non-interactive, keeps edited configuration files) | dangerous |
 | `dnf` | update | `sudo dnf upgrade --refresh -y` | dangerous |
@@ -1125,7 +1170,7 @@ omega [task] [flags]
 | `omega models [provider] [filter]` | list models with prices |
 | `omega docker` | measure Docker and clean what you select |
 | `omega menu` | home screen: every command on one screen, started with Enter |
-| `omega full` | everything, one step at a time: choose the steps, skip any, stop when you like |
+| `omega full [--only a,b] [--skip a,b]` | everything, stage by stage in one interface: choose the stages, see what each does and why, skip, repeat or stop |
 | `omega mac [status\|login\|background\|menubar\|dock\|shortcuts]` | review what runs at login and in the background, the menu bar, the Dock and shortcut conflicts (AI-guided without a subcommand) |
 | `omega mac permissions` | remove privacy entries of binaries and apps that are gone |
 | `omega mac apps` | unused apps, Intel-only apps and leftovers of removed apps |

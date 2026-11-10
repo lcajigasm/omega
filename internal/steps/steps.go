@@ -83,6 +83,20 @@ const (
 		"ForEach-Object { $_.Properties[0].Value } | Group-Object | Sort-Object Count -Descending | Select-Object -First 10 Count, Name | Format-Table -AutoSize | Out-String -Width 120"
 	winUpdates = "$s = (New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher(); " +
 		"$r = $s.Search('IsInstalled=0 and IsHidden=0'); '{0} update(s) pending' -f $r.Updates.Count; $r.Updates | ForEach-Object { '  ' + $_.Title }"
+	winHealth = "'== Last start'; (Get-CimInstance Win32_OperatingSystem).LastBootUpTime; " +
+		"'== Restart pending'; " +
+		"(Test-Path 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Component Based Servicing\\RebootPending') -or " +
+		"(Test-Path 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\WindowsUpdate\\Auto Update\\RebootRequired'); " +
+		"'== Disks'; Get-PhysicalDisk | Select-Object FriendlyName, MediaType, HealthStatus, OperationalStatus | Format-Table -AutoSize | Out-String -Width 120; " +
+		"'== Memory (GB)'; Get-CimInstance Win32_OperatingSystem | " +
+		"Select-Object @{n='Total';e={[math]::Round($_.TotalVisibleMemorySize/1MB,1)}}, @{n='Free';e={[math]::Round($_.FreePhysicalMemory/1MB,1)}} | Format-Table -AutoSize | Out-String -Width 120; " +
+		"'== Battery'; Get-CimInstance Win32_Battery -ErrorAction SilentlyContinue | Select-Object EstimatedChargeRemaining, BatteryStatus | Format-Table -AutoSize | Out-String -Width 120"
+	winSecurity = "'== Microsoft Defender'; Get-MpComputerStatus -ErrorAction SilentlyContinue | " +
+		"Select-Object AntivirusEnabled, RealTimeProtectionEnabled, AntivirusSignatureLastUpdated | Format-List | Out-String -Width 120; " +
+		"'== Firewall profiles'; Get-NetFirewallProfile -ErrorAction SilentlyContinue | Select-Object Name, Enabled | Format-Table -AutoSize | Out-String -Width 120; " +
+		"'== Drive encryption (needs an elevated terminal)'; Get-BitLockerVolume -ErrorAction SilentlyContinue | " +
+		"Select-Object MountPoint, VolumeStatus, ProtectionStatus | Format-Table -AutoSize | Out-String -Width 120; " +
+		"'== User Account Control'; (Get-ItemProperty 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System' -ErrorAction SilentlyContinue).EnableLUA"
 	winTemp = "Get-ChildItem $env:TEMP -Force -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue"
 )
 
@@ -249,6 +263,43 @@ var catalog = []Step{
 			`echo '== Processes logging faults, last 30 min'; /usr/bin/log show --last 30m --style compact --predicate 'messageType == fault' 2>/dev/null | awk 'NR>1 {print $4}' | sed 's/\[.*//' | sort | uniq -c | sort -rn | head -10; ` +
 			`echo '== Log folder sizes'; du -sh ~/Library/Logs /Library/Logs /private/var/log 2>/dev/null`},
 
+	{OS: linux, ID: "health", Name: "Hardware health", Category: Check, Risk: safety.Safe,
+		Description: "Uptime and load, whether a restart is pending, memory and swap, inodes, disks and the battery",
+		Command: `echo '== Uptime and load'; uptime; ` +
+			`echo '== Restart pending (Debian and Ubuntu say so here)'; cat /var/run/reboot-required /var/run/reboot-required.pkgs 2>/dev/null; ` +
+			`echo '== Kernels installed, then the one running (not in the list: restart)'; ls /usr/lib/modules 2>/dev/null; uname -r; ` +
+			`echo '== Memory and swap'; free -h; ` +
+			`echo '== Inodes'; df -i / /home 2>/dev/null; ` +
+			`echo '== Disks'; lsblk -d -o NAME,MODEL,SIZE,ROTA,TRAN 2>/dev/null; ` +
+			`echo '== Battery'; cat /sys/class/power_supply/BAT*/capacity /sys/class/power_supply/BAT*/status 2>/dev/null; true`},
+	{OS: linux, ID: "security", Name: "Security settings", Category: Check, Risk: safety.Safe,
+		Description: "The firewall, automatic security updates, SSH logins and disk encryption",
+		Command: `echo '== Firewall (ufw, firewalld, nftables)'; systemctl is-active ufw firewalld nftables 2>/dev/null; ` +
+			`echo '== Automatic updates (unattended-upgrades, apt-daily-upgrade, dnf-automatic)'; ` +
+			`systemctl is-enabled unattended-upgrades.service apt-daily-upgrade.timer dnf-automatic.timer 2>/dev/null; ` +
+			`echo '== SSH server (ssh, sshd)'; systemctl is-active ssh sshd 2>/dev/null; ` +
+			`grep -hE '^[[:space:]]*(PermitRootLogin|PasswordAuthentication)' /etc/ssh/sshd_config /etc/ssh/sshd_config.d/*.conf 2>/dev/null; ` +
+			`echo '== Encrypted volumes'; lsblk -o NAME,TYPE,FSTYPE 2>/dev/null | grep -i crypt; true`},
+	{OS: linux, ID: "firmware-check", Name: "Firmware updates", Category: Check, Risk: safety.Safe, Requires: "fwupdmgr",
+		Description: "What fwupd would update on this hardware, from the metadata as last refreshed",
+		Command:     "fwupdmgr get-updates --no-reboot-check 2>&1; test $? -ne 1"},
+	{OS: mac, ID: "health", Name: "Hardware health", Category: Check, Risk: safety.Safe,
+		Description: "Uptime and load, the disk's SMART status, battery condition, memory pressure, swap and Time Machine",
+		Command: `echo '== Uptime and load'; uptime; ` +
+			`echo '== Disk (SMART)'; diskutil info / | grep -E 'SMART Status|Solid State' | sed 's/^ *//'; ` +
+			`echo '== Battery'; system_profiler SPPowerDataType 2>/dev/null | grep -E 'Cycle Count|Condition|Maximum Capacity|State of Charge' | sed 's/^ *//'; ` +
+			`echo '== Memory'; memory_pressure -Q 2>/dev/null | tail -1; sysctl -n vm.swapusage; ` +
+			`echo '== Time Machine'; tmutil destinationinfo 2>&1 | grep -E 'Name|Kind|No destinations' | sed 's/^ *//'; ` +
+			`echo "local snapshots: $(tmutil listlocalsnapshots / 2>/dev/null | grep -c com.apple)"`},
+	{OS: mac, ID: "security", Name: "Security settings", Category: Check, Risk: safety.Safe,
+		Description: "FileVault, the firewall, Gatekeeper, System Integrity Protection and automatic updates",
+		Command: `echo '== FileVault'; diskutil apfs list 2>/dev/null | grep -m1 FileVault | sed 's/^ *//'; ` +
+			`echo '== Firewall'; /usr/libexec/ApplicationFirewall/socketfilterfw --getglobalstate; ` +
+			`echo '== Gatekeeper'; spctl --status; ` +
+			`echo '== System Integrity Protection'; csrutil status; ` +
+			`echo '== Automatic updates'; softwareupdate --schedule; ` +
+			`for k in AutomaticDownload AutomaticallyInstallMacOSUpdates CriticalUpdateInstall; do ` +
+			`echo "$k: $(defaults read /Library/Preferences/com.apple.SoftwareUpdate $k 2>/dev/null || echo unset)"; done`},
 	{ID: "dev-artifacts", Name: "Stale project build folders", Category: Check, Risk: safety.Safe,
 		Description: "node_modules, target, .venv, Pods and similar folders in projects not touched for 60 days, largest first (size in KB)",
 		Command: `for d in ~/Dev ~/Developer ~/dev ~/Projects ~/projects ~/Code ~/code ~/src ~/work ~/Work ~/Sites ~/repos ~/git ~/Documents/GitHub; do [ -d "$d" ] && echo "$d"; done | ` +
@@ -318,6 +369,9 @@ var catalog = []Step{
 	{OS: linux, ID: "flatpak", Name: "Flatpak apps", Category: Update, Command: "flatpak update -y --noninteractive", Risk: safety.Normal, Requires: "flatpak"},
 	{OS: linux, ID: "snap", Name: "snaps", Category: Update, Command: "sudo snap refresh", Risk: safety.Dangerous, Requires: "snap",
 		Description: "Needs sudo; snapd also refreshes on its own several times a day"},
+	{OS: linux, ID: "firmware", Name: "Firmware (fwupd)", Category: Update, Risk: safety.Dangerous, Requires: "fwupdmgr",
+		Command:     "fwupdmgr refresh --force && fwupdmgr update -y --no-reboot-check",
+		Description: "Firmware for the devices fwupd supports; some updates are applied on the next restart"},
 	{OS: mac, ID: "macos", Name: "macOS (softwareupdate)", Category: Update, Command: "sudo softwareupdate --install --all", Risk: safety.Dangerous,
 		Description: "Needs sudo; may require a restart"},
 
@@ -436,6 +490,10 @@ var catalog = []Step{
 		Description: "Asks Windows Update what is pending; can take a minute. Installing them is left to Windows"},
 	{OS: windows, ID: "system-logs", Name: "System logs review", Category: Check, Command: winLogs, Risk: safety.Safe,
 		Description: "Errors by source, services that should be running and are not, and application crashes"},
+	{OS: windows, ID: "health", Name: "Hardware health", Category: Check, Command: winHealth, Risk: safety.Safe,
+		Description: "When Windows last started, whether a restart is pending, disk health, memory and battery"},
+	{OS: windows, ID: "security", Name: "Security settings", Category: Check, Command: winSecurity, Risk: safety.Safe,
+		Description: "Microsoft Defender, the firewall profiles, drive encryption and User Account Control"},
 	{OS: windows, ID: "docker-df", Name: "Docker disk usage", Category: Check, Command: "docker system df", Risk: safety.Safe, Requires: "docker"},
 	{OS: windows, ID: "winget", Name: "winget packages", Category: Update, Risk: safety.Dangerous, Requires: "winget",
 		Command:     "winget upgrade --all --include-unknown --accept-source-agreements --accept-package-agreements --disable-interactivity",
@@ -445,6 +503,8 @@ var catalog = []Step{
 		Description: "Needs a terminal opened as administrator"},
 	{OS: windows, ID: "wsl", Name: "Windows Subsystem for Linux", Category: Update, Command: "wsl --update", Risk: safety.Dangerous, Requires: "wsl",
 		Description: "Updates the WSL kernel and tools, not the distributions inside it"},
+	{OS: windows, ID: "defender-signatures", Name: "Microsoft Defender definitions", Category: Update, Command: "Update-MpSignature", Risk: safety.Normal,
+		Description: "Downloads the newest antivirus definitions"},
 	{OS: windows, ID: "scoop-cleanup", Name: "Old Scoop versions and cache", Category: Clean, Command: "scoop cleanup *; scoop cache rm *", Risk: safety.Dangerous, Requires: "scoop"},
 	{OS: windows, ID: "temp-files", Name: "Temporary files", Category: Clean, Command: winTemp, Risk: safety.Dangerous,
 		Description: "Empties your temporary folder; files in use are skipped"},

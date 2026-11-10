@@ -22,7 +22,7 @@ func (m *model) clickCard(msg tea.MouseMsg) bool {
 	if m.help || !m.ready || (m.state != stChoice && m.state != stConfirm) {
 		return false
 	}
-	top := m.vp.Height
+	top := m.vp.Height + m.topRows()
 	relY := msg.Y - top
 	relX := msg.X - cardFrame
 	if relY < 0 || relX < 0 {

@@ -24,6 +24,7 @@ const (
 	TaskInstall = "install"
 	TaskDoctor  = "doctor"
 	TaskHistory = "history"
+	TaskHealth  = "health"
 )
 
 // AutoSuffix turns a guided task into an automatic one.
@@ -102,6 +103,10 @@ var windowsTaskPrompts = map[string]string{
 		"Scoop and Chocolatey checks), pending Windows updates, errors and failing services (the system-logs step), and the " +
 		"topgrade configuration if present. Finish with a short summary of the findings and offer the recommendations, most " +
 		"important first, with propose_actions.",
+	TaskHealth: "Check the health and security of this Windows machine, changing nothing unless I pick a fix. Run the health, security, " +
+		"system-logs and windows-update-check steps: disk health, a pending restart, memory, Microsoft Defender and its definitions, " +
+		"the firewall profiles, drive encryption, errors and services that should be running and are not." +
+		" Explain in plain words what is fine and what deserves attention, without alarming about what is normal. Finish with a short verdict and offer the fixes, most important first, with propose_actions; for what only I can change myself, say exactly where.",
 	TaskTune: "Review the configuration of the tools installed on this machine (start with config_hints) and find settings " +
 		"that would make updates more reliable, keep caches from growing, or speed things up. Check the current official docs " +
 		"with fetch_url or web_search before recommending anything. Then offer the improvements with propose_actions " +
@@ -134,6 +139,10 @@ var linuxTaskPrompts = map[string]string{
 		"that would make updates more reliable, keep caches from growing, or speed things up. Check the current official docs " +
 		"with fetch_url or web_search before recommending anything. Then offer the improvements with propose_actions " +
 		"(multiple: true), each with what changes, why and the source. Apply only what the user selects.",
+	TaskHealth: "Check the health and security of this Linux machine, changing nothing unless I pick a fix. Run the health, security " +
+		"and system-logs steps (and firmware-check when fwupd is installed): a pending restart, memory and swap, inodes, the firewall, " +
+		"automatic security updates, how SSH accepts logins, disk encryption, failed units and errors in the journal." +
+		" Explain in plain words what is fine and what deserves attention, without alarming about what is normal. Finish with a short verdict and offer the fixes, most important first, with propose_actions; for what only I can change myself, say exactly where.",
 	TaskFix: "I run topgrade by hand and it fails often. Run its dry run, diagnose the errors, review its configuration " +
 		"(~/.config/topgrade.toml) and propose or apply the changes needed for it to run cleanly.",
 	TaskDev: "Review my development setup on this machine. Start with dev_inventory. Then, in this order: " +
@@ -162,6 +171,10 @@ var macTaskPrompts = map[string]string{
 		"that would make updates more reliable, keep caches from growing, or speed things up. Check the current official docs " +
 		"with fetch_url or web_search before recommending anything. Then offer the improvements with propose_actions " +
 		"(multiple: true), each with what changes, why and the source. Apply only what the user selects.",
+	TaskHealth: "Check the health and security of this Mac, changing nothing unless I pick a fix. Run the health, security, system-logs " +
+		"and macos-check steps: the disk's SMART status, battery condition, memory pressure, whether a backup is configured, FileVault, " +
+		"the firewall, Gatekeeper, System Integrity Protection, automatic updates, crash loops and launch agents that keep failing." +
+		" Explain in plain words what is fine and what deserves attention, without alarming about what is normal. Finish with a short verdict and offer the fixes, most important first, with propose_actions; for what only I can change myself, say exactly where.",
 	TaskDocker: "Free up the space Docker uses. Run docker-df (offer docker-start first if the daemon is not running), explain what each " +
 		"kind of data is and how much it would free, and let me choose with propose_actions (multiple: true), safest first. " +
 		"Never preselect volumes: they can hold databases.",
@@ -197,6 +210,8 @@ var macTaskPrompts = map[string]string{
 		"the terminal Full Disk Access. For apps, show what I have not opened in months, what still runs under Rosetta and the leftovers of " +
 		"removed apps, and let me choose: never preselect removing an app. " +
 		"Offer the rest grouped by section with propose_actions (multiple: true), each option with what changes and why. " +
+		"Anything the inventory marks MANUAL ONLY is a switch macOS gives to the user alone: do not offer those as options you will apply and do not " +
+		"call mac_change for each one; collect them, open the pane once at the end and list them as what is left for me to do by hand. " +
 		"Apply only what I pick with mac_change, save my decisions with mac_policy so you suggest the same next time, and finish with a short " +
 		"summary that mentions anything I must finish by hand and that `omega mac undo` reverts the changes.",
 	TaskFix: "I run topgrade and Mole by hand and they fail often. Run their dry runs, " +

@@ -66,6 +66,7 @@ const (
 	enAssistant
 	enTool
 	enNote
+	enStage // heading of a stage of a guided run
 )
 
 type entry struct {
@@ -83,6 +84,8 @@ type entry struct {
 	output   []string
 	lines    int
 	errText  string // why a tool failed, shown on the card
+	stage    int    // enStage: index of the stage,
+	ord, of  int    // and its position among the stages of the run
 
 	cached   string
 	cacheKey string
@@ -98,6 +101,9 @@ const (
 	stPassword
 	stIdle
 	stDone
+	stPlan    // guided run: choosing the stages
+	stBetween // guided run: between two stages
+	stSummary // guided run: what happened
 )
 
 type tickMsg time.Time
@@ -149,12 +155,33 @@ type model struct {
 	diskNow   uint64
 	diskTotal uint64
 
+	g *guide // the guided run this session is a stage of; nil on its own
+
 	follow    bool // next refresh jumps to the bottom (an error just arrived)
 	mdRenders int  // times glamour parsed a message; tests read it
 }
 
 // RunTUI runs the agent inside a full-screen terminal UI.
 func RunTUI(ctx context.Context, cancel context.CancelFunc, ag *agent.Agent, h Header) error {
+	// A guided run already has the screen: the session is one of its stages.
+	if g := host.Load(); g != nil {
+		return g.session(cancel, ag, h)
+	}
+	m := newModel(ag, cancel, h)
+	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithContext(ctx), tea.WithMouseCellMotion())
+	_, err := p.Run()
+	// Cancelling (ctrl+c, a signal) stops the program through its context.
+	// Bubble Tea reports that as "program was killed: context canceled",
+	// wrapping the sentinel: it is the user leaving, not a failure.
+	if errors.Is(err, tea.ErrProgramKilled) || errors.Is(err, context.Canceled) {
+		err = nil
+	}
+	return err
+}
+
+// newModel builds the session interface. ag is nil for a guided run, which
+// gets its agents one stage at a time.
+func newModel(ag *agent.Agent, cancel context.CancelFunc, h Header) *model {
 	ti := textinput.New()
 	ti.Placeholder = i18n.T("ui.placeholder")
 	ti.Prompt = "› "
@@ -165,8 +192,10 @@ func RunTUI(ctx context.Context, cancel context.CancelFunc, ag *agent.Agent, h H
 		verbs:   strings.Split(i18n.T("ui.verbs"), "|"),
 		dark:    lipgloss.HasDarkBackground(),
 		started: time.Now(),
-		mode:    ag.Mode(),
 		panel:   true,
+	}
+	if ag != nil {
+		m.mode = ag.Mode()
 	}
 	m.diskNow, m.diskTotal = diskSpace("/")
 	m.diskStart = m.diskNow
@@ -179,31 +208,29 @@ func RunTUI(ctx context.Context, cancel context.CancelFunc, ag *agent.Agent, h H
 	m.stats.Model = h.Model
 	m.focus = -1
 	m.entries = append(m.entries, &entry{kind: enWelcome})
-	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithContext(ctx), tea.WithMouseCellMotion())
-	_, err := p.Run()
-	// Cancelling (ctrl+c, a signal) stops the program through its context.
-	// Bubble Tea reports that as "program was killed: context canceled",
-	// wrapping the sentinel: it is the user leaving, not a failure.
-	if errors.Is(err, tea.ErrProgramKilled) || errors.Is(err, context.Canceled) {
-		err = nil
-	}
-	return err
+	return m
 }
 
 func (m *model) waitEvent() tea.Cmd {
-	ch := m.ag.Events()
+	ag := m.ag
+	if ag == nil {
+		return nil
+	}
+	ch := ag.Events()
 	return func() tea.Msg {
 		e, ok := <-ch
-		if !ok {
-			return closedMsg{}
-		}
-		return e
+		return agEvent{ag: ag, e: e, closed: !ok}
 	}
 }
 
 func doTick() tea.Cmd { return tea.Tick(tick, func(t time.Time) tea.Msg { return tickMsg(t) }) }
 
-func (m *model) Init() tea.Cmd { return tea.Batch(m.waitEvent(), doTick()) }
+func (m *model) Init() tea.Cmd {
+	if m.ag == nil {
+		return doTick()
+	}
+	return tea.Batch(m.waitEvent(), doTick())
+}
 
 // ---------- rendering helpers ----------
 
@@ -415,6 +442,8 @@ func (m *model) paintEntry(e *entry) string {
 		return strings.Join(lines, "\n")
 	case enNote:
 		return e.style.Render(e.text)
+	case enStage:
+		return m.paintStage(e)
 	}
 
 	// Tool call.
@@ -678,7 +707,7 @@ func (m *model) handleEvent(e agent.Event) tea.Cmd {
 		m.note(i18n.T("ui.summary_done", humanDuration(m.stats.Elapsed),
 			humanTokens(m.stats.Usage.Input()+m.stats.Usage.OutputTokens), m.costText()), mutedStyle)
 		if m.quitting {
-			return tea.Quit
+			return m.leave()
 		}
 	}
 	return nil
@@ -688,6 +717,21 @@ func (m *model) handleEvent(e agent.Event) tea.Cmd {
 
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
+	if ev, ok := msg.(agEvent); ok {
+		if ev.ag != m.ag {
+			return m, nil // a late event of a session that is over
+		}
+		if ev.closed {
+			msg = closedMsg{}
+		} else {
+			msg = ev.e
+		}
+	}
+	if m.g != nil {
+		if cmd, handled := m.guideUpdate(msg); handled {
+			return m, cmd
+		}
+	}
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
@@ -712,13 +756,19 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if cmd := m.handleEvent(msg); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
+		if m.g != nil {
+			m.guideAfter(msg)
+		}
 		m.refresh()
 		cmds = append(cmds, m.waitEvent())
 
 	case closedMsg:
 		m.state = stDone
+		if m.g != nil {
+			m.g.release()
+		}
 		if m.quitting {
-			return m, tea.Quit
+			return m, m.leave()
 		}
 
 	case tea.KeyMsg:
@@ -1029,11 +1079,14 @@ func (m *model) statusBar() string {
 	default:
 		left = mutedStyle.Render("⏵⏵ " + i18n.T("ui.mode_ask"))
 	}
-	if m.state != stDone {
+	if m.state != stDone && (m.g == nil || m.ag != nil) {
 		left += faintStyle.Render(" " + i18n.T("ui.mode_hint"))
 	}
-	parts := []string{m.header.Model,
-		"↑" + humanTokens(m.stats.Usage.Input()) + " ↓" + humanTokens(m.stats.Usage.OutputTokens)}
+	var parts []string
+	if m.header.Model != "" {
+		parts = append(parts, m.header.Model)
+	}
+	parts = append(parts, "↑"+humanTokens(m.stats.Usage.Input())+" ↓"+humanTokens(m.stats.Usage.OutputTokens))
 	if c := m.costText(); c != "" {
 		parts = append(parts, c)
 	}
@@ -1064,6 +1117,11 @@ func (m *model) helpAllowed() bool {
 }
 
 func (m *model) footerView() string {
+	if m.g != nil && !m.help {
+		if v, ok := m.guideFooter(); ok {
+			return m.withSearchBar(v)
+		}
+	}
 	if m.help {
 		return m.withSearchBar(m.helpView() + "\n" + m.statusBar() + "\n" + faintStyle.Render("  "+i18n.T("ui.hint_help")))
 	}
@@ -1080,7 +1138,11 @@ func (m *model) footerView() string {
 		if menu := m.menuView(); menu != "" {
 			return m.withSearchBar(top + "\n" + menu + "\n" + m.statusBar())
 		}
-		return m.withSearchBar(top + "\n" + m.statusBar() + "\n" + faintStyle.Render("  "+i18n.T("ui.hint_idle")))
+		hint := i18n.T("ui.hint_idle")
+		if m.g != nil {
+			hint = i18n.T("full.hint_idle")
+		}
+		return m.withSearchBar(top + "\n" + m.statusBar() + "\n" + faintStyle.Render("  "+hint))
 	case stDone:
 		return m.withSearchBar(m.statusBar() + "\n" + faintStyle.Render("  "+i18n.T("ui.hint_done")))
 	default:
@@ -1128,7 +1190,7 @@ func (m *model) resize() {
 	if !m.ready {
 		return
 	}
-	h := m.height - lipgloss.Height(m.footerView()) - 1
+	h := m.height - lipgloss.Height(m.footerView()) - 1 - m.topRows()
 	if h < 3 {
 		h = 3
 	}
@@ -1139,9 +1201,15 @@ func (m *model) View() string {
 	if !m.ready {
 		return i18n.T("ui.starting")
 	}
+	if m.g != nil && m.state == stPlan {
+		return m.planView()
+	}
 	m.resize()
 	if m.panelShown() {
 		return lipgloss.JoinHorizontal(lipgloss.Top, m.vp.View(), m.panelView(m.vp.Height)) + "\n" + m.footerView()
+	}
+	if m.topRows() > 0 {
+		return m.routeStrip() + "\n" + m.vp.View() + "\n" + m.footerView()
 	}
 	return m.vp.View() + "\n" + m.footerView()
 }

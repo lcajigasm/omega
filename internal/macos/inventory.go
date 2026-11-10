@@ -166,6 +166,26 @@ func (inv *Inventory) FindApp(s string) (App, bool) {
 	return App{}, false
 }
 
+// matchItems finds the items a disable or enable id names, best match
+// first. An app and its background-task record share the app's bundle id,
+// and macOS keeps a switched-off record for every app that ever asked to
+// open at login: the id means the item whose state the change would flip.
+func (inv *Inventory) matchItems(op, arg string) []Item {
+	var flips, rest []Item
+	for _, it := range inv.Items {
+		if it.ID() != arg && !strings.EqualFold(it.Name, arg) {
+			continue
+		}
+		switch {
+		case it.Enabled == (op == "disable"):
+			flips = append(flips, it)
+		case it.Kind != KindLogin:
+			rest = append(rest, it)
+		}
+	}
+	return append(flips, rest...)
+}
+
 // Resolve turns a change id from the report (e.g. "disable:com.google.keystone.agent",
 // "hotkey-set:sys:64=ctrl+opt+space") into the change to run.
 func (inv *Inventory) Resolve(id string) (Change, error) {
@@ -175,8 +195,8 @@ func (inv *Inventory) Resolve(id string) (Change, error) {
 	}
 	switch op {
 	case "disable", "enable":
-		for _, it := range inv.Items {
-			if it.ID() == arg || strings.EqualFold(it.Name, arg) {
+		for _, it := range inv.matchItems(op, arg) {
+			{
 				if op == "enable" {
 					c, ok := it.EnableChange()
 					if !ok {
@@ -307,14 +327,18 @@ func (inv *Inventory) Report(section string) string {
 			sort.Strings(flags)
 			fmt.Fprintf(&b, "- %s (%s, %s) %s [%s] %s verdict=%s category=%s%s", it.Name, it.Kind, state, orDash(it.Developer), orDash(it.Label),
 				strings.Join(flags, ","), it.Verdict, it.Category, why(it.Why))
-			if it.Enabled {
+			if it.Enabled && it.ManualOnly() {
+				fmt.Fprintf(&b, " — MANUAL ONLY: change disable:%s just opens the Login Items pane", it.ID())
+			} else if it.Enabled {
 				fmt.Fprintf(&b, " — change: disable:%s", it.ID())
 			} else if _, ok := it.EnableChange(); ok {
 				fmt.Fprintf(&b, " — change: enable:%s", it.ID())
 			}
 			b.WriteString("\n")
 		}
-		b.WriteString("\n")
+		b.WriteString("Items marked MANUAL ONLY are switches macOS gives to the user alone (Allow in the Background): no tool can flip them. " +
+			"Do not offer them one by one and do not call mac_change for each: list them together as something to finish by hand, " +
+			"and open the pane once.\n\n")
 	}
 	if all || section == "menubar" {
 		b.WriteString("## Menu bar apps (running apps that most likely show a menu bar icon)\n")
@@ -424,7 +448,11 @@ func (inv *Inventory) reportPermissions(b *strings.Builder) {
 		if x.Copies > 1 {
 			copies = fmt.Sprintf(", one of %d entries named %s", x.Copies, filepath.Base(x.Client))
 		}
-		fmt.Fprintf(b, "- %s — %s [%s] verdict=%s (%s%s) — change: perm-reset:%s\n", ServiceName(x.Service), x.Name, x.Client, x.Verdict, what, copies, x.ID())
+		how := "change"
+		if x.ManualOnly() {
+			how = "MANUAL ONLY (system-wide list, only System Settings can edit it): the change opens the pane and names the entry"
+		}
+		fmt.Fprintf(b, "- %s — %s [%s] verdict=%s (%s%s) — %s: perm-reset:%s\n", ServiceName(x.Service), x.Name, x.Client, x.Verdict, what, copies, how, x.ID())
 	}
 	// Binaries that exist, grouped: several live copies under one name are
 	// worth explaining even though none is removed.
@@ -450,6 +478,7 @@ func (inv *Inventory) reportPermissions(b *strings.Builder) {
 		}
 		b.WriteString(" (each change: perm-reset:<Service>:<path>)\n")
 	}
+	b.WriteString("Entries marked MANUAL ONLY cannot be removed by any tool: offer them together as one thing to finish by hand, not as changes that will be applied.\n")
 	b.WriteString("Removing an entry cannot be undone, but it is harmless: the app or binary asks again when it needs the permission. " +
 		"perm-reset-all:<Service> forgets a permission for every app; offer it only when single entries could not be removed.\n")
 }

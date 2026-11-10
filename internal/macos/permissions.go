@@ -303,9 +303,20 @@ func (x Permission) ID() string { return ShortService(x.Service) + ":" + x.Clien
 // Label is the entry as shown on a card: who, and which permission.
 func (x Permission) Label() string { return x.Name + " · " + ServiceName(x.Service) }
 
+// ManualOnly reports whether only System Settings can remove the entry. The
+// system-wide database is protected by macOS, and tccutil, the one tool
+// allowed to edit it, takes only the bundle id of an app that is installed:
+// it refuses a binary's path and an app that is gone, which are exactly the
+// entries left over.
+func (x Permission) ManualOnly() bool { return x.System && (x.IsPath || x.Missing) }
+
 // ResetChange removes the entry from the privacy database. It cannot be
 // undone: the app or binary asks again the next time it needs the permission.
 func (x Permission) ResetChange() Change {
+	if x.ManualOnly() {
+		return Change{ID: "perm-reset:" + x.ID(), Section: "permissions", Title: i18n.T("mac.act.perm_reset", x.Name, ServiceName(x.Service)),
+			Command: PrivacyPane(x.Service), Manual: i18n.T("mac.manual.perm_system", x.Name, ServiceName(x.Service))}
+	}
 	return Change{ID: "perm-reset:" + x.ID(), Section: "permissions", Title: i18n.T("mac.act.perm_reset", x.Name, ServiceName(x.Service)),
 		Command: fmt.Sprintf("%s mac op perm-reset %s %s", omegaBin(), shellQuote(ShortService(x.Service)), shellQuote(x.Client))}
 }
