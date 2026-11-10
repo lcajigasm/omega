@@ -3,24 +3,24 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>omega · AI maintenance for your Mac</title>
-  <meta name="description" content="omega updates and cleans your Mac like topgrade and Mole, then reads every failure, finds the cause and fixes the config. It also clears stale privacy permissions, reviews your apps and sets up your developer tools. Picks the best value model from live prices, or runs fully local. Free and open source.">
+  <title>omega · AI maintenance for macOS and Linux</title>
+  <meta name="description" content="omega updates and cleans your Mac or Linux machine like topgrade and Mole, then reads every failure, finds the cause and fixes the config. It works with Homebrew, apt, dnf, pacman, zypper, Flatpak and snap, and sets up your developer tools. Picks the best value model from live prices, or runs fully local. Free and open source.">
   <link rel="canonical" href="https://lcajigasm.github.io/omega/">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="icon" href="favicon.png" type="image/png" sizes="64x64">
   <meta name="theme-color" content="#000000">
 
   <meta property="og:type" content="website">
-  <meta property="og:title" content="omega · AI maintenance for your Mac">
-  <meta property="og:description" content="Updates and cleans your Mac like topgrade and Mole, then fixes what breaks. Free and open source.">
+  <meta property="og:title" content="omega · AI maintenance for macOS and Linux">
+  <meta property="og:description" content="Updates and cleans your Mac or Linux machine, then fixes what breaks. Free and open source.">
   <meta property="og:url" content="https://lcajigasm.github.io/omega/">
   <meta property="og:image" content="https://lcajigasm.github.io/omega/og.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta property="og:image:alt" content="omega: updates that fix their own errors">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="omega · AI maintenance for your Mac">
-  <meta name="twitter:description" content="Updates and cleans your Mac like topgrade and Mole, then fixes what breaks.">
+  <meta name="twitter:title" content="omega · AI maintenance for macOS and Linux">
+  <meta name="twitter:description" content="Updates and cleans your Mac or Linux machine, then fixes what breaks.">
   <meta name="twitter:image" content="https://lcajigasm.github.io/omega/og.png">
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -38,7 +38,7 @@
     "name": "omega",
     "operatingSystem": "macOS, Linux",
     "applicationCategory": "DeveloperApplication",
-    "description": "AI driven macOS maintenance: updates like topgrade, cleans like Mole, and fixes what breaks.",
+    "description": "AI driven maintenance for macOS and Linux: updates like topgrade, cleans like Mole, and fixes what breaks.",
     "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
     "license": "https://github.com/lcajigasm/omega/blob/main/LICENSE",
     "downloadUrl": "https://github.com/lcajigasm/omega/releases"
@@ -49,7 +49,7 @@
     "@context": "https://schema.org",
     "@type": "FAQPage",
     "mainEntity": [
-      {"@type": "Question", "name": "Does omega replace topgrade and Mole?", "acceptedAnswer": {"@type": "Answer", "text": "For a typical developer Mac, yes. omega has its own steps for Homebrew, the Mac App Store, npm, pnpm, bun, pipx, uv, rustup, cargo, gh extensions, Oh My Zsh, macOS, caches, Xcode, Docker and the Trash. If topgrade or Mole are installed, it also uses them and can fix their configuration."}},
+      {"@type": "Question", "name": "Does omega replace topgrade and Mole?", "acceptedAnswer": {"@type": "Answer", "text": "For a typical developer machine, yes. omega has its own steps for Homebrew, the Mac App Store and macOS on a Mac, for apt, dnf, pacman, zypper, Flatpak and snap on Linux, and on both for npm, pnpm, bun, pipx, uv, rustup, cargo, gh extensions, Oh My Zsh, caches, Docker and the Trash. If topgrade or Mole are installed, it also uses them and can fix their configuration with omega fix."}},
       {"@type": "Question", "name": "What does omega send to the AI provider?", "acceptedAnswer": {"@type": "Answer", "text": "Its instructions, the trimmed output of the commands it runs and the configuration files it reads. It is instructed never to open your documents. Every run is logged to ~/.local/state/omega/runs. omega logs lists those transcripts and omega logs view prints one. omega keeps the newest 30."}},
       {"@type": "Question", "name": "What does omega doctor check?", "acceptedAnswer": {"@type": "Answer", "text": "The config file, whether the API key looks like a key, whether the provider answers, and which maintenance steps are installed. It also reports the two models automatic mode will use. It lists models or probes a local server and never sends a chat message, so it does not spend tokens."}},
       {"@type": "Question", "name": "Can omega delete my files?", "acceptedAnswer": {"@type": "Answer", "text": "Only after you approve it. Deleting, sudo, editing config files and any unknown command need your confirmation. Commands like rm -rf ~ or rm -rf / (extra flags still count), diskutil erase or curl piped into a shell are blocked and never run, even with --yes."}},
@@ -60,6 +60,7 @@
       {"@type": "Question", "name": "Can I just tell it what I want?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. In a session the agent can install tools, revert Mac changes, read earlier runs, manage its notes, change settings and run the setup check, asking before each change. It cannot read your API keys, change the provider or change the approval policy."}},
       {"@type": "Question", "name": "Can I change the mode or the model during a run?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Shift+Tab cycles between asking before risky actions, auto approve and read only, and Ctrl+P switches to the next model of the run. Press ? for the shortcut card, or type / for commands such as /mode, /model and /exit, with a menu that explains each one as you type. Ctrl+F searches the transcript: Enter jumps to the next match and Ctrl+P to the previous while search is open. Ctrl+Y copies the focused tool output. Click a card row to select it, and click the key line to confirm."}},
       {"@type": "Question", "name": "Does omega work on Linux?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. On Linux omega checks, updates and cleans through apt, dnf, pacman, zypper, Flatpak, snap and Homebrew, reviews the systemd journal, keeps API keys in the system keyring or in a file only you can read, and installs developer tools with your distribution's packages. omega mac (login items, menu bar, Dock, shortcuts, privacy permissions, apps) and the Mac only steps do not exist on Linux. Windows binaries are published but Windows is not supported."}},
+      {"@type": "Question", "name": "Does omega work on Windows?", "acceptedAnswer": {"@type": "Answer", "text": "No. Each release includes Windows binaries that start and show the interface, but there are no Windows maintenance steps and no key storage, so Windows is not supported. Under WSL, omega is the Linux version."}},
       {"@type": "Question", "name": "Where do I download omega?", "acceptedAnswer": {"@type": "Answer", "text": "On a Mac, or on Linux with Homebrew, brew install lcajigasm/tap/omega. The previous tap, brew install lcajigasm/omega/omega, still works. GitHub Releases also attach macOS, Linux and Windows archives for each version. macOS and Linux are supported; the Windows binaries exist but Windows is not supported."}},
       {"@type": "Question", "name": "How much does a run cost?", "acceptedAnswer": {"@type": "Answer", "text": "On the automatic model a typical run costs under one cent. omega shows tokens and cost live. Local models cost nothing."}},
       {"@type": "Question", "name": "Can it run on a local model?", "acceptedAnswer": {"@type": "Answer", "text": "Yes, through Ollama, LM Studio or any OpenAI compatible endpoint. Apple Intelligence's on device model has a 4,096 token context, too small for this agent."}},
@@ -97,6 +98,7 @@
         <li><a href="#gallery">Screens</a></li>
         <li><a href="#keys">Keys</a></li>
         <li><a href="#mac">Your Mac</a></li>
+        <li><a href="#linux">Linux</a></li>
         <li><a href="#dev">Dev tools</a></li>
         <li><a href="#providers">Models</a></li>
         <li><a href="#faq">FAQ</a></li>
@@ -116,6 +118,7 @@
       <li><a href="#gallery">Screens</a></li>
       <li><a href="#keys">Keys</a></li>
       <li><a href="#mac">Your Mac</a></li>
+      <li><a href="#linux">Linux</a></li>
       <li><a href="#dev">Dev tools</a></li>
       <li><a href="#providers">Models</a></li>
       <li><a href="#faq">FAQ</a></li>
@@ -128,9 +131,9 @@
     <!-- Hero -->
     <section class="hero" id="top">
       <div class="container hero-inner">
-        <p class="eyebrow"><i class="ph ph-apple-logo" aria-hidden="true"></i> For macOS · free and open source</p>
+        <p class="eyebrow"><i class="ph ph-apple-logo" aria-hidden="true"></i><i class="ph ph-linux-logo" aria-hidden="true"></i> For macOS and Linux · free and open source</p>
         <h1 class="hero-title">Updates that fix<br> their own errors</h1>
-        <p class="hero-sub">omega updates and cleans your Mac like topgrade and Mole, then reads every failure, finds the cause and fixes the config. You pick what it does from a card and approve anything risky. A routine run costs under one cent, or nothing on a local model.</p>
+        <p class="hero-sub">omega updates and cleans your Mac or your Linux machine like topgrade and Mole, then reads every failure, finds the cause and fixes the config. You pick what it does from a card and approve anything risky. A routine run costs under one cent, or nothing on a local model.</p>
 
         <div class="install" id="install-hero">
           <code class="install-cmd">brew install lcajigasm/tap/omega</code>
@@ -139,9 +142,9 @@
           </button>
         </div>
         <p class="copy-status" role="status" aria-live="polite"></p>
-        <p class="section-sub">The previous tap still works: <code>brew install lcajigasm/omega/omega</code>.</p>
+        <p class="section-sub">Homebrew on macOS and on Linux. No Homebrew on Linux? <a href="#install">Install from the release archive</a>. The previous tap still works: <code>brew install lcajigasm/omega/omega</code>.</p>
 
-        <p class="proof"><i class="ph ph-check-circle" aria-hidden="true"></i> 43 maintenance steps · cloud or local models · 5 interface languages · binaries on GitHub Releases · MIT licensed</p>
+        <p class="proof"><i class="ph ph-check-circle" aria-hidden="true"></i> 78 maintenance steps on macOS, 90 on Linux · cloud or local models · 5 interface languages · binaries on GitHub Releases · MIT licensed</p>
 
         <div class="works-with" aria-label="Works with these AI providers">
           <p class="works-label">Works with</p>
@@ -186,7 +189,7 @@
             <ul class="list">
               <li>A step fails and the run moves on with a red line you have to scroll back to</li>
               <li>You search the error, edit topgrade.toml and launch everything again</li>
-              <li>A cask asks for a password halfway through and the run hangs</li>
+              <li>A package asks for a password halfway through and the run hangs</li>
               <li>The same pipx failure comes back next month</li>
             </ul>
           </article>
@@ -206,7 +209,7 @@
     <!-- Tagline reveal -->
     <section class="tagline" aria-label="What omega promises">
       <div class="container">
-        <p class="tagline-text" data-words>Your Mac stays current and clean. You only step in when something could be lost.</p>
+        <p class="tagline-text" data-words>Your machine stays current and clean. You only step in when something could be lost.</p>
       </div>
     </section>
 
@@ -285,11 +288,11 @@ omega setup</code></pre>
           <li class="card step">
             <span class="step-num">3</span>
             <h3 class="card-title">Let it do the maintenance</h3>
-            <p>Updates, cleanup and a summary, with your approval on anything risky. Then tune your tools, review your Mac or open the home screen with every command.</p>
+            <p>Updates, cleanup and a summary, with your approval on anything risky. Then tune your tools, open the home screen with every command or, on a Mac, review what runs on it.</p>
             <pre><code>omega
 omega tune
-omega mac
-omega menu</code></pre>
+omega menu
+omega mac      # macOS</code></pre>
           </li>
         </ol>
       </div>
@@ -371,6 +374,7 @@ omega menu</code></pre>
     <!-- Your Mac -->
     <section class="section reveal" id="mac" aria-labelledby="mac-title">
       <div class="container">
+        <p class="eyebrow section-eyebrow"><i class="ph ph-apple-logo" aria-hidden="true"></i> macOS only</p>
         <h2 class="section-title" id="mac-title">Your Mac, back on your terms</h2>
         <p class="section-sub">Apps add themselves to login, keep helpers running in the background, fill the menu bar, grab shortcuts other apps already use and leave permissions and files behind when they go. <code>omega mac</code> reviews all of it with your rules and sensible defaults, asks you on cards and applies only what you pick. Every change can be undone.</p>
         <div class="keys">
@@ -404,6 +408,53 @@ omega menu</code></pre>
             <figcaption class="sr-only">ChatGPT, Claude and Alfred all want Option Space. omega suggests Alfred, moves the others to free shortcuts and remembers the choice.</figcaption>
           </figure>
         </div>
+      </div>
+    </section>
+
+    <!-- Linux -->
+    <section class="section reveal" id="linux" aria-labelledby="linux-title">
+      <div class="container">
+        <p class="eyebrow section-eyebrow"><i class="ph ph-linux-logo" aria-hidden="true"></i> Debian, Ubuntu, Fedora, Arch, openSUSE and relatives</p>
+        <h2 class="section-title" id="linux-title">The same agent on Linux</h2>
+        <p class="section-sub">On Linux omega knows which distribution it runs on and uses its package manager, not a Mac's. The steps that need <code>sudo</code> wait for your approval and ask for the password inside the interface.</p>
+        <div class="keys">
+          <div class="card keys-list">
+            <h3 class="card-title"><i class="ph ph-package" aria-hidden="true"></i> What it looks after</h3>
+            <dl>
+              <div><dt>System packages</dt><dd>Check, update and clean with <code>apt</code>, <code>dnf</code>, <code>pacman</code> or <code>zypper</code>, including orphaned packages and the package cache</dd></div>
+              <div><dt>Flatpak and snap</dt><dd>Updates, unused runtimes and old snap revisions</dd></div>
+              <div><dt>Journal and disk</dt><dd>Failed units, errors since boot, core dumps, the size of the journal, <code>~/.cache</code> and the Trash</dd></div>
+              <div><dt>API keys</dt><dd>In the system keyring (GNOME Keyring, KWallet) or, on a server with none, in a file only you can read. omega says which</dd></div>
+              <div><dt>Developer tools</dt><dd>The same 46 steps as on a Mac, and <code>omega dev install</code> with your distribution's packages, for zsh and bash</dd></div>
+              <div><dt>Homebrew</dt><dd>With Homebrew on Linux, the <code>brew</code> steps work as they do on a Mac</dd></div>
+            </dl>
+          </div>
+          <figure class="terminal keys-demo" aria-label="omega steps on Ubuntu">
+            <div class="terminal-bar"><span></span><span></span><span></span><p>omega steps · Ubuntu 24.04</p></div>
+            <div class="terminal-body">
+              <p><span class="t-accent">CHECKS</span></p>
+              <p><span class="t-ok">✓</span> disk             <span class="t-muted">read-only</span></p>
+              <p><span class="t-ok">✓</span> apt-outdated     <span class="t-muted">read-only</span></p>
+              <p><span class="t-ok">✓</span> snap-outdated    <span class="t-muted">read-only</span></p>
+              <p><span class="t-ok">✓</span> journal-size     <span class="t-muted">read-only</span></p>
+              <p><span class="t-ok">✓</span> system-logs      <span class="t-muted">read-only</span></p>
+              <p><span class="t-accent">UPDATES</span></p>
+              <p><span class="t-ok">✓</span> apt              <span class="t-warn">dangerous</span></p>
+              <p><span class="t-ok">✓</span> snap             <span class="t-warn">dangerous</span></p>
+              <p><span class="t-accent">CLEANUP</span></p>
+              <p><span class="t-ok">✓</span> apt-clean        <span class="t-warn">dangerous</span></p>
+              <p><span class="t-ok">✓</span> apt-autoremove   <span class="t-warn">dangerous</span></p>
+              <p><span class="t-ok">✓</span> journal-vacuum   <span class="t-warn">dangerous</span></p>
+            </div>
+            <figcaption class="sr-only">A selection of the steps omega detects on Ubuntu 24.04: disk, outdated apt packages and snaps, journal size and system logs as read-only checks, and the apt and snap updates and cleanups marked dangerous because they use sudo. Taken from a run on a GitHub Ubuntu runner, with the developer-tool steps left out.</figcaption>
+          </figure>
+        </div>
+        <ul class="facts">
+          <li><i class="ph ph-apple-logo" aria-hidden="true"></i> The Mac review (omega mac) and the Mac-only steps do not exist on Linux, and say so</li>
+          <li><i class="ph ph-cube" aria-hidden="true"></i> Without apt, dnf, pacman or zypper (Alpine, NixOS, Void) the system-package steps do not appear</li>
+          <li><i class="ph ph-lock-simple" aria-hidden="true"></i> Immutable systems such as Fedora Silverblue are not adapted yet</li>
+          <li><i class="ph ph-windows-logo" aria-hidden="true"></i> Windows is not supported: the binaries start, but there are no Windows steps</li>
+        </ul>
       </div>
     </section>
 
@@ -525,7 +576,7 @@ omega menu</code></pre>
           <article class="card provider">
             <span class="provider-logo"><svg class="logo" aria-hidden="true"><use href="#logo-ollama"/></svg><svg class="logo" aria-hidden="true"><use href="#logo-lmstudio"/></svg></span>
             <h3 class="card-title">Ollama and LM Studio</h3>
-            <p>Fully local and free. Nothing leaves your Mac but the docs it reads.</p>
+            <p>Fully local and free. Nothing leaves your machine but the docs it reads.</p>
             <code>qwen3:14b · any model with tools</code>
           </article>
           <article class="card provider">
@@ -557,7 +608,7 @@ omega menu</code></pre>
       <div class="container narrow">
         <h2 class="section-title" id="faq-title">Questions</h2>
         <div class="faq">
-          <details><summary><span>Does omega replace topgrade and Mole?</span></summary><p>For a typical developer Mac, yes. omega has its own steps for Homebrew, the Mac App Store, npm, pnpm, bun, pipx, uv, rustup, cargo, gh extensions, Oh My Zsh, macOS, caches, Xcode, Docker and the Trash. If topgrade or Mole are installed, it also uses them and can fix their configuration with <code>omega fix</code>.</p></details>
+          <details><summary><span>Does omega replace topgrade and Mole?</span></summary><p>For a typical developer machine, yes. omega has its own steps for Homebrew, the Mac App Store and macOS on a Mac, for apt, dnf, pacman, zypper, Flatpak and snap on Linux, and on both for npm, pnpm, bun, pipx, uv, rustup, cargo, gh extensions, Oh My Zsh, caches, Docker and the Trash. If topgrade or Mole are installed, it also uses them and can fix their configuration with <code>omega fix</code>.</p></details>
           <details><summary><span>What does omega send to the AI provider?</span></summary><p>Its instructions, the trimmed output of the commands it runs and the configuration files it reads. It is instructed never to open your documents. Every run is logged to <code>~/.local/state/omega/runs</code>. <code>omega logs</code> lists those transcripts and <code>omega logs view</code> prints one. omega keeps the newest 30.</p></details>
           <details><summary><span>What does <code>omega doctor</code> check?</span></summary><p>The config file, whether the API key looks like a key, whether the provider answers, and which maintenance steps are installed. It also reports the two models automatic mode will use. It lists models or probes a local server and never sends a chat message, so it does not spend tokens.</p></details>
           <details><summary><span>Can omega delete my files?</span></summary><p>Only after you approve it. Deleting, sudo, editing config files and any unknown command need your confirmation. Commands like <code>rm -rf ~</code> or <code>rm -rf /</code> (extra flags still count), <code>diskutil erase</code> or <code>curl</code> piped into a shell are blocked and never run, even with <code>--yes</code>.</p></details>
@@ -570,6 +621,7 @@ omega menu</code></pre>
           <details><summary><span>Can omega run unattended?</span></summary><p>Yes. Run <code>omega update --yes --no-tui --once</code> from launchd or cron. Blocked commands stay blocked, Docker is never cleaned without you, and recommendations go into the summary instead of a card.</p></details>
           <details><summary><span>What happens when something needs admin access?</span></summary><p>Commands run detached from your terminal, so nothing can write over the interface. When a tool such as Mole or softwareupdate asks for sudo, omega shows a password card, checks the password with sudo and keeps it in memory for that run only. It is never logged or sent to the AI. Press Esc to skip the steps that need it.</p></details>
           <details><summary><span>Does omega work on Linux?</span></summary><p>Yes. On Linux omega checks, updates and cleans through apt, dnf, pacman, zypper, Flatpak, snap and Homebrew, reviews the systemd journal, keeps API keys in the system keyring or in a file only you can read, and installs developer tools with your distribution's packages. <code>omega mac</code> (login items, menu bar, Dock, shortcuts, privacy permissions, apps) and the Mac only steps do not exist on Linux. Windows binaries are published, but Windows is not supported.</p></details>
+          <details><summary><span>Does omega work on Windows?</span></summary><p>No. Each release includes Windows binaries that start and show the interface, but there are no Windows maintenance steps and no key storage, so Windows is not supported. Under WSL, omega is the Linux version.</p></details>
           <details><summary><span>Can omega sort out login items, the menu bar and shortcut conflicts?</span></summary><p>Yes, with <code>omega mac</code>. It lists what opens at login, what is allowed in the background, menu bar apps, the Dock and global keyboard shortcuts, and suggests changes from your rules (<code>~/.config/omega/mac.toml</code>) and its defaults: updaters off, chat and AI assistants opened when needed, VPN, security and sync kept, and AI assistants that grab a shortcut on install moved to a free one. Your choices are saved for next time, and <code>omega mac undo</code> reverts any change.</p></details>
           <details><summary><span>Can omega clean the list of privacy permissions?</span></summary><p>Yes, with <code>omega mac permissions</code>. It finds the entries in System Settings → Privacy &amp; Security whose binary no longer exists (an app that bundles <code>node</code> in a versioned folder leaves one per update) or whose app is gone, names each with its version, and removes the ones you pick after saving a copy of the database. Reading your own list needs Full Disk Access for the terminal. Entries macOS protects system-wide, such as Full Disk Access, Accessibility and Screen Recording, are found but have to be removed by you in System Settings.</p></details>
           <details><summary><span>Can omega install and set up my developer tools?</span></summary><p>Yes, with <code>omega dev</code>. It knows more than 70 languages, version managers and command-line tools. <code>omega dev status</code> shows what is installed and by which manager, and points out overlapping version managers, commands that resolve to the wrong copy and <code>PATH</code> entries that do not exist. <code>omega dev install</code> installs what you pick and <code>omega dev activate</code> adds the shell line a tool needs to <code>~/.zshrc</code>, keeping a copy of the file.</p></details>
@@ -592,7 +644,11 @@ omega menu</code></pre>
           </button>
         </div>
         <p class="copy-status" role="status" aria-live="polite"></p>
-        <p class="section-sub">Or grab a binary from <a href="https://github.com/lcajigasm/omega/releases/latest">GitHub Releases</a>: macOS, Linux and Windows, amd64 and arm64, with checksums. On Linux omega works with apt, dnf, pacman, zypper, Flatpak and snap and keeps keys in the system keyring; <code>omega mac</code> is Mac only. The Windows binaries exist, but Windows is not supported.</p>
+        <p class="section-sub">That command is for macOS, and for Linux with Homebrew. On Linux without it, take the archive for your architecture from <a href="https://github.com/lcajigasm/omega/releases/latest">GitHub Releases</a>:</p>
+        <pre class="install-steps"><code>tar -xzf omega_*_linux_amd64.tar.gz        # or linux_arm64
+sha256sum -c SHA256SUMS --ignore-missing
+sudo install -m 755 omega /usr/local/bin/omega</code></pre>
+        <p class="section-sub">Every release has archives for macOS and Linux, amd64 and arm64, with checksums. Windows archives are published too, but Windows is not supported.</p>
       </div>
     </section>
   </main>
