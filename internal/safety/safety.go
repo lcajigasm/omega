@@ -37,6 +37,10 @@ var blocked = []*regexp.Regexp{
 	regexp.MustCompile(`\bchmod\s+(-R\s+)?[0-7]*777\s+/(\s|$)`),
 	regexp.MustCompile(`\bfdesetup\b`),
 	regexp.MustCompile(`\btmutil\s+(delete|disable)`),
+	// Linux: wiping whole disks and switching off rm's own safety net.
+	regexp.MustCompile(`\b(wipefs|blkdiscard)\b`),
+	regexp.MustCompile(`>\s*/dev/(nvme|vd|mmcblk|hd)`),
+	regexp.MustCompile(`--no-preserve-root`),
 	// The privacy database is only ever changed through tccutil: a direct
 	// write can grant a permission the user never approved.
 	regexp.MustCompile(`(?i)TCC\.db.*\b(insert|update|delete|replace|drop|alter)\b|\b(insert|update|delete|replace|drop|alter)\b.*TCC\.db`),
@@ -69,6 +73,24 @@ var safePrefixes = []string{
 	"topgrade --dry-run", "topgrade -n", "topgrade --version", "topgrade --config-reference",
 	"mo --version", "mo clean --dry-run", "mo optimize --dry-run", "mo uninstall --dry-run", "mo history",
 	"mo --help", "mo help",
+	// Linux.
+	"test", "journalctl", "coredumpctl list", "coredumpctl info", "zypper --non-interactive list-updates",
+	"free", "lsb_release", "hostnamectl", "lscpu", "lsblk", "findmnt", "nproc",
+	"systemctl status", "systemctl list-units", "systemctl list-unit-files",
+	"systemctl list-timers", "systemctl --failed", "systemctl --user --failed", "systemctl is-active",
+	"systemctl is-enabled", "systemctl is-system-running", "systemd-analyze", "loginctl",
+	"apt list", "apt show", "apt policy", "apt search", "apt-cache", "apt-get -s", "apt-get --simulate",
+	"apt-mark showmanual", "apt-mark showhold", "dpkg -l", "dpkg -L", "dpkg -s", "dpkg -S", "dpkg --list",
+	"dpkg --get-selections", "dpkg-query",
+	"dnf check-update", "dnf list", "dnf info", "dnf repolist", "dnf history", "dnf repoquery", "dnf search",
+	"rpm -q", "rpm -qa", "rpm -qi", "rpm -ql",
+	"pacman -Q", "pacman -Qu", "pacman -Qdt", "pacman -Qi", "pacman -Ql", "pacman -Qe", "pacman -Qm", "pacman -Si", "pacman -Ss",
+	"checkupdates", "paccache -d", "paccache --dryrun",
+	"zypper list-updates", "zypper lu", "zypper list-patches", "zypper lp", "zypper search", "zypper se",
+	"zypper info", "zypper repos", "zypper lr", "zypper packages",
+	"flatpak list", "flatpak remote-ls", "flatpak remotes", "flatpak info", "flatpak history", "flatpak --version",
+	"snap list", "snap refresh --list", "snap info", "snap version", "snap changes", "snap find",
+	"fwupdmgr get-devices", "fwupdmgr get-updates",
 }
 
 // Routine, recoverable update operations.
@@ -77,11 +99,15 @@ var normalPrefixes = []string{
 	"npm update -g", "npm update --global", "pnpm update -g", "pnpm up -g", "bun upgrade",
 	"pipx upgrade", "pipx upgrade-all", "uv tool upgrade", "rustup update", "cargo install-update",
 	"gh extension upgrade", "mo update", "gem update --user-install", "tldr --update",
+	// Flatpak updates need no root: polkit lets the logged-in user do them.
+	"flatpak update",
 }
 
 var (
 	findDestructive = regexp.MustCompile(`\s-(delete|exec|execdir|ok|okdir)\b`)
 	sedInPlace      = regexp.MustCompile(`\bsed\b.*\s-i`)
+	// journalctl only reads, except when it trims, rotates or rewrites the journal.
+	journalWrites   = regexp.MustCompile(`\s--(vacuum-\w+|rotate|flush|sync|relinquish-var|smart-relinquish-var|setup-keys|update-catalog)\b`)
 	fdDup           = regexp.MustCompile(`[0-9]*>&[0-9-]+`)
 	devNullRedirect = regexp.MustCompile(`[0-9&]?>{1,2}\s*/dev/null`)
 )
@@ -134,7 +160,8 @@ var helpOnly = regexp.MustCompile(`^[\w.+-]+( [a-z][\w-]*)? (--help|-h|--version
 const homeSentinel = "/Users/omega"
 
 // wipesMachine reports a command that erases a whole machine root: /, the
-// home directory, /Users, /System, /Library or /Applications. Extra flags
+// home directory, /Users, /System, /Library or /Applications, and on Linux
+// /home, /root, /etc, /usr, /var, /boot, /bin, /sbin, /lib, /lib64 or /opt. Extra flags
 // ("rm -rf / --no-preserve-root") and ".." still count. A path underneath
 // one of those directories does not.
 func wipesMachine(part string) bool {
@@ -233,7 +260,8 @@ func isRootTarget(arg string) bool {
 		}
 	}
 	switch path.Clean(expanded) {
-	case "/", homeSentinel, "/Users", "/System", "/Library", "/Applications":
+	case "/", homeSentinel, "/Users", "/System", "/Library", "/Applications",
+		"/home", "/root", "/etc", "/usr", "/var", "/boot", "/bin", "/sbin", "/lib", "/lib64", "/opt":
 		return true
 	}
 	return false
@@ -266,6 +294,9 @@ func classifyOne(part string) Risk {
 		return Dangerous
 	}
 	if sedInPlace.MatchString(p) {
+		return Dangerous
+	}
+	if strings.HasPrefix(p, "journalctl ") && journalWrites.MatchString(p) {
 		return Dangerous
 	}
 	for _, pre := range safePrefixes {

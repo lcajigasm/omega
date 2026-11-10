@@ -86,6 +86,11 @@ func ExtendPath() {
 		filepath.Join(home, ".cargo/bin"), filepath.Join(home, ".local/bin"),
 		filepath.Join(home, ".bun/bin"), filepath.Join(home, "go/bin"),
 	}
+	if runtime.GOOS == "linux" {
+		// Homebrew on Linux, snaps and Flatpak's exported commands.
+		extra = append(extra, "/home/linuxbrew/.linuxbrew/bin", "/home/linuxbrew/.linuxbrew/sbin",
+			filepath.Join(home, ".linuxbrew/bin"), "/snap/bin", "/var/lib/flatpak/exports/bin")
+	}
 	sep := string(os.PathListSeparator)
 	parts := strings.Split(os.Getenv("PATH"), sep)
 	have := map[string]bool{}

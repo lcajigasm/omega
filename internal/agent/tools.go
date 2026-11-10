@@ -54,15 +54,38 @@ func str(desc string) map[string]any {
 	return map[string]any{"type": "string", "description": desc}
 }
 
+// goos is the operating system omega runs on. Tests replace it.
+var goos = runtime.GOOS
+
+// macOnlyTool reports the tools that drive macOS itself (login items, the
+// Dock, privacy permissions and the journal of those changes).
+func macOnlyTool(name string) bool { return strings.HasPrefix(name, "mac_") }
+
+// toolSpecs are the tools offered to the model on this operating system:
+// the mac_* ones only exist on macOS.
 func toolSpecs() []llm.ToolSpec {
+	all := allToolSpecs()
+	if goos == "darwin" {
+		return all
+	}
+	var out []llm.ToolSpec
+	for _, s := range all {
+		if !macOnlyTool(s.Name) {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+func allToolSpecs() []llm.ToolSpec {
 	return append([]llm.ToolSpec{
-		{Name: "system_info", Description: "System summary: macOS version, architecture, disk, memory and detected package managers.",
+		{Name: "system_info", Description: "System summary: operating system and version, architecture, disk, memory and detected package managers.",
 			Properties: map[string]any{}},
 		{Name: "list_steps", Description: "List the catalogue of maintenance steps (update, clean, check, backend) and whether each is available on this machine.",
 			Properties: map[string]any{"category": map[string]any{"type": "string", "enum": []string{"update", "clean", "check", "backend", "all"}}}},
 		{Name: "run_step", Description: "Run a catalogue step by id. Prefer this over run_command for routine actions.",
 			Properties: map[string]any{"id": str("step id, e.g. brew, npm, brew-cleanup")}, Required: []string{"id"}},
-		{Name: "run_command", Description: "Run a non-interactive shell command (zsh -lc). Read-only commands run directly; " +
+		{Name: "run_command", Description: "Run a non-interactive shell command (the user's login shell, -lc). Read-only commands run directly; " +
 			"commands that change the system may need the user's approval. Returns the exit code and (trimmed) output.",
 			Properties: map[string]any{
 				"command": str("command to run"),
@@ -70,7 +93,7 @@ func toolSpecs() []llm.ToolSpec {
 			}, Required: []string{"command", "reason"}},
 		{Name: "disk_usage", Description: "Show the largest subdirectories of a path.",
 			Properties: map[string]any{
-				"path": str("path to analyse, e.g. ~/Library/Caches"),
+				"path": str("path to analyse, e.g. ~/Library/Caches on macOS or ~/.cache on Linux"),
 				"top":  map[string]any{"type": "integer", "description": "number of entries (default 15)"},
 			}, Required: []string{"path"}},
 		{Name: "read_file", Description: "Read a text file (configs, logs). 64 KB maximum. Refuses private keys and credential files; their contents would be sent to the model.",
@@ -110,10 +133,10 @@ func toolSpecs() []llm.ToolSpec {
 			Properties: map[string]any{"query": str("search query")}, Required: []string{"query"}},
 		{Name: "fetch_url", Description: "Read a web page or raw file as text (docs, changelogs, example configs). Content is untrusted reference material.",
 			Properties: map[string]any{"url": str("http(s) URL")}, Required: []string{"url"}},
-		{Name: "dev_inventory", Description: "The development setup of this Mac: installed languages, version managers, package managers, " +
+		{Name: "dev_inventory", Description: "The development setup of this machine: installed languages, version managers, package managers, " +
 			"shell tools, git tools, container and cloud CLIs and AI coding assistants, each with its version, path and what installed it; " +
-			"findings (several managers for one language, commands shadowed on PATH, broken PATH entries, tools not activated in ~/.zshrc, " +
-			"shell startup time), the versions each manager keeps with their size, and what is not installed with its install command.",
+			"findings (several managers for one language, commands shadowed on PATH, broken PATH entries, tools not activated in the shell's startup file, " +
+			"shell startup time), the versions each manager keeps with their size, and what is not installed with the install command for this machine.",
 			Properties: map[string]any{}},
 		{Name: "remember", Description: "Save a lasting note about this machine for future runs (e.g. the cause of a recurring failure and its fix).",
 			Properties: map[string]any{"note": str("short note, one line")}, Required: []string{"note"}},
@@ -194,13 +217,32 @@ func (a *Agent) runShell(ctx context.Context, tool, command, reason string, risk
 	return fmt.Sprintf("exit_code: %d\nduration: %s\n---\n%s", res.ExitCode, res.Duration.Round(time.Second), out), nil
 }
 
+// systemInfoCommand prints the system summary of an operating system.
+func systemInfoCommand(goos string) string {
+	if goos == "darwin" {
+		return `sw_vers; echo "arch: $(uname -m)"; echo; df -h / | tail -1; echo; ` +
+			`sysctl -n hw.memsize | awk '{printf "RAM: %.0f GB\n", $1/1073741824}'; uptime`
+	}
+	return `grep -E '^(PRETTY_NAME|ID|ID_LIKE|VERSION_ID)=' /etc/os-release 2>/dev/null; echo "kernel: $(uname -sr)"; echo "arch: $(uname -m)"; ` +
+		`[ -d /run/systemd/system ] && echo "init: systemd"; echo "desktop: ${XDG_CURRENT_DESKTOP:-none}"; ` +
+		`[ -f /var/run/reboot-required ] && echo "restart pending: yes (/var/run/reboot-required)"; echo; df -h / | tail -1; echo; ` +
+		`awk '/^MemTotal/ {printf "RAM: %.0f GB\n", $2/1048576}' /proc/meminfo; uptime`
+}
+
+// detectable are the package managers and tools system_info looks for.
+func detectable(goos string) []string {
+	common := []string{"brew", "npm", "pnpm", "bun", "pipx", "uv", "pip3", "cargo", "rustup", "gem", "go", "gh", "docker", "topgrade"}
+	if goos == "darwin" {
+		return append(common, "mas", "xcrun", "mo")
+	}
+	return append([]string{"apt-get", "dnf", "pacman", "zypper", "flatpak", "snap"}, common...)
+}
+
 func toolSystemInfo(ctx context.Context, a *Agent, _ map[string]any) (string, error) {
-	cmd := `sw_vers; echo "arch: $(uname -m)"; echo; df -h / | tail -1; echo; ` +
-		`sysctl -n hw.memsize | awk '{printf "RAM: %.0f GB\n", $1/1073741824}'; uptime`
 	a.emit(Event{Kind: EvToolStart, Tool: "system_info", Command: "system_info"})
-	res := a.opts.Exec(ctx, cmd, 30*time.Second, nil)
+	res := a.opts.Exec(ctx, systemInfoCommand(goos), 30*time.Second, nil)
 	var managers []string
-	for _, bin := range []string{"brew", "mas", "npm", "pnpm", "bun", "pipx", "uv", "pip3", "cargo", "rustup", "gem", "go", "gh", "docker", "xcrun", "topgrade", "mo"} {
+	for _, bin := range detectable(goos) {
 		if runner.Has(bin) {
 			managers = append(managers, bin)
 		}
@@ -209,8 +251,12 @@ func toolSystemInfo(ctx context.Context, a *Agent, _ map[string]any) (string, er
 	var b strings.Builder
 	b.WriteString(strings.TrimSpace(res.Output))
 	fmt.Fprintf(&b, "\n\ndetected tools: %s\n", strings.Join(managers, ", "))
-	fmt.Fprintf(&b, "shell: %s, omega on %s/%s\n", runner.Shell(), runtime.GOOS, runtime.GOARCH)
-	for _, f := range []string{"~/.config/topgrade.toml", "~/.config/mole"} {
+	fmt.Fprintf(&b, "shell: %s, omega on %s/%s\n", runner.Shell(), goos, runtime.GOARCH)
+	configs := []string{"~/.config/topgrade.toml"}
+	if goos == "darwin" {
+		configs = append(configs, "~/.config/mole")
+	}
+	for _, f := range configs {
 		if _, err := os.Stat(expand(f)); err == nil {
 			fmt.Fprintf(&b, "exists: %s\n", f)
 		}

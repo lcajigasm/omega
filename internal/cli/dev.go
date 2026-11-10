@@ -36,7 +36,7 @@ func devCmd() *cobra.Command {
 		&cobra.Command{Use: "install [tool]...", Short: i18n.T("cmd.dev_install"),
 			ValidArgsFunction: func(cmd *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
 				var ids []string
-				for _, t := range devtools.Catalog {
+				for _, t := range devtools.Tools() {
 					if t.Install != "" {
 						ids = append(ids, t.ID)
 					}
@@ -73,7 +73,7 @@ func printDev(inv *devtools.Inventory) {
 			}
 			note := ""
 			if t.Inactive {
-				note = "  ⚠ " + i18n.T("dev.inactive")
+				note = "  ⚠ " + i18n.T("dev.inactive", devtools.RCFile())
 			}
 			fmt.Printf("  %-18s %-16s %s%s\n", cut(t.Name, 18), cut(orDash(t.Version), 16), where, note)
 		}
@@ -95,14 +95,14 @@ func printDev(inv *devtools.Inventory) {
 		fmt.Println("  ⚠ " + i18n.T("dev.path_gone", strings.Join(homeShortAll(inv.PathGone), ", ")))
 	}
 	for _, t := range inv.Inactive() {
-		fmt.Println("  ⚠ " + i18n.T("dev.not_active", t.Name, t.Init))
+		fmt.Println("  ⚠ " + i18n.T("dev.not_active", t.Name, t.Init, devtools.RCFile()))
 	}
 	if inv.Startup > 0 {
 		mark := "✓"
 		if inv.Startup > devtools.SlowStartup {
 			mark = "⚠"
 		}
-		fmt.Printf("  %s %s\n", mark, i18n.T("dev.startup", inv.Startup.Milliseconds()))
+		fmt.Printf("  %s %s\n", mark, i18n.T("dev.startup", inv.Platform.Shell, inv.Startup.Milliseconds()))
 	}
 	if len(inv.Stores) > 0 {
 		fmt.Printf("\n%s\n", i18n.T("dev.h.versions"))
@@ -136,7 +136,9 @@ func homeShortAll(in []string) []string {
 }
 
 // devInstall installs the named tools, or shows a card with everything the
-// catalogue has that is not installed. Tools that need a line in ~/.zshrc
+// catalogue has that is not installed. Each tool comes with the install
+// command for this machine (Homebrew, the system's package manager or the
+// tool's own installer). Tools that need a line in the shell's startup file
 // are offered for activation afterwards.
 func devInstall(names []string, tty bool) error {
 	var tools []devtools.Tool
@@ -188,8 +190,13 @@ func devInstall(names []string, tty bool) error {
 	}
 	failed := 0
 	var done []devtools.Tool
+	var su sudoSession
+	defer su.close()
 	for _, t := range tools {
 		fmt.Printf("\n⏺ %s\n  %s\n", t.Name, t.Install)
+		if err := su.need(t.Install); err != nil {
+			return err
+		}
 		res := runner.Run(context.Background(), t.Install, 30*time.Minute, func(l string) { fmt.Println("    " + l) })
 		if res.ExitCode != 0 {
 			failed++
@@ -209,7 +216,8 @@ func devInstall(names []string, tty bool) error {
 }
 
 // devActivate offers to add the shell lines of installed tools that are not
-// in ~/.zshrc yet. The file is copied before it is touched.
+// in the shell's startup file yet (~/.zshrc, or ~/.bashrc for bash). The
+// file is copied before it is touched.
 func devActivate(tools []devtools.Tool, tty bool) error {
 	inv := devtools.Load(false)
 	want := map[string]bool{}
@@ -227,14 +235,14 @@ func devActivate(tools []devtools.Tool, tty bool) error {
 	if len(opts) == 0 {
 		return nil
 	}
-	if shell := os.Getenv("SHELL"); !strings.HasSuffix(shell, "zsh") {
+	if !devtools.CanActivate() {
 		fmt.Println("\n" + i18n.T("dev.activate_other"))
 		for _, o := range opts {
 			fmt.Printf("  %-12s %s\n", o.Label, o.Detail)
 		}
 		return nil
 	}
-	ids, err := ui.Pick(i18n.T("dev.pick.activate"), i18n.T("mac.pick_hint"), opts, true, tty, os.Stdin, os.Stdout)
+	ids, err := ui.Pick(i18n.T("dev.pick.activate", devtools.RCFile()), i18n.T("mac.pick_hint"), opts, true, tty, os.Stdin, os.Stdout)
 	if err != nil || len(ids) == 0 {
 		return nil
 	}
@@ -250,9 +258,9 @@ func devActivate(tools []devtools.Tool, tty bool) error {
 		fmt.Printf("  + %s\n", t.Init)
 	}
 	if backup != "" {
-		fmt.Println(i18n.T("dev.activated", homeShort(backup)))
+		fmt.Println(i18n.T("dev.activated", devtools.RCFile(), homeShort(backup)))
 	} else {
-		fmt.Println(i18n.T("dev.activated_new"))
+		fmt.Println(i18n.T("dev.activated_new", devtools.RCFile()))
 	}
 	return nil
 }

@@ -15,6 +15,7 @@ import (
 	"github.com/lcajigasm/omega/internal/config"
 	"github.com/lcajigasm/omega/internal/i18n"
 	"github.com/lcajigasm/omega/internal/llm"
+	"github.com/lcajigasm/omega/internal/secrets"
 	"github.com/lcajigasm/omega/internal/steps"
 )
 
@@ -53,6 +54,9 @@ func runDoctor(w io.Writer) error {
 	return nil
 }
 
+// keyStore is where omega would save a key here. Tests replace it.
+var keyStore = secrets.Store
+
 func doctorProvider(w io.Writer, cfg *config.Config) int {
 	info, ok := llm.Lookup(cfg.Provider)
 	if !ok {
@@ -81,13 +85,16 @@ func doctorProvider(w io.Writer, cfg *config.Config) int {
 	key, src, err := getKey(info.Name)
 	if err != nil {
 		fmt.Fprintln(w, i18n.T("doctor.key_missing", info.Label))
+		if store := keyStore(); store != "" {
+			fmt.Fprintln(w, i18n.T("doctor.key_store", secrets.Describe(store)))
+		}
 		return 1
 	}
 	if keyLooksWrong(key) {
 		fmt.Fprintln(w, i18n.T("doctor.key_bad", info.KeyURL))
 		return 1
 	}
-	fmt.Fprintln(w, i18n.T("doctor.key_ok", string(src)))
+	fmt.Fprintln(w, i18n.T("doctor.key_ok", secrets.Describe(src)))
 	if pre := keyPrefix[info.Name]; pre != "" && !strings.HasPrefix(key, pre) {
 		fmt.Fprintln(w, i18n.T("doctor.key_prefix", pre))
 	}

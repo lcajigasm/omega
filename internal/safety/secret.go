@@ -31,6 +31,10 @@ func SecretFile(raw string) bool {
 	if strings.Contains(lower, "/keychains/") || strings.Contains(base, ".keychain") {
 		return true
 	}
+	// omega's own key file (the Linux fallback) and the GNOME keyring stores.
+	if strings.HasSuffix(lower, "/omega/keys") || strings.Contains(lower, "/.local/share/keyrings/") {
+		return true
+	}
 	if base == "credentials" || base == "credentials.json" {
 		return strings.Contains(lower, "/")
 	}
@@ -74,15 +78,25 @@ func normalizeSecretPath(raw string) string {
 }
 
 // leaksSecret reports a command that would print a private key, a credential
-// file, or a Keychain password. The whole command is blocked, including under
+// file, or a password kept in the Keychain or a Linux keyring. The whole command is blocked, including under
 // --yes, because the output is sent to the model.
 func leaksSecret(part string) bool {
 	words := commandWords(part)
 	if len(words) == 0 {
 		return false
 	}
-	if path.Base(commandVerb(words)) == "security" && securityReveals(words) {
-		return true
+	switch path.Base(commandVerb(words)) {
+	case "security":
+		if securityReveals(words) {
+			return true
+		}
+	case "secret-tool":
+		// lookup and search print the secrets a Linux keyring holds.
+		for _, w := range words {
+			if w == "lookup" || w == "search" {
+				return true
+			}
+		}
 	}
 	for _, w := range words {
 		if SecretFile(w) {

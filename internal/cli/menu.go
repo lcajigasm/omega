@@ -95,6 +95,9 @@ func menuCmd() *cobra.Command {
 			}
 			var items []ui.MenuItem
 			for _, e := range menuEntries {
+				if e.group == "mac" && goos != "darwin" {
+					continue
+				}
 				items = append(items, ui.MenuItem{ID: e.args, Group: i18n.T("menu.g." + e.group),
 					Label: strings.TrimSpace("omega " + e.args), Detail: firstLine(i18n.T(e.detail))})
 			}

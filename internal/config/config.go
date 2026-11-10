@@ -140,7 +140,7 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("%s", i18n.T("config.bad_catalog"))
 	}
 	for _, id := range c.SkipSteps {
-		if _, ok := steps.Find(id); !ok {
+		if !steps.Known(id) {
 			return fmt.Errorf("%s", i18n.T("config.bad_step", id))
 		}
 	}

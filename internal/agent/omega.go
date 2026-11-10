@@ -20,7 +20,8 @@ import (
 // reachable only from the command line: installing and activating developer
 // tools, undoing omega mac changes, reading earlier runs, the notes, the
 // settings and the preflight check. API keys are not among them: they stay
-// in the Keychain and are never shown to a model.
+// in the Keychain (or the Linux keyring or key file) and are never shown to
+// a model.
 
 func strList(desc string) map[string]any {
 	return map[string]any{"type": "array", "description": desc, "items": map[string]any{"type": "string"}}
@@ -29,10 +30,11 @@ func strList(desc string) map[string]any {
 func omegaToolSpecs() []llm.ToolSpec {
 	return []llm.ToolSpec{
 		{Name: "dev_install", Description: "Install developer tools from omega's catalogue by id (the ids and install commands are in dev_inventory). " +
-			"Each install asks the user as any other command. Returns what was installed and which tools still need a line in ~/.zshrc.",
+			"Each install asks the user as any other command. Returns what was installed and which tools still need a line in the shell's startup file.",
 			Properties: map[string]any{"tools": strList("catalogue ids, e.g. [\"fzf\", \"mise\"]")}, Required: []string{"tools"}},
 		{Name: "dev_activate", Description: "Add the shell line that activates installed tools (fzf, zoxide, direnv, starship, mise, atuin, fnm, pyenv, rbenv) " +
-			"to ~/.zshrc. Tools that are already activated are skipped; the file is copied first. The user approves the lines.",
+			"to the startup file of the user's shell (~/.zshrc, or ~/.bashrc for bash). Tools that are already activated are skipped; " +
+			"the file is copied first. The user approves the lines.",
 			Properties: map[string]any{"tools": strList("catalogue ids")}, Required: []string{"tools"}},
 		{Name: "mac_history", Description: "The changes omega made on this Mac with mac_change or omega mac (login items, background jobs, Dock, shortcuts, " +
 			"removed apps, leftovers), newest first, each with the id to pass to mac_undo.",
@@ -116,7 +118,14 @@ func toolDevInstall(ctx context.Context, a *Agent, in map[string]any) (string, e
 		case !a.opts.SkipDetect && installed(t):
 			fmt.Fprintf(&b, "- %s: already installed.\n", t.Name)
 		default:
-			out, err := a.runShell(ctx, "dev_install", t.Install, t.Name+" · "+t.About, safety.Classify(t.Install), false)
+			// An official install script piped into a shell is a pattern the
+			// policy refuses from a model. The catalogue's own are fixed
+			// commands: they run, but the user is asked every time.
+			risk, always := safety.Classify(t.Install), false
+			if devtools.FromInstaller(t.Install) {
+				risk, always = safety.Dangerous, true
+			}
+			out, err := a.runShell(ctx, "dev_install", t.Install, t.Name+" · "+t.About, risk, always)
 			if err != nil {
 				fmt.Fprintf(&b, "- %s: not installed (%s)\n", t.Name, err)
 				continue
@@ -132,8 +141,8 @@ func toolDevInstall(ctx context.Context, a *Agent, in map[string]any) (string, e
 		}
 	}
 	if len(activate) > 0 {
-		fmt.Fprintf(&b, "These do nothing until their line is in ~/.zshrc: %s. Call dev_activate with them (it skips the ones already set up).\n",
-			strings.Join(activate, ", "))
+		fmt.Fprintf(&b, "These do nothing until their line is in %s: %s. Call dev_activate with them (it skips the ones already set up).\n",
+			devtools.RCFile(), strings.Join(activate, ", "))
 	}
 	return b.String(), nil
 }
@@ -153,26 +162,27 @@ func toolDevActivate(ctx context.Context, a *Agent, in map[string]any) (string, 
 	if len(tools) == 0 {
 		return "None of those tools needs a line in the shell startup file.", nil
 	}
-	if !strings.HasSuffix(os.Getenv("SHELL"), "zsh") && !a.opts.SkipDetect {
-		return "The user's shell is not zsh, so omega does not edit its startup file. Tell the user to add the equivalent of these lines " +
+	rc := devtools.RCFile()
+	if !devtools.CanActivate() && !a.opts.SkipDetect {
+		return "The user's shell is neither zsh nor bash, so omega does not edit its startup file. Tell the user to add the equivalent of these lines " +
 			"for their shell:\n" + strings.Join(lines, "\n"), nil
 	}
-	reason := i18n.T("agent.dev_activate") + "\n\n" + strings.Join(lines, "\n")
-	if ok, why := a.authorize(ctx, "dev_activate", "~/.zshrc", reason, safety.Dangerous, false); !ok {
+	reason := i18n.T("agent.dev_activate", rc) + "\n\n" + strings.Join(lines, "\n")
+	if ok, why := a.authorize(ctx, "dev_activate", rc, reason, safety.Dangerous, false); !ok {
 		return "", explained(errors.New(why))
 	}
 	start := time.Now()
-	a.emit(Event{Kind: EvToolStart, Tool: "dev_activate", Command: "~/.zshrc", Risk: safety.Dangerous})
+	a.emit(Event{Kind: EvToolStart, Tool: "dev_activate", Command: rc, Risk: safety.Dangerous})
 	added, backup, err := addInit(tools, time.Now())
-	a.quiet("dev_activate", "~/.zshrc", start, "", err)
+	a.quiet("dev_activate", rc, start, "", err)
 	if err != nil {
 		return "", explained(err)
 	}
 	if len(added) == 0 {
-		return "Every one of those tools was already activated; ~/.zshrc was not changed.", nil
+		return "Every one of those tools was already activated; " + rc + " was not changed.", nil
 	}
 	var b strings.Builder
-	b.WriteString("Added to ~/.zshrc:\n")
+	b.WriteString("Added to " + rc + ":\n")
 	for _, t := range added {
 		fmt.Fprintf(&b, "  %s\n", t.Init)
 	}

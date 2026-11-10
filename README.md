@@ -38,6 +38,7 @@ Esc and a denial (`asciinema play docs/assets/shortcuts.cast`).
 - [Docker cleanup](#docker-cleanup)
 - [Your Mac: login, background, menu bar, Dock and shortcuts](#your-mac-login-background-menu-bar-dock-and-shortcuts)
 - [Privacy permissions, apps and leftovers](#privacy-permissions-apps-and-leftovers)
+- [Linux](#linux)
 - [Safety and approvals](#safety-and-approvals)
 - [Step catalogue](#step-catalogue)
 - [Memory between runs](#memory-between-runs)
@@ -116,7 +117,11 @@ an AI model with a narrow set of tools and a strict safety policy.
   mode and `ctrl+p` the model without stopping the run; type `/` for a command
   menu (`/mode`, `/model`, `/help`, `/exit`…) that explains each one as you type.
 - **Five interface languages**, a complete log of every run, API keys in the
-  macOS Keychain, a single Go binary installable with **Homebrew**.
+  macOS Keychain or the Linux system keyring, a single Go binary installable
+  with **Homebrew**.
+- **macOS and Linux.** The same agent with each system's own steps: Homebrew,
+  `softwareupdate` and the Mac App Store on a Mac; apt, dnf, pacman, zypper,
+  Flatpak and snap on Linux. See [Linux](#linux) for exactly what works there.
 
 ## Installation
 
@@ -125,6 +130,8 @@ an AI model with a narrow set of tools and a strict safety policy.
 ```bash
 brew install lcajigasm/tap/omega
 ```
+
+This works on macOS and on Linux with [Homebrew on Linux](https://docs.brew.sh/Homebrew-on-Linux).
 
 > The formula is published from [`lcajigasm/homebrew-tap`](https://github.com/lcajigasm/homebrew-tap).
 > The previous tap still works: `brew install lcajigasm/omega/omega`.
@@ -137,7 +144,18 @@ Every tagged release publishes archives for **Linux, macOS and Windows** (amd64 
 
 <https://github.com/lcajigasm/omega/releases/latest>
 
-omega is built for macOS. The Linux and Windows binaries run the same interface; steps that call Homebrew, `softwareupdate` or the Keychain only do their work on a Mac.
+On Linux without Homebrew, download the archive for your architecture, check it
+and put the binary on your `PATH`:
+
+```bash
+tar -xzf omega_*_linux_amd64.tar.gz        # or linux_arm64
+sha256sum -c SHA256SUMS --ignore-missing   # with SHA256SUMS downloaded next to it
+sudo install -m 755 omega /usr/local/bin/omega
+```
+
+omega supports **macOS and Linux** ([what works on Linux](#linux)). The Windows
+binaries exist and start, but Windows is **not supported**: there are no Windows
+steps and no key storage (only environment variables).
 
 ### From source
 
@@ -167,7 +185,10 @@ omega              # complete maintenance
 
 `omega setup` shows the providers on a card (local servers that are running are
 marked), asks for the key with hidden input, **checks the key with the provider
-before saving it** in the macOS Keychain, and then lets you pick a model.
+before saving it**, and then lets you pick a model. The key goes to the macOS
+Keychain; on Linux, to the system keyring (Secret Service, through
+`secret-tool`) or, when there is none, to a file only you can read. omega says
+which one it used.
 
 ## Tasks
 
@@ -440,7 +461,7 @@ instructions found in them.
 omega dev               # guided review with AI
 omega dev status        # what is installed, by which manager, and what stands out (no AI)
 omega dev install       # pick tools from the catalogue; or: omega dev install fzf mise
-omega dev activate      # add the shell lines installed tools still need to ~/.zshrc
+omega dev activate      # add the shell lines installed tools still need to ~/.zshrc (or ~/.bashrc)
 ```
 
 omega's catalogue covers languages (Node.js, Python, Go, Rust, Ruby, Java,
@@ -451,21 +472,31 @@ ripgrep, fd, jq, tmux, Neovim…), git tools, container and cloud CLIs, and AI
 coding assistants (Claude Code, Codex, Gemini CLI, opencode, Ollama).
 
 `omega dev status` prints each installed tool with its version and what
-installed it (Homebrew, mise, nvm, cargo, an app bundle, macOS), then the
-findings:
+installed it (Homebrew, mise, nvm, cargo, an app bundle, macOS or the Linux
+package manager), then the findings:
 
 | Finding | Why it matters |
 |---|---|
 | one language installed by several version managers | it is unclear which version runs, and each one slows the shell |
 | a command found several times on `PATH` | the copy that runs may not be the one you update; Homebrew ahead of macOS's own copy is normal and not reported |
 | `PATH` entries that repeat or do not exist | measured in a fresh login shell, not in omega's own environment |
-| a tool installed but not activated | fzf, zoxide, direnv, Starship, mise and others do nothing until their line is in `~/.zshrc` (an Oh My Zsh plugin counts) |
+| a tool installed but not activated | fzf, zoxide, direnv, Starship, mise and others do nothing until their line is in `~/.zshrc`, or `~/.bashrc` when your shell is bash (an Oh My Zsh plugin counts) |
 | shell startup time | flagged above 500 ms |
 | versions kept by each manager | how many and how much space, so old ones can go |
 
-`omega dev install` runs the install command shown on the card (Homebrew for
-almost everything). When a tool needs a line in `~/.zshrc`, omega offers to add
-it, after copying the file to `~/.zshrc.omega-bak-<date>`.
+`omega dev install` runs the install command shown on the card. On a Mac that
+is Homebrew for almost everything. On Linux omega picks, per tool: Homebrew when
+it is installed and has the formula; otherwise the distribution's package
+(`sudo apt-get install`, `dnf`, `pacman` or `zypper`, with each distribution's
+package name); otherwise the tool's own installer where it has a well-known one
+(rustup, mise, uv, Bun, Deno, Starship, fnm, pyenv, Atuin, Ollama, Claude Code…).
+Tools with none of the three are detected but not offered. Commands that use
+`sudo` ask for your password once.
+
+When a tool needs a line in the shell's startup file, omega offers to add it to
+`~/.zshrc` (zsh) or `~/.bashrc` (bash, with the bash form of the line), after
+copying the file to `<file>.omega-bak-<date>`. For any other shell it prints the
+lines for you to adapt.
 
 With AI, `omega dev` goes further: it checks runtimes against their official
 end-of-life pages, offers to remove versions no project needs with each
@@ -651,6 +682,55 @@ omega mac apps
 Rules in `mac.toml` silence either list: `[permissions] keep = ["node"]`,
 `[apps] keep = ["Xcode"]`.
 
+## Linux
+
+Linux is omega's second platform. This is exactly what works there and what
+does not.
+
+**Works**
+
+| Area | On Linux |
+|---|---|
+| The agent (`omega`, `update`, `clean`, `analyze`, `tune`, `fix`, `docker`, `dev`, `-p`) | The system prompt names the distribution it runs on (from `/etc/os-release`); `system_info` reads `/etc/os-release`, `uname`, `df` and `/proc/meminfo`, and reports when a restart is pending |
+| API keys | Environment variables first. `omega setup` and `omega auth set` save to the **Secret Service** (GNOME Keyring, KWallet…) when `secret-tool` is installed and a keyring answers; otherwise to `~/.config/omega/keys`, mode `0600`. omega says which one it used, `omega auth status` and `omega doctor` show the source, and the agent can never read either |
+| System packages | Check, update and clean steps for **apt**, **dnf**, **pacman** and **zypper** (`zypper dup` on Tumbleweed), each shown only when its binary is installed. They use `sudo`, are classified dangerous and always ask |
+| Flatpak and snap | Outdated, update, unused runtimes and old snap revisions |
+| Homebrew on Linux | The `brew` steps work as on a Mac, except casks |
+| Disk, logs and Trash | `disk` (free space, `~/.cache`, `/var/cache`, `/var/log`, Trash), `journal-size`, `journal-vacuum`, `system-logs` (failed units, errors since boot, core dumps), `thumbnail-cache`, `trash` (`~/.local/share/Trash`) |
+| Developer tools | The 46 developer-tool steps (npm, pnpm, uv, rustup, cargo, Go, Docker…), `omega dev status`, `omega dev install` with a command per distribution, `omega dev activate` for zsh and bash |
+| Interface | The TUI, plain output, the five languages, logs, notes, `omega doctor`, models and local models |
+
+**Does not work**
+
+- **`omega mac`** and `/mac`, `/permissions`, `/apps`, `/undo`: login items, the
+  menu bar, the Dock, shortcuts, privacy permissions and apps are macOS
+  features. On Linux they answer that they only work on macOS.
+- **Mac-only steps** (macOS updates, Mac App Store, casks, Xcode, simulators,
+  Mole) are not in the Linux catalogue.
+- **No package manager omega knows**: on a distribution without apt, dnf, pacman
+  or zypper (Alpine, NixOS, Void, Gentoo…) the system-package steps do not
+  appear; Flatpak, snap, Homebrew and the developer-tool steps still do.
+- **`omega dev install`** has no command for a few tools on Linux (Swift,
+  CocoaPods, OrbStack, .NET, Google Cloud CLI, Codex) or when the distribution
+  does not package one and Homebrew is not installed. Distribution packages can
+  be older than the current release.
+- **Shells other than zsh and bash** (fish, nushell): `omega dev activate` prints
+  the lines instead of editing the startup file.
+- **Immutable systems** (Fedora Silverblue, openSUSE MicroOS, SteamOS): the
+  package steps assume a normal, writable system and are not adapted to
+  `rpm-ostree` or `transactional-update`.
+- **Firmware updates** (`fwupdmgr`) and release upgrades (`do-release-upgrade`,
+  `dnf system-upgrade`) are left to you.
+
+Without a desktop session (a server over SSH, a container) there is usually no
+keyring, so keys go to the `0600` file. Install `libsecret-tools` (Debian,
+Ubuntu), `libsecret` (Fedora, Arch) and log in to a desktop session to use the
+keyring; the next `omega auth set` moves the key there.
+
+**Windows** is not supported. The release archives include Windows binaries
+that start and show the interface, but there are no Windows steps and no key
+storage.
+
 ## Safety and approvals
 
 Before running anything, omega classifies the command (including compound
@@ -758,8 +838,39 @@ commands with `&&`, `;`, `|`) and applies the highest risk level found:
 | `mole-optimize` | backend | `mo optimize` | dangerous |
 | `mole-update` | backend | `mo update` | normal |
 
+On Linux the catalogue has the developer-tool steps above (everything that is
+not Homebrew casks, the Mac App Store, macOS, Xcode or Mole) plus these, each
+one only when its binary is installed:
+
+| id | Category | Command | Risk |
+|---|---|---|---|
+| `disk` | check | `df -h /` + size of `~/.cache`, Trash, `/var/cache` and `/var/log` | read-only |
+| `apt-outdated` `dnf-outdated` `pacman-outdated` `zypper-outdated` | check | `apt list --upgradable`, `dnf check-update`, `pacman -Qu`, `zypper list-updates` | read-only |
+| `flatpak-outdated` `snap-outdated` | check | `flatpak remote-ls --updates`, `snap refresh --list` | read-only |
+| `journal-size` | check | `journalctl --disk-usage` | read-only |
+| `system-logs` | check | failed units, errors since boot, core dumps, journal and log sizes | read-only |
+| `apt` | update | `sudo apt-get update && sudo apt-get -y upgrade` | dangerous |
+| `dnf` | update | `sudo dnf upgrade --refresh -y` | dangerous |
+| `pacman` | update | `sudo pacman -Syu --noconfirm` | dangerous |
+| `zypper` / `zypper-dup` | update | `sudo zypper update`, or `dist-upgrade` on Tumbleweed | dangerous |
+| `flatpak` | update | `flatpak update -y` | normal |
+| `snap` | update | `sudo snap refresh` | dangerous |
+| `apt-clean` `dnf-clean` `pacman-cache` `zypper-clean` | clean | the package cache (`pacman-cache` keeps two versions with `paccache`) | dangerous |
+| `apt-autoremove` `dnf-autoremove` `pacman-orphans` | clean | packages nothing depends on any more | dangerous |
+| `flatpak-unused` | clean | `flatpak uninstall --unused` | dangerous |
+| `snap-old` | clean | removes the disabled revisions snapd keeps | dangerous |
+| `journal-vacuum` | clean | `sudo journalctl --vacuum-time=2weeks` | dangerous |
+| `thumbnail-cache` | clean | empties `~/.cache/thumbnails` | dangerous |
+| `trash` | clean | empties `~/.local/share/Trash` | dangerous |
+
+Every step that uses `sudo` is dangerous: omega asks before running it and asks
+for the password in its own interface. `omega steps` lists the catalogue of the
+system you are on.
+
 Disable steps you never want to run with
-`omega config set skip_steps macos,docker,brew-greedy`.
+`omega config set skip_steps macos,docker,brew-greedy`. Ids of the other
+system are accepted, so one configuration can be shared between a Mac and a
+Linux machine.
 
 ## Memory between runs
 
@@ -821,7 +932,9 @@ model = "my-model"
 | `~/.config/omega/mac.toml` | your rules for `omega mac` |
 | `~/.local/state/omega/mac-journal.jsonl` | changes made by `omega mac`, for `omega mac undo` |
 | `~/.local/state/omega/runs/*.log` | log of each run (commands, output, approvals, denials, tokens and cost). omega keeps the newest 30 |
-| macOS Keychain, service `omega-cli` | API keys |
+| macOS Keychain, service `omega-cli` | API keys on macOS |
+| Secret Service, attributes `service=omega-cli account=<provider>` | API keys on Linux with a keyring |
+| `~/.config/omega/keys` (mode `0600`) | API keys on Linux without a keyring |
 
 ## Command reference
 
@@ -959,7 +1072,7 @@ internal/ui/        TUI (Bubble Tea, glamour), selection cards, plain output
 internal/i18n/      translations (en, es, fr, de, pt)
 internal/demo/      scripted session for screenshots
 internal/config/    configuration and paths
-internal/secrets/   macOS Keychain
+internal/secrets/   API keys: macOS Keychain, Linux Secret Service or a 0600 file
 docs/               website (GitHub Pages) and README assets
 Formula/omega.rb    Homebrew formula rewritten when a tag is published
 ```
@@ -972,7 +1085,7 @@ export the environment variable.
 **`invalid API key (401)`**: `omega auth status` shows the stored key masked and
 flags values that are not keys (for example a URL pasted by mistake). Store it
 again with `omega auth set <provider>`; omega checks it with the provider before
-saving. An exported environment variable takes precedence over the Keychain.
+saving. An exported environment variable takes precedence over the stored key.
 
 **`model or endpoint not found (404)`**: the model does not exist for that
 provider. List them with `omega models <provider>` or pick one with `omega model`.
@@ -1014,10 +1127,13 @@ the documentation pages the agent fetches while tuning.
 **How much does it cost?** With the automatic model choice, a routine run usually
 costs well under one cent. omega shows tokens and cost live and at the end.
 
-**Does it work on Linux or Windows?** It is built for macOS (Keychain,
-`softwareupdate`, Mac App Store, Xcode paths). Release archives exist for Linux
-and Windows so the interface and plain commands run there; maintenance steps
-that depend on macOS tools do not.
+**Does it work on Linux or Windows?** Linux: yes. omega updates and cleans
+through apt, dnf, pacman, zypper, Flatpak, snap and Homebrew on Linux, keeps
+API keys in the system keyring (or a `0600` file when there is none) and
+installs developer tools with your distribution's packages. `omega mac` and the
+Mac-only steps do not exist there; [Linux](#linux) has the full list. Windows:
+no. The release archives include Windows binaries, but there are no Windows
+steps and no key storage, and it is not supported.
 
 **Can I add a language?** Add a column to `internal/i18n/messages.go` and the code
 to `i18n.Supported` and `i18n.Names`; a test checks every key is translated with

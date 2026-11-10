@@ -24,6 +24,17 @@ func sandbox(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	t.Setenv("SHELL", "/bin/zsh")
 	i18n.Init("en")
+	onPlatform(t, "darwin", devtools.Platform{OS: "darwin", Brew: true, Shell: "zsh"})
+}
+
+// onPlatform makes the agent and the developer-tool catalogue see one
+// operating system, whatever machine the tests run on.
+func onPlatform(t *testing.T, os string, p devtools.Platform) {
+	t.Helper()
+	oldOS, oldCurrent := goos, devtools.Current
+	goos = os
+	devtools.Current = func() devtools.Platform { return p }
+	t.Cleanup(func() { goos, devtools.Current = oldOS, oldCurrent })
 }
 
 // drive runs the scripted calls, answers every approval the same way and
@@ -60,7 +71,7 @@ func drive(t *testing.T, opts Options, answer Decision, calls ...llm.ToolCall) (
 
 func TestEveryToolHasASpecAndAHandler(t *testing.T) {
 	specs := map[string]bool{}
-	for _, s := range toolSpecs() {
+	for _, s := range allToolSpecs() {
 		if specs[s.Name] {
 			t.Errorf("tool %s is declared twice", s.Name)
 		}
