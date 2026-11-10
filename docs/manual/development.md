@@ -168,6 +168,16 @@ runners and the Windows archives by cross-compiling. `SHA256SUMS` lists them
 too, and `Casks/omega-app.rb` here gets this version and the sha256 of the
 disk image. The pull request on the tap carries that cask next to the formula.
 
+The same run pushes the container image to GitHub Packages
+(`ghcr.io/lcajigasm/omega`, from the `Dockerfile`) for linux/amd64 and
+linux/arm64, tagged with the version, its minor and `latest`, with a
+provenance attestation and an SBOM. It uses the workflow's own token. CI
+builds and runs the same image on every pull request. To build it here:
+
+```bash
+docker build --build-arg VERSION=$(git describe --tags --always) -t omega .
+```
+
 After the release exists, the job opens a pull request on `lcajigasm/homebrew-tap`
 that sets `Formula/omega.rb` to this version and the sha256 of `darwin_arm64`,
 `darwin_amd64`, `linux_arm64` and `linux_amd64` from `SHA256SUMS`. It does that

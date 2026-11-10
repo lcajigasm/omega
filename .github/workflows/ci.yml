@@ -29,6 +29,22 @@ jobs:
         if: runner.os == 'macOS'
         run: make gui-app && plutil -lint bin/Omega.app/Contents/Info.plist && codesign --verify bin/Omega.app
 
+  # The container image a release pushes to ghcr.io: build it and run it.
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: build
+        run: docker build --build-arg VERSION=ci -t omega:ci .
+      - name: run
+        run: |
+          set -euo pipefail
+          docker run --rm omega:ci --version | grep -q 'omega version ci'
+          docker run --rm -e OMEGA_LANG=en omega:ci steps | tee steps.txt
+          grep -Eq '✓ apt +dangerous' steps.txt
+          # The apt steps call sudo, which the image has for that.
+          docker run --rm -e OMEGA_LANG=en omega:ci steps run --yes apt-outdated apt-clean
+
   test:
     strategy:
       fail-fast: false

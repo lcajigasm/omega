@@ -79,6 +79,22 @@ sudo install -m 755 omega /usr/local/bin/omega
 </details>
 
 <details>
+<summary><b>Container image</b></summary>
+
+<br>
+
+```bash
+docker run --rm -it ghcr.io/lcajigasm/omega --demo                         # a scripted session, nothing real
+docker run --rm -it -e ANTHROPIC_API_KEY ghcr.io/lcajigasm/omega analyze   # inside the container
+```
+
+For trying omega or for a pipeline: in a container it looks after the
+container, not the machine running Docker. More in
+[Install and set up](docs/manual/install.md#container-image).
+
+</details>
+
+<details>
 <summary><b>From source</b></summary>
 
 <br>

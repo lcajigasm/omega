@@ -3,6 +3,7 @@
 [omega](../../README.md) › [Manual](README.md) › Install and set up
 
 - [Installation](#installation)
+  - [Container image](#container-image)
   - [Desktop app](#desktop-app)
 - [Getting started](#getting-started)
 
@@ -60,6 +61,37 @@ Open a new terminal and run `omega setup`. Windows Terminal is recommended.
 
 omega supports **macOS, Linux and Windows**: see [what works on Linux](linux.md#linux)
 and [what works on Windows](windows.md#windows).
+
+### Container image
+
+Every release also publishes the command as a container image for Linux
+(amd64 and arm64) on GitHub Packages:
+
+```bash
+docker run --rm -it ghcr.io/lcajigasm/omega --demo        # a scripted session: no API calls, no real commands
+docker run --rm -it -e ANTHROPIC_API_KEY ghcr.io/lcajigasm/omega analyze
+```
+
+The tags are the version (`0.19.0`), its minor (`0.19`) and `latest`. The
+image is Debian with omega as its entry point, so what follows the image name
+are omega's own arguments. The key comes from the environment
+(`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `OPENROUTER_API_KEY` or
+`OPENCODE_API_KEY`); `-e NAME` with no value passes the one your shell has.
+
+omega maintains the system it runs on, and in a container that is the
+container: the image is for trying omega, for a pipeline, or as the base of
+an image you want it to look after, not for maintaining the machine that runs
+Docker. For that, install the command. Without a terminal (no `-it`) use
+`--no-tui`, as in [unattended runs](tasks.md#unattended-runs).
+
+Settings, notes and run logs are lost with the container unless you keep them
+in volumes:
+
+```bash
+docker run --rm -it -e ANTHROPIC_API_KEY \
+  -v omega-config:/root/.config/omega -v omega-state:/root/.local/state/omega \
+  ghcr.io/lcajigasm/omega
+```
 
 ### Desktop app
 
