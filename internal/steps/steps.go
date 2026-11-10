@@ -37,7 +37,7 @@ type Step struct {
 	// Install is how to get the tool when it is missing, offered to the user.
 	Install string
 	Detect  func() bool // optional extra detection
-	// OS is "darwin" or "linux" for a step that exists only there; empty for
+	// OS is "darwin", "linux" or "windows" for a step that exists only there; empty for
 	// a step that works wherever its tool is installed. Two steps may share
 	// an id when each belongs to a different system (disk, trash).
 	OS string
@@ -52,8 +52,38 @@ func (s Step) Available() bool {
 }
 
 const (
-	mac   = "darwin"
-	linux = "linux"
+	mac     = "darwin"
+	linux   = "linux"
+	windows = "windows"
+)
+
+// unixOnly are the steps without an operating system of their own whose
+// command is written for a POSIX shell or whose tool does not exist on
+// Windows. They are left out of the Windows catalogue.
+var unixOnly = map[string]bool{
+	"brew-outdated": true, "brew-doctor": true, "brew": true, "brew-cleanup": true, "brew-autoremove": true,
+	"dev-artifacts": true, "shell-startup": true, "tmux-plugins": true, "omz": true, "asdf": true,
+	"gradle-cache": true,
+}
+
+// Commands of the Windows steps, in PowerShell. They run in Windows
+// PowerShell 5.1 as well as PowerShell 7, so no && and no ternaries.
+const (
+	winDisk = "Get-Volume | Where-Object { $_.DriveLetter } | Sort-Object DriveLetter | " +
+		"Format-Table DriveLetter, FileSystemLabel, @{n='SizeGB';e={[math]::Round($_.Size/1GB,1)}}, @{n='FreeGB';e={[math]::Round($_.SizeRemaining/1GB,1)}} -AutoSize | Out-String -Width 120; " +
+		"foreach ($d in @($env:TEMP, \"$env:LOCALAPPDATA\\Temp\", \"$env:SystemRoot\\Temp\", \"$env:SystemRoot\\SoftwareDistribution\\Download\") | Select-Object -Unique) { " +
+		"if (Test-Path $d) { $s = (Get-ChildItem $d -Recurse -Force -ErrorAction SilentlyContinue | Measure-Object Length -Sum).Sum; '{0,8:N2} GB  {1}' -f ($s/1GB), $d } }"
+	winLogs = "'== Errors in the last 7 days (count, source)'; " +
+		"Get-WinEvent -FilterHashtable @{LogName='System','Application'; Level=1,2; StartTime=(Get-Date).AddDays(-7)} -MaxEvents 2000 -ErrorAction SilentlyContinue | " +
+		"Group-Object ProviderName | Sort-Object Count -Descending | Select-Object -First 15 Count, Name | Format-Table -AutoSize | Out-String -Width 120; " +
+		"'== Services set to start automatically that are not running'; " +
+		"Get-CimInstance Win32_Service -Filter \"StartMode='Auto' AND State<>'Running'\" | Select-Object -First 15 Name, State, ExitCode | Format-Table -AutoSize | Out-String -Width 120; " +
+		"'== Application crashes in the last 7 days'; " +
+		"Get-WinEvent -FilterHashtable @{LogName='Application'; ProviderName='Application Error'; StartTime=(Get-Date).AddDays(-7)} -MaxEvents 200 -ErrorAction SilentlyContinue | " +
+		"ForEach-Object { $_.Properties[0].Value } | Group-Object | Sort-Object Count -Descending | Select-Object -First 10 Count, Name | Format-Table -AutoSize | Out-String -Width 120"
+	winUpdates = "$s = (New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher(); " +
+		"$r = $s.Search('IsInstalled=0 and IsHidden=0'); '{0} update(s) pending' -f $r.Updates.Count; $r.Updates | ForEach-Object { '  ' + $_.Title }"
+	winTemp = "Get-ChildItem $env:TEMP -Force -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue"
 )
 
 // Seams the tests replace.
@@ -119,6 +149,9 @@ func For(goos string) []Step {
 	var out []Step
 	for _, s := range catalog {
 		if s.OS != "" && s.OS != goos {
+			continue
+		}
+		if goos == windows && s.OS == "" && unixOnly[s.ID] {
 			continue
 		}
 		if goos == linux {
@@ -392,6 +425,35 @@ var catalog = []Step{
 	{OS: mac, ID: "mole-optimize-preview", Name: "Mole optimize (dry run)", Category: Backend, Command: "mo optimize --dry-run", Risk: safety.Safe, Requires: "mo", Install: "brew install mole"},
 	{OS: mac, ID: "mole-optimize", Name: "Mole optimize", Category: Backend, Command: "mo optimize", Risk: safety.Dangerous, Requires: "mo", Install: "brew install mole"},
 	{OS: mac, ID: "mole-update", Name: "Update Mole", Category: Backend, Command: "mo update", Risk: safety.Normal, Requires: "mo", Install: "brew install mole"},
+	// ---- Windows ----
+	{OS: windows, ID: "disk", Name: "Disk space", Category: Check, Command: winDisk, Risk: safety.Safe,
+		Description: "Free space per drive and the size of the temporary folders"},
+	{OS: windows, ID: "winget-outdated", Name: "Outdated winget packages", Category: Check, Risk: safety.Safe, Requires: "winget",
+		Command: "winget upgrade --include-unknown --accept-source-agreements --disable-interactivity"},
+	{OS: windows, ID: "scoop-outdated", Name: "Outdated Scoop apps", Category: Check, Command: "scoop status", Risk: safety.Safe, Requires: "scoop"},
+	{OS: windows, ID: "choco-outdated", Name: "Outdated Chocolatey packages", Category: Check, Command: "choco outdated", Risk: safety.Safe, Requires: "choco"},
+	{OS: windows, ID: "windows-update-check", Name: "Windows updates", Category: Check, Command: winUpdates, Risk: safety.Safe,
+		Description: "Asks Windows Update what is pending; can take a minute. Installing them is left to Windows"},
+	{OS: windows, ID: "system-logs", Name: "System logs review", Category: Check, Command: winLogs, Risk: safety.Safe,
+		Description: "Errors by source, services that should be running and are not, and application crashes"},
+	{OS: windows, ID: "docker-df", Name: "Docker disk usage", Category: Check, Command: "docker system df", Risk: safety.Safe, Requires: "docker"},
+	{OS: windows, ID: "winget", Name: "winget packages", Category: Update, Risk: safety.Dangerous, Requires: "winget",
+		Command:     "winget upgrade --all --include-unknown --accept-source-agreements --accept-package-agreements --disable-interactivity",
+		Description: "Installers may ask for administrator rights in their own window"},
+	{OS: windows, ID: "scoop", Name: "Scoop apps", Category: Update, Command: "scoop update; scoop update *", Risk: safety.Normal, Requires: "scoop"},
+	{OS: windows, ID: "choco", Name: "Chocolatey packages", Category: Update, Command: "choco upgrade all -y", Risk: safety.Dangerous, Requires: "choco",
+		Description: "Needs a terminal opened as administrator"},
+	{OS: windows, ID: "wsl", Name: "Windows Subsystem for Linux", Category: Update, Command: "wsl --update", Risk: safety.Dangerous, Requires: "wsl",
+		Description: "Updates the WSL kernel and tools, not the distributions inside it"},
+	{OS: windows, ID: "scoop-cleanup", Name: "Old Scoop versions and cache", Category: Clean, Command: "scoop cleanup *; scoop cache rm *", Risk: safety.Dangerous, Requires: "scoop"},
+	{OS: windows, ID: "temp-files", Name: "Temporary files", Category: Clean, Command: winTemp, Risk: safety.Dangerous,
+		Description: "Empties your temporary folder; files in use are skipped"},
+	{OS: windows, ID: "gradle-cache", Name: "Gradle caches", Category: Clean, Risk: safety.Dangerous, Detect: dirExists(".gradle/caches"),
+		Command: "Remove-Item -Recurse -Force \"$HOME\\.gradle\\caches\\*\", \"$HOME\\.gradle\\daemon\\*\" -ErrorAction SilentlyContinue"},
+	{OS: windows, ID: "component-store", Name: "Windows component store", Category: Clean, Risk: safety.Dangerous, Requires: "dism",
+		Command:     "Dism.exe /Online /Cleanup-Image /StartComponentCleanup",
+		Description: "Removes superseded Windows components. Needs a terminal opened as administrator"},
+	{OS: windows, ID: "trash", Name: "Recycle Bin", Category: Clean, Command: "Clear-RecycleBin -Force -ErrorAction SilentlyContinue", Risk: safety.Dangerous},
 }
 
 // Find returns a step of this machine's catalogue by ID.

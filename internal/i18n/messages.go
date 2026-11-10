@@ -257,11 +257,11 @@ Exemplos:
 
 	// ---- auth ----
 	"cmd.auth": {
-		"Manage API keys (macOS Keychain; on Linux the system keyring or a private file)",
-		"Gestionar las API keys (llavero de macOS; en Linux, el llavero del sistema o un archivo privado)",
-		"Gérer les clés API (trousseau macOS ; sous Linux, le trousseau du système ou un fichier privé)",
-		"API-Keys verwalten (macOS-Schlüsselbund; unter Linux der Schlüsselbund des Systems oder eine private Datei)",
-		"Gerir as API keys (porta-chaves do macOS; em Linux, o porta-chaves do sistema ou um ficheiro privado)",
+		"Manage API keys, kept where the system keeps secrets (macOS Keychain, Windows Credential Manager, Linux keyring or a private file)",
+		"Gestionar las API keys, guardadas donde el sistema guarda secretos (llavero de macOS, Administrador de credenciales de Windows, llavero de Linux o un archivo privado)",
+		"Gérer les clés API, gardées là où le système garde ses secrets (trousseau macOS, Gestionnaire d'identification de Windows, trousseau Linux ou fichier privé)",
+		"API-Keys verwalten, abgelegt wo das System Geheimnisse aufbewahrt (macOS-Schlüsselbund, Windows-Anmeldeinformationsverwaltung, Linux-Schlüsselbund oder private Datei)",
+		"Gerir as API keys, guardadas onde o sistema guarda segredos (porta-chaves do macOS, Gestor de Credenciais do Windows, porta-chaves do Linux ou um ficheiro privado)",
 	},
 	"cmd.auth_set": {
 		"Store a provider's API key", "Guardar la API key de un proveedor", "Enregistrer la clé API d'un fournisseur",

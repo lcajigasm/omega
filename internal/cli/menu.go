@@ -60,6 +60,9 @@ func cmdLabel(args ...string) string { return strings.TrimSpace("omega " + strin
 // withRunOptions adds the run variants to an entry that starts the agent.
 func withRunOptions(it ui.MenuItem) ui.MenuItem {
 	for _, o := range runOptions {
+		if o.flag == "--sudo" && goos == "windows" {
+			continue // Windows has no sudo
+		}
 		args := append(append([]string(nil), it.Args...), o.flag)
 		it.Options = append(it.Options, ui.MenuItem{Label: cmdLabel(args...), Detail: firstLine(i18n.T(o.detail)), Args: args})
 	}

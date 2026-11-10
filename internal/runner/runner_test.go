@@ -109,3 +109,34 @@ func TestWithheldVariablesSetByStartupFilesDoNotReachCommands(t *testing.T) {
 		t.Errorf("fish: %q", got)
 	}
 }
+
+// On Windows commands run in PowerShell: output comes back as UTF-8, a
+// program's exit code survives, and the provider keys are not inherited.
+func TestPowerShellOnWindows(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("PowerShell is the shell on Windows only")
+	}
+	if base := strings.ToLower(filepath.Base(Shell())); !strings.HasPrefix(base, "pwsh") && !strings.HasPrefix(base, "powershell") {
+		t.Fatalf("shell is %s", Shell())
+	}
+	res := Run(context.Background(), `Write-Output "hola ñ €"`, 60*time.Second, nil)
+	if res.ExitCode != 0 || !strings.Contains(res.Output, "hola ñ €") {
+		t.Fatalf("output %q exit %d", res.Output, res.ExitCode)
+	}
+	if res := Run(context.Background(), `cmd /c exit 7`, 60*time.Second, nil); res.ExitCode != 7 {
+		t.Fatalf("a program's exit code is lost: %d %q", res.ExitCode, res.Output)
+	}
+	if res := Run(context.Background(), `Get-Item C:\does-not-exist-omega -ErrorAction Stop`, 60*time.Second, nil); res.ExitCode == 0 {
+		t.Fatalf("a failed cmdlet reports success: %q", res.Output)
+	}
+	if res := Run(context.Background(), `Write-Output one; Write-Output two`, 60*time.Second, nil); res.ExitCode != 0 || !strings.Contains(res.Output, "two") {
+		t.Fatalf("two statements: %d %q", res.ExitCode, res.Output)
+	}
+	t.Setenv("OMEGA_TEST_PROVIDER_KEY", "sk-must-not-leak-0003")
+	Withhold("OMEGA_TEST_PROVIDER_KEY")
+	t.Cleanup(func() { delete(withheld, "OMEGA_TEST_PROVIDER_KEY") })
+	res = Run(context.Background(), `"key=[$env:OMEGA_TEST_PROVIDER_KEY]"; Get-ChildItem env: | Out-String`, 60*time.Second, nil)
+	if strings.Contains(res.Output, "sk-must-not-leak") || !strings.Contains(res.Output, "key=[]") {
+		t.Fatalf("the key reached the command: %q", res.Output)
+	}
+}

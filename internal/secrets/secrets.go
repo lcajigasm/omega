@@ -1,6 +1,7 @@
 // Package secrets stores API keys where the operating system keeps secrets:
-// the macOS Keychain, or on Linux the Secret Service (through secret-tool)
-// with a file only the user can read as the fallback. Environment variables
+// the macOS Keychain, the Windows Credential Manager, or on Linux the Secret
+// Service (through secret-tool) with a file only the user can read as the
+// fallback. Environment variables
 // take precedence everywhere so CI or one-off runs can override them.
 package secrets
 
@@ -42,6 +43,7 @@ const (
 	FromKeychain      Source = "keychain"
 	FromSecretService Source = "secret-service"
 	FromFile          Source = "file"
+	FromCredentials   Source = "credential-manager"
 )
 
 // Describe is the source in words, for messages to the user.
@@ -55,6 +57,8 @@ func Describe(s Source) string {
 		return i18n.T("secrets.src.secret_service")
 	case FromFile:
 		return i18n.T("secrets.src.file", FilePath())
+	case FromCredentials:
+		return i18n.T("secrets.src.credentials")
 	}
 	return string(s)
 }
@@ -63,6 +67,10 @@ func Describe(s Source) string {
 var (
 	goos     = runtime.GOOS
 	lookPath = exec.LookPath
+	// The Windows Credential Manager.
+	winRead   = credRead
+	winWrite  = credWrite
+	winDelete = credDelete
 	// runTool runs a program with stdin and returns its standard output and
 	// its standard error apart: a warning printed by a library must never
 	// end up inside a key.
@@ -114,6 +122,10 @@ func Get(provider string) (string, Source, error) {
 		if key := serviceGet(provider); key != "" {
 			return key, FromSecretService, nil
 		}
+	case "windows":
+		if key, err := winRead(provider); err == nil && key != "" {
+			return key, FromCredentials, nil
+		}
 	}
 	return "", "", &notFoundError{provider}
 }
@@ -149,6 +161,11 @@ func Set(provider, key string) (Source, error) {
 			return "", err
 		}
 		return FromFile, nil
+	case "windows":
+		if err := winWrite(provider, key); err != nil {
+			return "", fmt.Errorf("%s: %v", i18n.T("secrets.src.credentials"), err)
+		}
+		return FromCredentials, nil
 	}
 	return "", fmt.Errorf("%s", i18n.T("secrets.unsupported", goos, EnvVar[provider]))
 }
@@ -186,6 +203,15 @@ func Delete(provider string) error {
 			return fmt.Errorf("%s", i18n.T("secrets.none", provider))
 		}
 		return nil
+	case "windows":
+		found, err := winDelete(provider)
+		if err != nil {
+			return fmt.Errorf("%s: %v", i18n.T("secrets.src.credentials"), err)
+		}
+		if !found {
+			return fmt.Errorf("%s", i18n.T("secrets.none", provider))
+		}
+		return nil
 	}
 	return fmt.Errorf("%s", i18n.T("secrets.unsupported", goos, EnvVar[provider]))
 }
@@ -201,6 +227,8 @@ func Store() Source {
 			return FromSecretService
 		}
 		return FromFile
+	case "windows":
+		return FromCredentials
 	}
 	return ""
 }

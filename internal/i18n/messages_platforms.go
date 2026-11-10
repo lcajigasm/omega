@@ -14,6 +14,10 @@ var platformMessages = map[string][]string{
 	"secrets.src.keychain": {
 		"the macOS Keychain", "el llavero de macOS", "le trousseau macOS", "der macOS-Schlüsselbund", "o porta-chaves do macOS",
 	},
+	"secrets.src.credentials": {
+		"the Windows Credential Manager", "el Administrador de credenciales de Windows", "le Gestionnaire d'identification de Windows",
+		"die Windows-Anmeldeinformationsverwaltung", "o Gestor de Credenciais do Windows",
+	},
 	"secrets.src.secret_service": {
 		"the system keyring (Secret Service)", "el llavero del sistema (Secret Service)", "le trousseau du système (Secret Service)",
 		"der Schlüsselbund des Systems (Secret Service)", "o porta-chaves do sistema (Secret Service)",
@@ -121,6 +125,27 @@ var platformMessages = map[string][]string{
 	"setup.local_found@other": {
 		"running on this machine", "en marcha en este equipo", "actif sur cette machine", "läuft auf diesem Rechner", "a correr nesta máquina",
 	},
+
+	"sudo.not_windows": {
+		"--sudo does nothing on Windows, which has no sudo: open the terminal as administrator for the steps that need it.",
+		"--sudo no hace nada en Windows, que no tiene sudo: abre el terminal como administrador para los pasos que lo necesiten.",
+		"--sudo ne fait rien sous Windows, qui n'a pas de sudo : ouvrez le terminal en tant qu'administrateur pour les étapes qui le demandent.",
+		"--sudo bewirkt unter Windows nichts, dort gibt es kein sudo: öffne das Terminal als Administrator für die Schritte, die es brauchen.",
+		"--sudo não faz nada no Windows, que não tem sudo: abre o terminal como administrador para os passos que precisem.",
+	},
+
+	// ---- Windows step names ----
+	"step.winget-outdated":      {"Outdated winget packages", "Paquetes de winget desactualizados", "Paquets winget obsolètes", "Veraltete winget-Pakete", "Pacotes winget desatualizados"},
+	"step.scoop-outdated":       {"Outdated Scoop apps", "Apps de Scoop desactualizadas", "Apps Scoop obsolètes", "Veraltete Scoop-Apps", "Apps Scoop desatualizadas"},
+	"step.choco-outdated":       {"Outdated Chocolatey packages", "Paquetes de Chocolatey desactualizados", "Paquets Chocolatey obsolètes", "Veraltete Chocolatey-Pakete", "Pacotes Chocolatey desatualizados"},
+	"step.windows-update-check": {"Windows updates", "Actualizaciones de Windows", "Mises à jour de Windows", "Windows-Updates", "Atualizações do Windows"},
+	"step.winget":               {"winget packages", "Paquetes de winget", "Paquets winget", "winget-Pakete", "Pacotes winget"},
+	"step.scoop":                {"Scoop apps", "Apps de Scoop", "Apps Scoop", "Scoop-Apps", "Apps Scoop"},
+	"step.choco":                {"Chocolatey packages", "Paquetes de Chocolatey", "Paquets Chocolatey", "Chocolatey-Pakete", "Pacotes Chocolatey"},
+	"step.wsl":                  {"Windows Subsystem for Linux", "Subsistema de Windows para Linux", "Sous-système Windows pour Linux", "Windows-Subsystem für Linux", "Subsistema Windows para Linux"},
+	"step.scoop-cleanup":        {"Old Scoop versions and cache", "Versiones antiguas y caché de Scoop", "Anciennes versions et cache de Scoop", "Alte Scoop-Versionen und Cache", "Versões antigas e cache do Scoop"},
+	"step.temp-files":           {"Temporary files", "Archivos temporales", "Fichiers temporaires", "Temporäre Dateien", "Ficheiros temporários"},
+	"step.component-store":      {"Windows component store", "Almacén de componentes de Windows", "Magasin de composants Windows", "Windows-Komponentenspeicher", "Armazenamento de componentes do Windows"},
 
 	// ---- Linux step names ----
 	"step.apt-outdated":     {"Outdated apt packages", "Paquetes de apt desactualizados", "Paquets apt obsolètes", "Veraltete apt-Pakete", "Pacotes apt desatualizados"},

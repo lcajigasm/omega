@@ -34,15 +34,28 @@ const (
 	tailBytes = 8000
 )
 
-// Shell returns a shell that exists on this machine. It prefers SHELL, then
-// zsh, bash and sh. On Windows it prefers Git Bash, then PowerShell.
+// Seams the tests replace.
+var (
+	goos     = runtime.GOOS
+	lookPath = exec.LookPath
+)
+
+// Shell returns the shell omega runs commands with. On macOS and Linux it
+// prefers SHELL, then zsh, bash and sh. On Windows it is always PowerShell
+// (PowerShell 7 when installed, else the Windows PowerShell every Windows
+// has): the steps and the safety policy are written for one dialect, and a
+// POSIX shell that happens to be installed (Git Bash) does not see the
+// Windows package managers the way PowerShell does.
 func Shell() string {
-	candidates := []string{os.Getenv("SHELL")}
-	if runtime.GOOS == "windows" {
-		candidates = append(candidates, `C:\Program Files\Git\bin\bash.exe`)
-	} else {
-		candidates = append(candidates, "/bin/zsh", "/usr/bin/zsh", "/bin/bash", "/usr/bin/bash", "/bin/sh")
+	if goos == "windows" {
+		for _, name := range []string{"pwsh", "powershell"} {
+			if p, err := lookPath(name); err == nil {
+				return p
+			}
+		}
+		return "cmd.exe"
 	}
+	candidates := []string{os.Getenv("SHELL"), "/bin/zsh", "/usr/bin/zsh", "/bin/bash", "/usr/bin/bash", "/bin/sh"}
 	for _, c := range candidates {
 		if c == "" {
 			continue
@@ -51,14 +64,17 @@ func Shell() string {
 			return c
 		}
 	}
-	if runtime.GOOS == "windows" {
-		if p, err := exec.LookPath("powershell"); err == nil {
-			return p
-		}
-		return "cmd.exe"
-	}
 	return "/bin/sh"
 }
+
+// psPrelude makes PowerShell behave when nobody is watching: output in
+// UTF-8 (Windows PowerShell writes the console code page into a pipe), and
+// no progress bars, which are drawn with cursor movements.
+const psPrelude = "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; $ProgressPreference = 'SilentlyContinue'; "
+
+// psExit gives the script the exit status of its last command. Left alone,
+// `powershell -Command` answers 0 or 1 and loses a program's own code.
+const psExit = "\nif (-not $?) { if ($LASTEXITCODE) { exit $LASTEXITCODE } else { exit 1 } }"
 
 // shellInvocation builds the argv that runs script. POSIX shells are login
 // shells so the user's PATH is present; the withheld variables are unset
@@ -69,7 +85,7 @@ func shellInvocation(script string) (string, []string) {
 	base := strings.ToLower(filepath.Base(sh))
 	switch base {
 	case "pwsh", "pwsh.exe", "powershell", "powershell.exe":
-		return sh, []string{"-NoProfile", "-Command", script}
+		return sh, []string{"-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", psPrelude + script + psExit}
 	case "cmd", "cmd.exe":
 		return sh, []string{"/d", "/c", script}
 	default:
@@ -112,6 +128,20 @@ func ExtendPath() {
 		"/opt/homebrew/bin", "/opt/homebrew/sbin", "/usr/local/bin",
 		filepath.Join(home, ".cargo/bin"), filepath.Join(home, ".local/bin"),
 		filepath.Join(home, ".bun/bin"), filepath.Join(home, "go/bin"),
+	}
+	if goos == "windows" {
+		// Scoop's shims, winget's links, Chocolatey, and the per-user tools.
+		local, data := os.Getenv("LOCALAPPDATA"), os.Getenv("ProgramData")
+		extra = []string{
+			filepath.Join(home, "scoop", "shims"), filepath.Join(home, ".cargo", "bin"),
+			filepath.Join(home, "go", "bin"), filepath.Join(home, ".bun", "bin"), filepath.Join(home, ".local", "bin"),
+		}
+		if local != "" {
+			extra = append(extra, filepath.Join(local, "Microsoft", "WinGet", "Links"), filepath.Join(local, "Microsoft", "WindowsApps"))
+		}
+		if data != "" {
+			extra = append(extra, filepath.Join(data, "chocolatey", "bin"))
+		}
 	}
 	if runtime.GOOS == "linux" {
 		// Homebrew on Linux, snaps and Flatpak's exported commands.

@@ -333,7 +333,9 @@ func runTask(task string, f runFlags) error {
 	defer cancel()
 
 	sudoPassword := ""
-	if f.sudo && !readOnly && stdinTTY {
+	if f.sudo && goos == "windows" {
+		fmt.Fprintln(os.Stderr, i18n.T("sudo.not_windows"))
+	} else if f.sudo && !readOnly && stdinTTY {
 		if sudoPassword, err = askSudo(); err != nil {
 			return err
 		}
