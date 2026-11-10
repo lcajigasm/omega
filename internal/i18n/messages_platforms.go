@@ -19,12 +19,21 @@ var platformMessages = map[string][]string{
 		"der Schlüsselbund des Systems (Secret Service)", "o porta-chaves do sistema (Secret Service)",
 	},
 	"secrets.src.file": {
-		"the file %s, readable only by you (no system keyring answered)",
-		"el archivo %s, que solo tú puedes leer (no respondió ningún llavero del sistema)",
-		"le fichier %s, lisible par vous seul (aucun trousseau du système n'a répondu)",
-		"die Datei %s, nur für dich lesbar (kein Schlüsselbund des Systems hat geantwortet)",
-		"o ficheiro %s, que só tu podes ler (nenhum porta-chaves do sistema respondeu)",
+		"the file %s, readable only by you",
+		"el archivo %s, que solo tú puedes leer",
+		"le fichier %s, lisible par vous seul",
+		"die Datei %s, nur für dich lesbar",
+		"o ficheiro %s, que só tu podes ler",
 	},
+	"secrets.no_keyring": {
+		"No system keyring answered (secret-tool is missing, or there is no desktop session), so the key is kept in that file.",
+		"No respondió ningún llavero del sistema (falta secret-tool o no hay sesión de escritorio), así que la clave se guarda en ese archivo.",
+		"Aucun trousseau du système n'a répondu (secret-tool est absent, ou il n'y a pas de session de bureau) : la clé est conservée dans ce fichier.",
+		"Kein Schlüsselbund des Systems hat geantwortet (secret-tool fehlt oder es gibt keine Desktop-Sitzung), daher liegt der Key in dieser Datei.",
+		"Nenhum porta-chaves do sistema respondeu (falta o secret-tool ou não há sessão de ambiente de trabalho), por isso a chave fica nesse ficheiro.",
+	},
+	// The Docker step starts Docker Desktop on a Mac and the daemon elsewhere.
+	"step.docker-start@other": {"Start Docker", "Arrancar Docker", "Démarrer Docker", "Docker starten", "Iniciar o Docker"},
 	"secrets.unsupported": {
 		"omega cannot store keys on %s; export %s instead",
 		"omega no puede guardar claves en %s; exporta %s en su lugar",
@@ -49,6 +58,23 @@ var platformMessages = map[string][]string{
 		"stockage des clés : omega setup l'enregistrerait dans %s", "Key-Speicher: omega setup würde ihn in %s speichern",
 		"armazém de chaves: o omega setup guardá-la-ia em %s",
 	},
+
+	// ---- installers piped into a shell ----
+	"dev.installer_confirm": {
+		"  %s is installed by its own script: the command above downloads it and runs it in a shell. Run it? y/N",
+		"  %s se instala con su propio script: el comando de arriba lo descarga y lo ejecuta en una shell. ¿Ejecutarlo? s/N",
+		"  %s s'installe avec son propre script : la commande ci-dessus le télécharge et l'exécute dans un shell. L'exécuter ? o/N",
+		"  %s wird mit einem eigenen Skript installiert: Der Befehl oben lädt es herunter und führt es in einer Shell aus. Ausführen? j/N",
+		"  %s instala-se com o seu próprio script: o comando acima descarrega-o e executa-o numa shell. Executar? s/N",
+	},
+	"dev.installer_tty": {
+		"%s is installed by a script piped into a shell (%s). omega only runs that after you confirm at a terminal: run omega dev install there, or run the command yourself",
+		"%s se instala con un script que se pasa a una shell (%s). omega solo lo ejecuta si lo confirmas en un terminal: ejecuta omega dev install allí, o lanza el comando tú mismo",
+		"%s s'installe avec un script passé à un shell (%s). omega ne l'exécute qu'après confirmation dans un terminal : lancez omega dev install là, ou exécutez la commande vous-même",
+		"%s wird mit einem Skript installiert, das an eine Shell übergeben wird (%s). omega führt das nur nach Bestätigung in einem Terminal aus: Starte omega dev install dort oder führe den Befehl selbst aus",
+		"%s instala-se com um script passado a uma shell (%s). O omega só o executa depois de confirmares num terminal: corre omega dev install aí, ou executa tu o comando",
+	},
+	"dev.installer_skipped": {"⎿ skipped", "⎿ omitido", "⎿ ignoré", "⎿ übersprungen", "⎿ ignorado"},
 
 	// ---- the parts that only exist on macOS ----
 	"mac.only": {

@@ -349,7 +349,7 @@ func toolDiskUsage(ctx context.Context, a *Agent, in map[string]any) (string, er
 func toolReadFile(_ context.Context, a *Agent, in map[string]any) (string, error) {
 	path := expand(getString(in, "path"))
 	a.emit(Event{Kind: EvToolStart, Tool: "read_file", Command: path, Risk: safety.Safe})
-	if safety.SecretFile(path) {
+	if secretPath(path) {
 		msg := i18n.T("agent.secret_file", path)
 		a.emit(Event{Kind: EvToolEnd, Tool: "read_file", Command: path, Failed: true, Reason: msg})
 		return "", explained(errors.New(msg))
@@ -365,6 +365,25 @@ func toolReadFile(_ context.Context, a *Agent, in map[string]any) (string, error
 		return string(data[:max]) + "\n[… file truncated …]", nil
 	}
 	return string(data), nil
+}
+
+// secretPath reports a file read_file must refuse: as typed, as an absolute
+// path, and as what a symbolic link points at.
+func secretPath(path string) bool {
+	if safety.SecretFile(path) {
+		return true
+	}
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return false
+	}
+	if safety.SecretFile(abs) {
+		return true
+	}
+	if real, err := filepath.EvalSymlinks(abs); err == nil && real != abs {
+		return safety.SecretFile(real)
+	}
+	return false
 }
 
 func toolWriteFile(ctx context.Context, a *Agent, in map[string]any) (string, error) {

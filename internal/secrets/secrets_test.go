@@ -13,34 +13,37 @@ import (
 
 // fakeKeyring stands in for secret-tool: a map behind the same arguments.
 type fakeKeyring struct {
-	keys  map[string]string
-	down  bool // no Secret Service answers
-	calls []string
+	keys map[string]string
+	down bool // no Secret Service answers
+	// warning is what a library prints on standard error with every call.
+	warning string
+	calls   []string
 }
 
-func (f *fakeKeyring) run(_ time.Duration, stdin string, name string, args ...string) (string, error) {
+func (f *fakeKeyring) run(_ time.Duration, stdin string, name string, args ...string) (string, string, error) {
 	f.calls = append(f.calls, name+" "+strings.Join(args, " "))
 	if name != "secret-tool" {
-		return "", errors.New("unexpected program " + name)
+		return "", "", errors.New("unexpected program " + name)
 	}
 	if f.down {
-		return "secret-tool: Cannot autolaunch D-Bus without X11 $DISPLAY", errors.New("exit status 1")
+		return "", "secret-tool: Cannot autolaunch D-Bus without X11 $DISPLAY", errors.New("exit status 1")
 	}
 	account := args[len(args)-1]
 	switch args[0] {
 	case "lookup":
 		if k, ok := f.keys[account]; ok {
-			return k + "\n", nil
+			// A library warning on standard error must not become part of the key.
+			return k + "\n", f.warning, nil
 		}
-		return "", errors.New("exit status 1")
+		return "", "", errors.New("exit status 1")
 	case "store":
 		f.keys[account] = stdin
-		return "", nil
+		return "", f.warning, nil
 	case "clear":
 		delete(f.keys, account)
-		return "", nil
+		return "", "", nil
 	}
-	return "", errors.New("unexpected arguments")
+	return "", "", errors.New("unexpected arguments")
 }
 
 // linux points the package at a Linux machine with an empty config dir.
@@ -177,5 +180,97 @@ func TestEnvWinsAndOtherSystems(t *testing.T) {
 	goos = "windows"
 	if _, err := Set("anthropic", "x"); err == nil || !strings.Contains(err.Error(), "ANTHROPIC_API_KEY") {
 		t.Fatalf("no key storage there: the error must point at the variable: %v", err)
+	}
+}
+
+// A warning on standard error is not part of the key.
+func TestKeyIsStandardOutputOnly(t *testing.T) {
+	f := linux(t, true)
+	f.warning = "(secret-tool:4242): GLib-GObject-WARNING **: 10:00:00.000: invalid cast\n"
+	if _, err := Set("anthropic", "sk-ant-ring-0001"); err != nil {
+		t.Fatal(err)
+	}
+	key, src, err := Get("anthropic")
+	if err != nil || key != "sk-ant-ring-0001" || src != FromSecretService {
+		t.Fatalf("Get = %q %s %v", key, src, err)
+	}
+}
+
+// Key A in the keyring; then a save with no session bus (over SSH) writes B
+// to the file. Back on the desktop the newer key must win, and the next save
+// leaves a single copy.
+func TestNewerKeyInFileWinsOverStaleKeyring(t *testing.T) {
+	f := linux(t, true)
+	if src, _ := Set("anthropic", "sk-ant-AAAA-0001"); src != FromSecretService {
+		t.Fatalf("first save: %s", src)
+	}
+	f.down = true
+	if src, _ := Set("anthropic", "sk-ant-BBBB-0002"); src != FromFile {
+		t.Fatalf("save with no keyring: %s", src)
+	}
+	if key, src, _ := Get("anthropic"); key != "sk-ant-BBBB-0002" || src != FromFile {
+		t.Fatalf("over SSH: %q %s", key, src)
+	}
+	f.down = false
+	if key, src, _ := Get("anthropic"); key != "sk-ant-BBBB-0002" || src != FromFile {
+		t.Fatalf("back on the desktop the stale keyring entry must not win: %q %s", key, src)
+	}
+	if src, _ := Set("anthropic", "sk-ant-CCCC-0003"); src != FromSecretService {
+		t.Fatalf("third save: %s", src)
+	}
+	if key, src, _ := Get("anthropic"); key != "sk-ant-CCCC-0003" || src != FromSecretService {
+		t.Fatalf("one copy, in the keyring: %q %s", key, src)
+	}
+	if len(readFile()) != 0 {
+		t.Fatalf("nothing may be left in the file: %v", readFile())
+	}
+}
+
+// auth remove clears both stores, also when the keyring does not answer at
+// that moment: its copy must not come back later.
+func TestDeleteClearsBothStores(t *testing.T) {
+	f := linux(t, true)
+	Set("anthropic", "sk-ant-AAAA-0001")
+	f.down = true
+	Set("anthropic", "sk-ant-BBBB-0002")
+	f.down = false
+	if err := Delete("anthropic"); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := f.keys["anthropic"]; ok || len(readFile()) != 0 {
+		t.Fatalf("both copies must go: keyring %v, file %v", f.keys, readFile())
+	}
+	if _, _, err := Get("anthropic"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("deleted: %v", err)
+	}
+
+	// Removed over SSH while the keyring still holds a copy.
+	Set("openai", "sk-openai-AAAA-0001")
+	f.down = true
+	if err := Delete("openai"); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := Get("openai"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("removed with no keyring answering: %v", err)
+	}
+	f.down = false
+	if _, _, err := Get("openai"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("the keyring's copy must not come back: %v", err)
+	}
+	if _, ok := f.keys["openai"]; ok {
+		t.Fatal("the keyring's copy is removed once the keyring answers")
+	}
+	if _, err := os.Stat(FilePath()); !os.IsNotExist(err) {
+		t.Fatalf("the removal mark goes too: %v", err)
+	}
+	// A new key after a removal mark is found again.
+	f.down = true
+	Delete("openai")
+	f.down = false
+	if src, _ := Set("openai", "sk-openai-BBBB-0002"); src != FromSecretService {
+		t.Fatalf("save: %s", src)
+	}
+	if key, _, _ := Get("openai"); key != "sk-openai-BBBB-0002" {
+		t.Fatalf("Get after a new save: %q", key)
 	}
 }

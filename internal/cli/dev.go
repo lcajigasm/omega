@@ -194,6 +194,12 @@ func devInstall(names []string, tty bool) error {
 	defer su.close()
 	for _, t := range tools {
 		fmt.Printf("\n⏺ %s\n  %s\n", t.Name, t.Install)
+		if ok, err := allowInstaller(t, tty, ask); err != nil {
+			return err
+		} else if !ok {
+			fmt.Println("  " + i18n.T("dev.installer_skipped"))
+			continue
+		}
 		if err := su.need(t.Install); err != nil {
 			return err
 		}
@@ -213,6 +219,20 @@ func devInstall(names []string, tty bool) error {
 		return fmt.Errorf("%s", i18n.T("steps.failed_summary", failed))
 	}
 	return nil
+}
+
+// allowInstaller guards the tools whose install command downloads a script
+// and pipes it into a shell. Such a command always needs a yes typed for it,
+// whether the tool was named on the command line or ticked on the card, and
+// never runs without a terminal to ask at. Any other command is allowed.
+func allowInstaller(t devtools.Tool, tty bool, answer func(prompt, def string) string) (bool, error) {
+	if !devtools.FromInstaller(t.Install) {
+		return true, nil
+	}
+	if !tty {
+		return false, fmt.Errorf("%s", i18n.T("dev.installer_tty", t.Name, t.Install))
+	}
+	return i18n.IsYes(answer(i18n.T("dev.installer_confirm", t.Name), "n")), nil
 }
 
 // devActivate offers to add the shell lines of installed tools that are not

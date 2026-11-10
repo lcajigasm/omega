@@ -5,6 +5,7 @@
 package secrets
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -62,16 +63,20 @@ func Describe(s Source) string {
 var (
 	goos     = runtime.GOOS
 	lookPath = exec.LookPath
-	// runTool runs a program with stdin and returns its combined output.
-	runTool = func(timeout time.Duration, stdin string, name string, args ...string) (string, error) {
+	// runTool runs a program with stdin and returns its standard output and
+	// its standard error apart: a warning printed by a library must never
+	// end up inside a key.
+	runTool = func(timeout time.Duration, stdin string, name string, args ...string) (stdout, stderr string, err error) {
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()
 		cmd := exec.CommandContext(ctx, name, args...)
 		if stdin != "" {
 			cmd.Stdin = strings.NewReader(stdin)
 		}
-		out, err := cmd.CombinedOutput()
-		return string(out), err
+		var out, errOut bytes.Buffer
+		cmd.Stdout, cmd.Stderr = &out, &errOut
+		err = cmd.Run()
+		return out.String(), errOut.String(), err
 	}
 )
 
@@ -90,11 +95,24 @@ func Get(provider string) (string, Source, error) {
 			return strings.TrimSpace(string(out)), FromKeychain, nil
 		}
 	case "linux":
+		// The file is only written when no keyring answered, and a save to
+		// the keyring removes the file's entry: so an entry in the file is
+		// never older than the keyring's, and it decides.
+		keys := readFile()
+		if key, ok := keys[provider]; ok {
+			if key != "" {
+				return key, FromFile, nil
+			}
+			// Removed while no keyring answered: finish the removal now if
+			// one does, and until then ignore what the keyring still holds.
+			if serviceUp() && serviceClear(provider) == nil {
+				delete(keys, provider)
+				writeFile(keys)
+			}
+			break
+		}
 		if key := serviceGet(provider); key != "" {
 			return key, FromSecretService, nil
-		}
-		if key := readFile()[provider]; key != "" {
-			return key, FromFile, nil
 		}
 	}
 	return "", "", &notFoundError{provider}
@@ -114,7 +132,8 @@ func Set(provider, key string) (Source, error) {
 		return FromKeychain, nil
 	case "linux":
 		if serviceSet(provider, key) {
-			// A copy left in the file would be stale from now on.
+			// A copy (or a removal mark) left in the file would win over
+			// the keyring from now on.
 			keys := readFile()
 			if _, ok := keys[provider]; ok {
 				delete(keys, provider)
@@ -143,22 +162,27 @@ func Delete(provider string) error {
 		}
 		return nil
 	case "linux":
-		found := false
-		if serviceGet(provider) != "" {
-			found = true
-			if out, err := runTool(30*time.Second, "", "secret-tool", "clear", "service", service, "account", provider); err != nil {
-				return fmt.Errorf("%s", i18n.T("secrets.delete_service", err, strings.TrimSpace(out)))
-			}
-		}
 		keys := readFile()
-		if _, ok := keys[provider]; ok {
-			found = true
-			delete(keys, provider)
-			if err := writeFile(keys); err != nil {
+		inFile := keys[provider] != ""
+		inRing := serviceGet(provider) != ""
+		reachable := serviceUp()
+		if reachable {
+			if err := serviceClear(provider); err != nil && inRing {
 				return err
 			}
+			delete(keys, provider)
+		} else if hasSecretTool() {
+			// A keyring may hold this key but does not answer now (no desktop
+			// session). Leave a mark so that copy is not used when it does;
+			// Get removes it from the keyring then.
+			keys[provider] = ""
+		} else {
+			delete(keys, provider)
 		}
-		if !found {
+		if err := writeFile(keys); err != nil {
+			return err
+		}
+		if !inFile && !inRing && (reachable || !hasSecretTool()) {
 			return fmt.Errorf("%s", i18n.T("secrets.none", provider))
 		}
 		return nil
@@ -190,8 +214,16 @@ func serviceUp() bool {
 	if !hasSecretTool() {
 		return false
 	}
-	out, err := runTool(15*time.Second, "", "secret-tool", "lookup", "service", service, "account", "omega-probe")
-	return err == nil || strings.TrimSpace(out) == ""
+	_, stderr, err := runTool(15*time.Second, "", "secret-tool", "lookup", "service", service, "account", "omega-probe")
+	return err == nil || strings.TrimSpace(stderr) == ""
+}
+
+// serviceClear removes the provider's key from the Secret Service.
+func serviceClear(provider string) error {
+	if _, stderr, err := runTool(30*time.Second, "", "secret-tool", "clear", "service", service, "account", provider); err != nil {
+		return fmt.Errorf("%s", i18n.T("secrets.delete_service", err, strings.TrimSpace(stderr)))
+	}
+	return nil
 }
 
 func hasSecretTool() bool {
@@ -205,7 +237,8 @@ func serviceGet(provider string) string {
 	if !hasSecretTool() {
 		return ""
 	}
-	out, err := runTool(30*time.Second, "", "secret-tool", "lookup", "service", service, "account", provider)
+	// Standard output only: GLib and D-Bus print warnings on standard error.
+	out, _, err := runTool(30*time.Second, "", "secret-tool", "lookup", "service", service, "account", provider)
 	if err != nil {
 		return ""
 	}
@@ -217,11 +250,12 @@ func serviceSet(provider, key string) bool {
 	if !hasSecretTool() {
 		return false
 	}
-	_, err := runTool(60*time.Second, key, "secret-tool", "store", "--label=omega ("+provider+")", "service", service, "account", provider)
+	_, _, err := runTool(60*time.Second, key, "secret-tool", "store", "--label=omega ("+provider+")", "service", service, "account", provider)
 	return err == nil
 }
 
 // ---- key file (Linux fallback): "provider=key" lines, mode 0600 ----
+// The map keeps removal marks as empty values.
 
 func readFile() map[string]string {
 	keys := map[string]string{}
@@ -239,7 +273,8 @@ func readFile() map[string]string {
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
-		if name, key, ok := strings.Cut(line, "="); ok && strings.TrimSpace(key) != "" {
+		// "provider=" with no key marks one removed while no keyring answered.
+		if name, key, ok := strings.Cut(line, "="); ok && strings.TrimSpace(name) != "" {
 			keys[strings.TrimSpace(name)] = strings.TrimSpace(key)
 		}
 	}

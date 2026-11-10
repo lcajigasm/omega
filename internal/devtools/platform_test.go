@@ -25,20 +25,20 @@ func TestInstallCommandPerPlatform(t *testing.T) {
 	}{
 		{"jq", mac, "brew install jq"},
 		{"java", mac, "brew install --cask temurin"},
-		{"jq", ubuntu, "sudo apt-get install -y jq"},
+		{"jq", ubuntu, "sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold jq"},
 		{"jq", fedora, "sudo dnf install -y jq"},
 		{"jq", arch, "sudo pacman -S --needed --noconfirm jq"},
 		{"jq", suse, "sudo zypper --non-interactive install jq"},
 		// Homebrew on Linux wins for formulae; casks do not exist there.
 		{"jq", linuxbrew, "brew install jq"},
-		{"java", linuxbrew, "sudo apt-get install -y default-jdk"},
-		{"docker", linuxbrew, "sudo apt-get install -y docker.io"},
+		{"java", linuxbrew, "sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold default-jdk"},
+		{"docker", linuxbrew, "sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold docker.io"},
 		// Package names differ per distribution.
-		{"fd", ubuntu, "sudo apt-get install -y fd-find"},
+		{"fd", ubuntu, "sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold fd-find"},
 		{"fd", arch, "sudo pacman -S --needed --noconfirm fd"},
 		{"gh", arch, "sudo pacman -S --needed --noconfirm github-cli"},
 		{"shellcheck", fedora, "sudo dnf install -y ShellCheck"},
-		{"git-lfs", ubuntu, "sudo apt-get install -y git-lfs && git lfs install"},
+		{"git-lfs", ubuntu, "sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold git-lfs && git lfs install"},
 		// No package: the tool's own installer.
 		{"rust", ubuntu, "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y"},
 		{"uv", fedora, "curl -LsSf https://astral.sh/uv/install.sh | sh"},
@@ -211,7 +211,7 @@ func TestDebianNamesAndLinuxReport(t *testing.T) {
 	mise, _ := Find("mise")
 	inv := &Inventory{Platform: Current(), Missing: []Tool{rg, mise}, Installed: []Installed{{Tool: bat, Path: "/usr/bin/batcat", Inactive: false}}}
 	r := inv.Report()
-	for _, want := range []string{"Linux without Homebrew", "installed with apt", "`sudo apt-get install -y ripgrep`", "`curl https://mise.run | sh`",
+	for _, want := range []string{"Linux without Homebrew", "installed with apt", "`sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold ripgrep`", "`curl https://mise.run | sh`",
 		"then add `eval \"$(mise activate bash)\"` to ~/.bashrc"} {
 		if !strings.Contains(r, want) {
 			t.Errorf("report lacks %q:\n%s", want, r)

@@ -75,17 +75,15 @@ var safePrefixes = []string{
 	"mo --help", "mo help",
 	// Linux.
 	"test", "journalctl", "coredumpctl list", "coredumpctl info", "zypper --non-interactive list-updates",
-	"free", "lsb_release", "hostnamectl", "lscpu", "lsblk", "findmnt", "nproc",
-	"systemctl status", "systemctl list-units", "systemctl list-unit-files",
-	"systemctl list-timers", "systemctl --failed", "systemctl --user --failed", "systemctl is-active",
-	"systemctl is-enabled", "systemctl is-system-running", "systemd-analyze", "loginctl",
-	"apt list", "apt show", "apt policy", "apt search", "apt-cache", "apt-get -s", "apt-get --simulate",
-	"apt-mark showmanual", "apt-mark showhold", "dpkg -l", "dpkg -L", "dpkg -s", "dpkg -S", "dpkg --list",
-	"dpkg --get-selections", "dpkg-query",
-	"dnf check-update", "dnf list", "dnf info", "dnf repolist", "dnf history", "dnf repoquery", "dnf search",
-	"rpm -q", "rpm -qa", "rpm -qi", "rpm -ql",
-	"pacman -Q", "pacman -Qu", "pacman -Qdt", "pacman -Qi", "pacman -Ql", "pacman -Qe", "pacman -Qm", "pacman -Si", "pacman -Ss",
-	"checkupdates", "paccache -d", "paccache --dryrun",
+	"free", "lsb_release", "lscpu", "lsblk", "findmnt", "nproc",
+	// systemctl, systemd-analyze, loginctl, hostnamectl, rpm, dpkg, pacman,
+	// paccache, apt-get and dnf history are decided by queryTool: each also
+	// has subcommands and flags that change the system.
+	"apt list", "apt show", "apt policy", "apt search", "apt-cache show", "apt-cache policy", "apt-cache search",
+	"apt-cache depends", "apt-cache rdepends", "apt-cache madison", "apt-cache pkgnames", "apt-cache stats",
+	"apt-mark showmanual", "apt-mark showhold", "apt-mark showauto", "dpkg-query",
+	"dnf check-update", "dnf list", "dnf info", "dnf repolist", "dnf repoquery", "dnf search",
+	"checkupdates",
 	"zypper list-updates", "zypper lu", "zypper list-patches", "zypper lp", "zypper search", "zypper se",
 	"zypper info", "zypper repos", "zypper lr", "zypper packages",
 	"flatpak list", "flatpak remote-ls", "flatpak remotes", "flatpak info", "flatpak history", "flatpak --version",
@@ -129,6 +127,16 @@ func Classify(command string) Risk {
 	}
 	for _, re := range blocked {
 		if re.MatchString(cmd) {
+			return Blocked
+		}
+	}
+	// Secrets and wipes are looked for in the whole command, through
+	// wrappers, quoting and command substitution, before anything else.
+	if leaksSecret(cmd) {
+		return Blocked
+	}
+	for _, seg := range shellSegments(cmd) {
+		if run := afterWrappers(seg); len(run) > 0 && wipesMachine(strings.Join(run, " ")) {
 			return Blocked
 		}
 	}
@@ -286,6 +294,24 @@ func classifyOne(part string) Risk {
 	}
 	if strings.HasPrefix(p, "sudo ") || p == "sudo" {
 		return Dangerous
+	}
+	// env runs what follows it: "env rm -rf x" is rm, not a look at the
+	// environment. Alone, or with only assignments, it prints variables.
+	if f := strings.Fields(p); f[0] == "env" {
+		i := 1
+		for i < len(f) && (strings.HasPrefix(f[i], "-") || strings.Contains(f[i], "=")) {
+			if f[i] == "-u" || f[i] == "-C" || f[i] == "-S" {
+				i++
+			}
+			i++
+		}
+		if i >= len(f) {
+			return Safe
+		}
+		return classifyOne(strings.Join(f[i:], " "))
+	}
+	if risk, ok := queryTool(p); ok {
+		return risk
 	}
 	if dryRun.MatchString(p) || helpOnly.MatchString(p) {
 		return Safe

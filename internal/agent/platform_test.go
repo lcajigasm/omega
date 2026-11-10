@@ -1,6 +1,8 @@
 package agent
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -147,7 +149,7 @@ func TestDevInstallOnLinux(t *testing.T) {
 	t.Cleanup(func() { installed = old })
 
 	res, ran, asked := drive(t, Options{}, Approve, call("1", "dev_install", map[string]any{"tools": []string{"jq", "fzf", "orbstack"}}))
-	if len(ran) != 2 || ran[0] != "sudo apt-get install -y jq" || ran[1] != "sudo apt-get install -y fzf" || asked != 2 {
+	if len(ran) != 2 || ran[0] != "sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold jq" || ran[1] != "sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold fzf" || asked != 2 {
 		t.Fatalf("apt installs, each one asked (sudo is dangerous): ran %v, asked %d", ran, asked)
 	}
 	out := res[0].Content
@@ -188,5 +190,50 @@ func TestDevActivateWritesBashrc(t *testing.T) {
 	res, _, asked = drive(t, Options{}, Approve, call("1", "dev_activate", map[string]any{"tools": []string{"fzf"}}))
 	if asked != 0 || !strings.Contains(res[0].Content, "neither zsh nor bash") {
 		t.Fatalf("fish is not edited: asked %d: %s", asked, res[0].Content)
+	}
+}
+
+// read_file refuses omega's key file however it is named: by a relative
+// path, through a symbolic link, or with XDG_CONFIG_HOME set.
+func TestReadFileRefusesTheKeyFile(t *testing.T) {
+	sandbox(t)
+	dir := filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "omega")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	const secret = "anthropic=sk-ant-MUST-NOT-LEAK-0001"
+	os.WriteFile(filepath.Join(dir, "keys"), []byte(secret+"\n"), 0o600)
+	os.WriteFile(filepath.Join(dir, "config.toml"), []byte("provider = \"anthropic\"\n"), 0o600)
+	link := filepath.Join(t.TempDir(), "harmless.txt")
+	linked := os.Symlink(filepath.Join(dir, "keys"), link) == nil
+
+	paths := []string{filepath.Join(dir, "keys"), filepath.Join(dir, "..", "omega", "keys")}
+	if linked {
+		paths = append(paths, link)
+	}
+	for _, p := range paths {
+		res, _, _ := drive(t, Options{}, Approve, call("1", "read_file", map[string]any{"path": p}))
+		if !res[0].IsError || strings.Contains(res[0].Content, "MUST-NOT-LEAK") {
+			t.Errorf("read_file %s reached the model: %+v", p, res[0])
+		}
+	}
+	// From inside the folder, a bare name is the same file.
+	t.Chdir(dir)
+	for _, p := range []string{"keys", "./keys"} {
+		res, _, _ := drive(t, Options{}, Approve, call("1", "read_file", map[string]any{"path": p}))
+		if !res[0].IsError || strings.Contains(res[0].Content, "MUST-NOT-LEAK") {
+			t.Errorf("read_file %s reached the model: %+v", p, res[0])
+		}
+	}
+	res, _, _ := drive(t, Options{}, Approve, call("1", "read_file", map[string]any{"path": "config.toml"}))
+	if res[0].IsError || !strings.Contains(res[0].Content, "anthropic") {
+		t.Errorf("the configuration stays readable: %+v", res[0])
+	}
+	// And a command that would print it never runs, even with every approval.
+	for _, cmd := range []string{"cat keys", "cat " + filepath.Join(dir, "k*"), "env cat " + filepath.Join(dir, "keys"), "sh -c 'cat keys'"} {
+		res, ran, _ := drive(t, Options{AutoYes: true}, Approve, call("1", "run_command", map[string]any{"command": cmd, "reason": "look"}))
+		if len(ran) != 0 || !res[0].IsError {
+			t.Errorf("%q ran: %v", cmd, ran)
+		}
 	}
 }

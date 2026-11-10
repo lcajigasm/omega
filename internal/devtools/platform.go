@@ -39,7 +39,8 @@ var Current = func() Platform {
 
 // pkgInstall is the non-interactive install command of each package manager.
 var pkgInstall = map[string]string{
-	"apt":    "sudo apt-get install -y ",
+	// With stdin closed, dpkg must not stop to ask about a configuration file.
+	"apt":    "sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold ",
 	"dnf":    "sudo dnf install -y ",
 	"pacman": "sudo pacman -S --needed --noconfirm ",
 	"zypper": "sudo zypper --non-interactive install ",

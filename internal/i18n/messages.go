@@ -785,7 +785,7 @@ Exemplos:
 	},
 	"step.system-logs":        {"System logs review", "Revisión de logs del sistema", "Analyse des journaux système", "Systemprotokolle prüfen", "Revisão dos registos do sistema"},
 	"step.docker-df":          {"Docker disk usage", "Espacio usado por Docker", "Espace utilisé par Docker", "Docker-Speicherbelegung", "Espaço usado pelo Docker"},
-	"step.docker-start":       {"Start Docker", "Arrancar Docker", "Démarrer Docker", "Docker starten", "Iniciar o Docker"},
+	"step.docker-start":       {"Start Docker Desktop", "Arrancar Docker Desktop", "Démarrer Docker Desktop", "Docker Desktop starten", "Iniciar o Docker Desktop"},
 	"step.docker-containers":  {"Docker: stopped containers", "Docker: contenedores parados", "Docker : conteneurs arrêtés", "Docker: gestoppte Container", "Docker: contentores parados"},
 	"step.docker-images":      {"Docker: dangling images", "Docker: imágenes huérfanas", "Docker : images orphelines", "Docker: verwaiste Images", "Docker: imagens órfãs"},
 	"step.docker-images-all":  {"Docker: all unused images", "Docker: todas las imágenes sin usar", "Docker : toutes les images inutilisées", "Docker: alle ungenutzten Images", "Docker: todas as imagens não usadas"},

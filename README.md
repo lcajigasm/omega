@@ -497,7 +497,10 @@ it is installed and has the formula; otherwise the distribution's package
 package name); otherwise the tool's own installer where it has a well-known one
 (rustup, mise, uv, Bun, Deno, Starship, fnm, pyenv, Atuin, Ollama, Claude Code…).
 Tools with none of the three are detected but not offered. Commands that use
-`sudo` ask for your password once.
+`sudo` ask for your password once. A tool installed by its own script
+(`curl … | sh`) always asks for a typed yes first, from the command line and
+from the agent, even with `--yes`, and is refused when there is no terminal to
+ask at.
 
 When a tool needs a line in the shell's startup file, omega offers to add it to
 `~/.zshrc` (zsh) or `~/.bashrc` (bash, with the bash form of the line), after
@@ -698,7 +701,7 @@ does not.
 | Area | On Linux |
 |---|---|
 | The agent (`omega`, `update`, `clean`, `analyze`, `tune`, `fix`, `docker`, `dev`, `-p`) | The system prompt names the distribution it runs on (from `/etc/os-release`); `system_info` reads `/etc/os-release`, `uname`, `df` and `/proc/meminfo`, and reports when a restart is pending |
-| API keys | Environment variables first. `omega setup` and `omega auth set` save to the **Secret Service** (GNOME Keyring, KWallet…) when `secret-tool` is installed and a keyring answers; otherwise to `~/.config/omega/keys`, mode `0600`. omega says which one it used, `omega auth status` and `omega doctor` show the source, and the agent can never read either |
+| API keys | Environment variables first. `omega setup` and `omega auth set` save to the **Secret Service** (GNOME Keyring, KWallet…) when `secret-tool` is installed and a keyring answers; otherwise to `~/.config/omega/keys`, mode `0600`. omega says which one it used, and `omega auth status` and `omega doctor` show the source. The agent can never read either: commands that would print the key file, anything else in that folder except `config.toml`, `notes.md` and `mac.toml`, or a keyring entry are blocked however they are written, and the provider keys in the environment are not passed to the commands it runs |
 | System packages | Check, update and clean steps for **apt**, **dnf**, **pacman** and **zypper** (`zypper dup` on Tumbleweed), each shown only when its binary is installed. They use `sudo`, are classified dangerous and always ask |
 | Flatpak and snap | Outdated, update, unused runtimes and old snap revisions |
 | Homebrew on Linux | The `brew` steps work as on a Mac, except casks |
@@ -855,7 +858,7 @@ one only when its binary is installed:
 | `flatpak-outdated` `snap-outdated` | check | `flatpak remote-ls --updates`, `snap refresh --list` | read-only |
 | `journal-size` | check | `journalctl --disk-usage` | read-only |
 | `system-logs` | check | failed units, errors since boot, core dumps, journal and log sizes | read-only |
-| `apt` | update | `sudo apt-get update && sudo apt-get -y upgrade` | dangerous |
+| `apt` | update | `sudo apt-get update && sudo apt-get -y upgrade` (non-interactive, keeps edited configuration files) | dangerous |
 | `dnf` | update | `sudo dnf upgrade --refresh -y` | dangerous |
 | `pacman` | update | `sudo pacman -Syu --noconfirm` | dangerous |
 | `zypper` / `zypper-dup` | update | `sudo zypper update`, or `dist-upgrade` on Tumbleweed | dangerous |

@@ -46,6 +46,9 @@ var version string
 func Execute(v string) error {
 	version = v
 	runner.ExtendPath()
+	for _, name := range secrets.EnvVar {
+		runner.Withhold(name)
+	}
 	// The language must be known before the commands' help text is built.
 	if cfg, err := config.Load(); err == nil {
 		i18n.Init(cfg.Language)

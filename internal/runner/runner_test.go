@@ -3,6 +3,7 @@ package runner
 import (
 	"context"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -47,5 +48,21 @@ func TestRunEcho(t *testing.T) {
 	res := Run(context.Background(), "echo omega-ok", 15*time.Second, nil)
 	if res.ExitCode != 0 || !strings.Contains(res.Output, "omega-ok") {
 		t.Fatalf("echo failed: exit %d output %q", res.ExitCode, res.Output)
+	}
+}
+
+// The model providers' keys stay with omega: a command must not see them,
+// because its output is sent to the model.
+func TestWithheldVariablesDoNotReachCommands(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the command below is written for a POSIX shell")
+	}
+	t.Setenv("OMEGA_TEST_PROVIDER_KEY", "sk-must-not-leak-0001")
+	t.Setenv("OMEGA_TEST_OTHER", "visible")
+	Withhold("OMEGA_TEST_PROVIDER_KEY")
+	t.Cleanup(func() { delete(withheld, "OMEGA_TEST_PROVIDER_KEY") })
+	res := Run(context.Background(), `echo "key=[$OMEGA_TEST_PROVIDER_KEY] other=[$OMEGA_TEST_OTHER]"; env | grep -c OMEGA_TEST_PROVIDER_KEY`, 10*time.Second, nil)
+	if strings.Contains(res.Output, "sk-must-not-leak") || !strings.Contains(res.Output, "key=[]") || !strings.Contains(res.Output, "other=[visible]") {
+		t.Fatalf("output: %q", res.Output)
 	}
 }

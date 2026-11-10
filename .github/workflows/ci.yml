@@ -113,9 +113,9 @@ jobs:
           grep -q 'key: ok (an environment variable)' doctor-env.txt
           grep -q 'provider: reachable' doctor-env.txt
 
-          # Delete it: the file goes with its last key.
+          # Delete it: the key is gone from the file.
           ./omega auth remove openai
-          test ! -e "$keys"
+          if grep -q '^openai=.' "$keys" 2>/dev/null; then echo "the key is still in the file"; exit 1; fi
           ./omega auth status | grep -E 'openai +—'
       - name: cross-compile
         if: runner.os == 'Linux'

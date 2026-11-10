@@ -65,6 +65,12 @@ var (
 	}
 )
 
+// aptGet is apt-get for a run nobody watches: with stdin closed, a question
+// about a changed configuration file would stop dpkg half-way and leave
+// packages unconfigured. The options keep the file the machine has (or the
+// package's default when it was never edited) instead of asking.
+const aptGet = "sudo DEBIAN_FRONTEND=noninteractive apt-get -y -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold"
+
 // rollingSUSE reports openSUSE Tumbleweed and its relatives, which are
 // upgraded with `zypper dup`; the other SUSE systems use `zypper update`.
 func rollingSUSE() bool {
@@ -245,8 +251,8 @@ var catalog = []Step{
 		Detect: dirExists(".local/share/nvim/lazy")},
 	{ID: "omz", Name: "Oh My Zsh", Category: Update, Command: "sh ~/.oh-my-zsh/tools/upgrade.sh", Risk: safety.Dangerous, Detect: dirExists(".oh-my-zsh")},
 	{OS: linux, ID: "apt", Name: "apt packages", Category: Update, Risk: safety.Dangerous, Requires: "apt-get",
-		Command:     "sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get -y upgrade",
-		Description: "Needs sudo. Refreshes the package lists and upgrades what is installed; never removes a package"},
+		Command:     "sudo apt-get update && " + aptGet + " upgrade",
+		Description: "Needs sudo. Refreshes the package lists and upgrades what is installed; never removes a package and keeps your edited configuration files"},
 	{OS: linux, ID: "dnf", Name: "dnf packages", Category: Update, Command: "sudo dnf upgrade --refresh -y", Risk: safety.Dangerous, Requires: "dnf",
 		Description: "Needs sudo; a new kernel takes effect after a restart"},
 	{OS: linux, ID: "pacman", Name: "pacman packages", Category: Update, Command: "sudo pacman -Syu --noconfirm", Risk: safety.Dangerous, Requires: "pacman",
@@ -330,7 +336,7 @@ var catalog = []Step{
 		Description: "Needed before any Docker cleanup when the daemon is not running; needs sudo"},
 	{OS: linux, ID: "apt-clean", Name: "apt package cache", Category: Clean, Command: "sudo apt-get clean", Risk: safety.Dangerous, Requires: "apt-get",
 		Description: "Needs sudo. Downloaded .deb files; apt downloads them again when needed"},
-	{OS: linux, ID: "apt-autoremove", Name: "Orphaned apt packages", Category: Clean, Command: "sudo apt-get -y autoremove", Risk: safety.Dangerous, Requires: "apt-get",
+	{OS: linux, ID: "apt-autoremove", Name: "Orphaned apt packages", Category: Clean, Command: aptGet + " autoremove", Risk: safety.Dangerous, Requires: "apt-get",
 		Description: "Needs sudo. Packages installed as dependencies that nothing needs any more, old kernels included"},
 	{OS: linux, ID: "dnf-clean", Name: "dnf cache", Category: Clean, Command: "sudo dnf clean all", Risk: safety.Dangerous, Requires: "dnf",
 		Description: "Needs sudo. Downloaded packages and repository metadata"},

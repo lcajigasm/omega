@@ -126,6 +126,9 @@ func setupCmd() *cobra.Command {
 						return err
 					}
 					fmt.Println(i18n.T("setup.key_saved", secrets.Describe(where)))
+					if where == secrets.FromFile {
+						fmt.Println(i18n.T("secrets.no_keyring"))
+					}
 				}
 			} else if name == "custom" && cfg.BaseURLFor(name) == "" {
 				base := ask("base_url (OpenAI-compatible, e.g. http://localhost:8080/v1)", "")
@@ -185,6 +188,9 @@ func authCmd() *cobra.Command {
 					return err
 				}
 				fmt.Println(i18n.T("auth.saved", secrets.Describe(where)))
+				if where == secrets.FromFile {
+					fmt.Println(i18n.T("secrets.no_keyring"))
+				}
 				return nil
 			},
 		},

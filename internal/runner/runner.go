@@ -114,7 +114,31 @@ func Has(bin string) bool {
 var (
 	extraEnv   []string
 	pathPrefix string
+	withheld   = map[string]bool{}
 )
+
+// Withhold names environment variables that commands must not inherit:
+// the model providers' API keys. A command's output goes to the model, and
+// "echo $ANTHROPIC_API_KEY" would otherwise hand it the key.
+func Withhold(names ...string) {
+	for _, n := range names {
+		if n != "" {
+			withheld[n] = true
+		}
+	}
+}
+
+// childEnv is omega's environment without the withheld variables.
+func childEnv() []string {
+	var out []string
+	for _, kv := range os.Environ() {
+		name, _, _ := strings.Cut(kv, "=")
+		if !withheld[name] {
+			out = append(out, kv)
+		}
+	}
+	return out
+}
 
 // Configure adds environment variables to every command and a directory
 // that goes first on their PATH (after the login shell has built it).
@@ -138,7 +162,7 @@ func Run(ctx context.Context, command string, timeout time.Duration, onLine func
 	cmd.Stdin = nil
 	// Own session, and kill the whole group on timeout or cancel.
 	detach(cmd)
-	cmd.Env = append(os.Environ(),
+	cmd.Env = append(childEnv(),
 		"NONINTERACTIVE=1",
 		"HOMEBREW_NO_ENV_HINTS=1",
 		"HOMEBREW_NO_AUTO_UPDATE=1",
