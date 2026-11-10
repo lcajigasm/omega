@@ -395,6 +395,25 @@ pastas de compilação esquecidas e ferramentas em falta. Pergunta com cartões 
 		"Enter volta ao menu · ctrl+c sai ",
 	},
 
+	"err.unknown_command": {
+		"this omega (%[2]s) has no command or task %[1]q. `omega --help` lists what it has, and `omega menu` shows it on one screen. If the documentation mentions it, your omega is older than the documentation: update with `brew upgrade omega` (run `brew update` first).",
+		"este omega (%[2]s) no tiene ningún comando ni tarea %[1]q. `omega --help` lista los que tiene y `omega menu` los muestra en una pantalla. Si la documentación lo menciona, tu omega es anterior a la documentación: actualízalo con `brew upgrade omega` (antes, `brew update`).",
+		"cet omega (%[2]s) n'a ni commande ni tâche %[1]q. `omega --help` liste ce qu'il a et `omega menu` l'affiche sur un écran. Si la documentation en parle, votre omega est plus ancien qu'elle : mettez le à jour avec `brew upgrade omega` (après `brew update`).",
+		"dieses omega (%[2]s) hat weder Befehl noch Aufgabe %[1]q. `omega --help` listet, was es hat, und `omega menu` zeigt es auf einem Bildschirm. Wenn die Dokumentation es nennt, ist dein omega älter als sie: aktualisiere mit `brew upgrade omega` (vorher `brew update`).",
+		"este omega (%[2]s) não tem nenhum comando nem tarefa %[1]q. `omega --help` lista os que tem e `omega menu` mostra-os num ecrã. Se a documentação o menciona, o teu omega é anterior à documentação: atualiza com `brew upgrade omega` (antes, `brew update`).",
+	},
+	"doctor.version_ok": {
+		"version: %s (latest)", "versión: %s (la más reciente)", "version : %s (la plus récente)", "Version: %s (aktuell)", "versão: %s (a mais recente)",
+	},
+	"doctor.version_old": {
+		"version: %s, and %s is available: brew update && brew upgrade omega", "versión: %s, y está disponible la %s: brew update && brew upgrade omega",
+		"version : %s, et la %s est disponible : brew update && brew upgrade omega", "Version: %s, und %s ist verfügbar: brew update && brew upgrade omega",
+		"versão: %s, e está disponível a %s: brew update && brew upgrade omega",
+	},
+	"doctor.version_unknown": {
+		"version: %s", "versión: %s", "version : %s", "Version: %s", "versão: %s",
+	},
+
 	// ---- model catalogue ----
 	"models.col_model": {"model", "modelo", "modèle", "Modell", "modelo"},
 	"models.col_score": {"score", "nota", "score", "Wert", "nota"},

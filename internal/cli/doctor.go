@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -32,8 +33,78 @@ func doctorCmd() *cobra.Command {
 
 // runDoctor checks the config, the key's shape, whether the provider answers
 // and which catalogue steps are installed. It never sends a chat message.
+// latestRelease asks GitHub for the tag of the newest omega release. Tests
+// replace it; an error or an empty answer just leaves the comparison out.
+var latestRelease = func() string {
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.github.com/repos/lcajigasm/omega/releases/latest", nil)
+	if err != nil {
+		return ""
+	}
+	req.Header.Set("User-Agent", "omega")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return ""
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return ""
+	}
+	var out struct {
+		Tag string `json:"tag_name"`
+	}
+	if json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&out) != nil {
+		return ""
+	}
+	return out.Tag
+}
+
+// versionParts reads "v0.13.0" (or "0.13.0-4-gabc") as its three numbers.
+func versionParts(v string) ([3]int, bool) {
+	var out [3]int
+	v = strings.TrimPrefix(strings.TrimSpace(v), "v")
+	if i := strings.IndexAny(v, "-+ "); i >= 0 {
+		v = v[:i]
+	}
+	parts := strings.Split(v, ".")
+	if len(parts) != 3 {
+		return out, false
+	}
+	for i, p := range parts {
+		n, err := strconv.Atoi(p)
+		if err != nil {
+			return out, false
+		}
+		out[i] = n
+	}
+	return out, true
+}
+
+// doctorVersion says which omega this is and whether a newer release exists.
+// An old omega is not a failure, but it is the usual reason a documented
+// command "does not exist".
+func doctorVersion(w io.Writer) {
+	mine, ok := versionParts(version)
+	if !ok {
+		fmt.Fprintln(w, i18n.T("doctor.version_unknown", version))
+		return
+	}
+	latest := latestRelease()
+	theirs, ok := versionParts(latest)
+	switch {
+	case !ok:
+		fmt.Fprintln(w, i18n.T("doctor.version_unknown", version))
+	case theirs[0] > mine[0] || (theirs[0] == mine[0] && (theirs[1] > mine[1] || (theirs[1] == mine[1] && theirs[2] > mine[2]))):
+		fmt.Fprintln(w, i18n.T("doctor.version_old", version, latest))
+	default:
+		fmt.Fprintln(w, i18n.T("doctor.version_ok", version))
+	}
+}
+
 func runDoctor(w io.Writer) error {
 	problems := 0
+	doctorVersion(w)
 	cfg, err := config.Load()
 	if err != nil {
 		fmt.Fprintln(w, i18n.T("doctor.config_bad", err.Error()))

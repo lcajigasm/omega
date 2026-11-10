@@ -34,6 +34,9 @@
       <h2>The model catalogue</h2>
       <p>To choose the models of automatic mode, omega downloads OpenRouter's public model list from <code>openrouter.ai</code> once a day, also when your provider is another one. It is a plain request with no key and nothing about you or your Mac in it; OpenRouter may log your IP address as part of serving it. <code>omega config set model_catalog off</code> stops it, and local providers never make it.</p>
 
+      <h2>The version check</h2>
+      <p><code>omega doctor</code> asks GitHub (<code>api.github.com</code>) for the tag of the latest omega release, to tell you when yours is older. The request carries nothing about you; GitHub may log your IP address. No other command makes it.</p>
+
       <h2>This website</h2>
       <p>This page is hosted on GitHub Pages and loads fonts from Google Fonts and icons from unpkg. Those services may log your IP address as part of serving the files.</p>
 

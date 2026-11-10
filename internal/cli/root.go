@@ -54,13 +54,17 @@ func Execute(v string) error {
 		i18n.Init("")
 	}
 	var f runFlags
+	return newRoot(&f).Execute()
+}
 
+// newRoot builds the command tree. The documentation test walks it too.
+func newRoot(f *runFlags) *cobra.Command {
 	root := &cobra.Command{
 		Use:           "omega [task]",
 		Short:         i18n.T("cli.short"),
 		Long:          i18n.T("cli.long"),
 		Version:       version,
-		Args:          cobra.MaximumNArgs(1),
+		Args:          knownTask,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		ValidArgs:     []string{agent.TaskFull, agent.TaskUpdate, agent.TaskClean, agent.TaskAnalyze, agent.TaskFix, agent.TaskTune, agent.TaskDev},
@@ -69,13 +73,26 @@ func Execute(v string) error {
 			if len(args) == 1 {
 				task = args[0]
 			}
-			return runTask(task, f)
+			return runTask(task, *f)
 		},
 	}
-	bindRunFlags(root.Flags(), &f)
+	bindRunFlags(root.Flags(), f)
 
 	root.AddCommand(setupCmd(), authCmd(), modelCmd(), modelsCmd(), dockerCmd(), macCmd(), devCmd(), menuCmd(), configCmd(), stepsCmd(), notesCmd(), logsCmd(), doctorCmd())
-	return root.Execute()
+	return root
+}
+
+// knownTask rejects what is neither a command nor a task with a message that
+// says what to do next. The usual cause is documentation newer than the
+// installed omega, so the message names this version and how to update.
+func knownTask(cmd *cobra.Command, args []string) error {
+	if len(args) == 0 {
+		return nil
+	}
+	if _, ok := agent.TaskPrompts[args[0]]; ok && len(args) == 1 {
+		return nil
+	}
+	return fmt.Errorf("%s", i18n.T("err.unknown_command", strings.Join(args, " "), version))
 }
 
 // bindRunFlags registers the flags of an agent run.
@@ -129,7 +146,7 @@ func runTask(task string, f runFlags) error {
 		var ok bool
 		prompt, ok = agent.TaskPrompts[task]
 		if !ok {
-			return fmt.Errorf("%s", i18n.T("err.unknown_task", task))
+			return fmt.Errorf("%s", i18n.T("err.unknown_command", task, version))
 		}
 	} else {
 		task = i18n.T("task.custom")

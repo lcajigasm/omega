@@ -144,6 +144,17 @@ This works on macOS and on Linux with [Homebrew on Linux](https://docs.brew.sh/H
 > homebrew-core already has a formula called `omega` (a Xapian search engine),
 > so always use the full name.
 
+### Updating
+
+```bash
+brew update && brew upgrade omega
+omega --version
+```
+
+This README describes the latest release. An older omega does not have the
+newer commands (`omega dev` and `omega menu` arrived in 0.14.0) and says so,
+with the version it is. `omega doctor` tells you when a newer release exists.
+
 ### Binaries
 
 Every tagged release publishes archives for **Linux, macOS and Windows** (amd64 and arm64), plus `SHA256SUMS`:
@@ -992,7 +1003,7 @@ omega [task] [flags]
 
 `omega logs view` prints the newest transcript, `omega logs view 2` prints the second row of `omega logs`, and `omega logs view <file>` prints that file. A new run deletes older transcripts until 30 remain.
 
-`omega doctor` loads the config, checks that a cloud key is present and shaped like a key (no spaces, not a URL, long enough), and asks the provider whether it is reachable. A cloud provider is asked for its model list. A local one is probed at `<base_url>/models`. Neither call sends a chat message. When `model`, `fast_model` or `smart_model` is set to a name other than `auto`, and the provider returned at least one model id, doctor fails if that name is not in the list. The command then lists catalogue steps that are installed on this machine. It exits with status 1 when the config, the key, the provider or a configured model check fails. A missing optional tool does not.
+`omega doctor` prints the version and, after asking GitHub for the latest release, whether a newer one exists (an old version is reported, not counted as a failure). It then loads the config, checks that a cloud key is present and shaped like a key (no spaces, not a URL, long enough), and asks the provider whether it is reachable. A cloud provider is asked for its model list. A local one is probed at `<base_url>/models`. Neither call sends a chat message. When `model`, `fast_model` or `smart_model` is set to a name other than `auto`, and the provider returned at least one model id, doctor fails if that name is not in the list. The command then lists catalogue steps that are installed on this machine. It exits with status 1 when the config, the key, the provider or a configured model check fails. A missing optional tool does not.
 
 A 429, a 5xx or a dropped connection on Anthropic or an OpenAI-compatible provider is retried three times. The wait is the `Retry-After` value when the server sends one (a number of seconds or an HTTP date), and never more than 30 seconds. Otherwise the wait is 2s, then 4s, then 8s. Any other 4xx is reported immediately.
 
