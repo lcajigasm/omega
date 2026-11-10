@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"os"
 	"strings"
 	"time"
 
@@ -37,27 +39,33 @@ func keyLooksWrong(k string) bool {
 // checkKey validates a key's shape and asks the provider whether it accepts
 // it. Network problems only warn, so an offline setup can still save a key.
 func checkKey(cfg *config.Config, provider, key string) error {
+	return checkKeyTo(os.Stdout, cfg, provider, key)
+}
+
+// checkKeyTo is checkKey with its progress and warnings written to w, one
+// per line: the desktop app shows them in its window.
+func checkKeyTo(w io.Writer, cfg *config.Config, provider, key string) error {
 	info, _ := llm.Lookup(provider)
 	if keyLooksWrong(key) {
 		return fmt.Errorf("%s", i18n.T("setup.key_url", info.KeyURL))
 	}
 	if pre := keyPrefix[provider]; pre != "" && !strings.HasPrefix(key, pre) {
-		fmt.Println(i18n.T("setup.key_prefix", info.Label, pre))
+		fmt.Fprintln(w, i18n.T("setup.key_prefix", info.Label, pre))
 	}
 	p, err := llm.New(provider, llm.Options{APIKey: key, BaseURL: cfg.BaseURLFor(provider)})
 	if err != nil {
 		return err
 	}
-	fmt.Println(i18n.T("setup.key_checking", info.Label))
+	fmt.Fprintln(w, i18n.T("setup.key_checking", info.Label))
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	switch err := llm.Verify(ctx, p); {
 	case err == nil:
-		fmt.Println(i18n.T("setup.key_ok"))
+		fmt.Fprintln(w, i18n.T("setup.key_ok"))
 	case errors.Is(err, llm.ErrUnauthorized):
 		return fmt.Errorf("%s", i18n.T("setup.key_rejected", info.Label, err))
 	default:
-		fmt.Println(i18n.T("setup.key_unverified", err))
+		fmt.Fprintln(w, i18n.T("setup.key_unverified", err))
 	}
 	return nil
 }

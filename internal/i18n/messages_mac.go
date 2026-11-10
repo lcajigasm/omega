@@ -154,6 +154,20 @@ pergunta-te com cartões e aplica só o que escolheres. Os subcomandos fazem o m
 		"Falls %s noch aufgeführt ist, schalte es in Systemeinstellungen → Allgemein → Anmeldeobjekte oder in den Einstellungen der App aus.",
 		"Se %s continuar na lista, desativa-o em Definições do Sistema → Geral → Elementos de início, ou nas definições da própria app.",
 	},
+	"mac.login_self": {
+		"%s adds itself to the login items, so macOS only lets you switch it off: the Login Items pane is open, turn it off there or in the app's own settings.",
+		"%s se añade solo a los ítems de inicio, así que macOS solo te deja desactivarlo a ti: el panel de Ítems de inicio está abierto; desactívalo ahí o en los ajustes de la propia app.",
+		"%s s'ajoute lui-même aux éléments d'ouverture, macOS ne laisse donc que vous le désactiver : le panneau Ouverture est ouvert ; désactivez-le là ou dans les réglages de l'app.",
+		"%s trägt sich selbst als Anmeldeobjekt ein, daher kannst nur du es abschalten: Der Bereich Anmeldeobjekte ist geöffnet; schalte es dort oder in den Einstellungen der App aus.",
+		"%s adiciona-se sozinho aos elementos de início, por isso só tu o podes desativar: o painel Elementos de início está aberto; desativa-o aí ou nas definições da própria app.",
+	},
+	"mac.manual.perm_system": {
+		"macOS only lets you remove %s from %s yourself: the pane is open, select the entry and press –.",
+		"macOS solo te deja a ti quitar %s de %s: el panel está abierto; selecciona la entrada y pulsa –.",
+		"macOS ne laisse que vous retirer %s de %s : le panneau est ouvert ; sélectionnez l'entrée et appuyez sur –.",
+		"Nur du kannst %s aus %s entfernen: Der Bereich ist geöffnet; wähle den Eintrag aus und drücke –.",
+		"O macOS só te deixa a ti remover %s de %s: o painel está aberto; seleciona a entrada e carrega em –.",
+	},
 	"mac.manual.background": {
 		"To hide %s from the list too, turn it off under Allow in the Background in System Settings → General → Login Items.",
 		"Para que %s tampoco aparezca, desactívalo en «Permitir en segundo plano», en Ajustes del Sistema → General → Ítems de inicio.",

@@ -174,3 +174,46 @@ end
 		t.Fatalf("tap patch rewrote a windows archive:\n%s", out)
 	}
 }
+
+func TestCask(t *testing.T) {
+	src, err := os.ReadFile("../../Casks/omega-app.rb")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sum := strings.Repeat("ab", 32)
+	out, err := Cask(string(src), "9.9.9", map[string]string{DiskImage: sum})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, `  version "9.9.9"`) || !strings.Contains(out, `  sha256 "`+sum+`"`) {
+		t.Fatalf("version or sha256 not rewritten:\n%s", out)
+	}
+	if strings.Contains(out, strings.Repeat("0", 64)) {
+		t.Fatal("the placeholder sha256 is still there")
+	}
+	// Everything else is untouched, and a second pass changes nothing.
+	if strings.Count(out, "\n") != strings.Count(string(src), "\n") {
+		t.Fatal("lines were added or removed")
+	}
+	if again, err := Cask(out, "9.9.9", map[string]string{DiskImage: sum}); err != nil || again != out {
+		t.Fatalf("not stable: %v", err)
+	}
+	// A Windows checkout has CRLF line ends: they are kept, not a failure.
+	lf := strings.ReplaceAll(string(src), "\r\n", "\n")
+	crlf, err := Cask(strings.ReplaceAll(lf, "\n", "\r\n"), "9.9.9", map[string]string{DiskImage: sum})
+	if err != nil {
+		t.Fatalf("CRLF: %v", err)
+	}
+	if !strings.Contains(crlf, "  version \"9.9.9\"\r\n") || strings.Count(crlf, "\r\n") != strings.Count(lf, "\n") {
+		t.Fatal("CRLF line ends were not kept")
+	}
+	if _, err := Cask(string(src), "9.9.9", map[string]string{}); err == nil {
+		t.Fatal("a release with no disk image was accepted")
+	}
+	if _, err := Cask(string(src), "v9.9.9", map[string]string{DiskImage: sum}); err == nil {
+		t.Fatal("v prefix was accepted")
+	}
+	if _, err := Cask("cask \"x\" do\nend\n", "9.9.9", map[string]string{DiskImage: sum}); err == nil {
+		t.Fatal("a cask for another file was accepted")
+	}
+}

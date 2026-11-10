@@ -43,8 +43,10 @@ type runFlags struct {
 // version is set by Execute for the TUI header.
 var version string
 
-// Execute runs the root command.
-func Execute(v string) error {
+// Init prepares the process for running sessions: the version shown to the
+// user, the PATH, the withheld API key variables and the language. Execute
+// calls it; the desktop app calls it on its own.
+func Init(v string) {
 	version = v
 	runner.ExtendPath()
 	withholdProviderKeys()
@@ -54,6 +56,11 @@ func Execute(v string) error {
 	} else {
 		i18n.Init("")
 	}
+}
+
+// Execute runs the root command.
+func Execute(v string) error {
+	Init(v)
 	var f runFlags
 	root := newRoot(&f)
 	// A unique start of a command is enough: omega doc, omega mac perm.
@@ -72,7 +79,7 @@ func newRoot(f *runFlags) *cobra.Command {
 		Args:          cobra.ArbitraryArgs,
 		SilenceUsage:  true,
 		SilenceErrors: true,
-		ValidArgs:     []string{agent.TaskFull, agent.TaskUpdate, agent.TaskClean, agent.TaskAnalyze, agent.TaskFix, agent.TaskTune, agent.TaskDev},
+		ValidArgs:     []string{agent.TaskFull, agent.TaskUpdate, agent.TaskClean, agent.TaskAnalyze, agent.TaskHealth, agent.TaskFix, agent.TaskTune, agent.TaskDev},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			task, prompt, err := interpret(cmd.Root(), args)
 			if err != nil {
@@ -104,6 +111,8 @@ var taskWords = map[string]string{
 	"analizar": agent.TaskAnalyze, "analiza": agent.TaskAnalyze, "informe": agent.TaskAnalyze,
 	"analyser": agent.TaskAnalyze, "analysieren": agent.TaskAnalyze, "analisar": agent.TaskAnalyze,
 	"repair": agent.TaskFix, "reparar": agent.TaskFix, "arreglar": agent.TaskFix, "reparieren": agent.TaskFix,
+	"security": agent.TaskHealth, "checkup": agent.TaskHealth, "salud": agent.TaskHealth, "seguridad": agent.TaskHealth,
+	"santé": agent.TaskHealth, "gesundheit": agent.TaskHealth, "saúde": agent.TaskHealth,
 	"optimize": agent.TaskTune, "optimise": agent.TaskTune, "optimizar": agent.TaskTune, "ajustar": agent.TaskTune, "optimiser": agent.TaskTune, "otimizar": agent.TaskTune,
 }
 
@@ -121,7 +130,7 @@ var shortcuts = map[string][]string{
 	"version": {"--version"}, "ayuda": {"--help"},
 	"start": {"menu"}, "ui": {"menu"}, "inicio": {"menu"}, "menú": {"menu"},
 	// A bare "status" or "check" gets the check that costs nothing.
-	"diagnose": {"doctor"}, "health": {"doctor"}, "status": {"doctor"}, "check": {"doctor"}, "estado": {"doctor"}, "ranking": {"models"}, "modelos": {"models"},
+	"diagnose": {"doctor"}, "status": {"doctor"}, "check": {"doctor"}, "estado": {"doctor"}, "ranking": {"models"}, "modelos": {"models"},
 	"memory": {"notes"}, "notas": {"notes"}, "pasos": {"steps"}, "wizard": {"setup"}, "configure": {"setup"}, "init": {"setup"},
 }
 
@@ -173,7 +182,7 @@ func taskFor(word string) (string, bool) {
 }
 
 // rootTasks are the tasks `omega <task>` starts.
-var rootTasks = []string{agent.TaskFull, agent.TaskUpdate, agent.TaskClean, agent.TaskAnalyze, agent.TaskFix, agent.TaskTune}
+var rootTasks = []string{agent.TaskFull, agent.TaskUpdate, agent.TaskClean, agent.TaskAnalyze, agent.TaskHealth, agent.TaskFix, agent.TaskTune}
 
 // editDistance is the Levenshtein distance between two words.
 func editDistance(a, b string) int {
@@ -286,17 +295,31 @@ func resolveProvider(cfg *config.Config, name, model, effort, task string) (llm.
 	return p, plan, perr
 }
 
-func runTask(task string, f runFlags) error {
+// run is a task made ready to start: the provider, the model plan and the
+// opening prompt. The terminal and the desktop app both start from one.
+type run struct {
+	cfg      *config.Config
+	p        llm.Provider
+	plan     modelPlan
+	task     string
+	prompt   string
+	readOnly bool
+	timeout  time.Duration
+	f        runFlags
+}
+
+// prepareRun resolves everything a session needs before the agent exists.
+func prepareRun(task string, f runFlags) (*run, error) {
 	cfg, err := config.Load()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	prompt := f.prompt
 	if prompt == "" {
 		var ok bool
 		prompt, ok = agent.TaskPrompts[task]
 		if !ok {
-			return fmt.Errorf("%s", i18n.T("err.unknown_command", task, version))
+			return nil, fmt.Errorf("%s", i18n.T("err.unknown_command", task, version))
 		}
 	} else {
 		task = i18n.T("task.custom")
@@ -316,39 +339,30 @@ func runTask(task string, f runFlags) error {
 		p, plan = demo.Provider(), modelPlan{Model: "claude-haiku-5-5", Escalate: "claude-sonnet-5-5",
 			Choices: []string{"claude-haiku-5-5", "claude-sonnet-5-5"}}
 	} else if p, plan, err = resolveProvider(cfg, f.provider, f.model, f.effort, planTask); err != nil {
-		return err
+		return nil, err
 	}
 	if err := cfg.Validate(); err != nil {
-		return err
+		return nil, err
 	}
 	timeout, parseErr := time.ParseDuration(cfg.Timeout)
 	if parseErr != nil || timeout <= 0 {
 		timeout = 45 * time.Minute
 	}
+	return &run{cfg: cfg, p: p, plan: plan, task: task, prompt: prompt, readOnly: readOnly, timeout: timeout, f: f}, nil
+}
 
-	stdinTTY := term.IsTerminal(int(os.Stdin.Fd()))
-	stdoutTTY := term.IsTerminal(int(os.Stdout.Fd()))
-
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer cancel()
-
-	sudoPassword := ""
-	if f.sudo && goos == "windows" {
-		fmt.Fprintln(os.Stderr, i18n.T("sudo.not_windows"))
-	} else if f.sudo && !readOnly && stdinTTY {
-		if sudoPassword, err = askSudo(); err != nil {
-			return err
-		}
-	}
-
+// agent builds the agent for a prepared run. interactive says whether
+// someone can answer follow-ups; demoInteractive is the same for --demo.
+func (r *run) agent(interactive, demoInteractive bool, sudoPassword string) *agent.Agent {
+	cfg, p := r.cfg, r.p
 	opts := agent.Options{
-		Model:        plan.Model,
-		Escalate:     plan.Escalate,
+		Model:        r.plan.Model,
+		Escalate:     r.plan.Escalate,
 		Approval:     cfg.Approval,
-		AutoYes:      f.yes,
-		ReadOnly:     readOnly,
-		Interactive:  stdinTTY && !f.once,
-		Timeout:      timeout,
+		AutoYes:      r.f.yes,
+		ReadOnly:     r.readOnly,
+		Interactive:  interactive,
+		Timeout:      r.timeout,
 		Config:       cfg,
 		SudoPassword: sudoPassword,
 		Models: func() string {
@@ -368,25 +382,49 @@ func runTask(task string, f runFlags) error {
 			return b.String()
 		},
 	}
-	if f.demo {
+	if r.f.demo {
 		opts.Provider = "anthropic"
 		opts.Exec = demo.Exec
 		opts.SkipDetect = true
-		opts.Interactive = stdinTTY
+		opts.Interactive = demoInteractive
 	}
-	ag := agent.New(p, opts)
-	go ag.Run(ctx, prompt)
+	return agent.New(p, opts)
+}
+
+func runTask(task string, f runFlags) error {
+	r, err := prepareRun(task, f)
+	if err != nil {
+		return err
+	}
+
+	stdinTTY := term.IsTerminal(int(os.Stdin.Fd()))
+	stdoutTTY := term.IsTerminal(int(os.Stdout.Fd()))
+
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+
+	sudoPassword := ""
+	if f.sudo && goos == "windows" {
+		fmt.Fprintln(os.Stderr, i18n.T("sudo.not_windows"))
+	} else if f.sudo && !r.readOnly && stdinTTY {
+		if sudoPassword, err = askSudo(); err != nil {
+			return err
+		}
+	}
+
+	ag := r.agent(stdinTTY && !f.once, stdinTTY, sudoPassword)
+	go ag.Run(ctx, r.prompt)
 
 	if f.noTUI || !stdinTTY || !stdoutTTY {
 		ui.RunPlain(ag, os.Stdin, stdinTTY)
 	} else {
-		err = ui.RunTUI(ctx, cancel, ag, ui.Header{Version: version, Provider: p.Name(), Model: plan.Model,
-			Escalate: plan.Escalate, Models: plan.Choices, Task: task})
+		err = ui.RunTUI(ctx, cancel, ag, ui.Header{Version: version, Provider: r.p.Name(), Model: r.plan.Model,
+			Escalate: r.plan.Escalate, Models: r.plan.Choices, Task: r.task})
 		cancel()
 		// Drain so the agent goroutine can finish writing its log.
 		for range ag.Events() {
 		}
-		if path := ag.LogPath(); path != "" {
+		if path := ag.LogPath(); path != "" && !ui.Hosted() {
 			fmt.Println(i18n.T("run.log", path))
 		}
 	}
@@ -405,9 +443,16 @@ type exitCode int
 func (e exitCode) Error() string { return "" }
 func (e exitCode) ExitCode() int { return int(e) }
 
+// sudoAsked is the password a guided run asked for once, before its
+// interface took the terminal; every stage then uses it.
+var sudoAsked string
+
 // askSudo asks for the sudo password before the interface starts and checks
 // it, so sudo prompts during the run are answered without interrupting.
 func askSudo() (string, error) {
+	if sudoAsked != "" {
+		return sudoAsked, nil
+	}
 	fmt.Println(i18n.T("sudo.intro"))
 	for i := 0; i < 3; i++ {
 		pw, err := askSecret(i18n.T("sudo.prompt"))

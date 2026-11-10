@@ -1,0 +1,79 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>omega</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<main id="home" hidden>
+  <div class="hero">
+    <div class="logo">Ω</div>
+    <h1>omega</h1>
+    <p id="tagline"></p>
+    <p id="demo" class="pill" hidden></p>
+  </div>
+  <div id="tasks" class="tasks"></div>
+  <form id="ask" class="ask">
+    <input id="ask-text" type="text" autocomplete="off" spellcheck="false">
+    <button type="submit" id="ask-send"></button>
+  </form>
+  <label class="check"><input id="dry" type="checkbox"> <span id="dry-label"></span></label>
+  <div id="home-error" class="error" hidden></div>
+  <div class="provider">
+    <span id="provider" class="muted"></span>
+    <button id="setup-open" type="button" class="quiet"></button>
+  </div>
+  <footer id="version"></footer>
+</main>
+
+<main id="setup" hidden>
+  <div class="setup">
+    <h2 id="setup-title"></h2>
+    <p id="setup-intro" class="muted"></p>
+    <form id="setup-form">
+      <div id="providers" class="providers"></div>
+      <div id="key-row" class="field" hidden>
+        <label id="key-label" for="key"></label>
+        <input id="key" type="password" autocomplete="off" spellcheck="false">
+        <a id="key-link" href="#"></a>
+      </div>
+      <div id="url-row" class="field" hidden>
+        <label id="url-label" for="url"></label>
+        <input id="url" type="text" autocomplete="off" spellcheck="false" placeholder="http://localhost:8080/v1">
+      </div>
+      <div id="setup-result" class="result" hidden></div>
+      <div class="buttons">
+        <button id="setup-save" type="submit" class="primary"></button>
+        <button id="setup-back" type="button"></button>
+      </div>
+    </form>
+  </div>
+</main>
+
+<main id="session" hidden>
+  <header class="bar">
+    <span class="logo small">Ω</span>
+    <span id="s-task" class="strong"></span>
+    <span id="s-model" class="muted"></span>
+    <span class="grow"></span>
+    <select id="mode" aria-label="mode"></select>
+    <button id="stop" class="quiet"></button>
+    <button id="new" class="primary" hidden></button>
+  </header>
+  <div id="log" class="log"></div>
+  <div id="status" class="status">
+    <span id="spinner" class="spinner" hidden></span>
+    <span id="state"></span>
+    <span class="grow"></span>
+    <span id="stats" class="muted"></span>
+  </div>
+  <form id="reply" class="ask reply">
+    <input id="reply-text" type="text" autocomplete="off" spellcheck="false" disabled>
+    <button type="submit" id="reply-send" disabled></button>
+  </form>
+</main>
+<script type="module" src="app.js"></script>
+</body>
+</html>
