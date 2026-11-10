@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"runtime"
 	"slices"
 	"strings"
 
@@ -43,6 +44,16 @@ var slashCommands = []slashCommand{
 	{"/quit", "", "slash.exit"},
 }
 
+// goos is the operating system omega runs on. Tests replace it.
+var goos = runtime.GOOS
+
+// macOnlyCommands start the parts of omega that drive macOS itself.
+var macOnlyCommands = map[string]bool{"/mac": true, "/permissions": true, "/apps": true, "/undo": true}
+
+// offered reports whether a command is shown on this operating system. The
+// Mac-only ones are hidden elsewhere, and typing one says why.
+func offered(c slashCommand) bool { return goos == "darwin" || !macOnlyCommands[c.name] }
+
 // modeArgs are the arguments of /mode, in cycling order.
 var modeArgs = []string{"ask", "auto", "readonly"}
 
@@ -66,7 +77,7 @@ func (m *model) suggestions() []suggestion {
 	var out []suggestion
 	if !hasArg {
 		for _, c := range slashCommands {
-			if strings.HasPrefix(c.name, strings.ToLower(name)) {
+			if offered(c) && strings.HasPrefix(c.name, strings.ToLower(name)) {
 				out = append(out, suggestion{value: c.name, label: strings.TrimSpace(c.name + " " + c.args), desc: i18n.T(c.desc)})
 			}
 		}
@@ -189,6 +200,10 @@ func (m *model) submitCommand(text string) tea.Cmd {
 		m.togglePanel()
 		return nil
 	default:
+		if c, ok := findCommand(name); ok && !offered(c) {
+			m.note(errStyle.Render("! ")+mutedStyle.Render(i18n.T("mac.only_slash", c.name)), lipgloss.NewStyle())
+			break
+		}
 		if c, ok := findCommand(name); ok && strings.HasPrefix(c.desc, "slash.task_") {
 			return m.startTask(strings.TrimPrefix(c.name, "/"))
 		}
@@ -350,7 +365,7 @@ func (m *model) helpView() string {
 	// not fit a 24-line terminal.
 	var tasks []string
 	for _, c := range slashCommands {
-		if c.name == "/quit" {
+		if c.name == "/quit" || !offered(c) {
 			continue
 		}
 		if strings.HasPrefix(c.desc, "slash.task_") {

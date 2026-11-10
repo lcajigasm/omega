@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -51,7 +52,49 @@ func macCmd() *cobra.Command {
 		section("apps", "cmd.mac_apps", macApps, "apps"),
 		macPolicyCmd(), macUndoCmd(), macOpCmd(),
 	)
+	macOnly(c)
 	return c
+}
+
+// goos is the operating system omega runs on. Tests replace it.
+var goos = runtime.GOOS
+
+// macOnly makes a command and its subcommands say that they need macOS
+// when run anywhere else, before they touch anything.
+func macOnly(c *cobra.Command) {
+	if run := c.RunE; run != nil {
+		c.RunE = func(cmd *cobra.Command, args []string) error {
+			if goos != "darwin" {
+				return fmt.Errorf("%s", i18n.T("mac.only", macPath(cmd), osLabel()))
+			}
+			return run(cmd, args)
+		}
+	}
+	for _, sub := range c.Commands() {
+		macOnly(sub)
+	}
+}
+
+// macPath is the command as the user typed it: "omega mac undo".
+func macPath(cmd *cobra.Command) string {
+	path := cmd.CommandPath()
+	if !strings.HasPrefix(path, "omega") {
+		path = "omega " + path
+	}
+	return path
+}
+
+// osLabel names the operating system for messages.
+func osLabel() string {
+	switch goos {
+	case "darwin":
+		return "macOS"
+	case "linux":
+		return "Linux"
+	case "windows":
+		return "Windows"
+	}
+	return goos
 }
 
 func loadInventory(sections ...string) (*macos.Inventory, error) {

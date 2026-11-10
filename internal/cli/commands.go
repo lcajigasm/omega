@@ -39,8 +39,18 @@ func ask(prompt, def string) string {
 	return s
 }
 
+// askSecret reads a secret without showing it. When stdin is not a terminal
+// (a pipe or a file, as in a provisioning script) it reads one line from it.
 func askSecret(prompt string) (string, error) {
 	fmt.Print(prompt + ": ")
+	if !term.IsTerminal(int(os.Stdin.Fd())) {
+		line, err := stdin.ReadString('\n')
+		fmt.Println()
+		if line = strings.TrimSpace(line); line != "" {
+			return line, nil
+		}
+		return "", err
+	}
 	b, err := term.ReadPassword(int(os.Stdin.Fd()))
 	fmt.Println()
 	return strings.TrimSpace(string(b)), err
@@ -84,7 +94,7 @@ func setupCmd() *cobra.Command {
 					}
 				default:
 					if _, src, err := secrets.Get(p.Name); err == nil {
-						status = i18n.T("setup.key_in", src)
+						status = i18n.T("setup.key_in", secrets.Describe(src))
 					}
 				}
 				opts = append(opts, ui.Option{ID: p.Name, Label: p.Label, Detail: p.KeyURL, Badge: status})
@@ -101,7 +111,7 @@ func setupCmd() *cobra.Command {
 
 			if !info.Local {
 				key, src, keyErr := secrets.Get(name)
-				if keyErr != nil || i18n.IsYes(ask(i18n.T("setup.replace_key", secrets.Mask(key), src), "n")) {
+				if keyErr != nil || i18n.IsYes(ask(i18n.T("setup.replace_key", secrets.Mask(key), secrets.Describe(src)), "n")) {
 					fmt.Println(i18n.T("setup.get_key", info.KeyURL))
 					key, err = askSecret(i18n.T("setup.enter_key"))
 					key = cleanKey(key)
@@ -111,10 +121,14 @@ func setupCmd() *cobra.Command {
 					if err := checkKey(cfg, name, key); err != nil {
 						return err
 					}
-					if err := secrets.Set(name, key); err != nil {
+					where, err := secrets.Set(name, key)
+					if err != nil {
 						return err
 					}
-					fmt.Println(i18n.T("setup.key_saved"))
+					fmt.Println(i18n.T("setup.key_saved", secrets.Describe(where)))
+					if where == secrets.FromFile {
+						fmt.Println(i18n.T("secrets.no_keyring"))
+					}
 				}
 			} else if name == "custom" && cfg.BaseURLFor(name) == "" {
 				base := ask("base_url (OpenAI-compatible, e.g. http://localhost:8080/v1)", "")
@@ -169,10 +183,14 @@ func authCmd() *cobra.Command {
 				if err := checkKey(cfg, args[0], key); err != nil {
 					return err
 				}
-				if err := secrets.Set(args[0], key); err != nil {
+				where, err := secrets.Set(args[0], key)
+				if err != nil {
 					return err
 				}
-				fmt.Println(i18n.T("auth.saved"))
+				fmt.Println(i18n.T("auth.saved", secrets.Describe(where)))
+				if where == secrets.FromFile {
+					fmt.Println(i18n.T("secrets.no_keyring"))
+				}
 				return nil
 			},
 		},
@@ -198,7 +216,7 @@ func authCmd() *cobra.Command {
 					if keyLooksWrong(key) {
 						warn = "  ⚠ " + i18n.T("auth.looks_wrong", p.Name)
 					}
-					fmt.Printf("  %-12s %s (%s)%s\n", p.Name, secrets.Mask(key), src, warn)
+					fmt.Printf("  %-12s %s (%s)%s\n", p.Name, secrets.Mask(key), secrets.Describe(src), warn)
 				}
 			},
 		},
@@ -374,7 +392,7 @@ func stepsCmd() *cobra.Command {
 				return err
 			}
 			cat := ""
-			for _, s := range steps.All {
+			for _, s := range steps.Grouped(steps.All) {
 				if s.Category != cat {
 					cat = s.Category
 					fmt.Printf("\n%s\n", i18n.T("cat."+cat))
@@ -408,6 +426,8 @@ func stepsCmd() *cobra.Command {
 				return err
 			}
 			failed := 0
+			var su sudoSession
+			defer su.close()
 			for _, id := range args {
 				s, ok := steps.Find(id)
 				if !ok {
@@ -422,6 +442,9 @@ func stepsCmd() *cobra.Command {
 					continue
 				}
 				fmt.Printf("\n$ %s\n", s.Command)
+				if err := su.need(s.Command); err != nil {
+					return err
+				}
 				res := runner.Run(context.Background(), s.Command, timeout, func(l string) { fmt.Println("  " + l) })
 				if res.ExitCode != 0 {
 					failed++

@@ -457,6 +457,10 @@ func (a *Agent) execute(ctx context.Context, call llm.ToolCall) llm.ToolResult {
 		res.Content, res.IsError = "unknown tool: "+call.Name, true
 		return res
 	}
+	if goos != "darwin" && macOnlyTool(call.Name) {
+		res.Content, res.IsError = call.Name+" only exists on macOS; this machine runs "+osName()+". Tell the user that part of omega is Mac-only.", true
+		return res
+	}
 	var in map[string]any
 	if err := json.Unmarshal(call.Input, &in); err != nil {
 		res.Content, res.IsError = "invalid JSON arguments: "+err.Error(), true

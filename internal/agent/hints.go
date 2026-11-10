@@ -15,6 +15,7 @@ import (
 type hint struct {
 	Tool   string
 	Bin    string   // binary that must be installed for the hint to apply
+	OS     string   // "darwin" for a hint that only applies there
 	Config []string // where the configuration lives
 	Check  []string // read-only commands that show the current settings
 	Ideas  string   // what is usually worth tuning
@@ -92,12 +93,42 @@ var hints = []hint{
 		Check:  []string{"go env GOPATH GOMODCACHE GOCACHE GOFLAGS"},
 		Ideas:  "module and build cache size, GOFLAGS=-modcacherw so the module cache can be deleted",
 		Docs:   []string{"https://pkg.go.dev/cmd/go#hdr-Environment_variables"}},
-	{Tool: "macOS system logs", Bin: "log",
+	{Tool: "apt", Bin: "apt-get",
+		Config: []string{"/etc/apt/apt.conf.d/", "/etc/apt/sources.list.d/", "/etc/apt/apt.conf.d/50unattended-upgrades"},
+		Check:  []string{"apt-config dump | grep -i -E 'periodic|unattended'", "apt-mark showhold", "ls /etc/apt/sources.list.d"},
+		Ideas:  "unattended security upgrades, held packages that block upgrades, third-party repositories that fail to refresh, how many old kernels autoremove keeps",
+		Docs:   []string{"https://wiki.debian.org/UnattendedUpgrades", "https://manpages.debian.org/stable/apt/apt.conf.5.en.html"}},
+	{Tool: "dnf", Bin: "dnf",
+		Config: []string{"/etc/dnf/dnf.conf", "/etc/yum.repos.d/"},
+		Check:  []string{"cat /etc/dnf/dnf.conf", "dnf repolist"},
+		Ideas:  "max_parallel_downloads, installonly_limit (kernels kept), repositories that fail to refresh, dnf-automatic for unattended updates",
+		Docs:   []string{"https://dnf.readthedocs.io/en/latest/conf_ref.html"}},
+	{Tool: "pacman", Bin: "pacman",
+		Config: []string{"/etc/pacman.conf", "/etc/pacman.d/mirrorlist"},
+		Check:  []string{"grep -v '^#' /etc/pacman.conf", "systemctl status paccache.timer"},
+		Ideas:  "ParallelDownloads, the paccache.timer from pacman-contrib to trim the package cache weekly, a fresh mirror list, .pacnew files left to merge",
+		Docs:   []string{"https://wiki.archlinux.org/title/Pacman", "https://wiki.archlinux.org/title/System_maintenance"}},
+	{Tool: "Flatpak", Bin: "flatpak",
+		Config: []string{"~/.local/share/flatpak/", "/var/lib/flatpak/"},
+		Check:  []string{"flatpak list --columns=application,size,installation", "flatpak remotes"},
+		Ideas:  "unused runtimes, apps installed both per user and system-wide, remotes no longer used",
+		Docs:   []string{"https://docs.flatpak.org/en/latest/using-flatpak.html"}},
+	{Tool: "snap", Bin: "snap",
+		Config: []string{},
+		Check:  []string{"snap list --all", "snap refresh --time"},
+		Ideas:  "how many old revisions are kept (refresh.retain, minimum 2), when refreshes happen (refresh.timer)",
+		Docs:   []string{"https://snapcraft.io/docs/managing-updates"}},
+	{Tool: "systemd journal and units", Bin: "journalctl",
+		Config: []string{"/etc/systemd/journald.conf", "/etc/systemd/journald.conf.d/", "~/.config/systemd/user/"},
+		Check:  []string{"run_step system-logs", "journalctl --disk-usage", "systemctl --failed", "systemctl list-timers --all"},
+		Ideas:  "SystemMaxUse to cap the journal, units that keep failing (fix, disable or mask after asking), a service logging in a loop, timers that never ran",
+		Docs:   []string{"https://www.freedesktop.org/software/systemd/man/latest/journald.conf.html"}},
+	{Tool: "macOS system logs", Bin: "log", OS: "darwin",
 		Config: []string{"~/Library/LaunchAgents/", "/Library/LaunchAgents/", "/Library/LaunchDaemons/", "System Settings → General → Login Items"},
 		Check:  []string{"run_step system-logs", "launchctl print gui/$(id -u)/<label>", "log show --last 1h --predicate 'process == \"<name>\"' --style compact | tail -50"},
 		Ideas:  "apps that crash repeatedly (update or remove them), launch agents of uninstalled apps that keep failing (disable or remove the plist after asking), processes preventing sleep, oversized log folders",
 		Docs:   []string{"https://support.apple.com/guide/mac-help/mchlp2304/mac", "https://www.launchd.info"}},
-	{Tool: "Time Machine and Spotlight", Bin: "tmutil",
+	{Tool: "Time Machine and Spotlight", Bin: "tmutil", OS: "darwin",
 		Config: []string{},
 		Check:  []string{"tmutil listlocalsnapshots /", "mdutil -s /"},
 		Ideas:  "local snapshots holding space, folders worth excluding from backups and indexing (node_modules, build caches, Docker.raw)",
@@ -113,6 +144,9 @@ func toolConfigHints(_ context.Context, a *Agent, in map[string]any) (string, er
 			continue
 		}
 		if h.Bin != "" && !runner.Has(h.Bin) {
+			continue
+		}
+		if h.OS != "" && h.OS != goos {
 			continue
 		}
 		n++

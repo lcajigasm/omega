@@ -224,8 +224,8 @@ Exemplos:
 		"no key was entered", "no se ha introducido ninguna key", "aucune clé n'a été saisie", "es wurde kein Key eingegeben", "não foi introduzida nenhuma key",
 	},
 	"setup.key_saved": {
-		"Key saved to the macOS Keychain.", "Key guardada en el llavero de macOS.", "Clé enregistrée dans le trousseau macOS.",
-		"Key im macOS-Schlüsselbund gespeichert.", "Key guardada no porta-chaves do macOS.",
+		"Key saved to %s.", "Key guardada en %s.", "Clé enregistrée dans %s.",
+		"Key gespeichert: %s.", "Key guardada em %s.",
 	},
 	"setup.models_failed": {
 		"Could not fetch the model list: %v", "No se pudo obtener la lista de modelos: %v", "Impossible de récupérer la liste des modèles : %v",
@@ -257,23 +257,26 @@ Exemplos:
 
 	// ---- auth ----
 	"cmd.auth": {
-		"Manage API keys (macOS Keychain)", "Gestionar las API keys (llavero de macOS)", "Gérer les clés API (trousseau macOS)",
-		"API-Keys verwalten (macOS-Schlüsselbund)", "Gerir as API keys (porta-chaves do macOS)",
+		"Manage API keys (macOS Keychain; on Linux the system keyring or a private file)",
+		"Gestionar las API keys (llavero de macOS; en Linux, el llavero del sistema o un archivo privado)",
+		"Gérer les clés API (trousseau macOS ; sous Linux, le trousseau du système ou un fichier privé)",
+		"API-Keys verwalten (macOS-Schlüsselbund; unter Linux der Schlüsselbund des Systems oder eine private Datei)",
+		"Gerir as API keys (porta-chaves do macOS; em Linux, o porta-chaves do sistema ou um ficheiro privado)",
 	},
 	"cmd.auth_set": {
 		"Store a provider's API key", "Guardar la API key de un proveedor", "Enregistrer la clé API d'un fournisseur",
 		"API-Key eines Anbieters speichern", "Guardar a API key de um fornecedor",
 	},
 	"cmd.auth_remove": {
-		"Delete a provider's API key from the Keychain", "Borrar del llavero la API key de un proveedor", "Supprimer la clé API d'un fournisseur du trousseau",
-		"API-Key eines Anbieters aus dem Schlüsselbund löschen", "Apagar do porta-chaves a API key de um fornecedor",
+		"Delete a provider's stored API key", "Borrar la API key guardada de un proveedor", "Supprimer la clé API enregistrée d'un fournisseur",
+		"Gespeicherten API-Key eines Anbieters löschen", "Apagar a API key guardada de um fornecedor",
 	},
 	"cmd.auth_status": {
 		"Show which providers have a key", "Ver qué proveedores tienen key", "Voir quels fournisseurs ont une clé",
 		"Anzeigen, welche Anbieter einen Key haben", "Ver que fornecedores têm key",
 	},
 	"auth.prompt": {"API key for %s", "API key de %s", "Clé API pour %s", "API-Key für %s", "API key de %s"},
-	"auth.saved":  {"Saved.", "Guardada.", "Enregistrée.", "Gespeichert.", "Guardada."},
+	"auth.saved":  {"Saved to %s.", "Guardada en %s.", "Enregistrée dans %s.", "Gespeichert: %s.", "Guardada em %s."},
 
 	// ---- models ----
 	"cmd.models": {"List a provider's models", "Listar los modelos de un proveedor", "Lister les modèles d'un fournisseur", "Modelle eines Anbieters auflisten", "Listar os modelos de um fornecedor"},

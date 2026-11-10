@@ -3,6 +3,8 @@ package runner
 import (
 	"context"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -47,5 +49,63 @@ func TestRunEcho(t *testing.T) {
 	res := Run(context.Background(), "echo omega-ok", 15*time.Second, nil)
 	if res.ExitCode != 0 || !strings.Contains(res.Output, "omega-ok") {
 		t.Fatalf("echo failed: exit %d output %q", res.ExitCode, res.Output)
+	}
+}
+
+// The model providers' keys stay with omega: a command must not see them,
+// because its output is sent to the model.
+func TestWithheldVariablesDoNotReachCommands(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the command below is written for a POSIX shell")
+	}
+	t.Setenv("OMEGA_TEST_PROVIDER_KEY", "sk-must-not-leak-0001")
+	t.Setenv("OMEGA_TEST_OTHER", "visible")
+	Withhold("OMEGA_TEST_PROVIDER_KEY")
+	t.Cleanup(func() { delete(withheld, "OMEGA_TEST_PROVIDER_KEY") })
+	res := Run(context.Background(), `echo "key=[$OMEGA_TEST_PROVIDER_KEY] other=[$OMEGA_TEST_OTHER]"; env | grep -c OMEGA_TEST_PROVIDER_KEY`, 10*time.Second, nil)
+	if strings.Contains(res.Output, "sk-must-not-leak") || !strings.Contains(res.Output, "key=[]") || !strings.Contains(res.Output, "other=[visible]") {
+		t.Fatalf("output: %q", res.Output)
+	}
+}
+
+// Most people export an API key in a shell startup file. Commands run in a
+// login shell, which reads those files after omega has taken the variable
+// out of the environment: it must be gone when the command runs anyway.
+func TestWithheldVariablesSetByStartupFilesDoNotReachCommands(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("startup files of POSIX shells")
+	}
+	home := t.TempDir()
+	rc := "export OMEGA_TEST_PROVIDER_KEY=sk-from-startup-file-0002\nexport OMEGA_TEST_FROM_RC=rc-was-read\n"
+	for _, name := range []string{".zshenv", ".zprofile", ".zshrc", ".bash_profile", ".bashrc", ".profile"} {
+		if err := os.WriteFile(filepath.Join(home, name), []byte(rc), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("HOME", home)
+	t.Setenv("ZDOTDIR", home)
+	t.Setenv("OMEGA_TEST_PROVIDER_KEY", "sk-from-environment-0001")
+	Withhold("OMEGA_TEST_PROVIDER_KEY")
+	t.Cleanup(func() { delete(withheld, "OMEGA_TEST_PROVIDER_KEY") })
+
+	for _, sh := range []string{"/bin/zsh", "/usr/bin/zsh", "/bin/bash", "/usr/bin/bash", "/bin/sh"} {
+		if _, err := os.Stat(sh); err != nil {
+			continue
+		}
+		t.Setenv("SHELL", sh)
+		res := Run(context.Background(), `echo "key=[$OMEGA_TEST_PROVIDER_KEY] rc=[$OMEGA_TEST_FROM_RC]"; printenv OMEGA_TEST_PROVIDER_KEY; env | grep OMEGA_TEST_PROVIDER_KEY; true`, 15*time.Second, nil)
+		if strings.Contains(res.Output, "sk-from-") || !strings.Contains(res.Output, "key=[]") {
+			t.Errorf("%s: the key reached the command: %q", sh, res.Output)
+		}
+		// Without this the test would pass for a shell that read no file.
+		if filepath.Base(sh) != "sh" && !strings.Contains(res.Output, "rc=[rc-was-read]") {
+			t.Errorf("%s: the startup files were not read, so nothing was proved: %q", sh, res.Output)
+		}
+	}
+	if os.Getenv("OMEGA_TEST_PROVIDER_KEY") != "sk-from-environment-0001" {
+		t.Error("omega's own process must keep the variable: only its commands lose it")
+	}
+	if got := unsetWithheld("fish"); got != "set -e OMEGA_TEST_PROVIDER_KEY; " {
+		t.Errorf("fish: %q", got)
 	}
 }

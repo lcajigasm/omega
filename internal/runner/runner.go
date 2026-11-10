@@ -11,7 +11,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -59,7 +61,8 @@ func Shell() string {
 }
 
 // shellInvocation builds the argv that runs script. POSIX shells are login
-// shells so the user's PATH is present. A sudo bridge path is prepended
+// shells so the user's PATH is present; the withheld variables are unset
+// after the startup files have run. A sudo bridge path is prepended
 // after the shell starts, because login shells rebuild PATH.
 func shellInvocation(script string) (string, []string) {
 	sh := Shell()
@@ -73,8 +76,32 @@ func shellInvocation(script string) (string, []string) {
 		if pathPrefix != "" {
 			script = "export PATH=" + shellQuote(pathPrefix) + ":\"$PATH\"; " + script
 		}
-		return sh, []string{"-lc", script}
+		return sh, []string{"-lc", unsetWithheld(base) + script}
 	}
+}
+
+var envName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
+// unsetWithheld is what runs before a command in a POSIX login shell to
+// drop the withheld variables again. Taking them out of the environment
+// omega passes down is not enough: a login shell reads the user's startup
+// files first, and that is where most people export an API key. PowerShell
+// runs with -NoProfile and cmd with /d, so nothing sets them again there.
+func unsetWithheld(shell string) string {
+	var names []string
+	for n := range withheld {
+		if envName.MatchString(n) {
+			names = append(names, n)
+		}
+	}
+	if len(names) == 0 {
+		return ""
+	}
+	sort.Strings(names)
+	if shell == "fish" {
+		return "set -e " + strings.Join(names, "; set -e ") + "; "
+	}
+	return "unset " + strings.Join(names, " ") + "; "
 }
 
 // ExtendPath adds the usual package-manager bin directories to PATH so tools
@@ -85,6 +112,11 @@ func ExtendPath() {
 		"/opt/homebrew/bin", "/opt/homebrew/sbin", "/usr/local/bin",
 		filepath.Join(home, ".cargo/bin"), filepath.Join(home, ".local/bin"),
 		filepath.Join(home, ".bun/bin"), filepath.Join(home, "go/bin"),
+	}
+	if runtime.GOOS == "linux" {
+		// Homebrew on Linux, snaps and Flatpak's exported commands.
+		extra = append(extra, "/home/linuxbrew/.linuxbrew/bin", "/home/linuxbrew/.linuxbrew/sbin",
+			filepath.Join(home, ".linuxbrew/bin"), "/snap/bin", "/var/lib/flatpak/exports/bin")
 	}
 	sep := string(os.PathListSeparator)
 	parts := strings.Split(os.Getenv("PATH"), sep)
@@ -109,7 +141,31 @@ func Has(bin string) bool {
 var (
 	extraEnv   []string
 	pathPrefix string
+	withheld   = map[string]bool{}
 )
+
+// Withhold names environment variables that commands must not inherit:
+// the model providers' API keys. A command's output goes to the model, and
+// "echo $ANTHROPIC_API_KEY" would otherwise hand it the key.
+func Withhold(names ...string) {
+	for _, n := range names {
+		if n != "" {
+			withheld[n] = true
+		}
+	}
+}
+
+// childEnv is omega's environment without the withheld variables.
+func childEnv() []string {
+	var out []string
+	for _, kv := range os.Environ() {
+		name, _, _ := strings.Cut(kv, "=")
+		if !withheld[name] {
+			out = append(out, kv)
+		}
+	}
+	return out
+}
 
 // Configure adds environment variables to every command and a directory
 // that goes first on their PATH (after the login shell has built it).
@@ -133,7 +189,7 @@ func Run(ctx context.Context, command string, timeout time.Duration, onLine func
 	cmd.Stdin = nil
 	// Own session, and kill the whole group on timeout or cancel.
 	detach(cmd)
-	cmd.Env = append(os.Environ(),
+	cmd.Env = append(childEnv(),
 		"NONINTERACTIVE=1",
 		"HOMEBREW_NO_ENV_HINTS=1",
 		"HOMEBREW_NO_AUTO_UPDATE=1",

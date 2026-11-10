@@ -2,6 +2,7 @@ package i18n
 
 import (
 	"regexp"
+	"strings"
 	"testing"
 )
 
@@ -66,4 +67,38 @@ func TestInitPrecedence(t *testing.T) {
 		t.Fatalf("T in pt: %s", T("ui.denied"))
 	}
 	Init("en")
+}
+
+// Off macOS the texts that name the Mac have another wording, in every
+// language, and it must not name the Mac.
+func TestOtherSystemsWording(t *testing.T) {
+	old := OS
+	t.Cleanup(func() { OS = old; Init("en") })
+	for key := range messages {
+		base, isOther := strings.CutSuffix(key, "@other")
+		if !isOther {
+			continue
+		}
+		if _, ok := messages[base]; !ok {
+			t.Errorf("%s replaces a key that does not exist", key)
+		}
+		for i, code := range Supported {
+			Init(code)
+			OS = "darwin"
+			mac := T(base)
+			OS = "linux"
+			other := T(base)
+			if mac != messages[base][i] || other != messages[key][i] {
+				t.Errorf("%s/%s: the wrong wording was picked", base, code)
+			}
+			if strings.Contains(other, "Mac") {
+				t.Errorf("%s/%s still names the Mac: %s", key, code, other)
+			}
+		}
+	}
+	for i, code := range Supported {
+		if messages["cli.long@other"][i] == messages["cli.long"][i] {
+			t.Errorf("cli.long/%s: the Mac phrase was not found", code)
+		}
+	}
 }

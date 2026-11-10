@@ -31,6 +31,92 @@ jobs:
           "./omega${ext}" steps >/dev/null
           "./omega${ext}" config check
           "./omega${ext}" logs >/dev/null
+      # Linux is a supported platform: run its own paths on a real machine.
+      - name: linux steps
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          export XDG_CONFIG_HOME="$RUNNER_TEMP/omega-config" XDG_STATE_HOME="$RUNNER_TEMP/omega-state" OMEGA_LANG=en
+          ./omega steps | tee steps.txt
+          # The Ubuntu catalogue: apt is detected, with the right risk.
+          grep -Eq '✓ disk +read-only' steps.txt
+          grep -Eq '✓ apt-outdated +read-only' steps.txt
+          grep -Eq '✓ apt +dangerous' steps.txt
+          grep -Eq '✓ apt-clean +dangerous' steps.txt
+          grep -Eq '✓ apt-autoremove +dangerous' steps.txt
+          grep -Eq '✓ journal-size +read-only' steps.txt
+          grep -Eq '✓ journal-vacuum +dangerous' steps.txt
+          grep -Eq ' trash +dangerous' steps.txt
+          # Other distributions' managers are listed but not detected.
+          grep -Eq '^    (dnf|pacman|zypper) +dangerous' steps.txt
+          if grep -Eq '✓ (dnf|pacman|zypper) ' steps.txt; then echo "a package manager that is not installed shows as available"; exit 1; fi
+          # Mac-only steps are not in the Linux catalogue at all.
+          if grep -Eq ' (macos|macos-check|mas|brew-greedy|xcode-derived|simulators|mole-clean|mole-update) ' steps.txt; then
+            echo "a Mac-only step is listed on Linux"; exit 1
+          fi
+          # Read-only steps run for real.
+          ./omega steps run disk apt-outdated journal-size system-logs
+          # A sudo step runs through omega's sudo bridge (the runner needs no password).
+          ./omega steps run --yes apt-clean
+          # The development inventory works with bash.
+          ./omega dev status
+          # omega mac says plainly that it is Mac-only.
+          if out=$(./omega mac status 2>&1); then echo "omega mac ran on Linux"; exit 1; fi
+          echo "$out" | grep -q 'only works on macOS'
+      - name: linux key storage and doctor
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          export XDG_CONFIG_HOME="$RUNNER_TEMP/omega-keys" XDG_STATE_HOME="$RUNNER_TEMP/omega-state" OMEGA_LANG=en
+          unset OPENAI_API_KEY
+          mkdir -p "$XDG_CONFIG_HOME/omega"
+          keys="$XDG_CONFIG_HOME/omega/keys"
+          python3 scripts/mock_provider.py 18090 models &
+          stub=$!
+          trap 'kill "$stub" 2>/dev/null || true' EXIT
+          for _ in $(seq 20); do
+            python3 -c 'import urllib.request; urllib.request.urlopen("http://127.0.0.1:18090/v1/models", timeout=1)' 2>/dev/null && break
+            sleep 0.2
+          done
+          cat > "$XDG_CONFIG_HOME/omega/config.toml" <<'EOF'
+          provider = "openai"
+          language = "en"
+          model = "omega-local-test"
+          model_catalog = "off"
+
+          [providers.openai]
+          base_url = "http://127.0.0.1:18090/v1"
+          EOF
+
+          # No key yet: doctor fails and says where a key would go.
+          if ./omega doctor > doctor.txt 2>&1; then cat doctor.txt; echo "doctor passed without a key"; exit 1; fi
+          cat doctor.txt
+          grep -q 'key: missing' doctor.txt
+          grep -q 'key storage:' doctor.txt
+
+          # Save a key. The runner has no keyring session, so it goes to the 0600 file, and omega says so.
+          printf 'sk-ci-file-store-0123456789abcdef\n' | ./omega auth set openai | tee auth.txt
+          grep -qF "$keys" auth.txt
+          test "$(stat -c %a "$keys")" = 600
+          ./omega auth status | tee status.txt
+          grep -E 'openai +sk-ci-…cdef \(the file ' status.txt
+
+          # Load it: doctor reads the key from the file and reaches the stub provider.
+          ./omega doctor | tee doctor.txt
+          grep -qF "key: ok (the file $keys" doctor.txt
+          grep -q 'provider: reachable' doctor.txt
+
+          # An environment variable takes precedence over the stored key.
+          OPENAI_API_KEY=sk-ci-from-env-0123456789abcdef ./omega doctor | tee doctor-env.txt
+          grep -q 'key: ok (an environment variable)' doctor-env.txt
+          grep -q 'provider: reachable' doctor-env.txt
+
+          # Delete it: the key is gone from the file.
+          ./omega auth remove openai
+          if grep -q '^openai=.' "$keys" 2>/dev/null; then echo "the key is still in the file"; exit 1; fi
+          ./omega auth status | grep -E 'openai +—'
       - name: cross-compile
         if: runner.os == 'Linux'
         run: make cross

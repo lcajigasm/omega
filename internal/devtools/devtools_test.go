@@ -40,7 +40,16 @@ func withHome(t *testing.T) string {
 	home = func() string { return h }
 	t.Setenv("ZDOTDIR", "")
 	t.Cleanup(func() { home = old })
+	on(t, Platform{OS: "darwin", Brew: true, Shell: "zsh"})
 	return h
+}
+
+// on makes the tests see one platform, whatever machine they run on.
+func on(t *testing.T, p Platform) {
+	t.Helper()
+	old := Current
+	Current = func() Platform { return p }
+	t.Cleanup(func() { Current = old })
 }
 
 func TestManagerOf(t *testing.T) {
@@ -149,6 +158,7 @@ func TestConflictsCountOnlyManagersInUse(t *testing.T) {
 }
 
 func TestReportAndCatalog(t *testing.T) {
+	on(t, Platform{OS: "darwin", Brew: true, Shell: "zsh"})
 	seen := map[string]bool{}
 	for _, tool := range Catalog {
 		if seen[tool.ID] {
@@ -177,6 +187,7 @@ func TestReportAndCatalog(t *testing.T) {
 	mise, _ := Find("mise")
 	inv := &Inventory{
 		Brew:      true,
+		Platform:  Current(),
 		Installed: []Installed{{Tool: node, Path: "/opt/homebrew/bin/node", Version: "24.1.0", Manager: "Homebrew"}, {Tool: fzf, Path: "/opt/homebrew/bin/fzf", Version: "0.60", Inactive: true}},
 		Missing:   []Tool{mise},
 		PathDup:   []string{"/opt/homebrew/bin"},

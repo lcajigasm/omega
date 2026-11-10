@@ -1,7 +1,7 @@
 // Package devtools knows the languages, version managers and command-line
-// tools a developer installs on a Mac: how to detect each one, how to install
-// it, what line activates it in the shell, and what in a setup deserves a
-// look (several managers for one language, a binary shadowed on PATH, old
+// tools a developer installs on a Mac or a Linux machine: how to detect each
+// one, how to install it there, what line activates it in the shell, and
+// what in a setup deserves a look (several managers for one language, a binary shadowed on PATH, old
 // versions piling up).
 package devtools
 
@@ -26,6 +26,9 @@ type Tool struct {
 	Category string
 	About    string // a few words on what it is
 	Bin      string // binary that shows it is installed
+	// AltBin is another name the same program is installed under (Debian
+	// ships bat as batcat and fd as fdfind).
+	AltBin string
 	// Check replaces the PATH lookup when a binary's presence proves
 	// nothing (macOS ships a /usr/bin/java stub): a command that exits 0.
 	Check string
@@ -34,15 +37,16 @@ type Tool struct {
 	Dir     string
 	Version string // arguments that print the version (default --version)
 	Install string // "" when omega only detects it
-	// Init is the line that activates the tool in ~/.zshrc; Mark is the text
-	// that tells it is already there.
+	// Init is the line that activates the tool in the shell's startup file
+	// (written here for zsh); Mark is the text that tells it is already there.
 	Init, Mark string
 	Lang       string // language it manages versions of, for conflict checks
 	Config     []string
 	Docs       string
 }
 
-// Catalog is every tool omega knows, grouped by category.
+// Catalog is every tool omega knows, grouped by category, as it is on a Mac
+// with zsh. Tools and Find give each entry as it applies to this machine.
 var Catalog = []Tool{
 	// Languages and runtimes.
 	{ID: "node", Name: "Node.js", Category: Lang, About: "JavaScript runtime", Bin: "node", Install: "brew install node",
@@ -165,9 +169,10 @@ var Catalog = []Tool{
 	{ID: "ollama", Name: "Ollama", Category: AI, About: "local models", Bin: "ollama", Install: "brew install ollama"},
 }
 
-// Find returns a catalogue tool by id, binary or name.
+// Find returns a catalogue tool by id, binary or name, as it applies to
+// this machine.
 func Find(s string) (Tool, bool) {
-	for _, t := range Catalog {
+	for _, t := range Tools() {
 		if eq(t.ID, s) || eq(t.Bin, s) || eq(t.Name, s) {
 			return t, true
 		}

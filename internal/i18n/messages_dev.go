@@ -119,7 +119,7 @@ stale build folders and tools you are missing. It asks on cards and applies only
   omega dev               guided review with AI (--auto applies the low-risk suggestions itself)
   omega dev status        what is installed, by which manager, and what stands out (no AI)
   omega dev install       pick tools to install from omega's catalogue (or name them: omega dev install fzf mise)
-  omega dev activate      add the missing shell lines of installed tools to ~/.zshrc`,
+  omega dev activate      add the missing shell lines of installed tools to ~/.zshrc or ~/.bashrc`,
 		`Sin subcomando, la IA revisa tu entorno de desarrollo: gestores de versiones que se solapan, comandos
 tapados en el PATH, runtimes fuera de soporte, versiones antiguas acumuladas, configuración mejorable,
 carpetas de compilación olvidadas y herramientas que te faltan. Pregunta con tarjetas y aplica solo lo que elijas.
@@ -127,7 +127,7 @@ carpetas de compilación olvidadas y herramientas que te faltan. Pregunta con ta
   omega dev               revisión guiada con IA (--auto aplica por sí misma lo de bajo riesgo)
   omega dev status        qué hay instalado, con qué gestor, y qué llama la atención (sin IA)
   omega dev install       elige herramientas del catálogo de omega (o nómbralas: omega dev install fzf mise)
-  omega dev activate      añade a ~/.zshrc las líneas que les faltan a las herramientas instaladas`,
+  omega dev activate      añade a ~/.zshrc o ~/.bashrc las líneas que les faltan a las herramientas instaladas`,
 		`Sans sous-commande, l'IA passe en revue votre environnement de développement : gestionnaires de versions qui se
 chevauchent, commandes masquées dans le PATH, runtimes en fin de vie, anciennes versions accumulées, configuration
 à améliorer, dossiers de build oubliés et outils manquants. Elle demande sur des cartes et n'applique que vos choix.
@@ -135,7 +135,7 @@ chevauchent, commandes masquées dans le PATH, runtimes en fin de vie, anciennes
   omega dev               revue guidée par IA (--auto applique elle-même ce qui est peu risqué)
   omega dev status        ce qui est installé, par quel gestionnaire, et ce qui ressort (sans IA)
   omega dev install       choisir des outils du catalogue d'omega (ou les nommer : omega dev install fzf mise)
-  omega dev activate      ajouter à ~/.zshrc les lignes manquantes des outils installés`,
+  omega dev activate      ajouter à ~/.zshrc ou ~/.bashrc les lignes manquantes des outils installés`,
 		`Ohne Unterbefehl prüft die KI deine Entwicklungsumgebung: sich überschneidende Versionsmanager, im PATH
 verdeckte Befehle, Laufzeiten nach Support-Ende, angesammelte alte Versionen, verbesserbare Konfiguration,
 vergessene Build-Ordner und fehlende Werkzeuge. Sie fragt auf Karten und wendet nur an, was du auswählst.
@@ -143,7 +143,7 @@ vergessene Build-Ordner und fehlende Werkzeuge. Sie fragt auf Karten und wendet 
   omega dev               geführte Prüfung mit KI (--auto wendet Risikoarmes selbst an)
   omega dev status        was installiert ist, von welchem Manager, und was auffällt (ohne KI)
   omega dev install       Werkzeuge aus omegas Katalog auswählen (oder nennen: omega dev install fzf mise)
-  omega dev activate      fehlende Shell-Zeilen installierter Werkzeuge in ~/.zshrc eintragen`,
+  omega dev activate      fehlende Shell-Zeilen installierter Werkzeuge in ~/.zshrc oder ~/.bashrc eintragen`,
 		`Sem subcomando, a IA revê o teu ambiente de desenvolvimento: gestores de versões que se sobrepõem, comandos
 tapados no PATH, runtimes fora de suporte, versões antigas acumuladas, configuração a melhorar,
 pastas de compilação esquecidas e ferramentas em falta. Pergunta com cartões e aplica só o que escolheres.
@@ -151,7 +151,7 @@ pastas de compilação esquecidas e ferramentas em falta. Pergunta com cartões 
   omega dev               revisão guiada com IA (--auto aplica por si o que é de baixo risco)
   omega dev status        o que está instalado, por que gestor, e o que chama a atenção (sem IA)
   omega dev install       escolhe ferramentas do catálogo do omega (ou indica-as: omega dev install fzf mise)
-  omega dev activate      acrescenta a ~/.zshrc as linhas em falta das ferramentas instaladas`,
+  omega dev activate      acrescenta a ~/.zshrc ou ~/.bashrc as linhas em falta das ferramentas instaladas`,
 	},
 	"cmd.dev_status": {
 		"Installed languages and tools, what installed each one, and what stands out (no AI)",
@@ -168,11 +168,11 @@ pastas de compilação esquecidas e ferramentas em falta. Pergunta com cartões 
 		"Instala ferramentas de desenvolvimento do catálogo do omega",
 	},
 	"cmd.dev_activate": {
-		"Add the shell lines installed tools still need to ~/.zshrc",
-		"Añade a ~/.zshrc las líneas que aún necesitan las herramientas instaladas",
-		"Ajouter à ~/.zshrc les lignes dont les outils installés ont encore besoin",
-		"Shell-Zeilen, die installierte Werkzeuge noch brauchen, in ~/.zshrc eintragen",
-		"Acrescenta a ~/.zshrc as linhas de que as ferramentas instaladas ainda precisam",
+		"Add the shell lines installed tools still need to ~/.zshrc or ~/.bashrc",
+		"Añade a ~/.zshrc o ~/.bashrc las líneas que aún necesitan las herramientas instaladas",
+		"Ajouter à ~/.zshrc ou ~/.bashrc les lignes dont les outils installés ont encore besoin",
+		"Shell-Zeilen, die installierte Werkzeuge noch brauchen, in ~/.zshrc oder ~/.bashrc eintragen",
+		"Acrescenta a ~/.zshrc ou ~/.bashrc as linhas de que as ferramentas instaladas ainda precisam",
 	},
 	"dev.reading": {
 		"Looking at your development setup…",
@@ -188,7 +188,7 @@ pastas de compilação esquecidas e ferramentas em falta. Pergunta com cartões 
 	"dev.cat.git":       {"GIT", "GIT", "GIT", "GIT", "GIT"},
 	"dev.cat.container": {"CONTAINERS AND CLOUD", "CONTENEDORES Y NUBE", "CONTENEURS ET CLOUD", "CONTAINER UND CLOUD", "CONTENTORES E NUVEM"},
 	"dev.cat.ai":        {"AI ASSISTANTS", "ASISTENTES DE IA", "ASSISTANTS IA", "KI-ASSISTENTEN", "ASSISTENTES DE IA"},
-	"dev.inactive":      {"not activated in ~/.zshrc", "sin activar en ~/.zshrc", "non activé dans ~/.zshrc", "nicht in ~/.zshrc aktiviert", "por ativar em ~/.zshrc"},
+	"dev.inactive":      {"not activated in %s", "sin activar en %s", "non activé dans %s", "nicht in %s aktiviert", "por ativar em %s"},
 	"dev.h.findings":    {"FINDINGS", "HALLAZGOS", "CONSTATS", "BEFUNDE", "ACHADOS"},
 	"dev.h.versions":    {"INSTALLED VERSIONS", "VERSIONES INSTALADAS", "VERSIONS INSTALLÉES", "INSTALLIERTE VERSIONEN", "VERSÕES INSTALADAS"},
 	"dev.no_findings":   {"Nothing stands out.", "Nada llama la atención.", "Rien à signaler.", "Nichts Auffälliges.", "Nada chama a atenção."},
@@ -209,18 +209,18 @@ pastas de compilação esquecidas e ferramentas em falta. Pergunta com cartões 
 	"dev.path_dup":  {"PATH repeats: %s", "el PATH repite: %s", "le PATH répète : %s", "PATH wiederholt: %s", "o PATH repete: %s"},
 	"dev.path_gone": {"PATH has folders that do not exist: %s", "el PATH tiene carpetas que no existen: %s", "le PATH contient des dossiers inexistants : %s", "PATH enthält Ordner, die es nicht gibt: %s", "o PATH tem pastas que não existem: %s"},
 	"dev.not_active": {
-		"%s is installed but not activated: add  %s  to ~/.zshrc (omega dev activate)",
-		"%s está instalado pero sin activar: añade  %s  a ~/.zshrc (omega dev activate)",
-		"%s est installé mais pas activé : ajoutez  %s  à ~/.zshrc (omega dev activate)",
-		"%s ist installiert, aber nicht aktiviert: trage  %s  in ~/.zshrc ein (omega dev activate)",
-		"%s está instalado mas por ativar: acrescenta  %s  a ~/.zshrc (omega dev activate)",
+		"%s is installed but not activated: add  %s  to %s (omega dev activate)",
+		"%s está instalado pero sin activar: añade  %s  a %s (omega dev activate)",
+		"%s est installé mais pas activé : ajoutez  %s  à %s (omega dev activate)",
+		"%s ist installiert, aber nicht aktiviert: trage  %s  in %s ein (omega dev activate)",
+		"%s está instalado mas por ativar: acrescenta  %s  a %s (omega dev activate)",
 	},
 	"dev.startup": {
-		"an interactive zsh starts in %d ms",
-		"un zsh interactivo arranca en %d ms",
-		"un zsh interactif démarre en %d ms",
-		"eine interaktive zsh startet in %d ms",
-		"um zsh interativo arranca em %d ms",
+		"an interactive %s starts in %d ms",
+		"un %s interactivo arranca en %d ms",
+		"un %s interactif démarre en %d ms",
+		"eine interaktive %s startet in %d ms",
+		"um %s interativo arranca em %d ms",
 	},
 	"dev.status_next": {
 		"%d catalogue tools are not installed: omega dev install. Let the AI review all of this with omega dev.",
@@ -237,7 +237,7 @@ pastas de compilação esquecidas e ferramentas em falta. Pergunta com cartões 
 		"Tudo o que está no catálogo do omega já está instalado.",
 	},
 	"dev.pick.install":  {"What should be installed?", "¿Qué se instala?", "Que faut-il installer ?", "Was soll installiert werden?", "O que se instala?"},
-	"dev.pick.activate": {"Add these lines to ~/.zshrc?", "¿Añadir estas líneas a ~/.zshrc?", "Ajouter ces lignes à ~/.zshrc ?", "Diese Zeilen in ~/.zshrc eintragen?", "Acrescentar estas linhas a ~/.zshrc?"},
+	"dev.pick.activate": {"Add these lines to %s?", "¿Añadir estas líneas a %s?", "Ajouter ces lignes à %s ?", "Diese Zeilen in %s eintragen?", "Acrescentar estas linhas a %s?"},
 	"dev.unknown": {
 		"omega's catalogue has no tool %q; see omega dev install",
 		"el catálogo de omega no tiene la herramienta %q; mira omega dev install",
@@ -261,25 +261,25 @@ pastas de compilação esquecidas e ferramentas em falta. Pergunta com cartões 
 		"Estas ferramentas instalam-se com o Homebrew, que não está neste Mac. Instala-o primeiro: https://brew.sh",
 	},
 	"dev.activate_other": {
-		"Your shell is not zsh. Add these lines to its startup file (adapting zsh to your shell):",
-		"Tu shell no es zsh. Añade estas líneas a su archivo de inicio (cambiando zsh por tu shell):",
-		"Votre shell n'est pas zsh. Ajoutez ces lignes à son fichier de démarrage (en adaptant zsh à votre shell) :",
-		"Deine Shell ist nicht zsh. Trage diese Zeilen in ihre Startdatei ein (zsh an deine Shell anpassen):",
-		"A tua shell não é zsh. Acrescenta estas linhas ao ficheiro de arranque dela (trocando zsh pela tua shell):",
+		"omega edits the startup file of zsh and bash only. Add these lines to your shell's startup file (adapting zsh to your shell):",
+		"omega solo edita el archivo de inicio de zsh y bash. Añade estas líneas al de tu shell (cambiando zsh por tu shell):",
+		"omega ne modifie que le fichier de démarrage de zsh et de bash. Ajoutez ces lignes à celui de votre shell (en adaptant zsh à votre shell) :",
+		"omega bearbeitet nur die Startdatei von zsh und bash. Trage diese Zeilen in die deiner Shell ein (zsh an deine Shell anpassen):",
+		"O omega só edita o ficheiro de arranque do zsh e do bash. Acrescenta estas linhas ao da tua shell (trocando zsh pela tua shell):",
 	},
 	"dev.activated": {
-		"Added to ~/.zshrc (copy of the previous file: %s). Open a new terminal to use them.",
-		"Añadido a ~/.zshrc (copia del archivo anterior: %s). Abre un terminal nuevo para usarlas.",
-		"Ajouté à ~/.zshrc (copie de l'ancien fichier : %s). Ouvrez un nouveau terminal pour les utiliser.",
-		"In ~/.zshrc eingetragen (Kopie der alten Datei: %s). Öffne ein neues Terminal, um sie zu nutzen.",
-		"Acrescentado a ~/.zshrc (cópia do ficheiro anterior: %s). Abre um terminal novo para as usar.",
+		"Added to %s (copy of the previous file: %s). Open a new terminal to use them.",
+		"Añadido a %s (copia del archivo anterior: %s). Abre un terminal nuevo para usarlas.",
+		"Ajouté à %s (copie de l'ancien fichier : %s). Ouvrez un nouveau terminal pour les utiliser.",
+		"In %s eingetragen (Kopie der alten Datei: %s). Öffne ein neues Terminal, um sie zu nutzen.",
+		"Acrescentado a %s (cópia do ficheiro anterior: %s). Abre um terminal novo para as usar.",
 	},
 	"dev.activated_new": {
-		"Created ~/.zshrc. Open a new terminal to use them.",
-		"Creado ~/.zshrc. Abre un terminal nuevo para usarlas.",
-		"~/.zshrc créé. Ouvrez un nouveau terminal pour les utiliser.",
-		"~/.zshrc angelegt. Öffne ein neues Terminal, um sie zu nutzen.",
-		"Criado ~/.zshrc. Abre um terminal novo para as usar.",
+		"Created %s. Open a new terminal to use them.",
+		"Creado %s. Abre un terminal nuevo para usarlas.",
+		"%s créé. Ouvrez un nouveau terminal pour les utiliser.",
+		"%s angelegt. Öffne ein neues Terminal, um sie zu nutzen.",
+		"Criado %s. Abre um terminal novo para as usar.",
 	},
 
 	// ---- interface: slash commands, session panel, home screen ----
@@ -308,11 +308,11 @@ pastas de compilação esquecidas e ferramentas em falta. Pergunta com cartões 
 	"slash.task_history": {"What failed or was left undone in earlier runs", "Qué falló o quedó sin hacer en ejecuciones anteriores", "Ce qui a échoué ou est resté à faire lors des exécutions précédentes", "Was in früheren Läufen scheiterte oder liegen blieb", "O que falhou ou ficou por fazer em execuções anteriores"},
 	"slash.task_doctor":  {"Check that omega itself is set up correctly", "Comprueba que omega está bien configurado", "Vérifie qu'omega est correctement configuré", "Prüft, ob omega selbst richtig eingerichtet ist", "Verifica se o omega está bem configurado"},
 	"agent.dev_activate": {
-		"Add these lines to ~/.zshrc so the tools work in new terminals. The file is copied first.",
-		"Añadir estas líneas a ~/.zshrc para que las herramientas funcionen en terminales nuevos. Antes se copia el archivo.",
-		"Ajouter ces lignes à ~/.zshrc pour que les outils fonctionnent dans les nouveaux terminaux. Le fichier est copié d'abord.",
-		"Diese Zeilen in ~/.zshrc eintragen, damit die Werkzeuge in neuen Terminals funktionieren. Die Datei wird vorher kopiert.",
-		"Acrescentar estas linhas a ~/.zshrc para que as ferramentas funcionem em terminais novos. O ficheiro é copiado antes.",
+		"Add these lines to %s so the tools work in new terminals. The file is copied first.",
+		"Añadir estas líneas a %s para que las herramientas funcionen en terminales nuevos. Antes se copia el archivo.",
+		"Ajouter ces lignes à %s pour que les outils fonctionnent dans les nouveaux terminaux. Le fichier est copié d'abord.",
+		"Diese Zeilen in %s eintragen, damit die Werkzeuge in neuen Terminals funktionieren. Die Datei wird vorher kopiert.",
+		"Acrescentar estas linhas a %s para que as ferramentas funcionem em terminais novos. O ficheiro é copiado antes.",
 	},
 	"agent.notes_forget": {
 		"Delete these notes from omega's memory:",

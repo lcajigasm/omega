@@ -75,9 +75,11 @@ type Inventory struct {
 	Shadows   []Shadow
 	Conflicts []Conflict
 	Stores    []Store
-	// Startup is how long an interactive zsh takes to start (0 when not measured).
+	// Startup is how long an interactive shell takes to start (0 when not measured).
 	Startup time.Duration
 	Brew    bool
+	// Platform is what the install commands and shell lines were chosen for.
+	Platform Platform
 }
 
 // IsInstalled reports whether the tool is on this machine.
@@ -86,16 +88,27 @@ func (t Tool) IsInstalled() bool {
 		_, err := run(5*time.Second, "/bin/sh", "-c", t.Check)
 		return err == nil
 	}
-	if t.Bin != "" {
-		if _, err := lookPath(t.Bin); err == nil {
-			return true
-		}
+	if t.binPath() != "" {
+		return true
 	}
 	if t.Dir != "" {
 		fi, err := os.Stat(filepath.Join(home(), t.Dir))
 		return err == nil && fi.IsDir()
 	}
 	return false
+}
+
+// binPath is where the tool's binary is, under its usual or its other name.
+func (t Tool) binPath() string {
+	for _, bin := range []string{t.Bin, t.AltBin} {
+		if bin == "" {
+			continue
+		}
+		if p, err := lookPath(bin); err == nil {
+			return p
+		}
+	}
+	return ""
 }
 
 var (
@@ -145,8 +158,10 @@ func managerOf(path string) string {
 		return false
 	}
 	switch {
-	case in("/Cellar/", "/Caskroom/", "/opt/homebrew/", "/usr/local/Homebrew/"):
+	case in("/Cellar/", "/Caskroom/", "/opt/homebrew/", "/usr/local/Homebrew/", "/.linuxbrew/"):
 		return "Homebrew"
+	case strings.HasPrefix(real, "/snap/") || strings.HasPrefix(path, "/snap/"):
+		return "snap"
 	case in("/mise/installs/", "/mise/shims/"):
 		return "mise"
 	case in(h + "/.asdf/"):
@@ -182,15 +197,34 @@ func managerOf(path string) string {
 	case in(".app/Contents/"):
 		return "app bundle"
 	case strings.HasPrefix(real, "/usr/bin/") || strings.HasPrefix(real, "/bin/") || strings.HasPrefix(real, "/usr/sbin/") || in("/Library/Developer/CommandLineTools/", "/Xcode.app/"):
-		return "macOS"
+		return systemName()
 	case strings.HasPrefix(real, "/usr/local/"):
 		return "/usr/local"
 	}
 	return ""
 }
 
-// rcFiles are the zsh startup files omega reads to see what is activated.
+// systemName is what a binary under /usr/bin came from: macOS itself, or
+// the distribution's package manager.
+func systemName() string {
+	p := Current()
+	switch {
+	case p.OS == "darwin":
+		return "macOS"
+	case p.Pkg != "":
+		return p.Pkg
+	}
+	return "system"
+}
+
+// rcFiles are the startup files of the user's shell that omega reads to see
+// what is activated. The first one is where it adds lines: ~/.zshrc, or
+// ~/.bashrc when the shell is bash.
 func rcFiles() []string {
+	if Current().Shell == "bash" {
+		h := home()
+		return []string{filepath.Join(h, ".bashrc"), filepath.Join(h, ".bash_profile"), filepath.Join(h, ".bash_login"), filepath.Join(h, ".profile")}
+	}
 	dir := os.Getenv("ZDOTDIR")
 	if dir == "" {
 		dir = home()
@@ -228,20 +262,25 @@ func activated(t Tool, rc string) bool {
 }
 
 // freshPath is the PATH a terminal app starts its shell with.
-const freshPath = "/usr/bin:/bin:/usr/sbin:/sbin"
+func freshPath() string {
+	if Current().OS == "linux" {
+		return "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+	}
+	return "/usr/bin:/bin:/usr/sbin:/sbin"
+}
 
-// shellPath runs an interactive login zsh from a clean PATH and returns
-// the one it builds. Tests replace it.
-var shellPath = func() (string, bool) {
+// shellPath runs an interactive login shell (zsh or bash) from a clean PATH
+// and returns the one it builds. Tests replace it.
+var shellPath = func(shell string) (string, bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "zsh", "-lic", `print -r -- "__OMEGA_PATH__${PATH}"`)
+	cmd := exec.CommandContext(ctx, shell, "-lic", `printf '%s\n' "__OMEGA_PATH__${PATH}"`)
 	for _, kv := range os.Environ() {
 		if !strings.HasPrefix(kv, "PATH=") {
 			cmd.Env = append(cmd.Env, kv)
 		}
 	}
-	cmd.Env = append(cmd.Env, "PATH="+freshPath)
+	cmd.Env = append(cmd.Env, "PATH="+freshPath())
 	out, _ := cmd.CombinedOutput()
 	for _, line := range strings.Split(string(out), "\n") {
 		if _, p, ok := strings.Cut(line, "__OMEGA_PATH__"); ok && p != "" {
@@ -256,8 +295,8 @@ var shellPath = func() (string, bool) {
 // would show up as duplicates and missing folders that are not the user's.
 func loginPath() []string {
 	raw := os.Getenv("PATH")
-	if userShell() == "zsh" {
-		if p, ok := shellPath(); ok {
+	if CanActivate() {
+		if p, ok := shellPath(Current().Shell); ok {
 			raw = p
 		}
 	}
@@ -452,15 +491,17 @@ func stores() []Store {
 	return kept
 }
 
-// startupTime is the faster of two interactive zsh starts.
+// startupTime is the faster of two interactive starts of the user's shell
+// (zsh or bash).
 func startupTime() time.Duration {
-	if userShell() != "zsh" {
+	if !CanActivate() {
 		return 0
 	}
+	shell := Current().Shell
 	best := time.Duration(0)
 	for i := 0; i < 2; i++ {
 		start := time.Now()
-		if _, err := run(20*time.Second, "zsh", "-i", "-c", "exit"); err != nil {
+		if _, err := run(20*time.Second, shell, "-i", "-c", "exit"); err != nil {
 			return 0
 		}
 		if d := time.Since(start); best == 0 || d < best {
@@ -473,7 +514,7 @@ func startupTime() time.Duration {
 // Detect lists which catalogue tools are installed, without versions or the
 // slower checks. It is enough to offer what is missing.
 func Detect() (installed []Tool, missing []Tool) {
-	for _, t := range Catalog {
+	for _, t := range Tools() {
 		if t.IsInstalled() {
 			installed = append(installed, t)
 		} else if t.Install != "" {
@@ -486,9 +527,8 @@ func Detect() (installed []Tool, missing []Tool) {
 // Load inspects the development setup. deep also measures the shell's
 // startup time and the size of the version stores.
 func Load(deep bool) *Inventory {
-	inv := &Inventory{}
-	_, err := lookPath("brew")
-	inv.Brew = err == nil
+	inv := &Inventory{Platform: Current()}
+	inv.Brew = inv.Platform.Brew
 	have, missing := Detect()
 	inv.Missing = missing
 	rc := rcText()
@@ -496,11 +536,9 @@ func Load(deep bool) *Inventory {
 	var wg sync.WaitGroup
 	for i, t := range have {
 		it := Installed{Tool: t, Inactive: !activated(t, rc)}
-		if t.Bin != "" {
-			if p, err := lookPath(t.Bin); err == nil {
-				it.Path = p
-				it.Manager = managerOf(p)
-			}
+		if p := t.binPath(); p != "" {
+			it.Path = p
+			it.Manager = managerOf(p)
 		}
 		inv.Installed[i] = it
 		if it.Path == "" {
@@ -543,7 +581,8 @@ func Load(deep bool) *Inventory {
 	return inv
 }
 
-// Inactive are the installed tools that still need their line in ~/.zshrc.
+// Inactive are the installed tools that still need their line in the shell's
+// startup file.
 func (inv *Inventory) Inactive() []Installed {
 	var out []Installed
 	for _, t := range inv.Installed {
@@ -592,6 +631,7 @@ func tilde(p string) string {
 // Report is the inventory as text for the agent.
 func (inv *Inventory) Report() string {
 	var b strings.Builder
+	rc := RCFile()
 	b.WriteString("## Installed development tools\n")
 	for _, cat := range Categories {
 		for _, t := range inv.Installed {
@@ -606,7 +646,7 @@ func (inv *Inventory) Report() string {
 				fmt.Fprintf(&b, " (installed by %s)", t.Manager)
 			}
 			if t.Inactive {
-				fmt.Fprintf(&b, " — NOT ACTIVATED: ~/.zshrc has no `%s`", t.Init)
+				fmt.Fprintf(&b, " — NOT ACTIVATED: %s has no `%s`", rc, t.Init)
 			}
 			if len(t.Config) > 0 {
 				fmt.Fprintf(&b, " — config: %s", strings.Join(t.Config, ", "))
@@ -618,13 +658,21 @@ func (inv *Inventory) Report() string {
 		}
 	}
 	b.WriteString("\n## Not installed (install command)\n")
-	if !inv.Brew {
+	switch p := inv.Platform; {
+	case p.OS == "linux" && p.Brew:
+		b.WriteString("Linux with Homebrew: formulae are installed with brew, the rest with the system's package manager or the tool's own installer.\n")
+	case p.OS == "linux" && p.Pkg != "":
+		fmt.Fprintf(&b, "Linux without Homebrew: these are installed with %s (needs sudo) or the tool's own installer. Distribution packages can be "+
+			"older than the current release; say so when the version matters. Tools with no command here are left out.\n", p.Pkg)
+	case p.OS == "linux":
+		b.WriteString("Linux with no package manager omega knows (apt, dnf, pacman, zypper) and no Homebrew: only tools with their own installer are listed.\n")
+	case !inv.Brew:
 		b.WriteString("Homebrew is not installed; most of these need it (https://brew.sh).\n")
 	}
 	for _, t := range inv.Missing {
 		fmt.Fprintf(&b, "- %s [%s]: %s — `%s`", t.Name, t.Category, t.About, t.Install)
 		if t.Init != "" {
-			fmt.Fprintf(&b, ", then add `%s` to ~/.zshrc", t.Init)
+			fmt.Fprintf(&b, ", then add `%s` to %s", t.Init, rc)
 		}
 		b.WriteString("\n")
 	}
@@ -646,14 +694,17 @@ func (inv *Inventory) Report() string {
 		fmt.Fprintf(&b, "- PATH has folders that do not exist: %s\n", strings.Join(mapTilde(inv.PathGone), ", "))
 	}
 	for _, t := range inv.Inactive() {
-		fmt.Fprintf(&b, "- %s is installed but not activated in the shell: add `%s` to ~/.zshrc\n", t.Name, t.Init)
+		fmt.Fprintf(&b, "- %s is installed but not activated in the shell: add `%s` to %s\n", t.Name, t.Init, rc)
 	}
 	if inv.Startup > 0 {
 		note := ""
 		if inv.Startup > SlowStartup {
 			note = " — slow: look for nvm, conda init, compinit without a cache or many plugins (zsh -i -x -c exit, or zprof)"
+			if inv.Platform.Shell == "bash" {
+				note = " — slow: look for nvm, conda init, bash-completion and what ~/.bashrc sources (bash -i -x -c exit)"
+			}
 		}
-		fmt.Fprintf(&b, "- an interactive zsh starts in %d ms%s\n", inv.Startup.Milliseconds(), note)
+		fmt.Fprintf(&b, "- an interactive %s starts in %d ms%s\n", orShell(inv.Platform.Shell), inv.Startup.Milliseconds(), note)
 	}
 	if len(inv.Stores) > 0 {
 		b.WriteString("\n## Installed versions per manager\n")
@@ -674,6 +725,13 @@ func mapTilde(in []string) []string {
 	return out
 }
 
+func orShell(s string) string {
+	if s == "" {
+		return "shell"
+	}
+	return s
+}
+
 func orDash(s string) string {
 	if s == "" {
 		return "-"
@@ -691,8 +749,8 @@ func InitBlock(tools []Tool, now time.Time) string {
 	return b.String()
 }
 
-// AddInit appends the activation lines of the tools to ~/.zshrc, keeping a
-// copy of the file first. Tools that are already activated are skipped.
+// AddInit appends the activation lines of the tools to the shell's startup
+// file (~/.zshrc, or ~/.bashrc for bash), keeping a copy of the file first. Tools that are already activated are skipped.
 func AddInit(tools []Tool, now time.Time) (added []Tool, backup string, err error) {
 	rc := rcText()
 	for _, t := range tools {

@@ -66,6 +66,17 @@ robust, obvious to drive, and downloadable. Items already shipped are checked.
 - [x] **The AI reaches every feature.** New tools install and activate developer tools, revert `omega mac` changes, read earlier runs, manage the notes, change settings and run the preflight check. Each change asks first. API keys, the provider and the approval policy stay with the user: the model is told the command to give instead.
 - [x] **Automatic models from live data.** Once a day omega reads OpenRouter's public catalogue (list prices and the Artificial Analysis index) and picks the fast and the smart model by score per dollar among the models the key can use. `omega models` shows the table and the picks, `omega doctor` reports them, the AI has `model_ranking`, and `model_catalog = "off"` disables the download.
 
+- [x] **Linux as a second platform.** What works and what does not is listed in the README under "Linux".
+  - API keys: the Secret Service through `secret-tool` when a keyring answers, otherwise `~/.config/omega/keys` (mode 0600). `omega setup`, `omega auth` and `omega doctor` say which one. The agent cannot read either.
+  - Steps: check, update and clean for apt, dnf, pacman, zypper, Flatpak and snap, plus disk, journal size and vacuum, system logs, thumbnail cache and `~/.local/share/Trash`. Every step that uses sudo is dangerous. Each system only lists its own steps: the Mac-only ones are gone from Linux.
+  - Agent: the system prompt, the task presets and `system_info` describe the system that is running. The `mac_*` tools are not offered off macOS.
+  - `omega mac`, `/mac`, `/permissions`, `/apps` and `/undo` say they only work on macOS.
+  - `omega dev install` picks Homebrew, the distribution's package or the tool's own installer; `omega dev activate` writes `~/.bashrc` for bash.
+  - `omega steps run` and `omega dev install` ask for the sudo password themselves when a command needs it.
+  - CI: the Ubuntu job runs the Linux catalogue, saves and reads a key with the file store, and runs `omega doctor` against a stub provider.
+- [ ] **Not on Linux yet:** immutable systems (`rpm-ostree`, `transactional-update`), distributions without apt, dnf, pacman or zypper, firmware updates, and editing the startup file of shells other than zsh and bash.
+- [ ] **Windows** stays unsupported: binaries are published and start, with no Windows steps and no key storage.
+
 ## Next
 
 The 0.13 pass is the open work that was left after 0.12.

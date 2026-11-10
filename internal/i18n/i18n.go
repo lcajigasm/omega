@@ -5,8 +5,14 @@ package i18n
 import (
 	"fmt"
 	"os"
+	"runtime"
 	"strings"
 )
+
+// OS is the operating system the wording is chosen for. A key may have a
+// second entry, "<key>@other", used everywhere but on macOS: the few texts
+// that name the Mac have one. Tests replace it.
+var OS = runtime.GOOS
 
 // Supported lists the language codes omega ships translations for, in the
 // column order used by the messages table.
@@ -58,6 +64,11 @@ func T(key string, args ...any) string {
 	row, ok := messages[key]
 	if !ok {
 		return key
+	}
+	if OS != "darwin" {
+		if other, ok := messages[key+"@other"]; ok {
+			row = other
+		}
 	}
 	s := ""
 	for i, code := range Supported {

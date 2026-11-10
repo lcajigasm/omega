@@ -105,6 +105,9 @@ var outputs = []struct {
 	lines []string
 }{
 	{"sw_vers", 0, []string{"ProductName: macOS", "ProductVersion: 27.2", "arch: arm64", "/dev/disk3s1s1  460Gi  418Gi  42Gi  91%  /"}},
+	// The demo is a recorded Mac session wherever it is played: off macOS
+	// system_info runs another command and gets the same canned answer.
+	{"/etc/os-release", 0, []string{"ProductName: macOS", "ProductVersion: 27.2", "arch: arm64", "/dev/disk3s1s1  460Gi  418Gi  42Gi  91%  /"}},
 	{"df -h", 0, []string{"Filesystem      Size   Used  Avail Capacity  Mounted on", "/dev/disk3s1s1  460Gi  418Gi   42Gi    91%    /", " 14G  ~/Library/Caches", "1.1G  ~/Library/Logs"}},
 	{"brew outdated", 0, []string{"node (24.9.0) < 24.11.1", "gh (2.81.0) < 2.83.0", "ffmpeg (8.0) < 8.0.1", "go (1.27.2) < 1.27.3", "uv (0.9.4) < 0.9.7", "ripgrep (15.0.0) < 15.1.0"}},
 	{"brew update", 0, []string{"==> Updating Homebrew...", "Already up-to-date.", "==> Upgrading 6 outdated packages:", "node 24.9.0 -> 24.11.1", "gh 2.81.0 -> 2.83.0", "==> Pouring node--24.11.1.arm64_sequoia.bottle.tar.gz", "🍺  /opt/homebrew/Cellar/node/24.11.1: 2,145 files, 78.4MB", "==> Pouring ffmpeg--8.0.1.arm64_sequoia.bottle.tar.gz", "🍺  /opt/homebrew/Cellar/ffmpeg/8.0.1: 285 files, 54.1MB"}},
