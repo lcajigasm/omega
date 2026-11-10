@@ -22,8 +22,12 @@ func TestExtendPathUsesListSeparator(t *testing.T) {
 	t.Setenv("PATH", string(os.PathListSeparator)+"usr-bin-only")
 	ExtendPath()
 	got := os.Getenv("PATH")
-	if !strings.Contains(got, "/opt/homebrew/bin") {
-		t.Fatalf("PATH missing homebrew dir: %s", got)
+	want := "/opt/homebrew/bin"
+	if runtime.GOOS == "windows" {
+		want = filepath.Join("scoop", "shims")
+	}
+	if !strings.Contains(got, want) {
+		t.Fatalf("PATH missing %s: %s", want, got)
 	}
 	if !strings.Contains(got, string(os.PathListSeparator)) {
 		t.Fatalf("PATH %q has no list separator", got)

@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -42,6 +43,15 @@ func stubKey(t *testing.T, key string, err error) {
 	}
 }
 
+// alwaysThere is a step every system has that needs no tool installed: the
+// Recycle Bin on Windows, the build-folder check elsewhere.
+var alwaysThere = func() string {
+	if runtime.GOOS == "windows" {
+		return "temp-files"
+	}
+	return "dev-artifacts"
+}()
+
 func runDoctorOut(t *testing.T) (string, error) {
 	t.Helper()
 	i18n.Init("en")
@@ -60,7 +70,7 @@ func TestDoctorReportsConfigKeyAndSteps(t *testing.T) {
 	if !strings.Contains(out, "config:") || !strings.Contains(out, "key: missing") {
 		t.Fatalf("output:\n%s", out)
 	}
-	if !strings.Contains(out, "✓ dev-artifacts") || !strings.Contains(out, "steps:") {
+	if !strings.Contains(out, "✓ "+alwaysThere) || !strings.Contains(out, "steps:") {
 		t.Fatalf("steps missing:\n%s", out)
 	}
 	installed := 0
@@ -110,7 +120,7 @@ func TestDoctorListsModelsAndDoesNotSendAMessage(t *testing.T) {
 		_, _ = w.Write([]byte(`{"data":[{"id":"claude-haiku","type":"model"}],"has_more":false,"first_id":"claude-haiku","last_id":"claude-haiku"}`))
 	}))
 	defer srv.Close()
-	writeDoctorConfig(t, "provider = \"anthropic\"\nskip_steps = [\"dev-artifacts\"]\n\n[providers.anthropic]\nbase_url = \""+srv.URL+"\"\n")
+	writeDoctorConfig(t, "provider = \"anthropic\"\nskip_steps = [\""+alwaysThere+"\"]\n\n[providers.anthropic]\nbase_url = \""+srv.URL+"\"\n")
 	stubKey(t, "sk-ant-"+strings.Repeat("a", 20), nil)
 	out, err := runDoctorOut(t)
 	if err != nil {
@@ -122,7 +132,7 @@ func TestDoctorListsModelsAndDoesNotSendAMessage(t *testing.T) {
 	if !strings.Contains(out, "config: ok") || !strings.Contains(out, "key: ok") || !strings.Contains(out, "provider: reachable") {
 		t.Fatalf("output:\n%s", out)
 	}
-	if !strings.Contains(out, "✓ dev-artifacts (skipped)") {
+	if !strings.Contains(out, "✓ "+alwaysThere+" (skipped)") {
 		t.Fatalf("skipped step:\n%s", out)
 	}
 }

@@ -121,6 +121,17 @@ func TestCurrentDetectsThePackageManager(t *testing.T) {
 		return "", errors.New("not found")
 	}
 	p := Current()
+	if p.OS == "windows" {
+		// Windows has its own managers and PowerShell, whatever $SHELL says.
+		if p.Brew || p.Shell != "powershell" || p.Winget || p.Scoop {
+			t.Fatalf("platform %+v", p)
+		}
+		have["winget"] = true
+		if p = Current(); !p.Winget || p.Scoop {
+			t.Fatalf("winget not detected: %+v", p)
+		}
+		return
+	}
 	if p.Brew || p.Shell != "bash" {
 		t.Fatalf("platform %+v", p)
 	}
