@@ -19,5 +19,7 @@ Enter
 Wait+Screen@25s /MAINTENANCE/
 Sleep 2s
 Screenshot docs/assets/menu.png
+# The screenshot is the next frame recorded: leave the menu up for it.
+Sleep 1500ms
 Type "q"
 Sleep 500ms
