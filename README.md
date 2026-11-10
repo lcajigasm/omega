@@ -11,7 +11,8 @@ leaving the failure on your screen.
 
 Use **Anthropic**, **OpenAI**, **OpenRouter**, **OpenCode Zen** or a **local
 model** (Ollama, LM Studio). By default omega runs routine work on a small, cheap
-model and only switches to a stronger one when something fails. The interface
+model and only switches to a stronger one when something fails; it picks both
+once a day from current prices and benchmark scores. The interface
 speaks **English, Spanish, French, German and Portuguese**.
 
 ![omega running a full maintenance session](docs/assets/demo.gif)
@@ -81,8 +82,13 @@ an AI model with a narrow set of tools and a strict safety policy.
   terminal.
 - **Selection cards**: recommendations arrive as a card where you tick one or
   several actions, and omega carries out exactly those.
-- **Sensible model choice**: a cheap model for routine work that escalates to a
-  stronger one on the first failure, with tokens and cost always visible.
+- **Model choice from live data**: a fast model for routine work that escalates
+  to a stronger one on the first failure. Which two is decided once a day from
+  current list prices and benchmark scores (`omega models`), not from a list
+  built into the program. Tokens and cost are always visible.
+- **Ask in words**: inside a session the AI can do everything the command line
+  does: install developer tools, undo a Mac change, read earlier runs, change
+  settings. API keys, the provider and the approval policy stay yours alone.
 - **Local models**: Ollama, LM Studio or any OpenAI-compatible endpoint, free and
   private.
 - **Configuration tuning** (`omega tune`): reviews the config of your installed
