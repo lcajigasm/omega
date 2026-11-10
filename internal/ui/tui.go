@@ -143,6 +143,11 @@ type model struct {
 	dark    bool
 	started time.Time
 
+	panel     bool   // the session panel is wanted (it also needs a wide terminal)
+	diskStart uint64 // free bytes when the session began
+	diskNow   uint64
+	diskTotal uint64
+
 	follow    bool // next refresh jumps to the bottom (an error just arrived)
 	mdRenders int  // times glamour parsed a message; tests read it
 }
@@ -160,7 +165,10 @@ func RunTUI(ctx context.Context, cancel context.CancelFunc, ag *agent.Agent, h H
 		dark:    lipgloss.HasDarkBackground(),
 		started: time.Now(),
 		mode:    ag.Mode(),
+		panel:   true,
 	}
+	m.diskNow, m.diskTotal = diskSpace("/")
+	m.diskStart = m.diskNow
 	m.verb = m.verbs[0]
 	m.password = textinput.New()
 	m.password.EchoMode = textinput.EchoPassword
@@ -196,7 +204,7 @@ func (m *model) Init() tea.Cmd { return tea.Batch(m.waitEvent(), doTick()) }
 // ---------- rendering helpers ----------
 
 func (m *model) markdown(s string) string {
-	w := m.width - 4
+	w := m.tw() - 4
 	if w < 30 {
 		w = 30
 	}
@@ -241,6 +249,32 @@ func toolLabel(tool, command string) (string, string) {
 		name = "Search"
 	case tool == "fetch_url":
 		name = "Fetch"
+	case tool == "mac_inventory":
+		name, arg = "Mac", strings.TrimSpace(strings.TrimPrefix(command, "mac_inventory"))
+	case tool == "mac_change":
+		name = "Change"
+	case tool == "mac_policy":
+		name = "Rule"
+	case tool == "dev_inventory":
+		name, arg = "Dev", ""
+	case tool == "dev_install":
+		name = "Install"
+	case tool == "dev_activate":
+		name = "Activate"
+	case tool == "mac_history":
+		name, arg = "History", "mac"
+	case tool == "mac_undo":
+		name = "Undo"
+	case tool == "run_history":
+		name, arg = "History", strings.TrimSpace(strings.TrimPrefix(command, "run_history"))
+	case tool == "notes":
+		name = "Notes"
+	case tool == "omega_settings":
+		name = "Settings"
+	case tool == "omega_doctor":
+		name, arg = "Doctor", ""
+	case tool == "model_ranking":
+		name, arg = "Models", ""
 	}
 	return name, homeTilde(arg)
 }
@@ -312,7 +346,7 @@ var spinFrames = []string{"·", "✢", "✳", "✶", "✻", "✽", "✻", "✶",
 func (m *model) modeText() string { return modeLabel(m.mode) }
 
 func (m *model) renderWelcome() string {
-	w := min(m.width-2, 78)
+	w := min(m.tw()-2, 78)
 	var b strings.Builder
 	b.WriteString(titleStyle.Render("✻ omega") + mutedStyle.Render(" "+m.header.Version) + "\n")
 	b.WriteString(mutedStyle.Render(i18n.T("ui.welcome_tagline")) + "\n\n")
@@ -339,7 +373,7 @@ func (m *model) renderKey(e *entry) string {
 	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "%d|%d|%d|%t|%d|%s|%s|%s|%t|%t|%s|%d|%d|%s",
-		e.kind, m.width, focused, m.expanded, len(e.output),
+		e.kind, m.tw(), focused, m.expanded, len(e.output),
 		e.text, e.tool, e.command, e.running, e.failed, e.denied, e.exitCode, e.lines, e.errText)
 	if n := len(e.output); n > 0 {
 		b.WriteByte('|')
@@ -362,7 +396,7 @@ func (m *model) renderEntry(e *entry) string {
 }
 
 func (m *model) paintEntry(e *entry) string {
-	w := m.width - 2
+	w := m.tw() - 2
 	switch e.kind {
 	case enWelcome:
 		return m.renderWelcome()
@@ -466,7 +500,7 @@ func (m *model) paintEntry(e *entry) string {
 // wrapPlain folds a long error onto the width of the transcript so one
 // provider message cannot run off the right edge.
 func (m *model) wrapPlain(s string) string {
-	w := m.width - 8
+	w := m.tw() - 8
 	if w < 16 {
 		w = 16
 	}
@@ -574,6 +608,9 @@ func (m *model) handleEvent(e agent.Event) tea.Cmd {
 			m.add(cur)
 		}
 		cur.running, cur.failed, cur.exitCode, cur.duration, cur.lines = false, e.Failed, e.ExitCode, e.Duration, e.Lines
+		if free, _ := diskSpace("/"); free > 0 {
+			m.diskNow = free
+		}
 		if e.Reason != "" {
 			cur.errText = e.Reason
 			m.follow = true
@@ -652,11 +689,11 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width, m.height = msg.Width, msg.Height
 		m.input.Width = msg.Width - 8
 		if !m.ready {
-			m.vp = viewport.New(msg.Width, 1)
+			m.vp = viewport.New(m.tw(), 1)
 			m.vp.MouseWheelEnabled = true
 			m.ready = true
 		}
-		m.vp.Width = msg.Width
+		m.vp.Width = m.tw()
 		m.refresh()
 		m.vp.GotoBottom()
 
@@ -729,6 +766,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+o":
 			m.expanded = !m.expanded
 			m.refresh()
+			return m, nil
+		case "ctrl+b":
+			m.togglePanel()
 			return m, nil
 		case "shift+tab":
 			if m.state != stDone {
@@ -1096,7 +1136,20 @@ func (m *model) View() string {
 		return i18n.T("ui.starting")
 	}
 	m.resize()
+	if m.panelShown() {
+		return lipgloss.JoinHorizontal(lipgloss.Top, m.vp.View(), m.panelView(m.vp.Height)) + "\n" + m.footerView()
+	}
 	return m.vp.View() + "\n" + m.footerView()
+}
+
+// togglePanel shows or hides the session panel and gives the transcript
+// the width that frees or takes.
+func (m *model) togglePanel() {
+	m.panel = !m.panel
+	if m.ready {
+		m.vp.Width = m.tw()
+	}
+	m.refresh()
 }
 
 // scrollKey is a transcript scroll that must keep working while a card

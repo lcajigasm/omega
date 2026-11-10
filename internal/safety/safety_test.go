@@ -34,6 +34,8 @@ func TestClassify(t *testing.T) {
 		{"rm -rf /usr", Dangerous},
 		{"rm -rf /Users/me", Dangerous},
 
+		{`sqlite3 ~/Library/Application\ Support/com.apple.TCC/TCC.db "delete from access"`, Blocked},
+		{`sqlite3 "/Library/Application Support/com.apple.TCC/TCC.db" "INSERT INTO access VALUES (1)"`, Blocked},
 		{"rm -rf /", Blocked},
 		{"rm -rf ~", Blocked},
 		{"sudo rm -rf ~/ ", Blocked},

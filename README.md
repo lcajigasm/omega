@@ -34,8 +34,10 @@ Esc and a denial (`asciinema play docs/assets/shortcuts.cast`).
 - [Models and cost](#models-and-cost)
 - [Local models](#local-models)
 - [Tuning your tools' configuration](#tuning-your-tools-configuration)
+- [Developer tools](#developer-tools)
 - [Docker cleanup](#docker-cleanup)
 - [Your Mac: login, background, menu bar, Dock and shortcuts](#your-mac-login-background-menu-bar-dock-and-shortcuts)
+- [Privacy permissions, apps and leftovers](#privacy-permissions-apps-and-leftovers)
 - [Safety and approvals](#safety-and-approvals)
 - [Step catalogue](#step-catalogue)
 - [Memory between runs](#memory-between-runs)
@@ -92,11 +94,24 @@ an AI model with a narrow set of tools and a strict safety policy.
   shortcut conflicts** (ChatGPT, Claude, Alfred and macOS all wanting ⌥Space).
   Your rules plus sensible defaults decide what to suggest, the AI explains what
   it does not know, your choices are remembered and every change can be undone.
+- **Privacy permissions** (`omega mac permissions`): finds the entries that
+  System Settings → Privacy & Security keeps for binaries whose path no longer
+  exists (every update of a bundled `node` leaves another one) and for apps that
+  are gone, and removes the ones you pick.
+- **Apps and leftovers** (`omega mac apps`): apps you have not opened in months,
+  apps still built only for Intel, and what removed apps left in `~/Library`.
+  Removals go to the Trash and can be undone.
+- **Developer tools** (`omega dev`): knows more than 70 languages, version managers and
+  command-line tools. It shows what is installed and by which manager, finds
+  overlapping version managers, shadowed commands and a broken `PATH`, installs
+  what you pick and adds the shell line a tool needs to `~/.zshrc`.
 - **Safety policy**: every command is classified (read-only, normal, dangerous,
   blocked); dangerous ones need your approval.
 - **Memory**: learns from each run and takes it into account next time.
-- **Full-screen TUI** in the style of Claude Code, or **plain text** for scripts,
-  cron and CI.
+- **Full-screen TUI** in the style of Claude Code, with a **session panel**
+  (steps done and failed, disk space freed, tokens, activity), a **home screen**
+  (`omega menu`) and commands to start another task without leaving, or
+  **plain text** for scripts, cron and CI.
 - **Keyboard shortcuts and slash commands**: `shift+tab` changes the approval
   mode and `ctrl+p` the model without stopping the run; type `/` for a command
   menu (`/mode`, `/model`, `/help`, `/exit`…) that explains each one as you type.
@@ -165,6 +180,10 @@ before saving it** in the macOS Keychain, and then lets you pick a model.
 | `tune` | reviews your tools' configuration against the current docs | only what you pick | fast → smart on failure |
 | `fix` | runs the topgrade and Mole dry runs, diagnoses and fixes their config | yes (with approval) | smart |
 
+`omega mac` and `omega dev` are guided tasks of the same kind, for what runs on
+your Mac and for your development setup. `omega menu` lists everything on one
+screen and starts what you choose.
+
 You can also give it a free-form task:
 
 ```bash
@@ -190,6 +209,11 @@ omega's TUI follows the conventions of Claude Code's CLI:
   tokens so far.
 - **Status bar** with the approval mode (change it with `shift+tab`), the current model, tokens in and out,
   cost and elapsed time.
+- **Session panel** on the right when the terminal is at least 104 columns
+  wide: the task, the mode and the model, how many steps finished, failed or
+  were denied, free disk space with what the session freed so far, tokens and
+  cost, and every tool call with its outcome and duration. `ctrl+b` (or
+  `/panel`) hides it.
 - **Cards** for approvals (with a coloured diff when a file changes) and for
   choices. Click a row to select it; click it again, or click the key line, to
   confirm. On an approval card, click `[y]`, `[a]` or `[n]`.
@@ -200,6 +224,7 @@ omega's TUI follows the conventions of Claude Code's CLI:
 | `ctrl+f` | search the transcript. Type the query; Enter or `ctrl+n` jumps to the next match, `ctrl+p` to the previous, Esc closes it. Matches are highlighted |
 | `↑` `↓` `PgUp` `PgDn` / wheel | scroll. `PgUp`, `PgDn`, `ctrl+u` and `ctrl+d` also scroll while an approval or a choice card is open |
 | `ctrl+o` | expand or collapse the output of every tool call |
+| `ctrl+b` | show or hide the session panel |
 | `ctrl+y` | copy the focused tool's output to the clipboard |
 | `alt+up` / `alt+down` | focus the previous or next tool |
 | `shift+tab` | cycle the approval mode: asks before risky actions → auto approve → read only |
@@ -227,7 +252,39 @@ type; `↑` `↓` move, `Tab` completes and `Enter` runs the highlighted one. Af
 | `/mode [ask\|auto\|readonly]` | change the approval mode (a card when no argument) |
 | `/model [name]` | switch model from the next turn (a card when no argument) |
 | `/expand` | expand or collapse the output of every tool call |
+| `/panel` | show or hide the session panel |
+| `/full`, `/update`, `/clean`, `/analyze`, `/tune`, `/fix` | start that task in the running session |
+| `/mac`, `/permissions`, `/apps` | review what runs on your Mac, its privacy permissions or its apps |
+| `/dev`, `/install` | review your development setup, or pick tools to install |
+| `/docker` | free up the space Docker uses, only what you pick |
+| `/undo` | see what omega changed on this Mac and revert what you pick |
+| `/history` | what failed or was left undone in earlier runs |
+| `/doctor` | check that omega itself is set up correctly |
+
+You can also just ask in words. Everything omega does from the command line is
+available to the AI in a session:
+
+| You say | The AI uses |
+|---|---|
+| "install fzf and mise" | `dev_install`, then `dev_activate` for the line in `~/.zshrc` |
+| "undo what you changed in the Dock yesterday" | `mac_history`, `mac_undo` |
+| "what failed last time?" | `run_history` (the end of an earlier transcript) |
+| "forget the note about pipx" | `notes` |
+| "stop running the macOS update step" | `omega_settings` (`skip_steps`) |
+| "is omega set up correctly?" | `omega_doctor` |
+| "which model should I use?", "why this model?" | `model_ranking` |
+
+Installs, edits to `~/.zshrc`, deleting a note and changing a setting all ask
+first, like any other change. Three things stay yours alone, and the AI answers
+with the command to run instead: **API keys** (`omega setup`, `omega auth set`),
+the **provider** and the **approval policy** (`omega config set approval …`). A
+model that could lower its own approval policy or read a key would defeat both.
 | `/exit`, `/quit` | end the session and quit |
+
+`omega menu` (or `omega home`) is the home screen: free disk space, the
+configured model, when omega last ran, and every command grouped by area. Move
+with the arrows, type to filter, Enter runs the entry and returns to the menu
+when it ends.
 
 With `--no-tui`, or when the output is not a terminal, omega prints plain text
 with the same `⏺`/`⎿` structure. Without a terminal on standard input, any action
@@ -256,23 +313,59 @@ Enter for none.
 ![The model picker](docs/assets/model.png)
 
 Routine maintenance does not need the biggest model. With the default
-**automatic** choice omega runs on the provider's fast model and switches to the
-smart one the first time a step fails, to diagnose it:
+**automatic** choice omega runs on a fast model and switches to a smart one the
+first time a step fails, to diagnose it.
 
-| Provider | Fast (routine) | Smart (failures, `fix`) |
-|---|---|---|
-| `anthropic` | `claude-haiku-5-5` · $0.10 / $0.50 per M tokens | `claude-sonnet-5-5` · $2 / $10 |
-| `openai` | `gpt-5.4-mini` · $0.75 / $4.50 | `gpt-5.5` · $5 / $30 |
-| `openrouter` | `anthropic/claude-haiku-5.5` | `anthropic/claude-sonnet-5.5` |
-| `opencode` | `claude-sonnet-4-6` | `claude-sonnet-4-6` |
-| local | the model you pick | the model you pick |
+Which two models those are is decided from live data, not from a list compiled
+into omega. Once a day omega reads OpenRouter's public model catalogue, which
+carries each model's list price and its benchmark score (the Artificial
+Analysis intelligence index), keeps the models your key can actually use, and
+picks:
+
+- **fast**: the best score per dollar among the models that reach at least 40%
+  of the best score on offer (score² ÷ price). Price weighs most.
+- **smart**: the best value among the models within 20% of the best score
+  (score³ ÷ price). Score weighs most, but a model that costs four times more
+  for a few points does not win.
+
+Price is the blend a maintenance run pays: three parts input to one part
+output. Only models that call tools, answer in text, have a measured score and
+are not free, batch or about-to-be-removed routes are eligible. A pick is kept
+until another model beats it by more than 10%, so two models that trade places
+by a decimal do not alternate.
+
+```bash
+omega models                   # every model: score, price, and the two picks
+omega models --refresh         # read the catalogue again now
+omega models openrouter flash  # another provider, filtered
+```
+
+```text
+  model                                      score    in $/M   out $/M
+  claude-fable-5-2                            64.6        $8       $40
+  claude-opus-5-5                             59.1        $4       $20
+▸ claude-sonnet-5-5                           54.5        $2       $10  smart
+▸ claude-haiku-5-5                            36.5      $0.1      $0.5  fast
+```
+
+The download is a plain request to `openrouter.ai` with nothing about you in
+it, also when your provider is another one. `omega config set model_catalog off`
+stops it. Without a catalogue (first run offline, or switched off) omega uses
+the names it was built with: `claude-haiku-5-5` → `claude-sonnet-5-5` for
+Anthropic, `gpt-5.4-mini` → `gpt-5.5` for OpenAI, the same Claude pair on
+OpenRouter and `claude-sonnet-4-6` on OpenCode Zen. Local providers use the
+model you pick.
+
+Limits worth knowing: the score is a general benchmark, not a measure of how
+well a model does maintenance; the catalogue has no speed figures; and on
+OpenCode Zen the prices used for the comparison are OpenRouter's, which may
+differ from what Zen charges.
 
 ```bash
 omega model                    # card: Automatic, the two tiers, or any model of the provider
 omega model claude-sonnet-5-5  # pin a model
 omega model auto               # back to automatic
 omega --model claude-opus-5-5 fix   # one run with a specific model
-omega models anthropic haiku   # list models with their prices
 ```
 
 During a run, `ctrl+p` (or `/model` in the input box) switches between the
@@ -280,9 +373,10 @@ run's models from the next turn. A model you pick by hand stays for the rest
 of the run, so the automatic switch on failure no longer applies.
 
 Override the tiers per provider with `fast_model` and `smart_model` (see
-[Configuration](#configuration)). The status bar and the final summary show the
-tokens used, including prompt cache reads, and the cost when the model's price
-is known. omega caches the conversation with the Anthropic API, so long sessions
+[Configuration](#configuration)); they win over the automatic picks. The status
+bar and the final summary show the tokens used, including prompt cache reads,
+and the cost when the model's price is known; prices come from the same
+catalogue, so a model released after your copy of omega is still priced. omega caches the conversation with the Anthropic API, so long sessions
 mostly bill cache reads at a tenth of the input price.
 
 As a reference, a read only `omega tune` session on a real Mac (about 190k input
@@ -340,6 +434,45 @@ Configuration edits always show a diff and keep a timestamped backup. Fetched
 pages are treated as untrusted data: the agent is told never to follow
 instructions found in them.
 
+## Developer tools
+
+```bash
+omega dev               # guided review with AI
+omega dev status        # what is installed, by which manager, and what stands out (no AI)
+omega dev install       # pick tools from the catalogue; or: omega dev install fzf mise
+omega dev activate      # add the shell lines installed tools still need to ~/.zshrc
+```
+
+omega's catalogue covers languages (Node.js, Python, Go, Rust, Ruby, Java,
+Deno, Bun, PHP, .NET, Zig, Elixir, Swift), version managers (mise, asdf, fnm,
+nvm, Volta, pyenv, uv, conda, rbenv, rustup, SDKMAN!), package managers and
+build tools, shell tools (Starship, fzf, zoxide, direnv, Atuin, eza, bat,
+ripgrep, fd, jq, tmux, Neovim…), git tools, container and cloud CLIs, and AI
+coding assistants (Claude Code, Codex, Gemini CLI, opencode, Ollama).
+
+`omega dev status` prints each installed tool with its version and what
+installed it (Homebrew, mise, nvm, cargo, an app bundle, macOS), then the
+findings:
+
+| Finding | Why it matters |
+|---|---|
+| one language installed by several version managers | it is unclear which version runs, and each one slows the shell |
+| a command found several times on `PATH` | the copy that runs may not be the one you update; Homebrew ahead of macOS's own copy is normal and not reported |
+| `PATH` entries that repeat or do not exist | measured in a fresh login shell, not in omega's own environment |
+| a tool installed but not activated | fzf, zoxide, direnv, Starship, mise and others do nothing until their line is in `~/.zshrc` (an Oh My Zsh plugin counts) |
+| shell startup time | flagged above 500 ms |
+| versions kept by each manager | how many and how much space, so old ones can go |
+
+`omega dev install` runs the install command shown on the card (Homebrew for
+almost everything). When a tool needs a line in `~/.zshrc`, omega offers to add
+it, after copying the file to `~/.zshrc.omega-bak-<date>`.
+
+With AI, `omega dev` goes further: it checks runtimes against their official
+end-of-life pages, offers to remove versions no project needs with each
+manager's own command, tunes configuration from the current docs, lists stale
+build folders (`node_modules`, `target`, `.venv`, `Pods`… in projects untouched
+for 60 days) and suggests at most five tools that fit what you already use.
+
 ## Docker cleanup
 
 ![Docker cleanups always ask](docs/assets/docker-confirm.png)
@@ -369,12 +502,14 @@ back in charge.
 ```bash
 omega mac               # guided review with AI: cards for each area, applies what you pick
 omega mac --auto        # the AI applies the low-risk suggestions itself and offers the rest
-omega mac status        # overview of the five areas, changes nothing
+omega mac status        # overview of every area, changes nothing
 omega mac login         # apps that open at login
 omega mac background    # launch agents, daemons, app helpers and background tasks
 omega mac menubar       # menu bar apps: quit, stop at login, hide
 omega mac dock          # unpin apps that are gone or unused, Dock settings
 omega mac shortcuts     # who keeps each contested shortcut
+omega mac permissions   # privacy entries of binaries and apps that are gone
+omega mac apps          # unused apps, Intel-only apps and leftovers
 omega mac policy        # your rules and omega's defaults (policy edit to change them)
 omega mac undo          # revert any change
 ```
@@ -449,6 +584,73 @@ storage). For those omega opens the right settings pane or app and tells you wha
 to change. Reading the login and background items uses `sfltool dumpbtm`, which
 can take up to a minute; omega caches it for an hour and refreshes it after a change.
 
+## Privacy permissions, apps and leftovers
+
+### Permissions that point at nothing
+
+macOS records a permission for a command-line binary by its path. An app that
+ships its own `node` in a folder named after its version (Claude Desktop does)
+gets a new entry with every update, and the old ones stay: System Settings →
+Privacy & Security ends up with a row of items all called `node` and nothing to
+tell them apart. Uninstalled apps leave their entries too.
+
+```bash
+omega mac permissions
+```
+
+omega reads the privacy database (TCC), names every binary with the version
+found in its path (`node 2.0.14`), and marks:
+
+| Entry | Suggestion |
+|---|---|
+| a binary whose path no longer exists | remove (ticked) |
+| a bundle id with no app in `/Applications`, inside another app, in Application Support or known to Spotlight | review (not ticked) |
+| Apple's own entries, and anything that still exists | keep |
+
+Removing an entry cannot be undone, and it is harmless: whatever needs the
+permission asks again. For each entry you pick, omega:
+
+1. runs `tccutil reset <permission> <client>`, Apple's tool. It only accepts a
+   bundle id macOS still knows, so it refuses a binary's path and an uninstalled
+   app: the very entries worth removing;
+2. if the entry is still there and belongs to your own database, saves a copy
+   of the database (`~/.local/state/omega/tcc-backup-<date>.db`) and deletes
+   that one row;
+3. reads the database again. An entry that is still listed is reported as a
+   failure, never as done, and omega opens the settings pane where you can
+   select it and press –.
+
+Step 2 and reading your own entries (Files & Folders, Automation, Camera, data
+from other apps) need **Full Disk Access** for the terminal that runs omega.
+Without it omega says so and lists only the system-wide permissions (Full Disk
+Access, Accessibility, Screen Recording, Input Monitoring, Developer Tools).
+Those live in a database macOS protects from every app, so omega can find the
+stale ones but you remove them in System Settings. The AI cannot touch either
+database: a command that writes to `TCC.db` is blocked. The Local Network list
+is stored elsewhere and is not covered.
+
+### Apps and what they leave behind
+
+```bash
+omega mac apps
+```
+
+- **Apps to review**: not opened for 180 days (Spotlight's last-used date), or
+  with no Apple silicon build on an Apple silicon Mac. Each shows its size and
+  whether it came from Homebrew or the App Store. Nothing is ticked: you decide
+  which apps go. A cask is removed with `brew uninstall --cask`; any other app
+  is moved to the Trash.
+- **Leftovers**: folders and files in `~/Library` (Application Support, Caches,
+  Preferences, Saved Application State, HTTPStorages, WebKit, Logs) named after
+  the bundle id of an app that is not installed, from 5 MB up. They are moved to
+  one folder in the Trash; `omega mac undo` puts every file back. Leftovers of a
+  vendor that still has another app installed are flagged, since the apps may
+  share them. `~/Library/Containers` is not read: doing so makes macOS ask for
+  the "data from other apps" permission.
+
+Rules in `mac.toml` silence either list: `[permissions] keep = ["node"]`,
+`[apps] keep = ["Xcode"]`.
+
 ## Safety and approvals
 
 Before running anything, omega classifies the command (including compound
@@ -495,6 +697,8 @@ commands with `&&`, `;`, `|`) and applies the highest risk level found:
 | `brew-doctor` | check | `brew doctor` | read-only |
 | `macos-check` | check | `softwareupdate --list` | read-only |
 | `system-logs` | check | crash reports, failing launch agents, sleep blockers, processes logging faults, log sizes | read-only |
+| `dev-artifacts` | check | build folders (`node_modules`, `target`, `.venv`, `Pods`…) in projects untouched for 60 days, largest first | read-only |
+| `shell-startup` | check | time three interactive zsh starts | read-only |
 | `docker-df` | check | `docker system df` + Docker Desktop disk image | read-only |
 | `docker-start` | check | start Docker Desktop and wait for it | dangerous |
 | `brew` | update | `brew update && brew upgrade` | normal |
@@ -508,6 +712,17 @@ commands with `&&`, `;`, `|`) and applies the highest risk level found:
 | `rustup` | update | `rustup update` | normal |
 | `cargo` | update | `cargo install-update -a` | normal |
 | `gh-ext` | update | `gh extension upgrade --all` | normal |
+| `mise` | update | `mise upgrade` | normal |
+| `asdf` | update | `asdf plugin update --all` | normal |
+| `gem` | update | `gem update` (not macOS's own Ruby) | normal |
+| `composer` | update | `composer global update` | normal |
+| `deno`, `poetry`, `flutter`, `gcloud`, `claude-code` | update | each tool's self-update, only when it was not installed by Homebrew | normal |
+| `conda` | update | `conda update -n base -y conda` | normal |
+| `go-bins` | update | `gup update` (binaries from `go install`) | normal |
+| `dotnet-tools` | update | `dotnet tool update --global --all` | normal |
+| `vscode-ext` | update | `code --update-extensions` | normal |
+| `tldr`, `helm-repos` | update | `tldr --update`, `helm repo update` | normal |
+| `tmux-plugins`, `nvim-plugins` | update | tpm `update_plugins all`, lazy.nvim sync | normal |
 | `omz` | update | Oh My Zsh upgrader | dangerous |
 | `macos` | update | `sudo softwareupdate --install --all` | dangerous |
 | `brew-cleanup` | clean | `brew cleanup --prune=all` | dangerous |
@@ -517,6 +732,15 @@ commands with `&&`, `;`, `|`) and applies the highest risk level found:
 | `pip-cache` | clean | `pip3 cache purge` | dangerous |
 | `uv-cache` | clean | `uv cache prune` | dangerous |
 | `go-cache` | clean | `go clean -cache` | dangerous |
+| `go-modcache` | clean | `go clean -modcache` | dangerous |
+| `yarn-cache`, `bun-cache`, `deno-cache` | clean | `yarn cache clean`, `bun pm cache rm`, `deno clean` | dangerous |
+| `cargo-cache` | clean | `cargo cache --autoclean` | dangerous |
+| `gem-cleanup`, `composer-cache`, `cocoapods-cache` | clean | `gem cleanup`, `composer clear-cache`, `pod cache clean --all` | dangerous |
+| `gradle-cache` | clean | empty `~/.gradle/caches` and `~/.gradle/daemon` | dangerous |
+| `conda-clean`, `nuget-cache`, `flutter-cache` | clean | `conda clean --all -y`, `dotnet nuget locals all --clear`, `flutter pub cache clean -f` | dangerous |
+| `mise-prune`, `pre-commit-gc` | clean | `mise prune -y`, `pre-commit gc` | dangerous |
+| `playwright-cache` | clean | empty `~/Library/Caches/ms-playwright` | dangerous |
+| `ios-device-support` | clean | empty `~/Library/Developer/Xcode/iOS DeviceSupport` | dangerous |
 | `xcode-derived` | clean | empty `~/Library/Developer/Xcode/DerivedData` | dangerous |
 | `simulators` | clean | `xcrun simctl delete unavailable` | dangerous |
 | `docker-containers` | clean | `docker container prune -f` | always ask |
@@ -574,6 +798,7 @@ effort = "medium"               # Claude models only: low|medium|high|xhigh|max
 approval = "dangerous"          # dangerous | all | never
 language = "auto"               # en | es | fr | de | pt | auto (system locale)
 command_timeout = "45m"         # time limit per command
+# model_catalog = "off"         # do not download the public model catalogue (automatic mode then uses built-in names)
 skip_steps = ["macos"]
 
 [providers.anthropic]
@@ -624,7 +849,11 @@ omega [task] [flags]
 | `omega model [model\|auto] [--provider p]` | choose the model on a card, or set it directly |
 | `omega models [provider] [filter]` | list models with prices |
 | `omega docker` | measure Docker and clean what you select |
+| `omega menu` | home screen: every command on one screen, started with Enter |
 | `omega mac [status\|login\|background\|menubar\|dock\|shortcuts]` | review what runs at login and in the background, the menu bar, the Dock and shortcut conflicts (AI-guided without a subcommand) |
+| `omega mac permissions` | remove privacy entries of binaries and apps that are gone |
+| `omega mac apps` | unused apps, Intel-only apps and leftovers of removed apps |
+| `omega dev [status\|install [tool…]\|activate]` | review, install and activate languages and developer tools (AI-guided without a subcommand) |
 | `omega mac policy [edit]` | your rules (`mac.toml`) and omega's defaults |
 | `omega mac undo` | revert changes made by `omega mac` |
 | `omega auth set\|remove\|status` | manage API keys (validated before saving) |

@@ -21,6 +21,8 @@ asks you on cards and applies only what you pick. The subcommands do the same fo
   omega mac menubar       menu bar apps
   omega mac dock          the Dock
   omega mac shortcuts     who keeps each contested keyboard shortcut
+  omega mac permissions   privacy entries left by binaries and apps that are gone
+  omega mac apps          apps you no longer open, Intel-only apps and leftovers
   omega mac policy        your rules and omega's defaults
   omega mac undo          revert changes`,
 		`Sin subcomando, la IA revisa todo con tus reglas (omega mac policy) y los valores por defecto de omega,
@@ -33,6 +35,8 @@ te pregunta con tarjetas y aplica solo lo que elijas. Los subcomandos hacen lo m
   omega mac menubar       apps de la barra de menús
   omega mac dock          el Dock
   omega mac shortcuts     quién se queda cada atajo de teclado en conflicto
+  omega mac permissions   permisos de privacidad de binarios y apps que ya no existen
+  omega mac apps          apps que ya no abres, apps solo Intel y restos
   omega mac policy        tus reglas y los valores por defecto de omega
   omega mac undo          deshacer cambios`,
 		`Sans sous-commande, l'IA passe tout en revue avec vos règles (omega mac policy) et les valeurs par défaut d'omega,
@@ -45,6 +49,8 @@ vous demande sur des cartes et n'applique que ce que vous choisissez. Les sous-c
   omega mac menubar       apps de la barre des menus
   omega mac dock          le Dock
   omega mac shortcuts     qui garde chaque raccourci clavier en conflit
+  omega mac permissions   autorisations laissées par des binaires et apps disparus
+  omega mac apps          apps que vous n'ouvrez plus, apps Intel et restes
   omega mac policy        vos règles et les valeurs par défaut d'omega
   omega mac undo          annuler des changements`,
 		`Ohne Unterbefehl prüft die KI alles mit deinen Regeln (omega mac policy) und omegas Standardwerten,
@@ -57,6 +63,8 @@ fragt dich über Karten und wendet nur an, was du auswählst. Die Unterbefehle t
   omega mac menubar       Apps in der Menüleiste
   omega mac dock          das Dock
   omega mac shortcuts     wer welches umkämpfte Tastenkürzel behält
+  omega mac permissions   Berechtigungen verschwundener Programme und Apps
+  omega mac apps          ungenutzte Apps, reine Intel-Apps und Reste
   omega mac policy        deine Regeln und omegas Standardwerte
   omega mac undo          Änderungen rückgängig machen`,
 		`Sem subcomando, a IA revê tudo com as tuas regras (omega mac policy) e os valores por omissão do omega,
@@ -69,6 +77,8 @@ pergunta-te com cartões e aplica só o que escolheres. Os subcomandos fazem o m
   omega mac menubar       apps da barra de menus
   omega mac dock          o Dock
   omega mac shortcuts     quem fica com cada atalho de teclado em conflito
+  omega mac permissions   permissões de binários e apps que já não existem
+  omega mac apps          apps que já não abres, apps só Intel e restos
   omega mac policy        as tuas regras e os valores por omissão do omega
   omega mac undo          desfazer alterações`,
 	},
@@ -239,11 +249,11 @@ pergunta-te com cartões e aplica só o que escolheres. Os subcomandos fazem o m
 		"As tuas escolhas ficam guardadas em %s: o omega vai sugerir o mesmo da próxima vez.",
 	},
 	"mac.status_next": {
-		"Change things with omega mac login|background|menubar|dock|shortcuts, or let the AI guide you with omega mac.",
-		"Cambia cosas con omega mac login|background|menubar|dock|shortcuts, o deja que te guíe la IA con omega mac.",
-		"Changez les choses avec omega mac login|background|menubar|dock|shortcuts, ou laissez l'IA vous guider avec omega mac.",
-		"Ändere etwas mit omega mac login|background|menubar|dock|shortcuts oder lass dich mit omega mac von der KI führen.",
-		"Muda as coisas com omega mac login|background|menubar|dock|shortcuts, ou deixa a IA guiar-te com omega mac.",
+		"Change things with omega mac login|background|menubar|dock|shortcuts|permissions|apps, or let the AI guide you with omega mac.",
+		"Cambia cosas con omega mac login|background|menubar|dock|shortcuts|permissions|apps, o deja que te guíe la IA con omega mac.",
+		"Changez les choses avec omega mac login|background|menubar|dock|shortcuts|permissions|apps, ou laissez l'IA vous guider avec omega mac.",
+		"Ändere etwas mit omega mac login|background|menubar|dock|shortcuts|permissions|apps oder lass dich mit omega mac von der KI führen.",
+		"Muda as coisas com omega mac login|background|menubar|dock|shortcuts|permissions|apps, ou deixa a IA guiar-te com omega mac.",
 	},
 	"mac.policy_defaults": {
 		`omega's defaults (your rules in mac.toml win):

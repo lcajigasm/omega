@@ -48,6 +48,12 @@ type Options struct {
 	SkipDetect  bool // run catalogue steps without checking they are installed (demo mode)
 	// SudoPassword, when set (omega --sudo), answers sudo prompts without asking.
 	SudoPassword string
+	// Doctor runs omega's preflight check and returns its report. The CLI
+	// sets it; the check lives there because it knows the providers and keys.
+	Doctor func() string
+	// Models returns the provider's models with score and price and the two
+	// that automatic mode uses, as `omega models` prints them.
+	Models func() string
 }
 
 // Agent drives one maintenance session.

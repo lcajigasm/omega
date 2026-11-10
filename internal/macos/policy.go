@@ -85,6 +85,14 @@ type UserPolicy struct {
 		// "opt+space" = "ChatGPT", "ctrl+space" = "macOS".
 		Owners map[string]string `toml:"owners"`
 	} `toml:"shortcuts"`
+	// Permissions.Keep are privacy entries omega must not offer to remove.
+	Permissions struct {
+		Keep []string `toml:"keep"`
+	} `toml:"permissions"`
+	// Apps.Keep are apps (and leftovers) omega must not ask about.
+	Apps struct {
+		Keep []string `toml:"keep"`
+	} `toml:"apps"`
 }
 
 // PolicyPath is the user's rules file.
@@ -130,12 +138,14 @@ const policyHeader = `# omega mac: your own rules. They win over omega's default
 # [menubar]  keep = ["Dropbox"]                      hide = ["Docker"]
 # [dock]     remove = ["App Store"]  add = ["/Applications/Ghostty.app"]  autohide = true  show_recents = false
 # [shortcuts.owners]  "opt+space" = "ChatGPT"  "ctrl+space" = "macOS"  "cmd+space" = "Alfred"
+# [permissions]  keep = ["node", "com.example.app"]   never offer to remove these privacy entries
+# [apps]     keep = ["Xcode", "com.example.old"]     never ask about these apps or their leftovers
 
 `
 
 // AddRule records a decision in the user's policy. kind is one of
 // keep, disable (startup), menubar-keep, menubar-hide, dock-remove, dock-add,
-// or owner (value is "combo=app").
+// permission-keep, app-keep, or owner (value is "combo=app").
 func (p *UserPolicy) AddRule(kind, value string) error {
 	value = strings.TrimSpace(value)
 	if value == "" {
@@ -162,6 +172,10 @@ func (p *UserPolicy) AddRule(kind, value string) error {
 		add(&p.Dock.Remove)
 	case "dock-add":
 		add(&p.Dock.Add)
+	case "permission-keep":
+		add(&p.Permissions.Keep)
+	case "app-keep":
+		add(&p.Apps.Keep)
 	case "owner":
 		combo, app, ok := strings.Cut(value, "=")
 		if !ok {

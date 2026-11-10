@@ -23,6 +23,22 @@ var slashCommands = []slashCommand{
 	{"/mode", "[ask|auto|readonly]", "slash.mode"},
 	{"/model", "[name]", "slash.model"},
 	{"/expand", "", "slash.expand"},
+	{"/panel", "", "slash.panel"},
+	{"/full", "", "slash.task_full"},
+	{"/update", "", "slash.task_update"},
+	{"/clean", "", "slash.task_clean"},
+	{"/analyze", "", "slash.task_analyze"},
+	{"/tune", "", "slash.task_tune"},
+	{"/mac", "", "slash.task_mac"},
+	{"/permissions", "", "slash.task_permissions"},
+	{"/apps", "", "slash.task_apps"},
+	{"/dev", "", "slash.task_dev"},
+	{"/install", "", "slash.task_install"},
+	{"/docker", "", "slash.task_docker"},
+	{"/fix", "", "slash.task_fix"},
+	{"/undo", "", "slash.task_undo"},
+	{"/history", "", "slash.task_history"},
+	{"/doctor", "", "slash.task_doctor"},
 	{"/exit", "", "slash.exit"},
 	{"/quit", "", "slash.exit"},
 }
@@ -169,13 +185,59 @@ func (m *model) submitCommand(text string) tea.Cmd {
 		m.setModel(arg)
 	case "/expand":
 		m.expanded = !m.expanded
+	case "/panel":
+		m.togglePanel()
+		return nil
+	default:
+		if c, ok := findCommand(name); ok && strings.HasPrefix(c.desc, "slash.task_") {
+			return m.startTask(strings.TrimPrefix(c.name, "/"))
+		}
+		m.note(errStyle.Render("! ")+mutedStyle.Render(i18n.T("slash.unknown", name)), lipgloss.NewStyle())
 	case "/exit", "/quit":
 		m.quitting = true
 		m.endSession()
 		return nil
-	default:
-		m.note(errStyle.Render("! ")+mutedStyle.Render(i18n.T("slash.unknown", name)), lipgloss.NewStyle())
 	}
+	m.refresh()
+	return nil
+}
+
+func findCommand(name string) (slashCommand, bool) {
+	for _, c := range slashCommands {
+		if strings.EqualFold(c.name, name) {
+			return c, true
+		}
+	}
+	return slashCommand{}, false
+}
+
+// taskPrompts are the follow-up tasks a slash command starts in the running
+// session; the rest come from the agent's presets.
+var taskPrompts = map[string]string{
+	"permissions": "Review the privacy permissions of this Mac with mac_inventory (section permissions). Offer to remove the entries left " +
+		"behind by binaries whose path no longer exists and by apps that are no longer installed, explain any binary listed several times, " +
+		"and apply only what I pick with mac_change.",
+	"apps": "Review the apps installed on this Mac with mac_inventory (section apps): what I have not opened in months, what still runs " +
+		"under Rosetta and what removed apps left in ~/Library. Tell me what each one is, let me choose with propose_actions (nothing " +
+		"preselected) and apply only what I pick with mac_change.",
+}
+
+// startTask sends a task preset to the agent as the next message, so a
+// session can move from one job to another without leaving the interface.
+func (m *model) startTask(task string) tea.Cmd {
+	prompt, ok := taskPrompts[task]
+	if !ok {
+		prompt, ok = agent.TaskPrompts[task]
+	}
+	if !ok {
+		return nil
+	}
+	m.input.Blur()
+	m.state = stRunning
+	m.header.Task = task
+	m.add(&entry{kind: enUser, text: "/" + task})
+	ch := m.ag.Input()
+	go func() { ch <- prompt }()
 	m.refresh()
 	return nil
 }
@@ -264,7 +326,8 @@ var helpKeys = [][2]string{
 	{"ctrl+f", "key.search"},
 	{"shift+tab", "key.mode"},
 	{"ctrl+p", "key.model"},
-	{"ctrl+o", "slash.expand"},
+	{"ctrl+o /expand", "slash.expand"},
+	{"ctrl+b /panel", "slash.panel"},
 	{"ctrl+y", "key.copy"},
 	{"alt+up/down", "key.focus"},
 	{"/", "key.slash"},
@@ -283,17 +346,58 @@ func (m *model) helpView() string {
 	}
 	var b strings.Builder
 	b.WriteString(titleStyle.Render(i18n.T("slash.help_title")) + "\n")
+	// The task commands share one row: listed one by one, the card would
+	// not fit a 24-line terminal.
+	var tasks []string
 	for _, c := range slashCommands {
 		if c.name == "/quit" {
 			continue
 		}
-		label := lipgloss.NewStyle().Width(22).Render(strings.TrimSpace(c.name + " " + c.args))
-		b.WriteString("  " + cmdStyle.Render(label) + mutedStyle.Render(truncate(i18n.T(c.desc), max(12, w-28))) + "\n")
+		if strings.HasPrefix(c.desc, "slash.task_") {
+			tasks = append(tasks, c.name)
+			continue
+		}
+		// /expand and /panel are listed once, under their keys below.
+		if c.name == "/expand" || c.name == "/panel" {
+			continue
+		}
+		label := lipgloss.NewStyle().Width(27).Render(strings.TrimSpace(c.name + " " + c.args))
+		b.WriteString("  " + cmdStyle.Render(label) + mutedStyle.Render(truncate(i18n.T(c.desc), max(12, w-33))) + "\n")
 	}
-	b.WriteString("\n" + titleStyle.Render(i18n.T("slash.keys_title")) + "\n")
-	for _, k := range helpKeys {
-		label := lipgloss.NewStyle().Width(14).Render(k[0])
-		b.WriteString("  " + cmdStyle.Render(label) + mutedStyle.Render(truncate(i18n.T(k[1]), max(12, w-20))) + "\n")
+	line := ""
+	for _, t := range tasks {
+		if line != "" && lipgloss.Width(line)+1+lipgloss.Width(t) > w-6 {
+			b.WriteString("  " + cmdStyle.Render(line) + "\n")
+			line = ""
+		}
+		line = strings.TrimSpace(line + " " + t)
+	}
+	b.WriteString("  " + cmdStyle.Render(line) + "\n")
+	b.WriteString("  " + lipgloss.NewStyle().Width(27).Render("") + mutedStyle.Render(truncate(i18n.T("slash.tasks"), max(12, w-33))) + "\n")
+	b.WriteString(titleStyle.Render(i18n.T("slash.keys_title")) + "\n")
+	// Two columns when there is room, so the card fits a short terminal.
+	cols := 1
+	if w >= 108 {
+		cols = 2
+	}
+	colW := (w - 4) / cols
+	rows := (len(helpKeys) + cols - 1) / cols
+	for r := 0; r < rows; r++ {
+		line := " "
+		for c := 0; c < cols; c++ {
+			i := r + c*rows
+			if i >= len(helpKeys) {
+				break
+			}
+			k := helpKeys[i]
+			label := lipgloss.NewStyle().Width(16).Render(k[0])
+			cell := " " + cmdStyle.Render(label) + mutedStyle.Render(truncate(i18n.T(k[1]), max(12, colW-19)))
+			if c < cols-1 {
+				cell = lipgloss.NewStyle().Width(colW).Render(cell)
+			}
+			line += cell
+		}
+		b.WriteString(line + "\n")
 	}
 	return cardStyle.Width(w).Render(strings.TrimRight(b.String(), "\n"))
 }

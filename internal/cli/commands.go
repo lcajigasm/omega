@@ -135,6 +135,7 @@ func setupCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			loadModels(cfg, info, p, false)
 			if err := chooseModel(cfg, info, p); err != nil && !errors.Is(err, ui.ErrCancelled) {
 				return err
 			}
@@ -208,45 +209,45 @@ func authCmd() *cobra.Command {
 // ---- models ----
 
 func modelsCmd() *cobra.Command {
-	return &cobra.Command{
-		Use: "models [provider] [filter]", Short: i18n.T("cmd.models"), Args: cobra.MaximumNArgs(2),
+	var refresh bool
+	c := &cobra.Command{
+		Use: "models [provider] [filter]", Short: i18n.T("cmd.models"), Long: i18n.T("cmd.models_long"), Args: cobra.MaximumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := config.Load()
 			if err != nil {
 				return err
 			}
-			name := ""
+			name := cfg.Provider
 			if len(args) > 0 {
 				name = args[0]
 			}
-			p, plan, err := resolveProvider(cfg, name, "", "", "full")
+			info, ok := llm.Lookup(name)
+			if !ok {
+				return fmt.Errorf("%s", i18n.T("err.unknown_provider", name, providerNames()))
+			}
+			p, err := newProvider(cfg, info, "")
 			if err != nil {
 				return err
 			}
-			current := plan.Model
+			if err := loadModels(cfg, info, p, refresh); err != nil {
+				fmt.Fprintln(os.Stderr, i18n.T("models.fetch_failed", err))
+			}
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
-			models, err := p.Models(ctx)
+			available, err := p.Models(ctx)
 			if err != nil {
 				return err
 			}
-			for _, m := range models {
-				if len(args) == 2 && !strings.Contains(strings.ToLower(m), strings.ToLower(args[1])) {
-					continue
-				}
-				mark := "  "
-				if m == current {
-					mark = "* "
-				}
-				if badge := priceBadge(p.Name(), m); badge != "" {
-					fmt.Printf("%s%-44s %s\n", mark, m, badge)
-				} else {
-					fmt.Println(mark + m)
-				}
+			filter := ""
+			if len(args) == 2 {
+				filter = args[1]
 			}
+			modelsReport(os.Stdout, cfg, info, available, filter)
 			return nil
 		},
 	}
+	c.Flags().BoolVar(&refresh, "refresh", false, i18n.T("flag.refresh"))
+	return c
 }
 
 // ---- config ----
@@ -308,6 +309,8 @@ func configCmd() *cobra.Command {
 						return fmt.Errorf("%s", i18n.T("config.bad_duration", err))
 					}
 					cfg.Timeout = v
+				case "model_catalog":
+					cfg.Catalog = v
 				case "skip_steps":
 					cfg.SkipSteps = nil
 					for _, s := range strings.Split(v, ",") {

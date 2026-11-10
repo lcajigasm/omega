@@ -54,6 +54,18 @@ robust, obvious to drive, and downloadable. Items already shipped are checked.
 - [x] **Settled text is painted once.** A tick or a new line of output does not run Markdown rendering again for messages that have not changed.
 - [x] **A failed tool says why.** The refusal or the error is on the card, wrapped to the terminal. A model error is wrapped the same way and the view moves to it.
 
+## Unreleased
+
+- [x] **Privacy permissions.** `omega mac permissions` lists the entries of System Settings → Privacy & Security whose binary no longer exists (a bundled `node` leaves one per update) or whose app is gone, and removes the ones picked. The removal is checked by reading the database again. Without Full Disk Access it says so and lists the system-wide entries only.
+- [x] **Apps and leftovers.** `omega mac apps` shows apps not opened for 180 days, Intel-only apps, and files in `~/Library` of apps that are no longer installed. Removals go to the Trash and `omega mac undo` reverts them.
+- [x] **`omega dev`.** A catalogue of more than 70 languages, version managers and command-line tools. `status` shows what is installed, by which manager, and what stands out. `install` installs from a card. `activate` adds missing shell lines to `~/.zshrc` after copying the file.
+- [x] **More steps.** 17 updaters and 16 cleaners for developer tools (mise, asdf, gem, composer, deno, conda, Go binaries, .NET tools, VS Code extensions, Gradle, Cargo, CocoaPods, Playwright and others), plus `dev-artifacts` and `shell-startup`.
+- [x] **Session panel.** On a terminal of 104 columns or more: steps done, failed and denied, disk space freed, tokens and every tool call. `ctrl+b` hides it.
+- [x] **Home screen.** `omega menu` lists every command by area with disk space and the last run.
+- [x] **Task commands.** `/full`, `/update`, `/clean`, `/analyze`, `/tune`, `/fix`, `/mac`, `/permissions`, `/apps`, `/dev`, `/install`, `/docker`, `/undo`, `/history` and `/doctor` start another task in the running session.
+- [x] **The AI reaches every feature.** New tools install and activate developer tools, revert `omega mac` changes, read earlier runs, manage the notes, change settings and run the preflight check. Each change asks first. API keys, the provider and the approval policy stay with the user: the model is told the command to give instead.
+- [x] **Automatic models from live data.** Once a day omega reads OpenRouter's public catalogue (list prices and the Artificial Analysis index) and picks the fast and the smart model by score per dollar among the models the key can use. `omega models` shows the table and the picks, `omega doctor` reports them, the AI has `model_ranking`, and `model_catalog = "off"` disables the download.
+
 ## Next
 
 The 0.13 pass is the open work that was left after 0.12.
