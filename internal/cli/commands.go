@@ -293,53 +293,7 @@ func configCmd() *cobra.Command {
 			Short: i18n.T("cmd.config_set"),
 			Args:  cobra.ExactArgs(2),
 			RunE: func(cmd *cobra.Command, args []string) error {
-				cfg, err := config.Load()
-				if err != nil {
-					return err
-				}
-				k, v := args[0], args[1]
-				switch k {
-				case "provider":
-					if err := validProvider(v); err != nil {
-						return err
-					}
-					cfg.Provider = v
-					cfg.Model = cfg.Providers[v].Model
-				case "model":
-					cfg.Model = v
-					pc := cfg.Providers[cfg.Provider]
-					pc.Model = v
-					cfg.Providers[cfg.Provider] = pc
-				case "effort":
-					cfg.Effort = v
-				case "approval":
-					if v != config.ApproveDangerous && v != config.ApproveAll && v != config.ApproveNever {
-						return fmt.Errorf("%s", i18n.T("config.bad_approval"))
-					}
-					cfg.Approval = v
-				case "language":
-					if v != "auto" && i18n.Normalize(v) == "" {
-						return fmt.Errorf("%s", i18n.T("config.bad_language", v))
-					}
-					cfg.Language = v
-				case "command_timeout":
-					if _, err := time.ParseDuration(v); err != nil {
-						return fmt.Errorf("%s", i18n.T("config.bad_duration", err))
-					}
-					cfg.Timeout = v
-				case "model_catalog":
-					cfg.Catalog = v
-				case "skip_steps":
-					cfg.SkipSteps = nil
-					for _, s := range strings.Split(v, ",") {
-						if s = strings.TrimSpace(s); s != "" {
-							cfg.SkipSteps = append(cfg.SkipSteps, s)
-						}
-					}
-				default:
-					return fmt.Errorf("%s", i18n.T("config.unknown_key", k))
-				}
-				return cfg.Save()
+				return SetConfig(args[0], args[1])
 			},
 		},
 		&cobra.Command{

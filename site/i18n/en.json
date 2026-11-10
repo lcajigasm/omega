@@ -209,7 +209,7 @@
   "app.8": "The disk image runs on macOS 13 or later, on Apple Silicon and Intel. For Windows and Linux, take the <code>omega-gui</code> archive for amd64 or arm64 from the release.",
   "app.9": "The omega app during a full maintenance: steps with their result, a failed pipx step diagnosed on a stronger model, and a card asking before the fix runs",
   "app.10": "Steps as they finish, a failure diagnosed on a stronger model, and the fix waiting for your approval.",
-  "app.11": "The app's home screen: six tasks as buttons and a field to say what you need",
+  "app.11": "The app's home screen: the tasks as buttons and a field to say what you need",
   "app.12": "Pick a task, or say what you need in words.",
   "app.13": "A selection card in the app with cleanup actions ticked and the space each one frees",
   "app.14": "Tick the cleanups you want. omega does exactly those.",

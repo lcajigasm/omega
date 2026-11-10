@@ -102,13 +102,19 @@ func doctorVersion(w io.Writer) {
 	}
 }
 
-func runDoctor(w io.Writer) error {
+func runDoctor(w io.Writer) error { return doctorReport(w, true) }
+
+// doctorReport writes the checks; withSteps adds the list of steps, which a
+// frontend that draws its own leaves out.
+func doctorReport(w io.Writer, withSteps bool) error {
 	problems := 0
 	doctorVersion(w)
 	cfg, err := config.Load()
 	if err != nil {
 		fmt.Fprintln(w, i18n.T("doctor.config_bad", err.Error()))
-		fmt.Fprint(w, doctorSteps(config.Default()))
+		if withSteps {
+			fmt.Fprint(w, doctorSteps(config.Default()))
+		}
 		return fmt.Errorf("%s", i18n.T("doctor.failed", 1))
 	}
 	if err := cfg.Validate(); err != nil {
@@ -118,7 +124,9 @@ func runDoctor(w io.Writer) error {
 		fmt.Fprintln(w, i18n.T("doctor.config_ok", config.Path()))
 	}
 	problems += doctorProvider(w, cfg)
-	fmt.Fprint(w, doctorSteps(cfg))
+	if withSteps {
+		fmt.Fprint(w, doctorSteps(cfg))
+	}
 	if problems > 0 {
 		return fmt.Errorf("%s", i18n.T("doctor.failed", problems))
 	}

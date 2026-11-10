@@ -99,12 +99,16 @@ The styles, the script and the captures (`docs/styles.css`, `docs/main.js`,
 ### Desktop app
 
 `cmd/omega-gui` is the same agent in a window, for macOS, Linux and Windows:
-a home screen with the tasks, the session with its steps and live output,
-cards for approvals, selections and the sudo password, and a setup screen for
-the provider and its key. It is built with
-[Wails](https://wails.io) on the system webview and shares the agent, the
-safety policy, the configuration and the translations with the command.
-The model is chosen automatically: `omega model` is still the way to fix one.
+a sidebar with five views that stay one click away while a session runs.
+**Maintenance** has the tasks and a field to ask in words; **Session** has the
+steps with their live output and the cards for approvals, selections and the
+sudo password; **History** reads the saved transcripts; **Status** runs the
+checks of `omega doctor`, turns steps on and off and shows the notes; and
+**Settings** has the provider and its key, the model, the language and the
+rest of `omega config set`. The language changes at once, without restarting.
+It is built with [Wails](https://wails.io) on the system webview and shares
+the agent, the safety policy, the configuration and the translations with the
+command. What the views ask of omega is in `internal/cli/guiapi.go`.
 
 A release publishes
 `omega-macos-universal.dmg` (`Omega.app`, Apple Silicon and Intel),
