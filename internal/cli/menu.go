@@ -185,7 +185,7 @@ var menuGroups = []struct {
 	group    string
 	commands []string
 }{
-	{"maintain", []string{"docker"}},
+	{"maintain", []string{"full", "docker"}},
 	{"mac", []string{"mac"}},
 	{"dev", []string{"dev"}},
 	{"models", []string{"setup", "model", "models", "auth"}},

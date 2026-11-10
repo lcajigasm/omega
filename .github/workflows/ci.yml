@@ -151,6 +151,11 @@ jobs:
           $mac = (./omega.exe mac status 2>&1 | Out-String)
           Check ($LASTEXITCODE -ne 0) 'omega mac ran on Windows'
           Check ($mac -match 'only works on macOS') "omega mac did not say it is Mac-only: $mac"
+          # The guided run lists its steps without a terminal only when told to run unattended.
+          $full = (./omega.exe full 2>&1 | Out-String)
+          Check ($LASTEXITCODE -ne 0) 'omega full ran without a terminal and without --yes'
+          Check ($full -match '--yes') "omega full did not say how to run unattended: $full"
+          exit 0
       - name: windows key storage and doctor
         if: runner.os == 'Windows'
         shell: pwsh
@@ -195,6 +200,7 @@ jobs:
             Check (-not ((cmdkey /list | Out-String) -match 'omega-cli:openai')) 'the credential is still there'
             Check ((./omega.exe auth status | Out-String) -match 'openai +—') 'auth status still shows a key'
           } finally { Stop-Process -Id $stub.Id -ErrorAction SilentlyContinue }
+          exit 0
       # The winget ids of omega dev must exist. Not fatal: the runner may have no winget.
       - name: windows winget ids
         if: runner.os == 'Windows'

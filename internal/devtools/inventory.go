@@ -559,7 +559,12 @@ func Load(deep bool) *Inventory {
 			if len(args) == 0 {
 				args = []string{"--version"}
 			}
-			out, _ := run(6*time.Second, inv.Installed[i].Path, args...)
+			// Starting a process is slow on Windows, and they all start at once.
+			wait := 6 * time.Second
+			if inv.Platform.OS == "windows" {
+				wait = 20 * time.Second
+			}
+			out, _ := run(wait, inv.Installed[i].Path, args...)
 			inv.Installed[i].Version = parseVersion(out)
 		}(i)
 	}
