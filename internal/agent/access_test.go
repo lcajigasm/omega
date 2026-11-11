@@ -52,7 +52,12 @@ func accessFixture(t *testing.T, interactive bool, outputs []string, answers ...
 			e.Picks <- []string{pick}
 		}
 	}()
-	t.Cleanup(func() { close(a.events) })
+	// The transcript is closed before the temporary folder goes: Windows
+	// does not delete a file that is still open.
+	t.Cleanup(func() {
+		close(a.events)
+		a.closeLog()
+	})
 	return a, runs, opened, cards
 }
 
