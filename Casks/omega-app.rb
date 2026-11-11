@@ -1,6 +1,6 @@
-# The desktop app, for macOS. brew install uses lcajigasm/homebrew-tap: the
-# release workflow rewrites version and sha256 here when a tag is published
-# and copies this file to that tap in the same pull request as the formula.
+# The desktop app, for macOS. brew install uses lcajigasm/homebrew-tap, which
+# writes its own copy from each release. The release workflow records the
+# version and the sha256 here too, so this file shows what was published.
 cask "omega-app" do
   version "0.18.0"
   sha256 "7ef896b9a5cc6e2436c19ba3e6c2dd0847f850f2c488ef8b279b7efec6638cd1"

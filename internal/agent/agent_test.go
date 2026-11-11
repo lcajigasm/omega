@@ -216,11 +216,9 @@ func TestReadOnlyBatchOverlaps(t *testing.T) {
 	if maxc != n {
 		t.Fatalf("overlap %d, want %d running at once", maxc, n)
 	}
-	// Four waits of 80ms in series take ~320ms. Together they should finish
-	// close to one wait, plus scheduling.
-	if elapsed > pause*2+200*time.Millisecond {
-		t.Fatalf("batch took %s; sequential would be about %s", elapsed, pause*time.Duration(n))
-	}
+	// The count above is the proof: all four were inside Exec at the same
+	// moment. The time is only logged. A wall-clock limit failed on a busy
+	// Windows runner (2.5s for four 80ms waits) with the overlap intact.
 	t.Logf("%d read-only tools overlapped in %s (one after another would be about %s)", n, elapsed.Round(time.Millisecond), (pause * time.Duration(n)).Round(time.Millisecond))
 	for i, id := range []string{"1", "2", "3", "4"} {
 		got := p.results[1][i]

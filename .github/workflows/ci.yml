@@ -4,7 +4,50 @@ on:
     branches: [main]
   pull_request:
 
+# Reading the code is all these jobs need.
+permissions:
+  contents: read
+
+# A new push to a pull request replaces its older run: the macOS runners
+# queue, and a run nobody will read should not hold one. Runs on main are
+# never cancelled, so every commit there has its own result.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
+  # The scripts a release depends on, and the workflows themselves: a mistake
+  # in them shows up here, not in the middle of a release.
+  scripts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - name: shell scripts
+        run: shellcheck scripts/*.sh
+      - name: next version
+        run: scripts/next_version_test.sh
+      - name: tap check
+        run: python3 scripts/verify_taps_test.py
+      - name: workflows parse
+        run: |
+          set -euo pipefail
+          for f in .github/workflows/*.yml; do
+            ruby -ryaml -e 'YAML.load_file(ARGV[0])' "$f"
+            echo "ok $f"
+          done
+      - name: release can be started by hand
+        # The one-click release is a workflow_dispatch with a bump: without
+        # that trigger `gh workflow run release.yml` answers HTTP 422.
+        run: |
+          set -euo pipefail
+          ruby -ryaml -e '
+            on = YAML.load_file(".github/workflows/release.yml")[true]
+            bump = on.dig("workflow_dispatch", "inputs", "bump", "options")
+            abort "release.yml has no workflow_dispatch with a bump input" unless bump == %w[patch minor major]
+            abort "release.yml no longer releases a pushed tag" unless on.dig("push", "tags")
+          '
+
   # The desktop app has its own build tag, so the jobs below never compile
   # it. Build it on the three systems it ships for and check its packages.
   gui:
@@ -13,6 +56,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
@@ -32,6 +76,7 @@ jobs:
   # The container image a release pushes to ghcr.io: build it and run it.
   image:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - name: build
@@ -51,6 +96,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7

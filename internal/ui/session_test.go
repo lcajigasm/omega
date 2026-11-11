@@ -89,9 +89,9 @@ func TestSettledMarkdownIsNotReparsed(t *testing.T) {
 	m.refresh()
 	uncached := time.Since(start)
 	t.Logf("40 cached refreshes %s; one full paint %s", cached.Round(time.Microsecond), uncached.Round(time.Microsecond))
-	if cached > uncached*10 && uncached > 5*time.Millisecond {
-		t.Fatalf("cached refreshes %s were not cheaper than one paint %s", cached, uncached)
-	}
+	// The render count above is the proof that ticks reuse the cache; the
+	// times are logged, not asserted, because a shared runner's clock is not
+	// a measure of this code.
 
 	m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
 	if m.mdRenders != n*2+n {
