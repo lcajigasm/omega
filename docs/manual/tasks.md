@@ -10,6 +10,7 @@
 | Task | What it does | Changes the system | Model (automatic) |
 |---|---|---|---|
 | none (`omega` alone) | checks the state, updates everything, cleans up and summarises | yes | fast → smart on failure |
+| `quick` | one-click safe maintenance: trash, caches, updates check, health | yes | fast → smart on failure |
 | `update` | updates only (like topgrade) | yes | fast → smart on failure |
 | `clean` | measures what takes up space and cleans (like `mo clean`) | yes | fast → smart on failure |
 | `analyze` | report, then a card with the recommendations | only what you pick | fast → smart on failure |

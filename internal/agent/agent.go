@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 	"sync"
@@ -54,6 +55,10 @@ type Options struct {
 	// Models returns the provider's models with score and price and the two
 	// that automatic mode uses, as `omega models` prints them.
 	Models func() string
+	// MaxCost limits the estimated session cost in USD.
+	MaxCost float64
+	// MaxTurns limits the agent turns (defaults to 80).
+	MaxTurns int
 }
 
 // Agent drives one maintenance session.
@@ -184,9 +189,13 @@ func (a *Agent) Run(ctx context.Context, task string) {
 			a.emit(Event{Kind: EvDone, Text: i18n.T("agent.cancelled"), Stats: a.stats()})
 			return
 		}
-		if turn >= maxTurns {
+		limit := maxTurns
+		if a.opts.MaxTurns > 0 {
+			limit = a.opts.MaxTurns
+		}
+		if turn >= limit {
 			a.setExit(ExitError)
-			a.emit(Event{Kind: EvError, Text: i18n.T("agent.turn_limit", maxTurns)})
+			a.emit(Event{Kind: EvError, Text: i18n.T("agent.turn_limit", limit)})
 			results, text = nil, ""
 			if !a.waitInput(ctx, &text) {
 				return
@@ -229,6 +238,11 @@ func (a *Agent) Run(ctx context.Context, task string) {
 			a.costKnown = false
 		}
 		a.emit(Event{Kind: EvUsage, Stats: a.stats()})
+		if a.opts.MaxCost > 0 && a.cost >= a.opts.MaxCost {
+			a.setExit(ExitOK)
+			a.emit(Event{Kind: EvDone, Text: fmt.Sprintf("Reached cost budget limit of $%.2f", a.opts.MaxCost), Stats: a.stats()})
+			return
+		}
 		if t := strings.TrimSpace(reply.Text); t != "" {
 			a.emit(Event{Kind: EvAssistant, Text: t})
 		}
