@@ -168,25 +168,32 @@ provider, implement `llm.Provider` in `internal/llm/` and register it in
 
 ## Releasing
 
-Pushing a tag `vX.Y.Z` runs the release workflow, which builds the archives and
-publishes them on GitHub Releases. CI on main should be green before the tag.
+A release is one click. With CI green on `main`, start the release workflow
+and say which part of the version goes up:
 
 ```bash
-git tag v0.10.0 && git push origin v0.10.0
+gh workflow run release.yml -f bump=minor     # 0.18.0 -> 0.19.0; patch and major work the same
+gh workflow run release.yml -f version=1.0.0  # or name the version
 ```
 
-The release workflow builds the archives, publishes them with `SHA256SUMS`, and
-rewrites `Formula/omega.rb` in this repository (version and the sha256 of each
-archive) on `main`. That commit goes on top of `main` as it is when the builds
-end, which may be ahead of the tag. That file is a template. It is not an install path:
-`brew install` uses [`lcajigasm/homebrew-tap`](https://github.com/lcajigasm/homebrew-tap)
-(`brew install lcajigasm/tap/omega`). The workflow does not move the tag.
+The same form is in the Actions tab, under **release** → **Run workflow**.
+The workflow works out the next version from the latest tag
+(`scripts/next_version.sh`), runs the linter and the tests on `main`, creates
+the tag on that commit and publishes everything below. It refuses to start
+from a branch other than `main` or for a tag that exists. Pushing a tag
+`vX.Y.Z` by hand still releases that tag the same way.
+
+The workflow builds the archives, publishes them with `SHA256SUMS` on GitHub
+Releases, and rewrites `Formula/omega.rb` in this repository (version and the
+sha256 of each archive) on `main`. That commit goes on top of `main` as it is
+when the builds end, which may be ahead of the tag. That file is a template,
+not an install path. The workflow does not move the tag.
 
 The same run builds the desktop app: the universal disk image on a macOS
 runner (`scripts/package_macos.sh`), the Linux archives on amd64 and arm64
 runners and the Windows archives by cross-compiling. `SHA256SUMS` lists them
 too, and `Casks/omega-app.rb` here gets this version and the sha256 of the
-disk image. The pull request on the tap carries that cask next to the formula.
+disk image.
 
 The same run pushes the container image to GitHub Packages
 (`ghcr.io/lcajigasm/omega`, from the `Dockerfile`) for linux/amd64 and
@@ -198,19 +205,23 @@ builds and runs the same image on every pull request. To build it here:
 docker build --build-arg VERSION=$(git describe --tags --always) -t omega .
 ```
 
-After the release exists, the job opens a pull request on `lcajigasm/homebrew-tap`
-that sets `Formula/omega.rb` to this version and the sha256 of `darwin_arm64`,
-`darwin_amd64`, `linux_arm64` and `linux_amd64` from `SHA256SUMS`. It does that
-only when the `HOMEBREW_TAP_TOKEN` secret is present. When the secret is absent,
-the job prints an error that the tap must be updated by hand and `verify-taps`
-fails on the first check instead of waiting.
+`brew install` reads [`lcajigasm/homebrew-tap`](https://github.com/lcajigasm/homebrew-tap),
+and the tap follows a release by itself: its `update` workflow reads this
+repository's latest release four times an hour and rewrites
+`Formula/omega.rb` (the command) and `Casks/omega-app.rb` (the desktop app)
+with the version and the checksums from `SHA256SUMS`. There is no pull request
+to merge. GitHub can deliver that schedule late, so when the
+`HOMEBREW_TAP_TOKEN` secret exists here (a fine-grained token with Actions
+read and write on the tap) the release starts the tap's update at once;
+without it the release is just as complete and the tap catches up on its next
+run.
 
-`verify-taps` reads `Formula/omega.rb` and `Casks/omega-app.rb` from
-`lcajigasm/homebrew-tap` on the public GitHub API (no token) and compares
-their version with the tag. It tries again every 5 minutes for up to 75
-minutes, and the run fails if either is still on another version. A release created by the workflow token does not
-start other workflows, so the release job starts this one. Check a tag by hand
-with:
+`verify-taps` reads `Formula/omega.rb` and `Casks/omega-app.rb` from the tap
+on the public GitHub API (no token) and compares their version with the tag.
+It tries again every 5 minutes for up to 75 minutes, and the run fails if
+either is still on another version. A release created by the workflow token
+does not start other workflows, so the release job starts this one. Check a
+tag by hand with:
 
 ```bash
 gh workflow run verify-taps.yml --ref main -f tag=v0.10.0

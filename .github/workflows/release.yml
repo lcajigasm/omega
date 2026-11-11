@@ -1,5 +1,24 @@
 name: release
+
+# One click publishes a version: start this workflow from main (the Actions
+# tab, or `gh workflow run release.yml -f bump=minor`) and it works out the
+# next version, tests main, creates the tag and publishes everything: the
+# archives, the desktop app, the container image, and the formula and cask
+# in this repository. The tap follows by itself.
+#
+# Pushing a tag vX.Y.Z by hand still does the same for that tag.
 on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Which part of the version goes up
+        type: choice
+        options: [patch, minor, major]
+        default: minor
+      version:
+        description: Or an exact version, like 1.2.3 (overrides the bump)
+        type: string
+        required: false
   push:
     tags: ["v*.*.*"]
 
@@ -7,8 +26,46 @@ permissions:
   contents: write
   actions: write
 
+# Two releases at once would fight over the tag and over main.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
+  # The tag this run publishes: the one that was pushed, or the next one
+  # after the latest release.
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - id: tag
+        env:
+          BUMP: ${{ inputs.bump }}
+          EXACT: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error::a release is started from main, not from ${GITHUB_REF_NAME}"
+            exit 1
+          fi
+          tag="$(scripts/next_version.sh "${BUMP:-minor}" "${EXACT:-}")"
+          if git rev-parse -q --verify "refs/tags/${tag}" >/dev/null; then
+            echo "::error::${tag} already exists"
+            exit 1
+          fi
+          echo "releasing ${tag}" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+
   test:
+    needs: version
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -17,10 +74,25 @@ jobs:
           go-version-file: go.mod
       - run: make lint
       - run: go test ./...
+      - name: tag
+        # A release started by hand has no tag yet: it is created here, on
+        # the commit that has just passed the tests. A tag pushed with the
+        # workflow's token starts no second run.
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          TAG: ${{ needs.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag "$TAG" "$GITHUB_SHA"
+          git push origin "refs/tags/${TAG}"
 
   build:
-    needs: test
+    needs: [version, test]
     runs-on: ubuntu-latest
+    env:
+      TAG: ${{ needs.version.outputs.tag }}
     strategy:
       fail-fast: false
       matrix:
@@ -39,6 +111,8 @@ jobs:
             goarch: arm64
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.version.outputs.tag }}
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
@@ -49,12 +123,12 @@ jobs:
           CGO_ENABLED: "0"
         run: |
           set -euo pipefail
-          ver="${GITHUB_REF_NAME#v}"
+          ver="${TAG#v}"
           ext=""
           if [ "$GOOS" = "windows" ]; then ext=".exe"; fi
           name="omega_${ver}_${GOOS}_${GOARCH}"
           stage="$(mktemp -d)"
-          go build -trimpath -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}" -o "${stage}/omega${ext}" ./cmd/omega
+          go build -trimpath -ldflags "-s -w -X main.version=${TAG}" -o "${stage}/omega${ext}" ./cmd/omega
           cp LICENSE "${stage}/LICENSE"
           mkdir -p dist
           if [ "$GOOS" = "windows" ]; then
@@ -71,7 +145,9 @@ jobs:
   # The desktop app. macOS and Linux need the system webview's headers, so
   # each builds on its own runner; Windows needs no cgo and is cross-compiled.
   gui:
-    needs: test
+    needs: [version, test]
+    env:
+      TAG: ${{ needs.version.outputs.tag }}
     strategy:
       fail-fast: false
       matrix:
@@ -94,12 +170,14 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.version.outputs.tag }}
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       - name: disk image
         if: matrix.target == 'macos'
-        run: scripts/package_macos.sh "$GITHUB_REF_NAME" dist
+        run: scripts/package_macos.sh "$TAG" dist
       - name: webview libraries
         if: matrix.target == 'linux'
         run: sudo apt-get update && sudo apt-get install -y libgtk-4-dev libwebkitgtk-6.0-dev
@@ -110,10 +188,10 @@ jobs:
           GOARCH: ${{ matrix.arch }}
         run: |
           set -euo pipefail
-          ver="${GITHUB_REF_NAME#v}"
+          ver="${TAG#v}"
           name="omega-gui_${ver}_${TARGET}_${GOARCH}"
           stage="$(mktemp -d)"
-          flags="-s -w -X main.version=${GITHUB_REF_NAME}"
+          flags="-s -w -X main.version=${TAG}"
           mkdir -p dist
           cp LICENSE "${stage}/LICENSE"
           if [ "$TARGET" = "windows" ]; then
@@ -135,13 +213,15 @@ jobs:
   # the same builds as the release, so a tag that cannot be released leaves
   # no image behind. v1.2.3 is tagged 1.2.3, 1.2 and latest.
   image:
-    needs: [build, gui]
+    needs: [version, build, gui]
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.version.outputs.tag }}
       # The arm64 half of the image installs its packages under emulation;
       # the Go build is cross-compiled and does not need it.
       - uses: docker/setup-qemu-action@v4
@@ -161,8 +241,8 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{version}},value=${{ needs.version.outputs.tag }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ needs.version.outputs.tag }}
           labels: |
             org.opencontainers.image.title=omega
             org.opencontainers.image.licenses=MIT
@@ -171,7 +251,7 @@ jobs:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
-          build-args: VERSION=${{ github.ref_name }}
+          build-args: VERSION=${{ needs.version.outputs.tag }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           annotations: ${{ steps.meta.outputs.annotations }}
@@ -181,11 +261,14 @@ jobs:
           cache-to: type=gha,mode=max
 
   publish:
-    needs: [build, gui]
+    needs: [version, build, gui]
     runs-on: ubuntu-latest
+    env:
+      TAG: ${{ needs.version.outputs.tag }}
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ needs.version.outputs.tag }}
           fetch-depth: 0
       - uses: actions/download-artifact@v8
         with:
@@ -202,8 +285,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          gh release create "$GITHUB_REF_NAME" dist/* \
-            --title "omega ${GITHUB_REF_NAME#v}" \
+          gh release create "$TAG" dist/* \
+            --title "omega ${TAG#v}" \
             --generate-notes
       - uses: actions/setup-go@v7
         with:
@@ -222,7 +305,7 @@ jobs:
         # release decides how the files are written.
         run: |
           set -euo pipefail
-          ver="${GITHUB_REF_NAME#v}"
+          ver="${TAG#v}"
           go build -o "$RUNNER_TEMP/formula" ./internal/formula/cmd
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -244,70 +327,28 @@ jobs:
           done
           echo "::error::could not push the formula for ${ver} to main"
           exit 1
-      - name: open homebrew tap pull request
-        # HOMEBREW_TAP_TOKEN can push to lcajigasm/homebrew-tap and open a
-        # pull request. It is not created here. When it is missing, say so
-        # and fail verify-taps on the first check. A skipped step would let
-        # the release look green while brew install stays on the old formula.
+      - name: refresh the tap
+        # brew install reads lcajigasm/homebrew-tap, which rewrites its own
+        # Formula/omega.rb and Casks/omega-app.rb from this repository's
+        # latest release (script/update_tap.py there): no pull request and
+        # nothing to merge. Its schedule runs four times an hour, but GitHub
+        # may deliver it late, so when HOMEBREW_TAP_TOKEN is present (a token
+        # that may start workflows on the tap) it is started now. Without the
+        # token the release is still complete: the tap follows on its next
+        # scheduled run, and verify-taps waits for it.
         env:
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          ver="${GITHUB_REF_NAME#v}"
           if [ -z "${HOMEBREW_TAP_TOKEN}" ]; then
-            echo "::error::HOMEBREW_TAP_TOKEN is not set. The tap must be updated by hand: set the version and the sha256 for darwin_arm64, darwin_amd64, linux_arm64 and linux_amd64 in lcajigasm/homebrew-tap Formula/omega.rb. verify-taps fails until that formula matches this release."
-            gh workflow run verify-taps.yml --ref main -f tag="$GITHUB_REF_NAME" -f fail_fast=true
-            exit 1
-          fi
-          work="$(mktemp -d)"
-          git clone --depth 1 https://github.com/lcajigasm/homebrew-tap.git "$work"
-          git -C "$work" config user.name "github-actions[bot]"
-          git -C "$work" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          base="$(git -C "$work" rev-parse --abbrev-ref HEAD)"
-          branch="omega-${ver}"
-          git -C "$work" checkout -B "$branch"
-          "$RUNNER_TEMP/formula" -version "$ver" -sums dist/SHA256SUMS -file "$work/Formula/omega.rb" -tap
-          # The cask in the tap is this repository's, as the step above left
-          # it: this release's version and the sha256 of its disk image.
-          mkdir -p "$work/Casks"
-          cp Casks/omega-app.rb "$work/Casks/omega-app.rb"
-          git -C "$work" add Formula/omega.rb Casks/omega-app.rb
-          if git -C "$work" diff --cached --quiet; then
-            echo "lcajigasm/homebrew-tap Formula/omega.rb and Casks/omega-app.rb already match ${ver}"
+            echo "::notice::HOMEBREW_TAP_TOKEN is not set: lcajigasm/homebrew-tap picks ${TAG} up on its next scheduled update (every 15 minutes)."
             exit 0
           fi
-          git -C "$work" commit -m "omega ${ver}"
-          remote_sha="$(git ls-remote --heads https://github.com/lcajigasm/homebrew-tap.git "refs/heads/${branch}" | awk '{print $1}')"
-          export GH_TOKEN="$HOMEBREW_TAP_TOKEN"
-          gh auth setup-git
-          if [ -n "$remote_sha" ]; then
-            git -C "$work" push --force-with-lease="refs/heads/${branch}:${remote_sha}" origin "HEAD:refs/heads/${branch}"
-          else
-            git -C "$work" push -u origin "HEAD:refs/heads/${branch}"
-          fi
-          if url="$(gh pr view --repo lcajigasm/homebrew-tap "$branch" --json url -q .url 2>/dev/null)"; then
-            echo "updated ${url}"
-            exit 0
-          fi
-          body="$(printf '%s\n' \
-            "Update Formula/omega.rb and Casks/omega-app.rb to omega ${ver}." \
-            "" \
-            "The version is in the archive URLs. The sha256 values for darwin_arm64, darwin_amd64, linux_arm64 and linux_amd64 come from this release's SHA256SUMS." \
-            "" \
-            "Casks/omega-app.rb is the desktop app: its version and the sha256 of omega-macos-universal.dmg." \
-            "" \
-            "Opened by the omega release workflow. Merging publishes the formula that brew install lcajigasm/tap/omega installs and the cask that brew install --cask lcajigasm/tap/omega-app installs.")"
-          gh pr create \
-            --repo lcajigasm/homebrew-tap \
-            --base "$base" \
-            --head "$branch" \
-            --title "omega ${ver}" \
-            --body "$body"
+          GH_TOKEN="$HOMEBREW_TAP_TOKEN" gh workflow run update.yml --repo lcajigasm/homebrew-tap --ref main
       - name: start tap check
         # A release created with this token does not start other workflows.
-        # verify-taps reads Formula/omega.rb from lcajigasm/homebrew-tap.
-        # The pull request above has to be merged before this check can pass.
+        # verify-taps reads the formula and the cask from the tap until both
+        # are this version, and fails the run if they never get there.
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh workflow run verify-taps.yml --ref main -f tag="$GITHUB_REF_NAME"
+        run: gh workflow run verify-taps.yml --ref main -f tag="$TAG"
