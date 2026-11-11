@@ -197,10 +197,10 @@ omega [task] [flags]
 | `-v, --version` | version |
 | `--no-ai`, `--offline` | run deterministically without calling an AI model |
 | `--json` | output report as structured JSON |
-| `--format` | output format: json, yaml, or table |
+| `--format json` | the same as `--json`; no other format is written yet |
 | `-q, --quiet` | quiet mode; suppress non-essential output |
 | `-v, --verbose` | verbose output showing commands and streaming output |
-| `--debug` | print debug traces, token counts, and runner timings |
+| `--debug` | accepted, and reserved: it prints nothing more yet |
 | `--fail-on-warning` | exit with non-zero code if any warning is found |
 | `--fail-on-outdated` | exit with non-zero code if outdated packages are detected |
 | `--fail-on-critical` | exit with non-zero code if any step fails |

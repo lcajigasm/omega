@@ -286,6 +286,9 @@ func fullCmd() *cobra.Command {
 				byID[s.id] = s
 				stages = append(stages, guideStage(s, chosen[s.id]))
 			}
+			// A stage ends when its work does: the run goes on to the next
+			// one without anybody typing /exit.
+			f.stage = true
 			tty := term.IsTerminal(int(os.Stdin.Fd())) && term.IsTerminal(int(os.Stdout.Fd()))
 			if !tty && !f.yes {
 				return fmt.Errorf("%s", i18n.T("full.need_tty"))

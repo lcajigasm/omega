@@ -89,3 +89,38 @@ func TestCancelExits130(t *testing.T) {
 		t.Fatalf("exit %d, want %d", a.ExitCode(), ExitCancelled)
 	}
 }
+
+// A stage of the guided run ends with the model's turn: nobody has to type
+// /exit for the next stage to start, although cards can still be answered.
+func TestOneShotEndsWithoutFollowUp(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	opts := exitOpts(true)
+	opts.OneShot = true
+	a := New(failProvider{chat: &failChat{}}, opts)
+	done := make(chan struct{})
+	go func() {
+		a.Run(context.Background(), "test")
+		close(done)
+	}()
+	var kinds []EventKind
+	for e := range a.Events() {
+		kinds = append(kinds, e.Kind)
+	}
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the session waits for a message")
+	}
+	for _, k := range kinds {
+		if k == EvIdle {
+			t.Fatal("a stage went idle instead of ending")
+		}
+	}
+	if len(kinds) == 0 || kinds[len(kinds)-1] != EvDone {
+		t.Fatalf("events %v do not end with EvDone", kinds)
+	}
+	if a.ExitCode() != ExitOK {
+		t.Fatalf("exit %d", a.ExitCode())
+	}
+}

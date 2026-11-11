@@ -22,19 +22,19 @@ func exportCmd() *cobra.Command {
 				outFile = args[0]
 			}
 			absPath, _ := filepath.Abs(outFile)
-			fmt.Printf("Exporting system blueprint to %s...\n", absPath)
+			fmt.Fprintf(cmd.OutOrStdout(), "Exporting system blueprint to %s...\n", absPath)
 
 			bp, err := blueprint.Export(context.Background(), absPath)
 			if err != nil {
 				return err
 			}
-			fmt.Printf("✓ Blueprint exported successfully!\n")
-			fmt.Printf("  • Homebrew formulae: %d\n", len(bp.Homebrew))
-			fmt.Printf("  • Homebrew casks:    %d\n", len(bp.Casks))
-			fmt.Printf("  • Global npm:        %d\n", len(bp.NpmGlobal))
-			fmt.Printf("  • Pipx packages:     %d\n", len(bp.PipxPackages))
-			fmt.Printf("  • Dev tools:         %d\n", len(bp.DevTools))
-			fmt.Printf("\nTo restore on another machine: omega bootstrap %s\n", outFile)
+			fmt.Fprintf(cmd.OutOrStdout(), "✓ Blueprint exported successfully!\n")
+			fmt.Fprintf(cmd.OutOrStdout(), "  • Homebrew formulae: %d\n", len(bp.Homebrew))
+			fmt.Fprintf(cmd.OutOrStdout(), "  • Homebrew casks:    %d\n", len(bp.Casks))
+			fmt.Fprintf(cmd.OutOrStdout(), "  • Global npm:        %d\n", len(bp.NpmGlobal))
+			fmt.Fprintf(cmd.OutOrStdout(), "  • Pipx packages:     %d\n", len(bp.PipxPackages))
+			fmt.Fprintf(cmd.OutOrStdout(), "  • Dev tools:         %d\n", len(bp.DevTools))
+			fmt.Fprintf(cmd.OutOrStdout(), "\nTo restore on another machine: omega bootstrap %s\n", outFile)
 			return nil
 		},
 	}
@@ -48,9 +48,9 @@ func bootstrapCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			filePath := args[0]
-			fmt.Printf("Bootstrapping system from %s...\n\n", filePath)
+			fmt.Fprintf(cmd.OutOrStdout(), "Bootstrapping system from %s...\n\n", filePath)
 			return blueprint.Bootstrap(context.Background(), filePath, func(line string) {
-				fmt.Println("  " + line)
+				fmt.Fprintln(cmd.OutOrStdout(), "  "+line)
 			})
 		},
 	}

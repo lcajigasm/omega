@@ -22,25 +22,25 @@ func privacyCmd() *cobra.Command {
 				return err
 			}
 
-			fmt.Printf("\n🛡️ System Privacy & Telemetry Review\n\n")
+			fmt.Fprintf(cmd.OutOrStdout(), "\n🛡️ System Privacy & Telemetry Review\n\n")
 			if len(audit.TelemetryFindings) > 0 {
-				fmt.Println("Telemetry & Diagnostics:")
+				fmt.Fprintln(cmd.OutOrStdout(), "Telemetry & Diagnostics:")
 				for _, t := range audit.TelemetryFindings {
-					fmt.Printf("  • %s\n", t)
+					fmt.Fprintf(cmd.OutOrStdout(), "  • %s\n", t)
 				}
-				fmt.Println()
+				fmt.Fprintln(cmd.OutOrStdout())
 			}
 
-			fmt.Println("Browser Caches:")
+			fmt.Fprintln(cmd.OutOrStdout(), "Browser Caches:")
 			if len(audit.BrowserCaches) == 0 {
-				fmt.Println("  ✓ No heavy browser caches detected.")
+				fmt.Fprintln(cmd.OutOrStdout(), "  ✓ No heavy browser caches detected.")
 			} else {
 				var totalMB int64
 				for _, b := range audit.BrowserCaches {
-					fmt.Printf("  • %-24s %6d MB  (%s)\n", b.Browser, b.SizeMB, b.Path)
+					fmt.Fprintf(cmd.OutOrStdout(), "  • %-24s %6d MB  (%s)\n", b.Browser, b.SizeMB, b.Path)
 					totalMB += b.SizeMB
 				}
-				fmt.Printf("\n  Total browser cache space: %d MB\n", totalMB)
+				fmt.Fprintf(cmd.OutOrStdout(), "\n  Total browser cache space: %d MB\n", totalMB)
 
 				if clean {
 					ans := ask("\nClear all detected browser caches? (cookies and logins are kept) [y/N]", "n")
@@ -48,14 +48,14 @@ func privacyCmd() *cobra.Command {
 						for _, b := range audit.BrowserCaches {
 							_ = os.RemoveAll(b.Path)
 							_ = os.MkdirAll(b.Path, 0755)
-							fmt.Printf("  ✓ Cleaned %s cache\n", b.Browser)
+							fmt.Fprintf(cmd.OutOrStdout(), "  ✓ Cleaned %s cache\n", b.Browser)
 						}
 					}
 				} else {
-					fmt.Println("\nTip: Run 'omega privacy --clean' to clear browser caches safely.")
+					fmt.Fprintln(cmd.OutOrStdout(), "\nTip: Run 'omega privacy --clean' to clear browser caches safely.")
 				}
 			}
-			fmt.Println()
+			fmt.Fprintln(cmd.OutOrStdout())
 			return nil
 		},
 	}

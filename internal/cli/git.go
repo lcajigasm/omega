@@ -24,13 +24,13 @@ func gitCmd() *cobra.Command {
 			Args:  cobra.NoArgs,
 			RunE: func(cmd *cobra.Command, args []string) error {
 				roots := gitops.DefaultRoots()
-				fmt.Printf("\n🔍 Scanning dev directories for git repositories (%s)...\n", strings.Join(roots, ", "))
+				fmt.Fprintf(cmd.OutOrStdout(), "\n🔍 Scanning dev directories for git repositories (%s)...\n", strings.Join(roots, ", "))
 				repos := gitops.FindRepos(roots)
 				if len(repos) == 0 {
-					fmt.Println("  No git repositories found.")
+					fmt.Fprintln(cmd.OutOrStdout(), "  No git repositories found.")
 					return nil
 				}
-				fmt.Printf("Found %d repositories.\n\n", len(repos))
+				fmt.Fprintf(cmd.OutOrStdout(), "Found %d repositories.\n\n", len(repos))
 				ctx := context.Background()
 
 				var dirtyCount, unpushedCount, mergedCount int
@@ -45,26 +45,26 @@ func gitCmd() *cobra.Command {
 						continue
 					}
 
-					fmt.Printf("📁 %s  (%s, .git: %d MB)\n", st.Name, st.Path, st.GitSizeMB)
+					fmt.Fprintf(cmd.OutOrStdout(), "📁 %s  (%s, .git: %d MB)\n", st.Name, st.Path, st.GitSizeMB)
 					if st.HasUncommitted {
 						dirtyCount++
-						fmt.Println("   ⚠ Uncommitted changes pending")
+						fmt.Fprintln(cmd.OutOrStdout(), "   ⚠ Uncommitted changes pending")
 					}
 					if st.UnpushedCount > 0 {
 						unpushedCount++
-						fmt.Printf("   ⚠ %d unpushed commit(s) ahead of remote\n", st.UnpushedCount)
+						fmt.Fprintf(cmd.OutOrStdout(), "   ⚠ %d unpushed commit(s) ahead of remote\n", st.UnpushedCount)
 					}
 					if len(st.MergedBranches) > 0 {
 						mergedCount += len(st.MergedBranches)
-						fmt.Printf("   🌱 Merged local branches: %s\n", strings.Join(st.MergedBranches, ", "))
+						fmt.Fprintf(cmd.OutOrStdout(), "   🌱 Merged local branches: %s\n", strings.Join(st.MergedBranches, ", "))
 					}
 					if len(st.LargeFiles) > 0 {
-						fmt.Printf("   📦 Large files (>50MB): %s\n", strings.Join(st.LargeFiles, ", "))
+						fmt.Fprintf(cmd.OutOrStdout(), "   📦 Large files (>50MB): %s\n", strings.Join(st.LargeFiles, ", "))
 					}
-					fmt.Println()
+					fmt.Fprintln(cmd.OutOrStdout())
 				}
 
-				fmt.Printf("Summary: %d repos checked. %d with uncommitted work, %d with unpushed commits, %d merged branches.\n",
+				fmt.Fprintf(cmd.OutOrStdout(), "Summary: %d repos checked. %d with uncommitted work, %d with unpushed commits, %d merged branches.\n",
 					len(repos), dirtyCount, unpushedCount, mergedCount)
 				return nil
 			},
@@ -84,15 +84,15 @@ func gitCmd() *cobra.Command {
 					if err != nil || len(st.MergedBranches) == 0 {
 						continue
 					}
-					fmt.Printf("Repository %s has merged branches: %s\n", st.Name, strings.Join(st.MergedBranches, ", "))
+					fmt.Fprintf(cmd.OutOrStdout(), "Repository %s has merged branches: %s\n", st.Name, strings.Join(st.MergedBranches, ", "))
 					ans := ask("Delete these merged local branches? [y/N]", "n")
 					if ans == "y" || ans == "Y" {
 						deleted, _ := gitops.DeleteMergedBranches(ctx, r, st.MergedBranches)
-						fmt.Printf("  ✓ Deleted: %s\n", strings.Join(deleted, ", "))
+						fmt.Fprintf(cmd.OutOrStdout(), "  ✓ Deleted: %s\n", strings.Join(deleted, ", "))
 						cleanedTotal += len(deleted)
 					}
 				}
-				fmt.Printf("\nDone! Cleaned %d merged branches.\n", cleanedTotal)
+				fmt.Fprintf(cmd.OutOrStdout(), "\nDone! Cleaned %d merged branches.\n", cleanedTotal)
 				return nil
 			},
 		},
@@ -106,15 +106,15 @@ func gitCmd() *cobra.Command {
 				ctx := context.Background()
 				var totalFreed int64
 
-				fmt.Printf("Optimizing %d git repositories...\n", len(repos))
+				fmt.Fprintf(cmd.OutOrStdout(), "Optimizing %d git repositories...\n", len(repos))
 				for _, r := range repos {
 					freed, err := gitops.OptimizeRepo(ctx, r)
 					if err == nil && freed > 0 {
-						fmt.Printf("  ✓ %s: freed %d MB\n", r, freed)
+						fmt.Fprintf(cmd.OutOrStdout(), "  ✓ %s: freed %d MB\n", r, freed)
 						totalFreed += freed
 					}
 				}
-				fmt.Printf("\n✓ Optimization complete. Total reclaimed space: %d MB\n", totalFreed)
+				fmt.Fprintf(cmd.OutOrStdout(), "\n✓ Optimization complete. Total reclaimed space: %d MB\n", totalFreed)
 				return nil
 			},
 		},

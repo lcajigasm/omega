@@ -28,7 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: check lcajigasm/homebrew-tap
         env:
           # release: published carries the tag. workflow_dispatch passes it in.

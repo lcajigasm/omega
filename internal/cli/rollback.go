@@ -20,7 +20,7 @@ func rollbackCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Println(msg)
+			fmt.Fprintln(cmd.OutOrStdout(), msg)
 			return nil
 		},
 	}

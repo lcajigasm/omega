@@ -32,6 +32,13 @@ const (
 const AutoSuffix = "\n\nAutomatic mode: apply the low-risk improvements yourself without asking through propose_actions. " +
 	"Still offer anything risky, irreversible or a matter of taste with propose_actions, and every command keeps its approval rules."
 
+// StageSuffix tells the model it runs as one stage of the guided run: the
+// session ends with its turn, so nothing may be left as a question in text.
+const StageSuffix = "\n\nThis is one stage of a guided run (omega full): the session ends as soon as you finish, and the next stage " +
+	"starts. Nobody can answer a question you write in your last message, so do not end with one and do not say \"tell me and I will\". " +
+	"Ask every decision with propose_actions before you finish, apply what is picked, and close with a short summary of what was done " +
+	"and what is left for the user to do by hand."
+
 // TaskPrompts are the opening user messages for each preset, worded for the
 // operating system omega runs on.
 var TaskPrompts = taskPrompts(runtime.GOOS)

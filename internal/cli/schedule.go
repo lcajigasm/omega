@@ -26,7 +26,7 @@ func scheduleCmd() *cobra.Command {
 			if err := scheduler.Install(interval, task, hour, minute); err != nil {
 				return err
 			}
-			fmt.Printf("✓ Background maintenance installed successfully (%s, task: %s, at %02d:%02d).\n",
+			fmt.Fprintf(cmd.OutOrStdout(), "✓ Background maintenance installed successfully (%s, task: %s, at %02d:%02d).\n",
 				interval, task, hour, minute)
 			return nil
 		},
@@ -47,15 +47,15 @@ func scheduleCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				fmt.Printf("\nBackground Maintenance Status (%s):\n", st.Platform)
+				fmt.Fprintf(cmd.OutOrStdout(), "\nBackground Maintenance Status (%s):\n", st.Platform)
 				if !st.Installed {
-					fmt.Println("  Status: Not installed.")
-					fmt.Println("  Run 'omega schedule install' to set up automatic maintenance.")
+					fmt.Fprintln(cmd.OutOrStdout(), "  Status: Not installed.")
+					fmt.Fprintln(cmd.OutOrStdout(), "  Run 'omega schedule install' to set up automatic maintenance.")
 					return nil
 				}
-				fmt.Printf("  Status: Installed\n  Target: %s\n", st.Target)
+				fmt.Fprintf(cmd.OutOrStdout(), "  Status: Installed\n  Target: %s\n", st.Target)
 				if st.Details != "" {
-					fmt.Printf("  Details: %s\n", st.Details)
+					fmt.Fprintf(cmd.OutOrStdout(), "  Details: %s\n", st.Details)
 				}
 				return nil
 			},
@@ -68,7 +68,7 @@ func scheduleCmd() *cobra.Command {
 				if err := scheduler.Uninstall(); err != nil {
 					return err
 				}
-				fmt.Println("✓ Background maintenance daemon uninstalled successfully.")
+				fmt.Fprintln(cmd.OutOrStdout(), "✓ Background maintenance daemon uninstalled successfully.")
 				return nil
 			},
 		},

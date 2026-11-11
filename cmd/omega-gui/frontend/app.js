@@ -31,6 +31,8 @@ const icons = {
   dev: '<path d="M8 7l-5 5 5 5M16 7l5 5-5 5M14 4l-4 16"/>',
   mac: '<path d="M5 5h14v10H5zM2 19h20"/>',
   docker: '<path d="M3 8l9-5 9 5v8l-9 5-9-5zM3 8l9 5 9-5M12 13v8"/>',
+  tools: '<path d="M4 6h16M4 12h10M4 18h7"/><circle cx="18" cy="16" r="3"/><path d="M20.2 18.2L22 20"/>',
+  quick: '<path d="M13 3L5 13h6l-1 8 8-10h-6z"/>',
 };
 icons.full = icons.home;
 
@@ -57,8 +59,8 @@ function applyTexts() {
   showProvider();
 }
 
-const views = ["home", "session", "history", "system", "settings"];
-const loaders = { home: showHome, session: showSession, history: showHistory, system: showSystem, settings: showSettings };
+const views = ["home", "session", "history", "tools", "system", "settings"];
+const loaders = { home: showHome, session: showSession, history: showHistory, tools: showTools, system: showSystem, settings: showSettings };
 let view = "";
 
 function go(name) {
@@ -520,6 +522,74 @@ async function showRun(name) {
   $("run-text").scrollTop = 0;
 }
 
+// ---------- tools ----------
+
+let toolList = [];
+let openTool = "";
+let toolBusy = false;
+
+// showTools lists the checks that need no model, under their headings.
+async function showTools() {
+  toolList = await call("Tools");
+  const rows = [];
+  let group = "";
+  for (const tool of toolList) {
+    if (tool.group !== group) rows.push(el("h2", "group", (group = tool.group)));
+    const b = el("button", "run" + (tool.id === openTool ? " on" : ""));
+    b.type = "button";
+    b.dataset.tool = tool.id;
+    b.append(el("b", "", tool.title), el("span", "", tool.detail));
+    rows.push(b);
+  }
+  $("tool-list").replaceChildren(...rows);
+  if (openTool) pickTool(openTool, true);
+}
+
+// pickTool shows a tool ready to run. keep leaves its last result on screen.
+function pickTool(id, keep) {
+  const tool = toolList.find((x) => x.id === id);
+  if (!tool || toolBusy) return;
+  openTool = id;
+  for (const b of document.querySelectorAll("#tool-list .run")) b.classList.toggle("on", b.dataset.tool === id);
+  $("tool-title").textContent = tool.title;
+  $("tool-detail").textContent = tool.detail;
+  $("tool-cmd").textContent = t("gui.tools.terminal") + ": " + tool.command;
+  const arg = $("tool-arg");
+  arg.hidden = !tool.arg;
+  arg.placeholder = [tool.arg, tool.default].filter(Boolean).join(" · ");
+  if (!keep) {
+    arg.value = "";
+    $("tool-out").hidden = $("tool-copy").hidden = true;
+  }
+  $("tool-none").hidden = true;
+  $("tool-bar").hidden = $("tool-form").hidden = false;
+}
+
+async function runTool() {
+  if (!openTool || toolBusy) return;
+  const out = $("tool-out");
+  toolBusy = true;
+  $("tool-run").disabled = true;
+  $("tool-run").textContent = t("gui.tools.running");
+  out.classList.remove("bad");
+  out.textContent = "";
+  out.hidden = false;
+  $("tool-copy").hidden = true;
+  try {
+    const text = await call("RunTool", openTool, $("tool-arg").value);
+    out.textContent = text || t("gui.tools.empty");
+  } catch (err) {
+    out.classList.add("bad");
+    out.textContent = message(err);
+  } finally {
+    toolBusy = false;
+    $("tool-run").disabled = false;
+    $("tool-run").textContent = t("gui.tools.run");
+    $("tool-copy").hidden = false;
+    out.scrollTop = 0;
+  }
+}
+
 // ---------- status ----------
 
 async function showSystem() {
@@ -705,6 +775,8 @@ function wire() {
     if (nav) return go(nav.dataset.view ?? nav.dataset.go);
     const task = e.target.closest?.("#home [data-task]");
     if (task) return start(task.dataset.task, "");
+    const tool = e.target.closest?.("#tool-list .run");
+    if (tool) return pickTool(tool.dataset.tool);
     const run = e.target.closest?.("#runs .run");
     if (run) return showRun(run.dataset.run).catch(toastError);
     const mode = e.target.closest?.("#mode button");
@@ -719,7 +791,7 @@ function wire() {
   });
   $("nav-provider").addEventListener("click", () => go("settings"));
 
-  // Ctrl or ⌘ with 1 to 5 changes the view.
+  // Ctrl or ⌘ with 1 to 6 changes the view.
   document.addEventListener("keydown", (e) => {
     const n = Number(e.key);
     if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && n >= 1 && n <= views.length) {
@@ -752,6 +824,13 @@ function wire() {
     wails.Clipboard.SetText(e.currentTarget.dataset.text ?? "").then(() => toast(t("gui.copied") + " ✓"), toastError);
   });
 
+  $("tool-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    runTool();
+  });
+  $("tool-copy").addEventListener("click", () => {
+    wails.Clipboard.SetText($("tool-out").textContent).then(() => toast(t("gui.copied") + " ✓"), toastError);
+  });
   $("check-run").addEventListener("click", () => runCheck().catch(toastError));
   $("steps").addEventListener("change", (e) => {
     const id = e.target.dataset.step;

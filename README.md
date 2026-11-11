@@ -287,6 +287,13 @@ xattr -dr com.apple.quarantine /Applications/Omega.app   # once: the app is not 
 | Windows 10 and 11 | `omega-gui_<version>_windows_amd64.zip` or `arm64`, from the [latest release](https://github.com/lcajigasm/omega/releases/latest) | extract it and open `omega-gui.exe`; SmartScreen warns once: More info, then Run anyway |
 | Linux | `omega-gui_<version>_linux_amd64.tar.gz` or `arm64`, from the [latest release](https://github.com/lcajigasm/omega/releases/latest) | extract it and run `./omega-gui`; it needs GTK 4 and WebKitGTK 6.0 |
 
+Besides the tasks, the app has a **Tools** view with the checks that need no
+model and no key: registry latency, listening ports, SSH keys, secrets left in
+the shell history, large and duplicate files, stale build folders and the state
+of your repositories. On a Mac, when macOS blocks something for lack of a
+privacy permission, the app and the command show a card that opens the right
+pane of System Settings and retry once you have granted it.
+
 The app and the command are separate installs that share their configuration
 and API keys: have both, or only one. More in
 [Install and set up](docs/manual/install.md#desktop-app).
@@ -294,7 +301,7 @@ and API keys: have both, or only one. More in
 ## Also
 
 - **Deterministic offline mode**: run `omega --no-ai` or `omega --offline` for completely deterministic maintenance without calling external AI models or needing API keys.
-- **CI/CD & Scripting ready**: structured JSON output with `--json` or `--format json|yaml|table`, quiet mode `-q`, and assertion flags `--fail-on-warning`, `--fail-on-outdated`, and `--fail-on-critical` with semantic exit codes.
+- **CI/CD & Scripting ready**: structured JSON output with `--json` (or `--format json`), quiet mode `-q`, and assertion flags `--fail-on-warning`, `--fail-on-outdated`, and `--fail-on-critical` with semantic exit codes.
 - **Custom steps & lifecycle hooks**: define custom steps in `~/.config/omega/steps.d/*.toml` and configure lifecycle hooks (`pre_full`, `post_full`, `on_error`).
 - **Autocompletions & man pages**: install completions automatically with `omega completion install` and generate troff man pages with `omega man`.
 - **Speaks five languages**: English, Spanish, French, German and Portuguese,

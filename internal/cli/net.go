@@ -27,7 +27,7 @@ func netCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				fmt.Println("✓ " + msg)
+				fmt.Fprintln(cmd.OutOrStdout(), "✓ "+msg)
 				return nil
 			},
 		},
@@ -37,16 +37,16 @@ func netCmd() *cobra.Command {
 			Args:  cobra.NoArgs,
 			RunE: func(cmd *cobra.Command, args []string) error {
 				results := netdiag.PingRegistries(context.Background())
-				fmt.Printf("\n%-18s %-32s %-12s %s\n", "Registry", "Endpoint", "Latency", "Status")
-				fmt.Println(stringsRepeat("─", 75))
+				fmt.Fprintf(cmd.OutOrStdout(), "\n%-18s %-32s %-12s %s\n", "Registry", "Endpoint", "Latency", "Status")
+				fmt.Fprintln(cmd.OutOrStdout(), stringsRepeat("─", 75))
 				for _, r := range results {
 					status := fmt.Sprintf("%d OK", r.Status)
 					if !r.Reachable {
 						status = "FAIL (" + r.Error + ")"
 					}
-					fmt.Printf("%-18s %-32s %-12s %s\n", r.Name, cut(r.URL, 32), r.Latency.Round(1e6), status)
+					fmt.Fprintf(cmd.OutOrStdout(), "%-18s %-32s %-12s %s\n", r.Name, cut(r.URL, 32), r.Latency.Round(1e6), status)
 				}
-				fmt.Println()
+				fmt.Fprintln(cmd.OutOrStdout())
 				return nil
 			},
 		},
@@ -65,18 +65,18 @@ func netCmd() *cobra.Command {
 				}
 				if len(ports) == 0 {
 					if targetPort > 0 {
-						fmt.Printf("No process found listening on port %d.\n", targetPort)
+						fmt.Fprintf(cmd.OutOrStdout(), "No process found listening on port %d.\n", targetPort)
 					} else {
-						fmt.Println("No active listening TCP ports found.")
+						fmt.Fprintln(cmd.OutOrStdout(), "No active listening TCP ports found.")
 					}
 					return nil
 				}
-				fmt.Printf("\n%-8s %-8s %-20s %s\n", "Port", "PID", "Process", "Protocol")
-				fmt.Println(stringsRepeat("─", 50))
+				fmt.Fprintf(cmd.OutOrStdout(), "\n%-8s %-8s %-20s %s\n", "Port", "PID", "Process", "Protocol")
+				fmt.Fprintln(cmd.OutOrStdout(), stringsRepeat("─", 50))
 				for _, p := range ports {
-					fmt.Printf("%-8d %-8d %-20s %s\n", p.Port, p.PID, cut(p.Process, 20), p.Proto)
+					fmt.Fprintf(cmd.OutOrStdout(), "%-8d %-8d %-20s %s\n", p.Port, p.PID, cut(p.Process, 20), p.Proto)
 				}
-				fmt.Println()
+				fmt.Fprintln(cmd.OutOrStdout())
 				return nil
 			},
 		},
@@ -92,7 +92,7 @@ func netCmd() *cobra.Command {
 				if err := netdiag.KillPortProcess(context.Background(), port); err != nil {
 					return err
 				}
-				fmt.Printf("✓ Process listening on port %d terminated.\n", port)
+				fmt.Fprintf(cmd.OutOrStdout(), "✓ Process listening on port %d terminated.\n", port)
 				return nil
 			},
 		},
@@ -105,32 +105,32 @@ func netCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				fmt.Printf("\nHosts file: %s\n", audit.HostsFile)
+				fmt.Fprintf(cmd.OutOrStdout(), "\nHosts file: %s\n", audit.HostsFile)
 				if len(audit.CustomHosts) == 0 {
-					fmt.Println("  ✓ No non-standard hosts entries found.")
+					fmt.Fprintln(cmd.OutOrStdout(), "  ✓ No non-standard hosts entries found.")
 				} else {
-					fmt.Printf("  Custom entries (%d):\n", len(audit.CustomHosts))
+					fmt.Fprintf(cmd.OutOrStdout(), "  Custom entries (%d):\n", len(audit.CustomHosts))
 					for _, h := range audit.CustomHosts {
-						fmt.Printf("    %-18s %s\n", h.IP, h.Hostname)
+						fmt.Fprintf(cmd.OutOrStdout(), "    %-18s %s\n", h.IP, h.Hostname)
 					}
 				}
 
-				fmt.Printf("\nProxy environment:\n")
+				fmt.Fprintf(cmd.OutOrStdout(), "\nProxy environment:\n")
 				if len(audit.ProxyEnv) == 0 {
-					fmt.Println("  ✓ No active proxy environment variables.")
+					fmt.Fprintln(cmd.OutOrStdout(), "  ✓ No active proxy environment variables.")
 				} else {
 					for k, v := range audit.ProxyEnv {
-						fmt.Printf("    %s = %s\n", k, v)
+						fmt.Fprintf(cmd.OutOrStdout(), "    %s = %s\n", k, v)
 					}
 				}
 
 				if len(audit.Warnings) > 0 {
-					fmt.Printf("\nWarnings:\n")
+					fmt.Fprintf(cmd.OutOrStdout(), "\nWarnings:\n")
 					for _, w := range audit.Warnings {
-						fmt.Printf("  ⚠ %s\n", w)
+						fmt.Fprintf(cmd.OutOrStdout(), "  ⚠ %s\n", w)
 					}
 				}
-				fmt.Println()
+				fmt.Fprintln(cmd.OutOrStdout())
 				return nil
 			},
 		},

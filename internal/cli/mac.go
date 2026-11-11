@@ -115,6 +115,7 @@ func loadInventory(sections ...string) (*macos.Inventory, error) {
 	}
 	if err == nil && inv.NoTCC {
 		fmt.Println(i18n.T("mac.no_tcc"))
+		offerFullDiskAccess()
 	}
 	return inv, err
 }
@@ -665,4 +666,21 @@ func macOpCmd() *cobra.Command {
 			return fmt.Errorf("unknown op %q", args[0])
 		},
 	}
+}
+
+// offerFullDiskAccess opens the pane where Full Disk Access is granted, when
+// someone is at the terminal and says yes: macOS has no dialog for it.
+func offerFullDiskAccess() {
+	if !term.IsTerminal(int(os.Stdin.Fd())) || !term.IsTerminal(int(os.Stdout.Fd())) {
+		return
+	}
+	if a := strings.ToLower(ask(i18n.T("mac.no_tcc_open")+" [y/N]", "")); a == "" || !strings.ContainsAny(a[:1], "ysojd") {
+		return
+	}
+	if err := macos.OpenPrivacyPane("SystemPolicyAllFiles"); err != nil {
+		fmt.Println(err)
+		return
+	}
+	_, app := macos.HostApp()
+	fmt.Println(i18n.T("mac.no_tcc_opened", app))
 }

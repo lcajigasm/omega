@@ -25,9 +25,9 @@ func auditCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				fmt.Printf("\n🔒 SSH Permissions & Configuration Audit\n\n")
+				fmt.Fprintf(cmd.OutOrStdout(), "\n🔒 SSH Permissions & Configuration Audit\n\n")
 				if len(findings) == 0 {
-					fmt.Println("  ✓ All SSH keys and directory permissions are secure (0700 / 0600).")
+					fmt.Fprintln(cmd.OutOrStdout(), "  ✓ All SSH keys and directory permissions are secure (0700 / 0600).")
 					return nil
 				}
 				for _, f := range findings {
@@ -35,12 +35,12 @@ func auditCmd() *cobra.Command {
 					if f.Severity == "high" {
 						badge = "⛔"
 					}
-					fmt.Printf("  %s %s: %s\n", badge, f.Path, f.Issue)
+					fmt.Fprintf(cmd.OutOrStdout(), "  %s %s: %s\n", badge, f.Path, f.Issue)
 					if f.Fix != "" {
-						fmt.Printf("    Fix: %s\n", f.Fix)
+						fmt.Fprintf(cmd.OutOrStdout(), "    Fix: %s\n", f.Fix)
 					}
 				}
-				fmt.Println()
+				fmt.Fprintln(cmd.OutOrStdout())
 				return nil
 			},
 		},
@@ -49,20 +49,20 @@ func auditCmd() *cobra.Command {
 			Short: "Scan shell history and dotfiles for leaked API keys and tokens",
 			Args:  cobra.NoArgs,
 			RunE: func(cmd *cobra.Command, args []string) error {
-				fmt.Println("\n🔍 Scanning shell history files for leaked credentials...")
+				fmt.Fprintln(cmd.OutOrStdout(), "\n🔍 Scanning shell history files for leaked credentials...")
 				findings, err := secscan.ScanSecrets()
 				if err != nil {
 					return err
 				}
 				if len(findings) == 0 {
-					fmt.Println("  ✓ No leaked API keys or credentials detected in shell history.")
+					fmt.Fprintln(cmd.OutOrStdout(), "  ✓ No leaked API keys or credentials detected in shell history.")
 					return nil
 				}
-				fmt.Printf("\nFound %d potential credential leaks:\n", len(findings))
+				fmt.Fprintf(cmd.OutOrStdout(), "\nFound %d potential credential leaks:\n", len(findings))
 				for _, f := range findings {
-					fmt.Printf("  ⚠ [%s] %s:%d\n    %s\n", f.Type, f.File, f.LineNum, f.Snippet)
+					fmt.Fprintf(cmd.OutOrStdout(), "  ⚠ [%s] %s:%d\n    %s\n", f.Type, f.File, f.LineNum, f.Snippet)
 				}
-				fmt.Println("\nTip: Edit the history file to redact the leaked secrets or reset the exposed keys.")
+				fmt.Fprintln(cmd.OutOrStdout(), "\nTip: Edit the history file to redact the leaked secrets or reset the exposed keys.")
 				return nil
 			},
 		},

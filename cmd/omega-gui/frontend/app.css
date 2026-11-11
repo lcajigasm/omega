@@ -235,3 +235,14 @@ i[data-icon] { display: contents; }
 .transcript .l-ask { color: var(--warn); margin-top: 10px; }
 .transcript .l-sum { color: var(--muted); font-size: 12px; margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--line); }
 .transcript .l-text { margin-top: 8px; }
+
+/* Tools: the checks that need no model. */
+.list h2.group { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 14px 10px 4px; }
+.list h2.group:first-child { margin-top: 0; }
+#tool-list .run span { white-space: normal; }
+.tool-form { align-items: center; gap: 10px; padding: 10px 18px; border-bottom: 1px solid var(--line); }
+.tool-form input { flex: 0 1 300px; }
+.tool-form #tool-cmd { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tool-out { margin: 0; font-family: var(--mono); font-size: 12.5px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.tool-out.bad { color: var(--bad); }
+.tool-out { display: block; }
