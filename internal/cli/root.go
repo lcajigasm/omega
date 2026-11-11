@@ -118,7 +118,7 @@ func newRoot(f *runFlags) *cobra.Command {
 		fullCmd(), quickCmd(f), fixCmd(f), setupCmd(), authCmd(), modelCmd(), modelsCmd(),
 		dockerCmd(), macCmd(), devCmd(), menuCmd(), configCmd(), stepsCmd(), notesCmd(),
 		logsCmd(), doctorCmd(), netCmd(), auditCmd(), privacyCmd(), gitCmd(), diskCmd(),
-		uninstallCmd(), scheduleCmd(), rollbackCmd(), exportCmd(), bootstrapCmd(), shellCmd(),
+		uninstallCmd(), skillsCmd(), scheduleCmd(), rollbackCmd(), exportCmd(), bootstrapCmd(), shellCmd(),
 		completionCmd(root), manCmd(root),
 	)
 	return root

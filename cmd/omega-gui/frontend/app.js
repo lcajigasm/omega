@@ -33,6 +33,7 @@ const icons = {
   docker: '<path d="M3 8l9-5 9 5v8l-9 5-9-5zM3 8l9 5 9-5M12 13v8"/>',
   tools: '<path d="M4 6h16M4 12h10M4 18h7"/><circle cx="18" cy="16" r="3"/><path d="M20.2 18.2L22 20"/>',
   quick: '<path d="M13 3L5 13h6l-1 8 8-10h-6z"/>',
+  skills: '<path d="M12 3l8 4.5-8 4.5-8-4.5z"/><path d="M4 12l8 4.5 8-4.5M4 16.5L12 21l8-4.5"/>',
 };
 icons.full = icons.home;
 
@@ -59,8 +60,8 @@ function applyTexts() {
   showProvider();
 }
 
-const views = ["home", "session", "history", "tools", "system", "settings"];
-const loaders = { home: showHome, session: showSession, history: showHistory, tools: showTools, system: showSystem, settings: showSettings };
+const views = ["home", "session", "history", "tools", "skills", "system", "settings"];
+const loaders = { home: showHome, session: showSession, history: showHistory, tools: showTools, skills: showSkills, system: showSystem, settings: showSettings };
 let view = "";
 
 function go(name) {
@@ -590,6 +591,124 @@ async function runTool() {
   }
 }
 
+// ---------- skills ----------
+
+let skillView = { agents: [], skills: [] };
+let openSkill = "";
+let skillBusy = false;
+
+const badges = (names, cls) => names.map((n) => el("span", "badge" + (cls ? " " + cls : ""), n));
+
+// showSkills lists the agents and the skills of this machine.
+async function showSkills() {
+  skillView = await call("Skills");
+  $("skill-agents").replaceChildren(...skillView.agents.map((a) => {
+    const row = el("div", "agent" + (a.installed ? "" : " off"));
+    row.title = a.dirs.join("\n");
+    row.append(el("span", "", a.name), el("span", "n", a.installed ? String(a.skills) : t("gui.skills.not_installed")));
+    return row;
+  }));
+  $("skill-count").textContent = t("gui.nav.skills") + " · " + skillView.skills.length;
+  $("skill-list").replaceChildren(...skillView.skills.map((s) => {
+    const b = el("button", "run" + (s.name === openSkill ? " on" : ""));
+    b.type = "button";
+    b.dataset.skill = s.name;
+    const body = el("span", "body");
+    body.append(el("b", "", s.name), el("span", "", s.description));
+    b.append(body);
+    if (s.problems) b.append(el("span", "badge dangerous", String(s.problems)));
+    else if (s.hidden.length) b.append(el("span", "badge normal", String(s.hidden.length)));
+    return b;
+  }));
+  $("skill-none-text").textContent = t(skillView.skills.length ? "gui.skills.pick" : "gui.skills.none");
+  const open = skillView.skills.some((s) => s.name === openSkill);
+  if (!open) openSkill = "";
+  $("skill-bar").hidden = $("skill-body").hidden = !open;
+  $("skill-none").hidden = open || !$("skill-out").hidden;
+  if (open) pickSkill(openSkill, true);
+}
+
+// pickSkill shows a skill. keep leaves the result of the last action.
+function pickSkill(name, keep) {
+  const s = skillView.skills.find((x) => x.name === name);
+  if (!s) return;
+  openSkill = name;
+  for (const b of document.querySelectorAll("#skill-list .run")) b.classList.toggle("on", b.dataset.skill === name);
+  if (!keep) $("skill-out").hidden = true;
+  $("skill-none").hidden = true;
+  $("skill-name").textContent = s.name;
+  $("skill-desc").textContent = s.description;
+  $("skill-desc").hidden = !s.description;
+  $("skill-places").replaceChildren(...s.places.map((p) => {
+    const row = el("div", "place");
+    const remove = el("button", "", t("gui.skills.remove"));
+    remove.type = "button";
+    remove.dataset.skillRemove = p.location;
+    row.append(el("span", "path mono selectable", p.path),
+      el("span", "badge" + (p.broken ? " dangerous" : ""), t("gui.skills." + (p.broken ? "broken" : p.link ? "link" : "folder"))), remove);
+    return row;
+  }));
+  $("skill-seen").replaceChildren(...(s.visible.length ? badges(s.visible, "good") : [el("span", "muted", t("gui.skills.nobody"))]));
+  $("skill-unseen").replaceChildren(...badges(s.hidden, "normal"));
+  $("skill-unseen-row").hidden = !s.hidden.length;
+  $("skill-from").textContent = s.source;
+  $("skill-source-row").hidden = !s.source;
+  $("skill-sync").hidden = !s.hidden.length || s.places.every((p) => p.broken);
+  $("skill-update").hidden = !s.source;
+  $("skill-notes").replaceChildren(...(s.notes.length
+    ? s.notes.map((n) => el("li", n.problem ? "bad" : "", (n.problem ? "⚠ " : "· ") + n.text))
+    : [el("li", "muted", "✓ " + t("gui.skills.ok"))]));
+  $("skill-none").hidden = true;
+  $("skill-bar").hidden = $("skill-body").hidden = false;
+}
+
+// skillAction installs, shares, updates or removes, then shows what omega
+// said above the skill.
+async function skillAction(action, name, arg) {
+  if (skillBusy) return;
+  skillBusy = true;
+  const buttons = [...document.querySelectorAll("#skills button")];
+  for (const b of buttons) b.disabled = true;
+  let text = "", bad = false;
+  try {
+    text = await call("SkillAction", action, name, arg);
+  } catch (err) {
+    text = message(err);
+    bad = true;
+  }
+  skillBusy = false;
+  for (const b of buttons) b.disabled = false;
+  if (action === "install" && !bad) $("skill-source").value = "";
+  await showSkills().catch(toastError);
+  const out = $("skill-out");
+  out.textContent = text;
+  out.className = "result selectable " + (bad ? "bad" : "ok");
+  out.hidden = !text;
+  if (text && !openSkill) $("skill-none").hidden = true;
+}
+
+// A removal is asked twice: the button says so after the first click.
+let armed = null;
+function removeSkill(button) {
+  if (armed !== button) {
+    disarm();
+    armed = button;
+    button.textContent = t("gui.skills.remove_confirm");
+    button.classList.add("danger");
+    button.dataset.timer = setTimeout(disarm, 4000);
+    return;
+  }
+  disarm();
+  skillAction("remove", openSkill, button.dataset.skillRemove);
+}
+function disarm() {
+  if (!armed) return;
+  clearTimeout(armed.dataset.timer);
+  armed.textContent = t("gui.skills.remove");
+  if (armed.closest(".place")) armed.classList.remove("danger");
+  armed = null;
+}
+
 // ---------- status ----------
 
 async function showSystem() {
@@ -777,6 +896,12 @@ function wire() {
     if (task) return start(task.dataset.task, "");
     const tool = e.target.closest?.("#tool-list .run");
     if (tool) return pickTool(tool.dataset.tool);
+    const skill = e.target.closest?.("#skill-list .run");
+    if (skill) return pickSkill(skill.dataset.skill);
+    const act = e.target.closest?.("[data-skill-act]");
+    if (act) return skillAction(act.dataset.skillAct, "one" in act.dataset ? openSkill : "", "");
+    const gone = e.target.closest?.("[data-skill-remove]");
+    if (gone) return removeSkill(gone);
     const run = e.target.closest?.("#runs .run");
     if (run) return showRun(run.dataset.run).catch(toastError);
     const mode = e.target.closest?.("#mode button");
@@ -791,7 +916,7 @@ function wire() {
   });
   $("nav-provider").addEventListener("click", () => go("settings"));
 
-  // Ctrl or ⌘ with 1 to 6 changes the view.
+  // Ctrl or ⌘ with 1 to 7 changes the view.
   document.addEventListener("keydown", (e) => {
     const n = Number(e.key);
     if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && n >= 1 && n <= views.length) {
@@ -824,6 +949,11 @@ function wire() {
     wails.Clipboard.SetText(e.currentTarget.dataset.text ?? "").then(() => toast(t("gui.copied") + " ✓"), toastError);
   });
 
+  $("skill-install").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const source = $("skill-source").value.trim();
+    if (source) skillAction("install", "", source);
+  });
   $("tool-form").addEventListener("submit", (e) => {
     e.preventDefault();
     runTool();

@@ -76,7 +76,7 @@
   "features.21": "One-click safe quick maintenance",
   "features.22": "<code>omega quick</code> empties trash, removes safe caches, checks pending updates, and reports battery and disk health in seconds with zero risk.",
   "features.23": "Deep developer hygiene and network",
-  "features.24": "Audit git repos with <code>omega git</code>, clean stale build artifacts with <code>omega disk</code>, flush DNS with <code>omega net</code>, and audit SSH and secrets with <code>omega audit</code>.",
+  "features.24": "Audit git repos with <code>omega git</code>, clean stale build artifacts with <code>omega disk</code>, flush DNS with <code>omega net</code>, and audit SSH and secrets with <code>omega audit</code>. Manage the skills of your AI coding agents with <code>omega skills</code>: what is installed, who sees it, and installing, sharing and updating them.",
   "features.25": "Offline deterministic and automated",
   "features.26": "Run 100% offline with <code>omega --no-ai</code>, automate via background daemons with <code>omega schedule</code>, and output structured JSON with <code>--json</code> for CI/CD.",
   "how.1": "Getting started",
