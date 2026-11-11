@@ -65,9 +65,13 @@ cross:
 
 # Write the website under docs/ from the templates and the string tables
 # under site/: one page per language the app speaks. docs/*.html are built
-# files; a test fails when they are not what site/ builds.
+# files; a test fails when they are not what site/ builds. The page's risk
+# classifier is internal/safety itself, compiled to WebAssembly, with the
+# loader that Go ships for it.
 site:
 	go run ./internal/site/cmd
+	GOOS=js GOARCH=wasm go build -trimpath -ldflags "-s -w" -o docs/classify.wasm ./internal/site/wasm
+	cp "$$(go env GOROOT)/lib/wasm/wasm_exec.js" docs/wasm_exec.js
 
 # Record README and Pages captures from the binary built in this checkout.
 capture:

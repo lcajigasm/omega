@@ -95,6 +95,22 @@ func T(key string, args ...any) string {
 	return s
 }
 
+// In returns the translation of key in a given language, whatever the active
+// one is, or fallback when the key or that language's text is missing. The
+// website uses it to name the steps on each of its pages.
+func In(lang, key, fallback string) string {
+	row, ok := messages[key]
+	if !ok {
+		return fallback
+	}
+	for i, code := range Supported {
+		if code == lang && i < len(row) && row[i] != "" {
+			return row[i]
+		}
+	}
+	return fallback
+}
+
 // TOr translates key, or returns fallback when no translation exists.
 func TOr(key, fallback string) string {
 	if _, ok := messages[key]; ok {
