@@ -64,6 +64,10 @@ every step and every setting.
 - **Apps and leftovers** (`omega mac apps`): apps you have not opened in months,
   apps still built only for Intel, and what removed apps left in `~/Library`.
   Removals go to the Trash and can be undone.
+- **Skills of your AI agents** (`omega skills`): lists the skills installed for
+  Claude Code, Codex, Gemini CLI, opencode, Cursor and GitHub Copilot, says
+  which agent can see each one, finds broken links and invalid `SKILL.md` files,
+  and installs, shares, updates and removes skills. No model and no key needed.
 - **Developer tools** (`omega dev`): knows more than 70 languages, version managers and
   command-line tools. It shows what is installed and by which manager, finds
   overlapping version managers, shadowed commands and a broken `PATH`, installs

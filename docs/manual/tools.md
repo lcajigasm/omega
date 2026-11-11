@@ -97,3 +97,66 @@ Docker tends to take tens of gigabytes. `omega docker` handles it without AI:
 The agent has the same Docker steps. **Docker cleanups always need your
 confirmation**, even with `--yes` or after "yes to all", and the agent is told
 never to prune volumes unless you picked that explicitly.
+
+## Skills of your AI agents
+
+A skill is a folder with a `SKILL.md` that tells a coding agent how to do one
+kind of task. Every agent reads its own folder of them and most also read the
+shared one, so the same skill ends up copied by hand, linked, or missing where
+you expected it. `omega skills` looks after them without AI and without a key:
+
+```bash
+omega skills                              # the agents on this machine and every skill
+omega skills audit                        # only what is wrong
+omega skills install anthropics/skills --skill pdf
+omega skills sync                         # every installed agent sees every skill
+omega skills update                       # bring the installed ones up to date
+omega skills remove pdf
+```
+
+These are the personal folders omega reads, as each agent's documentation
+states them:
+
+| Agent | Reads |
+|---|---|
+| Claude Code | `~/.claude/skills` |
+| Codex CLI | `~/.agents/skills` |
+| Gemini CLI | `~/.agents/skills`, `~/.gemini/skills` |
+| opencode | `~/.config/opencode/skills`, `~/.claude/skills`, `~/.agents/skills` |
+| Cursor | `~/.agents/skills`, `~/.cursor/skills`, `~/.claude/skills` |
+| GitHub Copilot CLI | `~/.agents/skills`, `~/.copilot/skills` |
+
+An agent counts as installed when its command is on `PATH` or its
+configuration folder exists. Skills kept inside a project (`.claude/skills`,
+`.agents/skills`) belong to that repository and are left alone.
+
+- **List** shows, for each skill, where it is (`shared` is `~/.agents/skills`),
+  whether each place is a folder or a link, where omega installed it from, and
+  what the audit found. `omega skills --json` prints the same as JSON.
+- **Audit** reports links to folders that no longer exist, a `SKILL.md` without
+  its `---` block, a missing or invalid `name`, a missing or too long
+  `description`, copies of one skill whose content differs, and the installed
+  agents that cannot see a skill.
+- **Install** takes a folder, a git URL, a GitHub link to a folder
+  (`https://github.com/owner/repo/tree/main/skills/pdf`) or `owner/repo`. It
+  finds the skills at the top, one folder down and under `skills/`; `--skill`
+  picks some of them. The files are copied once, to the folder most agents
+  read, and the agents that do not read it get a link to that copy (a copy with
+  `--copy`, or where the system refuses links). `--to claude,codex` installs
+  for those agents only. Links inside a repository and its `.git` are never
+  copied. A skill that is already installed is left alone unless `--force`.
+- **Sync** links each skill into the folders of the agents that cannot see it,
+  with the fewest links that do it. It overwrites nothing: a skill whose copies
+  differ is reported and left for you to settle. `--dry-run` only says what it
+  would do.
+- **Update** goes back to where each skill came from: a new commit in the
+  repository, or changed files in the folder. `--check` only looks. A skill you
+  edited after installing it is left alone unless `--force`, and then the
+  edited folder goes to the trash first. Skills omega did not install have no
+  source and are reported as not tracked.
+- **Remove** shows what goes and asks. Links are deleted; folders are moved to
+  the Trash on a Mac and to `~/.local/state/omega/removed-skills` elsewhere.
+  `--from claude` removes it from one place only, and `--yes` does not ask.
+
+Agents read their skills when they start, so one that is already running sees
+a change after a restart. The desktop app has the same in its **Skills** view.

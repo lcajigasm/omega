@@ -15,6 +15,7 @@
   <button type="button" data-view="session"><i data-icon="session"></i><span class="label" data-t="gui.nav.session"></span><span id="nav-badge" class="badge-dot" hidden></span></button>
   <button type="button" data-view="history"><i data-icon="history"></i><span class="label" data-t="gui.nav.history"></span></button>
   <button type="button" data-view="tools"><i data-icon="tools"></i><span class="label" data-t="gui.nav.tools"></span></button>
+  <button type="button" data-view="skills"><i data-icon="skills"></i><span class="label" data-t="gui.nav.skills"></span></button>
   <button type="button" data-view="system"><i data-icon="system"></i><span class="label" data-t="gui.nav.system"></span></button>
   <button type="button" data-view="settings"><i data-icon="settings"></i><span class="label" data-t="gui.nav.settings"></span></button>
   <span class="grow"></span>
@@ -134,6 +135,56 @@
         </form>
         <div id="tool-none" class="empty"><i data-icon="tools"></i><p data-t="gui.tools.pick"></p></div>
         <pre id="tool-out" class="log tool-out selectable" hidden></pre>
+      </div>
+    </div>
+  </section>
+
+  <section id="skills" class="view" hidden>
+    <div class="split">
+      <aside class="list">
+        <header class="head">
+          <h1 data-t="gui.nav.skills"></h1>
+          <p class="muted" data-t="gui.skills.intro"></p>
+        </header>
+        <form id="skill-install" class="ask skill-install">
+          <input id="skill-source" type="text" autocomplete="off" spellcheck="false" data-ph="gui.skills.source_ph">
+          <button type="submit" class="primary" data-t="gui.skills.install"></button>
+        </form>
+        <div class="buttons skill-all">
+          <button type="button" data-skill-act="sync" data-t="gui.skills.sync_all"></button>
+          <button type="button" data-skill-act="update" data-t="gui.skills.update_all"></button>
+        </div>
+        <h2 class="group" data-t="gui.skills.agents"></h2>
+        <div id="skill-agents"></div>
+        <h2 class="group" id="skill-count"></h2>
+        <div id="skill-list"></div>
+      </aside>
+      <div class="column">
+        <header id="skill-bar" class="bar" hidden>
+          <div class="title"><b id="skill-name"></b><span class="muted mono" data-t="gui.skills.terminal"></span></div>
+          <span class="grow"></span>
+          <button type="button" id="skill-sync" data-skill-act="sync" data-one data-t="gui.skills.sync"></button>
+          <button type="button" id="skill-update" data-skill-act="update" data-one data-t="gui.skills.update"></button>
+          <button type="button" class="danger" data-skill-remove="" data-t="gui.skills.remove"></button>
+        </header>
+        <div id="skill-none" class="empty"><i data-icon="skills"></i><p id="skill-none-text"></p></div>
+        <pre id="skill-out" class="result selectable" hidden></pre>
+        <div id="skill-body" class="log" hidden>
+          <p id="skill-desc" class="selectable"></p>
+          <div class="panel">
+            <h2 data-t="gui.skills.places"></h2>
+            <div id="skill-places"></div>
+          </div>
+          <div class="panel">
+            <div class="row"><div><b data-t="gui.skills.seen"></b></div><span id="skill-seen" class="badges"></span></div>
+            <div class="row" id="skill-unseen-row"><div><b data-t="gui.skills.unseen"></b></div><span id="skill-unseen" class="badges"></span></div>
+            <div class="row" id="skill-source-row"><div><b data-t="gui.skills.source"></b><p id="skill-from" class="muted mono selectable"></p></div></div>
+          </div>
+          <div class="panel">
+            <h2 data-t="gui.skills.audit"></h2>
+            <ul id="skill-notes" class="lines"></ul>
+          </div>
+        </div>
       </div>
     </div>
   </section>

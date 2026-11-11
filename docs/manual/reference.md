@@ -233,6 +233,9 @@ omega [task] [flags]
 | `omega quick` | one-click safe maintenance for everyday users |
 | `omega net flush\|ping\|ports\|kill\|audit` | network, DNS cache flush, registry ping, port conflict hunter and hosts audit |
 | `omega git status\|clean\|gc` | git repository hygiene across dev folders: merged branches, unpushed work, .git optimization |
+| `omega skills [list\|audit]` | the skills of your AI coding agents, who sees each one and what is wrong with them; `--json` for the inventory |
+| `omega skills install <folder\|git-url\|owner/repo>` | install the skills of a folder or a repository for every agent (`--skill`, `--to`, `--copy`, `--force`) |
+| `omega skills sync\|update\|remove` | share skills with every installed agent, update them from their source, remove them |
 | `omega disk duplicates\|large\|artifacts` | duplicate file finder by SHA-256, large files, and dev build artifact cleanup |
 | `omega audit ssh\|secrets` | SSH directory & key permissions audit, and shell history secret leak scanner |
 | `omega privacy [--clean]` | review OS telemetry and safely clean browser caches |

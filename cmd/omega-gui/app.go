@@ -145,6 +145,17 @@ func (a *App) Tools() []cli.ToolInfo { return cli.ToolList() }
 // argument: a port, a folder, a number of days or a file.
 func (a *App) RunTool(id, arg string) (string, error) { return cli.RunTool(id, arg) }
 
+// Skills lists the AI coding agents of this machine and their skills.
+func (a *App) Skills() (cli.SkillsView, error) { return cli.SkillList() }
+
+// SkillAction installs ("install", arg is a folder, a git URL or
+// owner/repo), shares ("sync"), updates ("update") or removes ("remove",
+// arg is the location or empty for every one) a skill, and returns what the
+// command printed. An empty name means every skill for sync and update.
+func (a *App) SkillAction(action, name, arg string) (string, error) {
+	return cli.SkillAction(action, name, arg)
+}
+
 // Providers lists the providers for the setup screen.
 func (a *App) Providers() ([]cli.ProviderStatus, error) { return cli.SetupProviders() }
 

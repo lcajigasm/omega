@@ -51,6 +51,7 @@ internal/sudo/      sudo bridge: wrapper, askpass helper and password checks
 internal/steps/     step catalogue
 internal/macos/     login and background items, menu bar, Dock, keyboard shortcuts, defaults, undo journal
 internal/ui/        TUI (Bubble Tea, glamour), selection cards, plain output
+internal/skills/    skills of the AI coding agents: inventory, audit, install, share, update, remove
 internal/gui/       bridge between the agent's events and the desktop app's window
 internal/i18n/      translations (en, es, fr, de, pt)
 internal/demo/      scripted session for screenshots
@@ -110,7 +111,7 @@ scripts/sync_wiki.py docs/manual ../omega.wiki   # every page but Home, Roadmap,
 ### Desktop app
 
 `cmd/omega-gui` is the same agent in a window, for macOS, Linux and Windows:
-a sidebar with six views that stay one click away while a session runs.
+a sidebar with seven views that stay one click away while a session runs.
 **Maintenance** has the tasks and a field to ask in words; **Session** has the
 steps with their live output and the cards for approvals, selections and the
 sudo password; **History** reads the saved transcripts; **Tools** runs the
@@ -118,7 +119,9 @@ checks that need no model and no key (registry latency, listening ports, hosts
 and proxies, SSH keys, secrets left in the shell history, the privacy review,
 large and duplicate files, stale build folders, repositories, the schedule,
 snapshots and the blueprint export), each one the `omega` command of the same
-name with what it prints shown in the window; **Status** runs the
+name with what it prints shown in the window; **Skills** lists the skills of
+your AI coding agents and installs, shares, updates and removes them, as
+`omega skills` does; **Status** runs the
 checks of `omega doctor`, turns steps on and off and shows the notes; and
 **Settings** has the provider and its key, the model, the language and the
 rest of `omega config set`. The language changes at once, without restarting.
@@ -128,7 +131,8 @@ command. What the views ask of omega is in `internal/cli/guiapi.go`, and the
 tools in `internal/cli/toolsapi.go`: a list of commands the app may run, so a
 tool is never anything the terminal does not have. The commands that delete
 (`omega git clean`, `omega uninstall`, `omega privacy --clean`) ask on a
-terminal and are not offered in the window.
+terminal and are not offered in the window. Removing a skill is: the button
+asks for a second click, links are deleted and folders go to the trash.
 
 A release publishes
 `omega-macos-universal.dmg` (`Omega.app`, Apple Silicon and Intel),

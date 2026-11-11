@@ -138,6 +138,7 @@ topgrade and Mole are excellent until something breaks. Then the work is yours.
 | **Tune** | `omega tune` | Reviews your tools' configuration against their current documentation |
 | **Developer setup** | `omega dev` | More than 70 languages, version managers and tools: what is installed, what overlaps, what is broken |
 | **Git hygiene** | `omega git` | Scans dev folders for uncommitted/unpushed work, deletes merged branches and optimizes `.git` |
+| **AI agent skills** | `omega skills` | Lists the skills of Claude Code, Codex, Gemini CLI, opencode, Cursor and Copilot, says which agent sees each one, and installs, shares, updates and removes them |
 | **Disk & artifacts** | `omega disk` | Finds duplicate files by SHA-256, locates large files, and prunes stale build folders (`node_modules`, `target`, `.venv`) |
 | **Network & DNS** | `omega net` | Universal DNS flush, package registry latency test, port conflict hunter and hosts/proxy auditor |
 | **Security audit** | `omega audit` | Audits SSH keys and permissions (`~/.ssh`), and scans shell history for leaked secrets |
@@ -290,7 +291,9 @@ xattr -dr com.apple.quarantine /Applications/Omega.app   # once: the app is not 
 Besides the tasks, the app has a **Tools** view with the checks that need no
 model and no key: registry latency, listening ports, SSH keys, secrets left in
 the shell history, large and duplicate files, stale build folders and the state
-of your repositories. On a Mac, when macOS blocks something for lack of a
+of your repositories. The **Skills** view manages the skills of your AI coding
+agents: what is installed, which agent can see it, and installing, sharing,
+updating and removing them. On a Mac, when macOS blocks something for lack of a
 privacy permission, the app and the command show a card that opens the right
 pane of System Settings and retry once you have granted it.
 

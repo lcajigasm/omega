@@ -76,7 +76,7 @@
   "features.21": "Sichere Ein-Klick-Schnellwartung",
   "features.22": "<code>omega quick</code> leert den Papierkorb, entfernt sichere Caches, prüft Updates und meldet den Zustand von Festplatte und Akku risikofrei in Sekunden.",
   "features.23": "Tiefgehende Entwickler- und Netzwerkhygiene",
-  "features.24": "Prüfen Sie Git-Repositories mit <code>omega git</code>, bereinigen Sie Build-Ordner mit <code>omega disk</code>, leeren Sie DNS-Caches mit <code>omega net</code> und prüfen Sie SSH und Secrets mit <code>omega audit</code>.",
+  "features.24": "Prüfen Sie Git-Repositories mit <code>omega git</code>, bereinigen Sie Build-Ordner mit <code>omega disk</code>, leeren Sie DNS-Caches mit <code>omega net</code> und prüfen Sie SSH und Secrets mit <code>omega audit</code>. Verwalten Sie die Skills Ihrer KI-Agenten mit <code>omega skills</code>: was installiert ist, wer es sieht, sowie Installieren, Teilen und Aktualisieren.",
   "features.25": "Deterministischer Offline-Modus und Automation",
   "features.26": "Führen Sie Wartung 100% offline mit <code>omega --no-ai</code> aus, automatisieren Sie mit Hintergrund-Daemons über <code>omega schedule</code> und nutzen Sie <code>--json</code> für CI/CD.",
   "how.1": "Erste Schritte",

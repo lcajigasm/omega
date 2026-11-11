@@ -76,7 +76,7 @@
   "features.21": "Maintenance rapide et sûre en un clic",
   "features.22": "<code>omega quick</code> vide la corbeille, supprime les caches sûrs, vérifie les mises à jour et signale l'état du disque et de la batterie sans risque.",
   "features.23": "Hygiène approfondie pour développeurs et réseau",
-  "features.24": "Auditez les dépôts git avec <code>omega git</code>, nettoyez les artefacts avec <code>omega disk</code>, videz le cache DNS avec <code>omega net</code> et auditez SSH et secrets avec <code>omega audit</code>.",
+  "features.24": "Auditez les dépôts git avec <code>omega git</code>, nettoyez les artefacts avec <code>omega disk</code>, videz le cache DNS avec <code>omega net</code> et auditez SSH et secrets avec <code>omega audit</code>. Gérez les skills de vos agents d'IA avec <code>omega skills</code> : ce qui est installé, qui le voit, et leur installation, partage et mise à jour.",
   "features.25": "Mode déterministe hors ligne et automatisé",
   "features.26": "Exécutez 100% hors ligne avec <code>omega --no-ai</code>, automatisez en arrière-plan avec <code>omega schedule</code> et générez du JSON structuré avec <code>--json</code> pour CI/CD.",
   "how.1": "Premiers pas",
