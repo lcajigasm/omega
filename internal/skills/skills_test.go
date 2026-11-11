@@ -453,8 +453,9 @@ func TestInstallFromGit(t *testing.T) {
 	if res, _ := Update(ctx, nil, false, false); res[0].State != Updated {
 		t.Fatalf("update: %+v", res)
 	}
+	// On Windows git may check the file out with CRLF line endings.
 	got, _ := os.ReadFile(filepath.Join(dir, "references", "notes.md"))
-	if string(got) != "v2\n" {
+	if strings.TrimSpace(string(got)) != "v2" {
 		t.Errorf("after the update the file holds %q", got)
 	}
 	if res, _ := Update(ctx, nil, false, false); res[0].State != Current {
