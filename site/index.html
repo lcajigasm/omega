@@ -10,7 +10,8 @@
 {{end}}  <link rel="alternate" hreflang="x-default" href="{{.DefaultURL}}">
   <link rel="icon" href="{{.Root}}favicon.svg" type="image/svg+xml">
   <link rel="icon" href="{{.Root}}favicon.png" type="image/png" sizes="64x64">
-  <meta name="theme-color" content="#000000">
+  <meta name="theme-color" content="#f3efe6" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#131210" media="(prefers-color-scheme: dark)">
 
   <meta property="og:type" content="website">
   <meta property="og:title" content="{{attr "head.1"}}">
@@ -26,13 +27,12 @@
   <meta name="twitter:description" content="{{attr "head.5"}}">
   <meta name="twitter:image" content="https://lcajigasm.github.io/omega/og.png">
 
+  <!-- The theme the visitor picked, before the first paint. -->
+  <script>(function(){try{var t=localStorage.getItem("omega-theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}})()</script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
-  <link rel="stylesheet" href="{{.Root}}styles.css?v=19">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/asciinema-player@3.8.2/dist/bundle/asciinema-player.css">
-  <script src="https://cdn.jsdelivr.net/npm/asciinema-player@3.8.2/dist/bundle/asciinema-player.min.js" defer></script>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:ital,wght@0,500;0,600;1,500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{.Root}}styles.css?v=20">
 
   <script type="application/ld+json">
   {
@@ -55,12 +55,32 @@
   <script>(function(){try{var l=(localStorage.getItem("omega-lang")||navigator.language||"").slice(0,2).toLowerCase();if({{others}}.indexOf(l)>=0)location.replace(l+"/"+location.search+location.hash)}catch(e){}})()</script>
 {{end}}
 </head>
-<body data-copied="{{attr "js.copied"}}" data-copy-ok="{{attr "js.copy_ok"}}" data-copy-failed="{{attr "js.copy_failed"}}" data-menu-open="{{attr "nav.11"}}" data-menu-close="{{attr "js.menu_close"}}">
+<body data-root="{{.Root}}">
   <a class="skip" href="#main">{{t "page.1"}}</a>
 
-  <!-- Provider logos from @lobehub/icons (MIT). Trademarks belong to their owners. -->
+  <!-- The page's own strings, for its script. -->
+  <script type="application/json" id="strings">{
+    "copied": {{js (t "js.copied")}}, "copyOk": {{js (t "js.copy_ok")}}, "copyFailed": {{js (t "js.copy_failed")}},
+    "menuOpen": {{js (t "nav.11")}}, "menuClose": {{js (t "js.menu_close")}},
+    "lvl": {"read-only": {{js (t "lvl.read-only")}}, "normal": {{js (t "lvl.normal")}}, "dangerous": {{js (t "lvl.dangerous")}}, "always": {{js (t "lvl.always")}}, "blocked": {{js (t "lvl.blocked")}}},
+    "verdict": {"read-only": {{js (t "v.read-only")}}, "normal": {{js (t "v.normal")}}, "dangerous": {{js (t "v.dangerous")}}, "always": {{js (t "v.always")}}, "blocked": {{js (t "v.blocked")}}},
+    "clfLive": {{js (t "clf.live")}}, "clfLoading": {{js (t "clf.loading")}}, "clfFailed": {{js (t "clf.failed")}},
+    "catCount": {{js (t "cat.count")}}, "catNone": {{js (t "cat.none")}}, "catMore": {{js (t "cat.more")}},
+    "cmdCount": {{js (t "cmds.count")}}, "cmdNone": {{js (t "cmds.none")}},
+    "fig": {{js (t "fig.word")}}
+  }</script>
+
+  <!-- Icons drawn for this page. Provider logos from @lobehub/icons (MIT);
+       trademarks belong to their owners. -->
   <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
     <defs>
+      <symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="1.5"/><path d="M5 15V5.5A1.5 1.5 0 0 1 6.5 4H15"/></symbol>
+      <symbol id="i-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 20h14"/></symbol>
+      <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></symbol>
+      <symbol id="i-globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.5 2.6 2.5 14.4 0 17M12 3.5c-2.5 2.6-2.5 14.4 0 17"/></symbol>
+      <symbol id="i-theme" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5v17a8.5 8.5 0 0 0 0-17Z" fill="currentColor"/></symbol>
+      <symbol id="i-play" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5z"/></symbol>
+      <symbol id="i-github" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.9 1.53 2.34 1.09 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.56-1.11-4.56-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.65 0 0 .84-.27 2.75 1.02a9.56 9.56 0 0 1 5 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.38.2 2.4.1 2.65.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.85v2.75c0 .27.18.58.69.48A10 10 0 0 0 12 2Z"/></symbol>
       <symbol id="logo-anthropic" viewBox="0 0 24 24"><path d="M13.827 3.52h3.603L24 20h-3.603l-6.57-16.48zm-7.258 0h3.767L16.906 20h-3.674l-1.343-3.461H5.017l-1.344 3.46H0L6.57 3.522zm4.132 9.959L8.453 7.687 6.205 13.48H10.7z"></path></symbol>
       <symbol id="logo-openai" viewBox="0 0 24 24"><path d="M9.205 8.658v-2.26c0-.19.072-.333.238-.428l4.543-2.616c.619-.357 1.356-.523 2.117-.523 2.854 0 4.662 2.212 4.662 4.566 0 .167 0 .357-.024.547l-4.71-2.759a.797.797 0 00-.856 0l-5.97 3.473zm10.609 8.8V12.06c0-.333-.143-.57-.429-.737l-5.97-3.473 1.95-1.118a.433.433 0 01.476 0l4.543 2.617c1.309.76 2.189 2.378 2.189 3.948 0 1.808-1.07 3.473-2.76 4.163zM7.802 12.703l-1.95-1.142c-.167-.095-.239-.238-.239-.428V5.899c0-2.545 1.95-4.472 4.591-4.472 1 0 1.927.333 2.712.928L8.23 5.067c-.285.166-.428.404-.428.737v6.898zM12 15.128l-2.795-1.57v-3.33L12 8.658l2.795 1.57v3.33L12 15.128zm1.796 7.23c-1 0-1.927-.332-2.712-.927l4.686-2.712c.285-.166.428-.404.428-.737v-6.898l1.974 1.142c.167.095.238.238.238.428v5.233c0 2.545-1.974 4.472-4.614 4.472zm-5.637-5.303l-4.544-2.617c-1.308-.761-2.188-2.378-2.188-3.948A4.482 4.482 0 014.21 6.327v5.423c0 .333.143.571.428.738l5.947 3.449-1.95 1.118a.432.432 0 01-.476 0zm-.262 3.9c-2.688 0-4.662-2.021-4.662-4.519 0-.19.024-.38.047-.57l4.686 2.71c.286.167.571.167.856 0l5.97-3.448v2.26c0 .19-.07.333-.237.428l-4.543 2.616c-.619.357-1.356.523-2.117.523zm5.899 2.83a5.947 5.947 0 005.827-4.756C22.287 18.339 24 15.84 24 13.296c0-1.665-.713-3.282-1.998-4.448.119-.5.19-.999.19-1.498 0-3.401-2.759-5.947-5.946-5.947-.642 0-1.26.095-1.88.31A5.962 5.962 0 0010.205 0a5.947 5.947 0 00-5.827 4.757C1.713 5.447 0 7.945 0 10.49c0 1.666.713 3.283 1.998 4.448-.119.5-.19 1-.19 1.499 0 3.401 2.759 5.946 5.946 5.946.642 0 1.26-.095 1.88-.309a5.96 5.96 0 004.162 1.713z"></path></symbol>
       <symbol id="logo-openrouter" viewBox="0 0 24 24"><path d="M18.654 3.87a5.087 5.087 0 110 10.174L23.7 19.09c.64.641.187 1.737-.72 1.737H8.48a8.479 8.479 0 010-16.958h10.175zM8.479 7.26a5.087 5.087 0 100 10.176 5.087 5.087 0 000-10.175z"></path></symbol>
@@ -70,735 +90,556 @@
     </defs>
   </svg>
 
-
-  <header class="nav-wrap">
-    <nav class="nav" aria-label="{{attr "nav.1"}}">
-      <a class="brand" href="#top" aria-label="{{attr "nav.2"}}"><span class="brand-mark" aria-hidden="true">Ω</span> omega</a>
-      <ul class="nav-links">
-        <li><a href="#features">{{t "nav.3"}}</a></li>
-        <li><a href="#platforms">{{t "nav.4"}}</a></li>
-        <li><a href="#interface">{{t "nav.5"}}</a></li>
-        <li><a href="#app">{{t "nav.6"}}</a></li>
-        <li><a href="#safety">{{t "nav.7"}}</a></li>
-        <li><a href="#models">{{t "nav.8"}}</a></li>
-        <li><a href="#faq">FAQ</a></li>
-      </ul>
-      <details class="lang">
-        <summary aria-label="{{attr "nav.language"}}"><i class="ph ph-translate" aria-hidden="true"></i><span>{{.Lang}}</span></summary>
-        <ul>
-{{range langs}}          <li><a href="{{.Href}}" lang="{{.Code}}" hreflang="{{.Code}}" data-lang="{{.Code}}"{{if .Current}} aria-current="true"{{end}}>{{.Name}}</a></li>
-{{end}}        </ul>
-      </details>
-      <a class="nav-gh" href="https://github.com/lcajigasm/omega" aria-label="{{attr "nav.9"}}"><i class="ph ph-github-logo" aria-hidden="true"></i></a>
-      <a class="btn btn-sm btn-primary nav-cta" href="#install">{{t "nav.10"}}</a>
-      <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="mobile-menu" aria-label="{{attr "nav.11"}}">
-        <span class="bar bar-top"></span><span class="bar bar-bottom"></span>
-      </button>
-    </nav>
+  <header class="top">
+    <div class="top-in">
+      <a class="brand" href="#top" aria-label="{{attr "nav.2"}}"><span class="brand-mark" aria-hidden="true">Ω</span><span>omega</span></a>
+      <p class="top-tag">{{t "top.tag"}}</p>
+      <div class="top-actions">
+        <details class="lang">
+          <summary aria-label="{{attr "nav.language"}}"><svg class="ico" aria-hidden="true"><use href="#i-globe"/></svg><span>{{.Lang}}</span></summary>
+          <ul>
+{{range langs}}            <li><a href="{{.Href}}" lang="{{.Code}}" hreflang="{{.Code}}" data-lang="{{.Code}}"{{if .Current}} aria-current="true"{{end}}>{{.Name}}</a></li>
+{{end}}          </ul>
+        </details>
+        <button class="icon-btn" type="button" id="theme" aria-label="{{attr "nav.theme"}}" title="{{attr "nav.theme"}}"><svg class="ico" aria-hidden="true"><use href="#i-theme"/></svg></button>
+        <a class="icon-btn" href="https://github.com/lcajigasm/omega" aria-label="{{attr "nav.9"}}" title="GitHub"><svg class="ico" aria-hidden="true"><use href="#i-github"/></svg></a>
+        <a class="btn btn-ink btn-sm top-cta" href="#install">{{t "nav.10"}}</a>
+        <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="index" aria-label="{{attr "nav.11"}}"><span></span><span></span></button>
+      </div>
+    </div>
   </header>
 
-  <div class="mobile-menu" id="mobile-menu" hidden>
-    <ul>
-      <li><a href="#features">{{t "nav.3"}}</a></li>
-      <li><a href="#platforms">{{t "nav.4"}}</a></li>
-      <li><a href="#interface">{{t "nav.5"}}</a></li>
-      <li><a href="#app">{{t "nav.6"}}</a></li>
-      <li><a href="#safety">{{t "nav.7"}}</a></li>
-      <li><a href="#models">{{t "nav.8"}}</a></li>
-      <li><a href="#faq">FAQ</a></li>
-      <li><a href="https://github.com/lcajigasm/omega">GitHub</a></li>
-      <li><a href="#install">{{t "nav.10"}}</a></li>
-    </ul>
-  </div>
+  <div class="shell">
+    <!-- The index: a rail beside the page on a wide screen, a sheet under
+         the top bar on a narrow one. -->
+    <nav class="rail" id="index" aria-label="{{attr "nav.1"}}">
+      <p class="rail-title">{{t "nav.index"}}</p>
+      <ol>
+        <li><a href="#why"><span>01</span>{{t "why.1"}}</a></li>
+        <li><a href="#commands"><span>02</span>{{t "nav.cmds"}}</a></li>
+        <li><a href="#catalog"><span>03</span>{{t "nav.catalog"}}</a></li>
+        <li><a href="#safety"><span>04</span>{{t "nav.7"}}</a></li>
+        <li><a href="#models"><span>05</span>{{t "nav.8"}}</a></li>
+        <li><a href="#platforms"><span>06</span>{{t "nav.4"}}</a></li>
+        <li><a href="#interface"><span>07</span>{{t "nav.5"}}</a></li>
+        <li><a href="#install"><span>08</span>{{t "nav.10"}}</a></li>
+        <li><a href="#faq"><span>09</span>FAQ</a></li>
+      </ol>
+      <p class="rail-foot"><a href="https://github.com/lcajigasm/omega/blob/main/docs/manual/README.md">{{t "nav.manual"}} ↗</a></p>
+    </nav>
 
-  <main id="main">
-    <!-- Hero -->
-    <section class="hero" id="top">
-      <div class="container hero-grid">
-        <div>
-          <p class="eyebrow"><i class="ph ph-apple-logo" aria-hidden="true"></i><i class="ph ph-linux-logo" aria-hidden="true"></i><i class="ph ph-windows-logo" aria-hidden="true"></i> {{t "hero.1"}}</p>
-          <h1 class="hero-title">{{t "hero.2"}}</h1>
-          <p class="hero-sub">{{t "hero.3"}}</p>
+    <main id="main">
+      <!-- Hero -->
+      <section class="hero" id="top">
+        <p class="eyebrow">{{t "hero.1"}}</p>
+        <h1>{{t "hero.h"}}</h1>
+        <p class="lede">{{t "hero.3"}}</p>
 
-          <div class="install" data-tabs>
-            <div class="tabs" role="tablist" aria-label="{{attr "hero.4"}}">
-              <button class="tab" type="button" role="tab" aria-selected="true" aria-controls="get-brew" id="tab-brew"><i class="ph ph-beer-bottle" aria-hidden="true"></i> Homebrew</button>
-              <button class="tab" type="button" role="tab" aria-selected="false" aria-controls="get-app" id="tab-app"><i class="ph ph-app-window" aria-hidden="true"></i> {{t "hero.5"}}</button>
-              <button class="tab" type="button" role="tab" aria-selected="false" aria-controls="get-linux" id="tab-linux"><i class="ph ph-linux-logo" aria-hidden="true"></i> Linux</button>
-              <button class="tab" type="button" role="tab" aria-selected="false" aria-controls="get-windows" id="tab-windows"><i class="ph ph-windows-logo" aria-hidden="true"></i> Windows</button>
-            </div>
-            <div class="install-row" role="tabpanel" id="get-brew" aria-labelledby="tab-brew">
-              <code class="install-cmd">brew install lcajigasm/tap/omega</code>
-              <button class="btn btn-primary btn-sm copy-btn" type="button" data-copy="brew install lcajigasm/tap/omega"><i class="ph ph-copy" aria-hidden="true"></i><span class="copy-label">{{t "hero.6"}}</span></button>
-            </div>
-            <div class="install-row" role="tabpanel" id="get-app" aria-labelledby="tab-app" hidden>
-              <code class="install-cmd">brew install --cask lcajigasm/tap/omega-app</code>
-              <button class="btn btn-primary btn-sm copy-btn" type="button" data-copy="brew install --cask lcajigasm/tap/omega-app"><i class="ph ph-copy" aria-hidden="true"></i><span class="copy-label">{{t "hero.6"}}</span></button>
-            </div>
-            <div class="install-row" role="tabpanel" id="get-linux" aria-labelledby="tab-linux" hidden>
-              <code class="install-cmd multi">tar -xzf omega_*_linux_amd64.tar.gz
-sudo install -m 755 omega /usr/local/bin/omega</code>
-              <a class="btn btn-ghost btn-sm" href="https://github.com/lcajigasm/omega/releases/latest">{{t "hero.7"}}</a>
-            </div>
-            <div class="install-row" role="tabpanel" id="get-windows" aria-labelledby="tab-windows" hidden>
-              <code class="install-cmd multi">Expand-Archive omega_*_windows_amd64.zip `
-  -DestinationPath "$env:LOCALAPPDATA\Programs\omega"</code>
-              <a class="btn btn-ghost btn-sm" href="https://github.com/lcajigasm/omega/releases/latest">{{t "hero.8"}}</a>
-            </div>
+        <div class="install" data-tabs>
+          <div class="tabs" role="tablist" aria-label="{{attr "hero.4"}}">
+            <button class="tab" type="button" role="tab" aria-selected="true" aria-controls="get-brew" id="tab-brew">Homebrew</button>
+            <button class="tab" type="button" role="tab" aria-selected="false" aria-controls="get-app" id="tab-app">{{t "hero.5"}}</button>
+            <button class="tab" type="button" role="tab" aria-selected="false" aria-controls="get-linux" id="tab-linux">Linux</button>
+            <button class="tab" type="button" role="tab" aria-selected="false" aria-controls="get-windows" id="tab-windows" data-os="windows">Windows</button>
           </div>
-          <p class="copy-status" role="status" aria-live="polite"></p>
-          <p class="hero-note">{{t "hero.9"}}</p>
-
-          <ul class="chips" aria-label="{{attr "hero.10"}}">
-            <li class="chip"><i class="ph ph-check" aria-hidden="true"></i> {{t "hero.11"}}</li>
-            <li class="chip"><i class="ph ph-check" aria-hidden="true"></i> {{t "hero.12"}}</li>
-            <li class="chip"><i class="ph ph-check" aria-hidden="true"></i> {{t "hero.13"}}</li>
-            <li class="chip"><i class="ph ph-check" aria-hidden="true"></i> {{t "hero.14"}}</li>
-            <li class="chip"><i class="ph ph-check" aria-hidden="true"></i> {{t "hero.15"}}</li>
-          </ul>
-        </div>
-
-        <figure class="terminal" aria-label="{{attr "hero.16"}}">
-          <div class="terminal-bar"><span></span><span></span><span></span><p>omega · full</p></div>
-          <div class="terminal-body">
-            <p class="t-line t-head"><span class="t-accent">Ω omega</span>  <span class="t-muted">anthropic · claude-haiku-5-5 · task: full</span></p>
-            <p class="t-line"><span class="t-ok">✓</span> system_info</p>
-            <p class="t-line"><span class="t-ok">✓</span> brew update &amp;&amp; brew upgrade <span class="t-muted">· 2m14s</span></p>
-            <p class="t-line"><span class="t-err">✗ exit 1</span> pipx upgrade-all</p>
-            <p class="t-line t-muted">  {{t "hero.17"}}</p>
-            <p class="t-line t-muted"><span class="t-accent">↑</span> {{t "hero.18"}}</p>
-            <p class="t-line">{{t "hero.19"}}</p>
-            <p class="t-line"><span class="t-warn">? pipx reinstall-all</span> → <span class="t-ok">{{t "hero.20"}}</span></p>
-            <p class="t-line"><span class="t-ok">✓</span> pipx reinstall-all <span class="t-muted">· 41s</span></p>
-            <p class="t-line"><span class="t-ok">✓</span> brew cleanup --prune=all <span class="t-muted">· 12s</span></p>
-            <p class="t-line">{{t "hero.21"}}</p>
-            <p class="t-line t-muted">{{t "hero.22"}}</p>
+          <div class="install-row" role="tabpanel" id="get-brew" aria-labelledby="tab-brew">
+            <code class="install-cmd">brew install lcajigasm/tap/omega</code>
+            <button class="btn btn-ink btn-sm copy-btn" type="button" data-copy="brew install lcajigasm/tap/omega"><svg class="ico" aria-hidden="true"><use href="#i-copy"/></svg><span class="copy-label">{{t "hero.6"}}</span></button>
           </div>
-          <figcaption class="sr-only">{{t "hero.23"}}</figcaption>
-        </figure>
-      </div>
-    </section>
-
-    <!-- Providers -->
-    <section class="strip" aria-label="{{attr "providers.1"}}">
-      <div class="container strip-inner">
-        <p class="strip-label">{{t "providers.2"}}</p>
-        <ul class="logo-strip">
-          <li><svg class="logo" aria-hidden="true"><use href="#logo-anthropic"/></svg>Anthropic</li>
-          <li><svg class="logo" aria-hidden="true"><use href="#logo-openai"/></svg>OpenAI</li>
-          <li><svg class="logo" aria-hidden="true"><use href="#logo-openrouter"/></svg>OpenRouter</li>
-          <li><svg class="logo" aria-hidden="true"><use href="#logo-opencode"/></svg>OpenCode Zen</li>
-          <li><svg class="logo" aria-hidden="true"><use href="#logo-ollama"/></svg>Ollama</li>
-          <li><svg class="logo" aria-hidden="true"><use href="#logo-lmstudio"/></svg>LM Studio</li>
-        </ul>
-      </div>
-    </section>
-
-    <!-- Why -->
-    <section class="section reveal" id="why" aria-labelledby="why-title">
-      <div class="container">
-        <div class="section-head">
-          <p class="kicker">{{t "why.1"}}</p>
-          <h2 class="section-title" id="why-title">{{t "why.2"}}</h2>
-        </div>
-        <div class="grid grid-2">
-          <article class="card">
-            <h3 class="card-title"><i class="ph ph-x-circle t-err" aria-hidden="true"></i> {{t "why.3"}}</h3>
-            <ul class="list">
-              <li>{{t "why.4"}}</li>
-              <li>{{t "why.5"}}</li>
-              <li>{{t "why.6"}}</li>
-              <li>{{t "why.7"}}</li>
-            </ul>
-          </article>
-          <article class="card card-accent">
-            <h3 class="card-title"><i class="ph ph-check-circle t-ok" aria-hidden="true"></i> {{t "why.8"}}</h3>
-            <ul class="list">
-              <li>{{t "why.9"}}</li>
-              <li>{{t "why.10"}}</li>
-              <li>{{t "why.11"}}</li>
-              <li>{{t "why.12"}}</li>
-            </ul>
-          </article>
-        </div>
-      </div>
-    </section>
-
-    <!-- Features -->
-    <section class="section reveal" id="features" aria-labelledby="features-title">
-      <div class="container">
-        <div class="section-head">
-          <p class="kicker">{{t "features.1"}}</p>
-          <h2 class="section-title" id="features-title">{{t "features.2"}}</h2>
-        </div>
-        <div class="grid grid-3">
-          <article class="card">
-            <span class="feature-icon"><i class="ph ph-wrench" aria-hidden="true"></i></span>
-            <h3 class="card-title">{{t "features.3"}}</h3>
-            <p>{{t "features.4"}}</p>
-          </article>
-          <article class="card">
-            <span class="feature-icon"><i class="ph ph-check-square" aria-hidden="true"></i></span>
-            <h3 class="card-title">{{t "features.5"}}</h3>
-            <p>{{t "features.6"}}</p>
-          </article>
-          <article class="card">
-            <span class="feature-icon"><i class="ph ph-shield-check" aria-hidden="true"></i></span>
-            <h3 class="card-title">{{t "features.7"}}</h3>
-            <p>{{t "features.8"}}</p>
-          </article>
-          <article class="card">
-            <span class="feature-icon"><i class="ph ph-coins" aria-hidden="true"></i></span>
-            <h3 class="card-title">{{t "features.9"}}</h3>
-            <p>{{t "features.10"}}</p>
-          </article>
-          <article class="card">
-            <span class="feature-icon"><i class="ph ph-sliders-horizontal" aria-hidden="true"></i></span>
-            <h3 class="card-title">{{t "features.11"}}</h3>
-            <p>{{t "features.12"}}</p>
-          </article>
-          <article class="card">
-            <span class="feature-icon"><i class="ph ph-terminal-window" aria-hidden="true"></i></span>
-            <h3 class="card-title">{{t "features.13"}}</h3>
-            <p>{{t "features.14"}}</p>
-          </article>
-          <article class="card">
-            <span class="feature-icon"><i class="ph ph-cube" aria-hidden="true"></i></span>
-            <h3 class="card-title">{{t "features.15"}}</h3>
-            <p>{{t "features.16"}}</p>
-          </article>
-          <article class="card">
-            <span class="feature-icon"><i class="ph ph-list-magnifying-glass" aria-hidden="true"></i></span>
-            <h3 class="card-title">{{t "features.17"}}</h3>
-            <p>{{t "features.18"}}</p>
-          </article>
-          <article class="card">
-            <span class="feature-icon"><i class="ph ph-chat-text" aria-hidden="true"></i></span>
-            <h3 class="card-title">{{t "features.19"}}</h3>
-            <p>{{t "features.20"}}</p>
-          </article>
-          <article class="card">
-            <span class="feature-icon"><i class="ph ph-lightning" aria-hidden="true"></i></span>
-            <h3 class="card-title">{{t "features.21"}}</h3>
-            <p>{{t "features.22"}}</p>
-          </article>
-          <article class="card">
-            <span class="feature-icon"><i class="ph ph-git-branch" aria-hidden="true"></i></span>
-            <h3 class="card-title">{{t "features.23"}}</h3>
-            <p>{{t "features.24"}}</p>
-          </article>
-          <article class="card">
-            <span class="feature-icon"><i class="ph ph-clock" aria-hidden="true"></i></span>
-            <h3 class="card-title">{{t "features.25"}}</h3>
-            <p>{{t "features.26"}}</p>
-          </article>
-        </div>
-      </div>
-    </section>
-
-    <!-- How it works -->
-    <section class="section reveal" id="how" aria-labelledby="how-title">
-      <div class="container">
-        <div class="section-head">
-          <p class="kicker">{{t "how.1"}}</p>
-          <h2 class="section-title" id="how-title">{{t "how.2"}}</h2>
-        </div>
-        <ol class="grid grid-3 steps">
-          <li class="card step">
-            <h3 class="card-title">{{t "how.3"}}</h3>
-            <p>{{t "how.4"}}</p>
-            <pre><code>omega setup</code></pre>
-          </li>
-          <li class="card step">
-            <h3 class="card-title">{{t "how.5"}}</h3>
-            <p>{{t "how.6"}}</p>
-            <pre><code>omega analyze</code></pre>
-          </li>
-          <li class="card step">
-            <h3 class="card-title">{{t "how.7"}}</h3>
-            <p>{{t "how.8"}}</p>
-            <pre><code>omega
-omega full</code></pre>
-          </li>
-        </ol>
-      </div>
-    </section>
-
-    <!-- Platforms -->
-    <section class="section reveal" id="platforms" aria-labelledby="platforms-title">
-      <div class="container">
-        <div class="section-head">
-          <p class="kicker">{{t "platforms.1"}}</p>
-          <h2 class="section-title" id="platforms-title">{{t "platforms.2"}}</h2>
-          <p class="section-sub">{{t "platforms.3"}}</p>
-        </div>
-        <div data-tabs>
-          <div class="panel-tabs" role="tablist" aria-label="{{attr "platforms.4"}}">
-            <button class="tab" type="button" role="tab" aria-selected="true" aria-controls="panel-mac" id="ptab-mac"><i class="ph ph-apple-logo" aria-hidden="true"></i> macOS</button>
-            <button class="tab" type="button" role="tab" aria-selected="false" aria-controls="panel-linux" id="ptab-linux"><i class="ph ph-linux-logo" aria-hidden="true"></i> Linux</button>
-            <button class="tab" type="button" role="tab" aria-selected="false" aria-controls="panel-windows" id="ptab-windows"><i class="ph ph-windows-logo" aria-hidden="true"></i> Windows</button>
-            <button class="tab" type="button" role="tab" aria-selected="false" aria-controls="panel-dev" id="ptab-dev"><i class="ph ph-terminal-window" aria-hidden="true"></i> {{t "platforms.5"}}</button>
-          </div>
-
-          <div class="panel" role="tabpanel" id="panel-mac" aria-labelledby="ptab-mac">
-            <h3 class="panel-name"><i class="ph ph-apple-logo" aria-hidden="true"></i> macOS</h3>
-            <p class="panel-intro">{{t "platforms.6"}}</p>
-            <div class="split">
-              <dl class="deflist">
-                <div><dt>login</dt><dd>{{t "platforms.7"}}</dd></div>
-                <div><dt>background</dt><dd>{{t "platforms.8"}}</dd></div>
-                <div><dt>menubar</dt><dd>{{t "platforms.9"}}</dd></div>
-                <div><dt>dock</dt><dd>{{t "platforms.10"}}</dd></div>
-                <div><dt>shortcuts</dt><dd>{{t "platforms.11"}}</dd></div>
-                <div><dt>permissions</dt><dd>{{t "platforms.12"}}</dd></div>
-                <div><dt>apps</dt><dd>{{t "platforms.13"}}</dd></div>
-              </dl>
-              <figure class="terminal" aria-label="{{attr "platforms.14"}}">
-                <div class="terminal-bar"><span></span><span></span><span></span><p>omega mac shortcuts</p></div>
-                <div class="terminal-body">
-                  <p><span class="t-accent">{{t "platforms.15"}}</span></p>
-                  <p><span class="t-accent">{{t "platforms.16"}}</span>  <span class="t-muted">{{t "platforms.17"}}</span></p>
-                  <p>  {{t "platforms.18"}}</p>
-                  <p>  {{t "platforms.19"}}</p>
-                  <p>  {{t "platforms.20"}}</p>
-                  <p class="t-gap t-muted">{{t "platforms.21"}}</p>
-                  <p><span class="t-strong">ChatGPT</span> <span class="t-muted">→ ⌃⌥Space</span></p>
-                  <p><span class="t-strong">Claude</span>  <span class="t-muted">→ ⌥⇧⌘Space</span></p>
-                  <p class="t-gap"><span class="t-strong">{{t "platforms.22"}}</span>    <span class="t-muted">omega mac undo</span></p>
-                </div>
-                <figcaption class="sr-only">{{t "platforms.24"}}</figcaption>
-              </figure>
-            </div>
-          </div>
-
-          <div class="panel" role="tabpanel" id="panel-linux" aria-labelledby="ptab-linux" hidden>
-            <h3 class="panel-name"><i class="ph ph-linux-logo" aria-hidden="true"></i> Linux</h3>
-            <p class="panel-intro">{{t "platforms.25"}}</p>
-            <div class="split">
-              <dl class="deflist">
-                <div><dt>{{t "platforms.26"}}</dt><dd>{{t "platforms.27"}}</dd></div>
-                <div><dt>{{t "platforms.28"}}</dt><dd>{{t "platforms.29"}}</dd></div>
-                <div><dt>{{t "platforms.30"}}</dt><dd>{{t "platforms.31"}}</dd></div>
-                <div><dt>{{t "platforms.32"}}</dt><dd>{{t "platforms.33"}}</dd></div>
-                <div><dt>{{t "platforms.34"}}</dt><dd>{{t "platforms.35"}}</dd></div>
-              </dl>
-              <figure class="terminal" aria-label="{{attr "platforms.36"}}">
-                <div class="terminal-bar"><span></span><span></span><span></span><p>omega steps · Ubuntu 24.04</p></div>
-                <div class="terminal-body">
-                  <p><span class="t-accent">{{t "platforms.37"}}</span></p>
-                  <p><span class="t-ok">✓</span> {{t "platforms.38"}}</p>
-                  <p><span class="t-ok">✓</span> {{t "platforms.39"}}</p>
-                  <p><span class="t-ok">✓</span> {{t "platforms.40"}}</p>
-                  <p><span class="t-ok">✓</span> {{t "platforms.41"}}</p>
-                  <p class="t-gap"><span class="t-accent">{{t "platforms.42"}}</span></p>
-                  <p><span class="t-ok">✓</span> {{t "platforms.43"}}</p>
-                  <p><span class="t-ok">✓</span> {{t "platforms.44"}}</p>
-                  <p class="t-gap"><span class="t-accent">{{t "platforms.45"}}</span></p>
-                  <p><span class="t-ok">✓</span> {{t "platforms.46"}}</p>
-                  <p><span class="t-ok">✓</span> {{t "platforms.47"}}</p>
-                </div>
-                <figcaption class="sr-only">{{t "platforms.48"}}</figcaption>
-              </figure>
-            </div>
-            <ul class="facts">
-              <li><i class="ph ph-apple-logo" aria-hidden="true"></i> {{t "platforms.49"}}</li>
-              <li><i class="ph ph-cube" aria-hidden="true"></i> {{t "platforms.50"}}</li>
-              <li><i class="ph ph-lock-simple" aria-hidden="true"></i> {{t "platforms.51"}}</li>
-              <li><i class="ph ph-terminal-window" aria-hidden="true"></i> {{t "platforms.52"}}</li>
-            </ul>
-          </div>
-
-          <div class="panel" role="tabpanel" id="panel-windows" aria-labelledby="ptab-windows" hidden>
-            <h3 class="panel-name"><i class="ph ph-windows-logo" aria-hidden="true"></i> Windows</h3>
-            <p class="panel-intro">{{t "platforms.53"}}</p>
-            <div class="split">
-              <dl class="deflist">
-                <div><dt>{{t "platforms.26"}}</dt><dd>{{t "platforms.54"}}</dd></div>
-                <div><dt>{{t "platforms.55"}}</dt><dd>{{t "platforms.56"}}</dd></div>
-                <div><dt>{{t "platforms.57"}}</dt><dd>{{t "platforms.58"}}</dd></div>
-                <div><dt>{{t "platforms.32"}}</dt><dd>{{t "platforms.59"}}</dd></div>
-                <div><dt>{{t "platforms.60"}}</dt><dd>{{t "platforms.61"}}</dd></div>
-              </dl>
-              <figure class="terminal" aria-label="{{attr "platforms.62"}}">
-                <div class="terminal-bar"><span></span><span></span><span></span><p>omega steps · Windows Server 2025</p></div>
-                <div class="terminal-body">
-                  <p><span class="t-accent">{{t "platforms.37"}}</span></p>
-                  <p><span class="t-ok">✓</span> {{t "platforms.63"}}</p>
-                  <p><span class="t-ok">✓</span> {{t "platforms.64"}}</p>
-                  <p><span class="t-ok">✓</span> {{t "platforms.65"}}</p>
-                  <p><span class="t-ok">✓</span> {{t "platforms.66"}}</p>
-                  <p class="t-gap"><span class="t-accent">{{t "platforms.42"}}</span></p>
-                  <p><span class="t-ok">✓</span> {{t "platforms.67"}}</p>
-                  <p><span class="t-ok">✓</span> {{t "platforms.68"}}</p>
-                  <p class="t-gap"><span class="t-accent">{{t "platforms.45"}}</span></p>
-                  <p><span class="t-ok">✓</span> {{t "platforms.69"}}</p>
-                  <p><span class="t-ok">✓</span> {{t "platforms.70"}}</p>
-                </div>
-                <figcaption class="sr-only">{{t "platforms.71"}}</figcaption>
-              </figure>
-            </div>
-            <ul class="facts">
-              <li><i class="ph ph-shield-check" aria-hidden="true"></i> {{t "platforms.72"}}</li>
-              <li><i class="ph ph-arrows-clockwise" aria-hidden="true"></i> {{t "platforms.73"}}</li>
-              <li><i class="ph ph-apple-logo" aria-hidden="true"></i> {{t "platforms.74"}}</li>
-              <li><i class="ph ph-prohibit" aria-hidden="true"></i> {{t "platforms.75"}}</li>
-            </ul>
-          </div>
-
-          <div class="panel" role="tabpanel" id="panel-dev" aria-labelledby="ptab-dev" hidden>
-            <h3 class="panel-name"><i class="ph ph-terminal-window" aria-hidden="true"></i> {{t "platforms.5"}}</h3>
-            <p class="panel-intro">{{t "platforms.76"}}</p>
-            <div class="split">
-              <dl class="deflist">
-                <div><dt>dev status</dt><dd>{{t "platforms.77"}}</dd></div>
-                <div><dt>dev install</dt><dd>{{t "platforms.78"}}</dd></div>
-                <div><dt>dev activate</dt><dd>{{t "platforms.79"}}</dd></div>
-                <div><dt>dev</dt><dd>{{t "platforms.80"}}</dd></div>
-              </dl>
-              <figure class="terminal" aria-label="{{attr "platforms.81"}}">
-                <div class="terminal-bar"><span></span><span></span><span></span><p>omega dev status</p></div>
-                <div class="terminal-body">
-                  <p><span class="t-accent">{{t "platforms.82"}}</span></p>
-                  <p><span class="t-warn">!</span> {{t "platforms.83"}}</p>
-                  <p><span class="t-warn">!</span> {{t "platforms.84"}}</p>
-                  <p><span class="t-warn">!</span> {{t "platforms.85"}}</p>
-                  <p><span class="t-warn">!</span> {{t "platforms.86"}}</p>
-                  <p class="t-gap t-muted">{{t "platforms.87"}}</p>
-                  <p class="t-gap"><span class="t-strong">omega dev</span>           <span class="t-muted">{{t "platforms.88"}}</span></p>
-                  <p><span class="t-strong">omega dev activate</span>  <span class="t-muted">{{t "platforms.89"}}</span></p>
-                  <p><span class="t-strong">omega dev install</span>   <span class="t-muted">{{t "platforms.90"}}</span></p>
-                </div>
-                <figcaption class="sr-only">{{t "platforms.91"}}</figcaption>
-              </figure>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Interface -->
-    <section class="section reveal" id="interface" aria-labelledby="interface-title">
-      <div class="container">
-        <div class="section-head">
-          <p class="kicker">{{t "interface.1"}}</p>
-          <h2 class="section-title" id="interface-title">{{t "interface.2"}}</h2>
-          <p class="section-sub">{{t "interface.3"}}</p>
-        </div>
-        <div class="gallery">
-          <figure class="shot shot-wide">
-            <img src="{{.Root}}assets/confirm.png" width="1280" height="820" loading="lazy" alt="{{attr "interface.4"}}">
-            <figcaption>{{t "interface.5"}}</figcaption>
-          </figure>
-          <figure class="shot">
-            <img src="{{.Root}}assets/card.png" width="1280" height="820" loading="lazy" alt="{{attr "interface.6"}}">
-            <figcaption>{{t "interface.7"}}</figcaption>
-          </figure>
-          <figure class="shot">
-            <img src="{{.Root}}assets/menu.png" width="1280" height="820" loading="lazy" alt="{{attr "interface.8"}}">
-            <figcaption>{{t "interface.9"}}</figcaption>
-          </figure>
-          <figure class="shot">
-            <img src="{{.Root}}assets/docker-confirm.png" width="1280" height="820" loading="lazy" alt="{{attr "interface.10"}}">
-            <figcaption>{{t "interface.11"}}</figcaption>
-          </figure>
-          <figure class="shot">
-            <img src="{{.Root}}assets/model.png" width="1280" height="560" loading="lazy" alt="{{attr "interface.12"}}">
-            <figcaption>{{t "interface.13"}}</figcaption>
-          </figure>
-          <figure class="shot">
-            <img src="{{.Root}}assets/summary.png" width="1280" height="820" loading="lazy" alt="{{attr "interface.14"}}">
-            <figcaption>{{t "interface.15"}}</figcaption>
-          </figure>
-        </div>
-        <p class="note">{{t "interface.16"}}</p>
-
-        <h3 class="subhead">{{t "interface.17"}}</h3>
-        <div class="split">
-          <dl class="deflist keys">
-            <div><dt><kbd>?</kbd></dt><dd>{{t "interface.18"}}</dd></div>
-            <div><dt><kbd>shift</kbd> <kbd>tab</kbd></dt><dd>{{t "interface.19"}}</dd></div>
-            <div><dt><kbd>ctrl</kbd> <kbd>p</kbd></dt><dd>{{t "interface.20"}}</dd></div>
-            <div><dt><kbd>ctrl</kbd> <kbd>b</kbd></dt><dd>{{t "interface.21"}}</dd></div>
-            <div><dt><kbd>ctrl</kbd> <kbd>o</kbd></dt><dd>{{t "interface.22"}}</dd></div>
-            <div><dt><kbd>ctrl</kbd> <kbd>f</kbd></dt><dd>{{t "interface.23"}}</dd></div>
-            <div><dt><kbd>ctrl</kbd> <kbd>y</kbd></dt><dd>{{t "interface.24"}}</dd></div>
-            <div><dt><kbd>ctrl</kbd> <kbd>c</kbd></dt><dd>{{t "interface.25"}}</dd></div>
-          </dl>
-          <div>
-            <div class="slash" aria-label="{{attr "interface.26"}}">
-              <code>/update</code><code>/clean</code><code>/analyze</code><code>/health</code><code>/tune</code><code>/fix</code><code>/docker</code><code>/dev</code><code>/install</code><code>/disk</code><code>/logs</code><code>/shell</code><code>/steps</code><code>/mac</code><code>/permissions</code><code>/apps</code><code>/login</code><code>/dock</code><code>/shortcuts</code><code>/undo</code><code>/models</code><code>/settings</code><code>/notes</code><code>/history</code><code>/doctor</code><code>/mode</code><code>/model</code><code>/help</code>
-            </div>
-            <p class="slash-note">{{t "interface.27"}}</p>
-            <details class="cast">
-              <summary><i class="ph ph-play-circle" aria-hidden="true"></i> {{t "interface.28"}}</summary>
-              <asciinema-player src="{{.Root}}assets/shortcuts.cast" cols="100" rows="32" preload="true" title="omega: help, Esc and a denial"></asciinema-player>
-            </details>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Desktop app -->
-    <section class="section reveal" id="app" aria-labelledby="app-title">
-      <div class="container">
-        <div class="section-head">
-          <p class="kicker">{{t "app.1"}}</p>
-          <h2 class="section-title" id="app-title">{{t "app.2"}}</h2>
-          <p class="section-sub">{{t "app.3"}}</p>
-        </div>
-        <div class="install app-install">
-          <div class="install-row">
+          <div class="install-row" role="tabpanel" id="get-app" aria-labelledby="tab-app" hidden>
             <code class="install-cmd">brew install --cask lcajigasm/tap/omega-app</code>
-            <button class="btn btn-primary btn-sm copy-btn" type="button" data-copy="brew install --cask lcajigasm/tap/omega-app"><i class="ph ph-copy" aria-hidden="true"></i><span class="copy-label">{{t "app.4"}}</span></button>
+            <button class="btn btn-ink btn-sm copy-btn" type="button" data-copy="brew install --cask lcajigasm/tap/omega-app"><svg class="ico" aria-hidden="true"><use href="#i-copy"/></svg><span class="copy-label">{{t "hero.6"}}</span></button>
+          </div>
+          <div class="install-row" role="tabpanel" id="get-linux" aria-labelledby="tab-linux" hidden>
+            <code class="install-cmd multi">tar -xzf omega_*_linux_amd64.tar.gz
+sudo install -m 755 omega /usr/local/bin/omega</code>
+            <a class="btn btn-line btn-sm" href="https://github.com/lcajigasm/omega/releases/latest"><svg class="ico" aria-hidden="true"><use href="#i-down"/></svg>{{t "hero.7"}}</a>
+          </div>
+          <div class="install-row" role="tabpanel" id="get-windows" aria-labelledby="tab-windows" hidden>
+            <code class="install-cmd multi">Expand-Archive omega_*_windows_amd64.zip `
+  -DestinationPath "$env:LOCALAPPDATA\Programs\omega"</code>
+            <a class="btn btn-line btn-sm" href="https://github.com/lcajigasm/omega/releases/latest"><svg class="ico" aria-hidden="true"><use href="#i-down"/></svg>{{t "hero.8"}}</a>
           </div>
         </div>
         <p class="copy-status" role="status" aria-live="polite"></p>
-        <div class="downloads">
-          <a class="btn btn-primary" href="https://github.com/lcajigasm/omega/releases/latest/download/omega-macos-universal.dmg"><i class="ph ph-apple-logo" aria-hidden="true"></i> {{t "app.5"}}</a>
-          <a class="btn btn-ghost" href="https://github.com/lcajigasm/omega/releases/latest"><i class="ph ph-windows-logo" aria-hidden="true"></i> {{t "app.6"}}</a>
-          <a class="btn btn-ghost" href="https://github.com/lcajigasm/omega/releases/latest"><i class="ph ph-linux-logo" aria-hidden="true"></i> {{t "app.7"}}</a>
-        </div>
-        <p class="note downloads-note">{{t "app.8"}}</p>
-        <div class="gallery">
-          <figure class="shot shot-wide shot-center">
-            <img src="{{.Root}}assets/gui-confirm.png" width="1780" height="1140" loading="lazy" alt="{{attr "app.9"}}">
-            <figcaption>{{t "app.10"}}</figcaption>
-          </figure>
-          <figure class="shot shot-center">
-            <img src="{{.Root}}assets/gui-home.png" width="1780" height="1140" loading="lazy" alt="{{attr "app.11"}}">
-            <figcaption>{{t "app.12"}}</figcaption>
-          </figure>
-          <figure class="shot shot-center">
-            <img src="{{.Root}}assets/gui-card.png" width="1780" height="1140" loading="lazy" alt="{{attr "app.13"}}">
-            <figcaption>{{t "app.14"}}</figcaption>
-          </figure>
-          <figure class="shot shot-center">
-            <img src="{{.Root}}assets/gui-summary.png" width="1780" height="1140" loading="lazy" alt="{{attr "app.15"}}">
-            <figcaption>{{t "app.16"}}</figcaption>
-          </figure>
-          <figure class="shot shot-center">
-            <img src="{{.Root}}assets/gui-output.png" width="1780" height="1140" loading="lazy" alt="{{attr "app.17"}}">
-            <figcaption>{{t "app.18"}}</figcaption>
-          </figure>
-          <figure class="shot shot-center">
-            <img src="{{.Root}}assets/gui-setup.png" width="1780" height="1140" loading="lazy" alt="{{attr "app.19"}}">
-            <figcaption>{{t "app.20"}}</figcaption>
-          </figure>
-        </div>
-        <p class="note">{{t "app.21"}}</p>
-        <div class="grid grid-3">
-          <article class="card">
-            <h3 class="card-title">{{t "app.22"}}</h3>
-            <p>{{t "app.23"}}</p>
-          </article>
-          <article class="card">
-            <h3 class="card-title">{{t "app.24"}}</h3>
-            <p>{{t "app.25"}}</p>
-          </article>
-          <article class="card">
-            <h3 class="card-title">{{t "app.26"}}</h3>
-            <p>{{t "app.27"}}</p>
-          </article>
-        </div>
-      </div>
-    </section>
+        <p class="hero-note">{{t "hero.9"}}</p>
 
-    <!-- Safety -->
-    <section class="section reveal" id="safety" aria-labelledby="safety-title">
-      <div class="container">
-        <div class="section-head">
-          <p class="kicker">{{t "safety.1"}}</p>
-          <h2 class="section-title" id="safety-title">{{t "safety.2"}}</h2>
-          <p class="section-sub">{{t "safety.3"}}</p>
+        <!-- One real session, looked at closely. The frames are captures of
+             the binary; the script only moves the camera over them. -->
+        <figure class="plate tour" data-tour>
+          <div class="tour-stage">
+            <img class="tour-img is-on" data-frame="confirm" src="{{.Root}}assets/confirm.png" width="1280" height="820" alt="{{attr "interface.4"}}">
+            <img class="tour-img" data-frame="summary" src="{{.Root}}assets/summary.png" width="1280" height="820" loading="lazy" alt="{{attr "interface.14"}}">
+            <span class="tour-mark" aria-hidden="true"></span>
+          </div>
+          <ol class="tour-steps">
+            <li><button type="button" data-frame="confirm" data-rect="18,300,600,124"><span class="tour-n">1</span><strong>{{t "tour.1"}}</strong><span>{{t "tour.1d"}}</span></button></li>
+            <li><button type="button" data-frame="confirm" data-rect="18,432,780,140"><span class="tour-n">2</span><strong>{{t "tour.2"}}</strong><span>{{t "tour.2d"}}</span></button></li>
+            <li><button type="button" data-frame="confirm" data-rect="30,596,690,138"><span class="tour-n">3</span><strong>{{t "tour.3"}}</strong><span>{{t "tour.3d"}}</span></button></li>
+            <li><button type="button" data-frame="summary" data-rect="20,544,810,134"><span class="tour-n">4</span><strong>{{t "tour.4"}}</strong><span>{{t "tour.4d"}}</span></button></li>
+          </ol>
+          <figcaption><b>{{t "fig.word"}} 1</b> {{t "interface.16"}}</figcaption>
+        </figure>
+
+        <dl class="specs">
+          <div><dt>{{count "linux"}}</dt><dd>{{printf (t "spec.steps") (count "darwin") (count "windows")}}</dd></div>
+          <div><dt>25</dt><dd>{{t "open.5"}}</dd></div>
+          <div><dt>5</dt><dd>{{t "open.6"}}</dd></div>
+          <div><dt>&lt;1¢</dt><dd>{{t "open.7"}}</dd></div>
+        </dl>
+      </section>
+
+      <!-- 01 Why -->
+      <section class="sec" id="why" aria-labelledby="why-t">
+        <header class="sec-head">
+          <p class="sec-no"><span>01</span>{{t "why.1"}}</p>
+          <h2 id="why-t">{{t "why.2"}}</h2>
+        </header>
+        <div class="ledger-wrap">
+          <table class="ledger">
+            <thead>
+              <tr><td></td><th scope="col">{{t "why.3"}}</th><th scope="col" class="ledger-us">{{t "why.8"}}</th></tr>
+            </thead>
+            <tbody>
+              <tr><th scope="row">{{t "why.r1"}}</th><td>{{t "why.4"}}</td><td class="ledger-us">{{t "why.9"}}</td></tr>
+              <tr><th scope="row">{{t "why.r2"}}</th><td>{{t "why.5"}}</td><td class="ledger-us">{{t "why.10"}}</td></tr>
+              <tr><th scope="row">{{t "why.r3"}}</th><td>{{t "why.6"}}</td><td class="ledger-us">{{t "why.11"}}</td></tr>
+              <tr><th scope="row">{{t "why.r4"}}</th><td>{{t "why.7"}}</td><td class="ledger-us">{{t "why.12"}}</td></tr>
+            </tbody>
+          </table>
         </div>
-        <div class="grid grid-4">
-          <article class="card risk risk-ok">
-            <p class="risk-label"><i class="ph ph-eye" aria-hidden="true"></i> {{t "safety.4"}}</p>
-            <p class="risk-rule">{{t "safety.5"}}</p>
-            <p class="risk-cmds"><code>brew outdated</code><code>df -h</code><code>apt list --upgradable</code></p>
-          </article>
-          <article class="card risk risk-ok">
-            <p class="risk-label"><i class="ph ph-arrows-clockwise" aria-hidden="true"></i> {{t "safety.6"}}</p>
-            <p class="risk-rule">{{t "safety.5"}}</p>
-            <p class="risk-cmds"><code>brew upgrade</code><code>npm update -g</code><code>rustup update</code></p>
-          </article>
-          <article class="card risk risk-warn">
-            <p class="risk-label"><i class="ph ph-hand" aria-hidden="true"></i> {{t "safety.7"}}</p>
-            <p class="risk-rule">{{t "safety.8"}}</p>
-            <p class="risk-cmds"><code>rm</code><code>sudo</code><code>docker … prune</code></p>
-          </article>
-          <article class="card risk risk-block">
-            <p class="risk-label"><i class="ph ph-prohibit" aria-hidden="true"></i> {{t "safety.9"}}</p>
-            <p class="risk-rule">{{t "safety.10"}}</p>
-            <p class="risk-cmds"><code>rm -rf ~</code><code>diskutil erase</code><code>curl … | sh</code></p>
-          </article>
+      </section>
+
+      <!-- 02 Commands -->
+      <section class="sec" id="commands" aria-labelledby="commands-t">
+        <header class="sec-head">
+          <p class="sec-no"><span>02</span>{{t "nav.cmds"}}</p>
+          <h2 id="commands-t">{{t "cmds.title"}}</h2>
+          <p class="sec-sub">{{t "cmds.sub"}}</p>
+        </header>
+        <div class="tools">
+          <label class="search"><svg class="ico" aria-hidden="true"><use href="#i-search"/></svg><span class="sr-only">{{t "cmds.filter"}}</span><input type="search" id="cmd-filter" placeholder="{{attr "cmds.filter"}}" autocomplete="off" spellcheck="false"></label>
+          <p class="tools-count" id="cmd-count" role="status" aria-live="polite"></p>
         </div>
+        <div class="cmd-index" id="cmd-index">
+          <section class="cmd-group">
+            <h3>{{t "cmds.g1"}}</h3>
+            <ul>
+              <li><code>omega</code><span>{{t "cmd.omega"}}</span></li>
+              <li><code>omega full</code><span>{{t "cmd.full"}}</span></li>
+              <li><code>omega quick</code><span>{{t "cmd.quick"}}</span></li>
+              <li><code>omega update</code><span>{{t "cmd.update"}}</span></li>
+              <li><code>omega schedule</code><span>{{t "cmd.schedule"}}</span></li>
+            </ul>
+          </section>
+          <section class="cmd-group">
+            <h3>{{t "cmds.g2"}}</h3>
+            <ul>
+              <li><code>omega clean</code><span>{{t "cmd.clean"}}</span></li>
+              <li><code>omega disk</code><span>{{t "cmd.disk"}}</span></li>
+              <li><code>omega docker</code><span>{{t "cmd.docker"}}</span></li>
+              <li><code>omega uninstall</code><span>{{t "cmd.uninstall"}}</span></li>
+            </ul>
+          </section>
+          <section class="cmd-group">
+            <h3>{{t "cmds.g3"}}</h3>
+            <ul>
+              <li><code>omega analyze</code><span>{{t "cmd.analyze"}}</span></li>
+              <li><code>omega health</code><span>{{t "cmd.health"}}</span></li>
+              <li><code>omega fix</code><span>{{t "cmd.fix"}}</span></li>
+              <li><code>omega net</code><span>{{t "cmd.net"}}</span></li>
+              <li><code>omega doctor</code><span>{{t "cmd.doctor"}}</span></li>
+            </ul>
+          </section>
+          <section class="cmd-group">
+            <h3>{{t "cmds.g4"}}</h3>
+            <ul>
+              <li><code>omega dev</code><span>{{t "cmd.dev"}}</span></li>
+              <li><code>omega git</code><span>{{t "cmd.git"}}</span></li>
+              <li><code>omega skills</code><span>{{t "cmd.skills"}}</span></li>
+              <li><code>omega tune</code><span>{{t "cmd.tune"}}</span></li>
+            </ul>
+          </section>
+          <section class="cmd-group">
+            <h3>{{t "cmds.g5"}}</h3>
+            <ul>
+              <li><code>omega audit</code><span>{{t "cmd.audit"}}</span></li>
+              <li><code>omega privacy</code><span>{{t "cmd.privacy"}}</span></li>
+              <li><code>omega mac</code><span>{{t "cmd.mac"}}</span></li>
+              <li><code>omega rollback</code><span>{{t "cmd.rollback"}}</span></li>
+            </ul>
+          </section>
+          <section class="cmd-group">
+            <h3>{{t "cmds.g6"}}</h3>
+            <ul>
+              <li><code>omega -p "…"</code><span>{{t "cmd.prompt"}}</span></li>
+              <li><code>omega shell</code><span>{{t "cmd.shell"}}</span></li>
+              <li><code>omega --no-ai</code><span>{{t "cmd.noai"}}</span></li>
+              <li><code>omega --json</code><span>{{t "cmd.json"}}</span></li>
+              <li><code>omega export</code><span>{{t "cmd.export"}}</span></li>
+              <li><code>omega menu</code><span>{{t "cmd.menu"}}</span></li>
+            </ul>
+          </section>
+        </div>
+        <p class="note">{{t "cmds.note"}}</p>
+      </section>
+
+      <!-- 03 Catalogue: built from the binary's own table of steps. -->
+      <section class="sec" id="catalog" aria-labelledby="catalog-t">
+        <header class="sec-head">
+          <p class="sec-no"><span>03</span>{{t "nav.catalog"}}</p>
+          <h2 id="catalog-t">{{t "cat.title"}}</h2>
+          <p class="sec-sub">{{t "cat.sub"}}</p>
+        </header>
+        <div class="cat" id="cat" data-src="catalog.json">
+          <div class="tools">
+            <div class="seg" role="group" aria-label="{{attr "platforms.4"}}">
+              <button type="button" data-os="darwin" aria-pressed="true">macOS <b>{{count "darwin"}}</b></button>
+              <button type="button" data-os="linux" aria-pressed="false">Linux <b>{{count "linux"}}</b></button>
+              <button type="button" data-os="windows" aria-pressed="false">Windows <b>{{count "windows"}}</b></button>
+            </div>
+            <div class="seg seg-quiet" role="group" aria-label="{{attr "cat.kind"}}">
+              <button type="button" data-cat="" aria-pressed="true">{{t "cat.all"}}</button>
+              <button type="button" data-cat="check" aria-pressed="false">{{t "cat.check"}}</button>
+              <button type="button" data-cat="update" aria-pressed="false">{{t "cat.update"}}</button>
+              <button type="button" data-cat="clean" aria-pressed="false">{{t "cat.clean"}}</button>
+              <button type="button" data-cat="backend" aria-pressed="false">{{t "cat.backend"}}</button>
+            </div>
+            <label class="search"><svg class="ico" aria-hidden="true"><use href="#i-search"/></svg><span class="sr-only">{{t "cat.filter"}}</span><input type="search" id="cat-filter" placeholder="{{attr "cat.filter"}}" autocomplete="off" spellcheck="false"></label>
+          </div>
+          <div class="cat-scroll" tabindex="0" role="region" aria-labelledby="catalog-t">
+            <table class="cat-table">
+              <thead><tr><th scope="col">{{t "cat.c1"}}</th><th scope="col">{{t "cat.c2"}}</th><th scope="col">{{t "cat.c3"}}</th><th scope="col">{{t "cat.c4"}}</th></tr></thead>
+              <tbody id="cat-rows">
+{{range sample "darwin" 9}}                <tr><td class="c-id"><code>{{html .ID}}</code></td><td class="c-name">{{html .Name}}</td><td class="c-cmd"><code>{{html .Command}}</code></td><td class="c-risk"><span class="badge" data-risk="{{.Risk}}">{{t (print "lvl." .Risk)}}</span></td></tr>
+{{end}}              </tbody>
+            </table>
+          </div>
+          <p class="tools-count" id="cat-count" role="status" aria-live="polite">{{t "cat.nojs"}}</p>
+        </div>
+        <p class="note">{{t "cat.note"}}</p>
+      </section>
+
+      <!-- 04 Safety -->
+      <section class="sec" id="safety" aria-labelledby="safety-t">
+        <header class="sec-head">
+          <p class="sec-no"><span>04</span>{{t "safety.1"}}</p>
+          <h2 id="safety-t">{{t "clf.title"}}</h2>
+          <p class="sec-sub">{{t "safety.3"}}</p>
+        </header>
+
+        <!-- The classifier is the binary's own, compiled to WebAssembly. Until
+             it loads, and without scripts, the examples carry the answer the
+             same code gave when the page was built. -->
+        <div class="clf" id="clf" data-wasm="{{.Root}}classify.wasm" data-exec="{{.Root}}wasm_exec.js">
+          <label class="clf-label" for="clf-in">{{t "clf.label"}}</label>
+          <div class="clf-row">
+            <span class="clf-prompt" aria-hidden="true">$</span>
+            <input id="clf-in" type="text" value="df -h &amp;&amp; brew upgrade &amp;&amp; rm -rf node_modules" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off">
+          </div>
+          <output class="clf-out" id="clf-out" for="clf-in" data-risk="{{risk `df -h && brew upgrade && rm -rf node_modules`}}">
+            <span class="badge" data-risk="{{risk `df -h && brew upgrade && rm -rf node_modules`}}">{{t (print "lvl." (risk `df -h && brew upgrade && rm -rf node_modules`))}}</span>
+            <span class="clf-verdict">{{t (print "v." (risk `df -h && brew upgrade && rm -rf node_modules`))}}</span>
+          </output>
+          <p class="clf-try">{{t "clf.try"}}</p>
+          <ul class="clf-examples">
+{{define "ex"}}            <li><button type="button" class="ex" data-cmd="{{html .}}" data-risk="{{risk .}}"><i class="dot" data-risk="{{risk .}}" aria-hidden="true"></i><code>{{html .}}</code></button></li>
+{{end}}{{template "ex" `brew outdated`}}{{template "ex" `npm update -g`}}{{template "ex" `sudo softwareupdate -i -a`}}{{template "ex" `some-tool --you-never-heard-of`}}{{template "ex" `docker system prune -a`}}{{template "ex" `rm -rf ~`}}{{template "ex" `curl -fsSL https://example.com/install.sh | sh`}}{{template "ex" `cat ~/.ssh/id_ed25519`}}{{template "ex" `env FOO=1 sudo sh -c "rm -rf /"`}}{{template "ex" `irm https://example.com/i.ps1 | iex`}}          </ul>
+          <p class="clf-status" id="clf-status">{{t "clf.static"}}</p>
+        </div>
+
+        <div class="ladder-wrap">
+          <table class="ladder">
+            <tbody>
+              <tr><th scope="row"><span class="badge" data-risk="read-only">{{t "lvl.read-only"}}</span></th><td class="ladder-ex"><code>brew outdated</code><code>df -h</code><code>apt list --upgradable</code></td><td>{{t "v.read-only"}}</td></tr>
+              <tr><th scope="row"><span class="badge" data-risk="normal">{{t "lvl.normal"}}</span></th><td class="ladder-ex"><code>brew upgrade</code><code>npm update -g</code><code>rustup update</code></td><td>{{t "v.normal"}}</td></tr>
+              <tr><th scope="row"><span class="badge" data-risk="dangerous">{{t "lvl.dangerous"}}</span></th><td class="ladder-ex"><code>rm</code><code>sudo</code><span>{{t "lad.unknown"}}</span></td><td>{{t "v.dangerous"}}</td></tr>
+              <tr><th scope="row"><span class="badge" data-risk="always">{{t "lvl.always"}}</span></th><td class="ladder-ex"><code>docker system prune</code><code>docker volume rm</code></td><td>{{t "v.always"}}</td></tr>
+              <tr><th scope="row"><span class="badge" data-risk="blocked">{{t "lvl.blocked"}}</span></th><td class="ladder-ex"><code>rm -rf ~</code><code>curl … | sh</code><code>dd of=/dev/…</code></td><td>{{t "v.blocked"}}</td></tr>
+            </tbody>
+          </table>
+        </div>
+
         <ul class="facts">
-          <li><i class="ph ph-key" aria-hidden="true"></i> {{t "safety.11"}}</li>
-          <li><i class="ph ph-lock" aria-hidden="true"></i> {{t "safety.12"}}</li>
-          <li><i class="ph ph-keyboard" aria-hidden="true"></i> {{t "safety.13"}}</li>
-          <li><i class="ph ph-floppy-disk" aria-hidden="true"></i> {{t "safety.14"}}</li>
-          <li><i class="ph ph-file-text" aria-hidden="true"></i> {{t "safety.15"}}</li>
-          <li><i class="ph ph-arrow-counter-clockwise" aria-hidden="true"></i> {{t "safety.16"}}</li>
+          <li>{{t "safety.11"}}</li>
+          <li>{{t "safety.12"}}</li>
+          <li>{{t "safety.13"}}</li>
+          <li>{{t "safety.14"}}</li>
+          <li>{{t "safety.15"}}</li>
+          <li>{{t "safety.16"}}</li>
         </ul>
-      </div>
-    </section>
+      </section>
 
-    <!-- Models -->
-    <section class="section reveal" id="models" aria-labelledby="models-title">
-      <div class="container">
-        <div class="section-head">
-          <p class="kicker">{{t "models.1"}}</p>
-          <h2 class="section-title" id="models-title">{{t "models.2"}}</h2>
-          <p class="section-sub">{{t "models.3"}}</p>
-        </div>
+      <!-- 05 Models -->
+      <section class="sec" id="models" aria-labelledby="models-t">
+        <header class="sec-head">
+          <p class="sec-no"><span>05</span>{{t "models.1"}}</p>
+          <h2 id="models-t">{{t "models.2"}}</h2>
+          <p class="sec-sub">{{t "models.3"}}</p>
+        </header>
         <div class="split">
           <div>
-            <h3 class="card-title">{{t "models.4"}}</h3>
-            <p class="panel-intro" style="margin-bottom:0">{{t "models.5"}}</p>
-            <ul class="rule">
+            <h3>{{t "models.4"}}</h3>
+            <p>{{t "models.5"}}</p>
+            <ul class="rules">
               <li>{{t "models.6"}}</li>
               <li>{{t "models.7"}}</li>
               <li>{{t "models.8"}}</li>
               <li>{{t "models.9"}}</li>
             </ul>
           </div>
-          <figure class="terminal" aria-label="{{attr "models.10"}}">
-            <div class="terminal-bar"><span></span><span></span><span></span><p>omega models</p></div>
-            <div class="terminal-body">
-<pre><span class="t-muted">  model              score   in  out $/M</span>
-  claude-fable-5-2    64.6   $8  $40
-  claude-opus-5-5     59.1   $4  $20
-<span class="t-accent">▸ claude-sonnet-5-5   54.5   $2  $10  smart</span>
-  claude-fable-5-1    50.0  $10  $50
-<span class="t-accent">▸ claude-haiku-5-5    36.5 $0.1 $0.5  fast</span></pre>
-            </div>
-            <figcaption class="sr-only">{{t "models.11"}}</figcaption>
+          <figure class="listing">
+            <p class="listing-cmd"><span aria-hidden="true">$</span> omega models</p>
+            <table>
+              <thead><tr><th scope="col">model</th><th scope="col">score</th><th scope="col">in</th><th scope="col">out $/M</th><th scope="col"><span class="sr-only">pick</span></th></tr></thead>
+              <tbody>
+                <tr><td>claude-fable-5-2</td><td>64.6</td><td>$8</td><td>$40</td><td></td></tr>
+                <tr><td>claude-opus-5-5</td><td>59.1</td><td>$4</td><td>$20</td><td></td></tr>
+                <tr class="pick"><td>claude-sonnet-5-5</td><td>54.5</td><td>$2</td><td>$10</td><td>smart</td></tr>
+                <tr><td>claude-fable-5-1</td><td>50.0</td><td>$10</td><td>$50</td><td></td></tr>
+                <tr class="pick"><td>claude-haiku-5-5</td><td>36.5</td><td>$0.1</td><td>$0.5</td><td>fast</td></tr>
+              </tbody>
+            </table>
+            <figcaption>{{t "models.11"}}</figcaption>
           </figure>
         </div>
-        <div class="grid grid-3" style="margin-top:var(--s-7)">
-          <article class="card provider">
-            <span class="provider-logo"><svg class="logo" aria-hidden="true"><use href="#logo-anthropic"/></svg></span>
-            <div><h3>Anthropic</h3><p>{{t "models.12"}}</p></div>
-          </article>
-          <article class="card provider">
-            <span class="provider-logo"><svg class="logo" aria-hidden="true"><use href="#logo-openai"/></svg></span>
-            <div><h3>OpenAI</h3><p>{{t "models.13"}}</p></div>
-          </article>
-          <article class="card provider">
-            <span class="provider-logo"><svg class="logo" aria-hidden="true"><use href="#logo-openrouter"/></svg></span>
-            <div><h3>OpenRouter</h3><p>{{t "models.14"}}</p></div>
-          </article>
-          <article class="card provider">
-            <span class="provider-logo"><svg class="logo" aria-hidden="true"><use href="#logo-opencode"/></svg></span>
-            <div><h3>OpenCode Zen</h3><p>{{t "models.15"}}</p></div>
-          </article>
-          <article class="card provider">
-            <span class="provider-logo"><svg class="logo" aria-hidden="true"><use href="#logo-ollama"/></svg></span>
-            <div><h3>{{t "models.16"}}</h3><p>{{t "models.17"}}</p></div>
-          </article>
-          <article class="card provider">
-            <span class="provider-logo"><i class="ph ph-plugs-connected" aria-hidden="true"></i></span>
-            <div><h3>{{t "models.18"}}</h3><p>{{t "models.19"}}</p></div>
-          </article>
-        </div>
-      </div>
-    </section>
+        <ul class="providers">
+          <li><svg class="logo" aria-hidden="true"><use href="#logo-anthropic"/></svg><div><h3>Anthropic</h3><p>{{t "models.12"}}</p></div></li>
+          <li><svg class="logo" aria-hidden="true"><use href="#logo-openai"/></svg><div><h3>OpenAI</h3><p>{{t "models.13"}}</p></div></li>
+          <li><svg class="logo" aria-hidden="true"><use href="#logo-openrouter"/></svg><div><h3>OpenRouter</h3><p>{{t "models.14"}}</p></div></li>
+          <li><svg class="logo" aria-hidden="true"><use href="#logo-opencode"/></svg><div><h3>OpenCode Zen</h3><p>{{t "models.15"}}</p></div></li>
+          <li><svg class="logo" aria-hidden="true"><use href="#logo-ollama"/></svg><div><h3>{{t "models.16"}}</h3><p>{{t "models.17"}}</p></div></li>
+          <li><svg class="logo" aria-hidden="true"><use href="#logo-lmstudio"/></svg><div><h3>{{t "models.18"}}</h3><p>{{t "models.19"}}</p></div></li>
+        </ul>
+      </section>
 
-    <!-- Numbers -->
-    <section class="section reveal" id="open" aria-labelledby="open-title">
-      <div class="container">
-        <div class="section-head">
-          <p class="kicker">{{t "open.1"}}</p>
-          <h2 class="section-title" id="open-title">{{t "open.2"}}</h2>
-          <p class="section-sub">{{t "open.3"}}</p>
+      <!-- 06 Platforms -->
+      <section class="sec" id="platforms" aria-labelledby="platforms-t">
+        <header class="sec-head">
+          <p class="sec-no"><span>06</span>{{t "platforms.1"}}</p>
+          <h2 id="platforms-t">{{t "platforms.2"}}</h2>
+          <p class="sec-sub">{{t "platforms.3"}}</p>
+        </header>
+        <div data-tabs data-follow-os>
+          <div class="tabs" role="tablist" aria-label="{{attr "platforms.4"}}">
+            <button class="tab" type="button" role="tab" aria-selected="true" aria-controls="panel-mac" id="ptab-mac" data-os="darwin">macOS</button>
+            <button class="tab" type="button" role="tab" aria-selected="false" aria-controls="panel-linux" id="ptab-linux" data-os="linux">Linux</button>
+            <button class="tab" type="button" role="tab" aria-selected="false" aria-controls="panel-windows" id="ptab-windows" data-os="windows">Windows</button>
+            <button class="tab" type="button" role="tab" aria-selected="false" aria-controls="panel-dev" id="ptab-dev">{{t "platforms.5"}}</button>
+          </div>
+          <div class="panel" role="tabpanel" id="panel-mac" aria-labelledby="ptab-mac">
+            <p class="panel-intro">{{t "platforms.6"}}</p>
+            <dl class="defs">
+              <div><dt>omega mac login</dt><dd>{{t "platforms.7"}}</dd></div>
+              <div><dt>omega mac background</dt><dd>{{t "platforms.8"}}</dd></div>
+              <div><dt>omega mac menubar</dt><dd>{{t "platforms.9"}}</dd></div>
+              <div><dt>omega mac dock</dt><dd>{{t "platforms.10"}}</dd></div>
+              <div><dt>omega mac shortcuts</dt><dd>{{t "platforms.11"}}</dd></div>
+              <div><dt>omega mac permissions</dt><dd>{{t "platforms.12"}}</dd></div>
+              <div><dt>omega mac apps</dt><dd>{{t "platforms.13"}}</dd></div>
+            </dl>
+          </div>
+          <div class="panel" role="tabpanel" id="panel-linux" aria-labelledby="ptab-linux" hidden>
+            <p class="panel-intro">{{t "platforms.25"}}</p>
+            <dl class="defs">
+              <div><dt>{{t "platforms.26"}}</dt><dd>{{t "platforms.27"}}</dd></div>
+              <div><dt>{{t "platforms.28"}}</dt><dd>{{t "platforms.29"}}</dd></div>
+              <div><dt>{{t "platforms.30"}}</dt><dd>{{t "platforms.31"}}</dd></div>
+              <div><dt>{{t "platforms.32"}}</dt><dd>{{t "platforms.33"}}</dd></div>
+              <div><dt>{{t "platforms.34"}}</dt><dd>{{t "platforms.35"}}</dd></div>
+            </dl>
+            <h3 class="limits-title">{{t "platforms.limits"}}</h3>
+            <ul class="limits">
+              <li>{{t "platforms.49"}}</li>
+              <li>{{t "platforms.50"}}</li>
+              <li>{{t "platforms.51"}}</li>
+              <li>{{t "platforms.52"}}</li>
+            </ul>
+          </div>
+          <div class="panel" role="tabpanel" id="panel-windows" aria-labelledby="ptab-windows" hidden>
+            <p class="panel-intro">{{t "platforms.53"}}</p>
+            <dl class="defs">
+              <div><dt>{{t "platforms.26"}}</dt><dd>{{t "platforms.54"}}</dd></div>
+              <div><dt>{{t "platforms.55"}}</dt><dd>{{t "platforms.56"}}</dd></div>
+              <div><dt>{{t "platforms.57"}}</dt><dd>{{t "platforms.58"}}</dd></div>
+              <div><dt>{{t "platforms.32"}}</dt><dd>{{t "platforms.59"}}</dd></div>
+              <div><dt>{{t "platforms.60"}}</dt><dd>{{t "platforms.61"}}</dd></div>
+            </dl>
+            <h3 class="limits-title">{{t "platforms.limits"}}</h3>
+            <ul class="limits">
+              <li>{{t "platforms.72"}}</li>
+              <li>{{t "platforms.73"}}</li>
+              <li>{{t "platforms.74"}}</li>
+              <li>{{t "platforms.75"}}</li>
+            </ul>
+          </div>
+          <div class="panel" role="tabpanel" id="panel-dev" aria-labelledby="ptab-dev" hidden>
+            <p class="panel-intro">{{t "platforms.76"}}</p>
+            <dl class="defs">
+              <div><dt>omega dev status</dt><dd>{{t "platforms.77"}}</dd></div>
+              <div><dt>omega dev install</dt><dd>{{t "platforms.78"}}</dd></div>
+              <div><dt>omega dev activate</dt><dd>{{t "platforms.79"}}</dd></div>
+              <div><dt>omega dev</dt><dd>{{t "platforms.80"}}</dd></div>
+            </dl>
+          </div>
         </div>
-        <div class="stats">
-          <div class="stat"><p class="stat-num">90</p><p class="stat-label">{{t "open.4"}}</p></div>
-          <div class="stat"><p class="stat-num">25</p><p class="stat-label">{{t "open.5"}}</p></div>
-          <div class="stat"><p class="stat-num">5</p><p class="stat-label">{{t "open.6"}}</p></div>
-          <div class="stat"><p class="stat-num">&lt;1¢</p><p class="stat-label">{{t "open.7"}}</p></div>
-        </div>
-      </div>
-    </section>
+      </section>
 
-    <!-- FAQ -->
-    <section class="section reveal" id="faq" aria-labelledby="faq-title">
-      <div class="container">
-        <div class="section-head">
-          <p class="kicker">FAQ</p>
-          <h2 class="section-title" id="faq-title">{{t "faq.1"}}</h2>
-        </div>
-        <div class="faq">
-{{range faq}}          <details><summary><span>{{.Q}}</span></summary><p>{{.A}}</p></details>
-{{end}}        </div>
-      </div>
-    </section>
+      <!-- 07 Interface: the terminal and the app, in captures of both. -->
+      <section class="sec" id="interface" aria-labelledby="interface-t">
+        <header class="sec-head">
+          <p class="sec-no"><span>07</span>{{t "interface.1"}}</p>
+          <h2 id="interface-t">{{t "app.22"}}</h2>
+        </header>
+        <div data-tabs>
+          <div class="tabs" role="tablist" aria-label="{{attr "interface.1"}}">
+            <button class="tab" type="button" role="tab" aria-selected="true" aria-controls="terminal" id="itab-term">Terminal</button>
+            <button class="tab" type="button" role="tab" aria-selected="false" aria-controls="app" id="itab-app">{{t "app.1"}}</button>
+          </div>
+          <div class="panel" role="tabpanel" id="terminal" aria-labelledby="itab-term">
+            <p class="panel-intro">{{t "interface.3"}}</p>
+            <div class="plates" data-plates>
+              <figure class="plate"><img src="{{.Root}}assets/confirm.png" width="1280" height="820" loading="lazy" alt="{{attr "interface.4"}}"><figcaption>{{t "interface.5"}}</figcaption></figure>
+              <figure class="plate"><img src="{{.Root}}assets/card.png" width="1280" height="820" loading="lazy" alt="{{attr "interface.6"}}"><figcaption>{{t "interface.7"}}</figcaption></figure>
+              <figure class="plate"><img src="{{.Root}}assets/menu.png" width="1280" height="820" loading="lazy" alt="{{attr "interface.8"}}"><figcaption>{{t "interface.9"}}</figcaption></figure>
+              <figure class="plate"><img src="{{.Root}}assets/docker-confirm.png" width="1280" height="820" loading="lazy" alt="{{attr "interface.10"}}"><figcaption>{{t "interface.11"}}</figcaption></figure>
+              <figure class="plate"><img src="{{.Root}}assets/model.png" width="1280" height="560" loading="lazy" alt="{{attr "interface.12"}}"><figcaption>{{t "interface.13"}}</figcaption></figure>
+              <figure class="plate"><img src="{{.Root}}assets/summary.png" width="1280" height="820" loading="lazy" alt="{{attr "interface.14"}}"><figcaption>{{t "interface.15"}}</figcaption></figure>
+            </div>
+            <p class="note">{{t "interface.16"}}</p>
 
-    <!-- Install -->
-    <section class="section final reveal" id="install" aria-labelledby="final-title">
-      <div class="container">
-        <div class="section-head">
-          <p class="kicker">{{t "install.1"}}</p>
-          <h2 class="section-title" id="final-title">{{t "install.2"}}</h2>
-          <p class="section-sub">{{t "install.3"}}</p>
+            <h3 class="sub">{{t "interface.17"}}</h3>
+            <div class="split">
+              <dl class="keys">
+                <div><dt><kbd>?</kbd></dt><dd>{{t "interface.18"}}</dd></div>
+                <div><dt><kbd>shift</kbd> <kbd>tab</kbd></dt><dd>{{t "interface.19"}}</dd></div>
+                <div><dt><kbd>ctrl</kbd> <kbd>p</kbd></dt><dd>{{t "interface.20"}}</dd></div>
+                <div><dt><kbd>ctrl</kbd> <kbd>b</kbd></dt><dd>{{t "interface.21"}}</dd></div>
+                <div><dt><kbd>ctrl</kbd> <kbd>o</kbd></dt><dd>{{t "interface.22"}}</dd></div>
+                <div><dt><kbd>ctrl</kbd> <kbd>f</kbd></dt><dd>{{t "interface.23"}}</dd></div>
+                <div><dt><kbd>ctrl</kbd> <kbd>y</kbd></dt><dd>{{t "interface.24"}}</dd></div>
+                <div><dt><kbd>ctrl</kbd> <kbd>c</kbd></dt><dd>{{t "interface.25"}}</dd></div>
+              </dl>
+              <div>
+                <div class="slash" aria-label="{{attr "interface.26"}}">
+                  <code>/update</code><code>/clean</code><code>/analyze</code><code>/health</code><code>/tune</code><code>/fix</code><code>/docker</code><code>/dev</code><code>/install</code><code>/disk</code><code>/logs</code><code>/shell</code><code>/steps</code><code>/mac</code><code>/permissions</code><code>/apps</code><code>/login</code><code>/dock</code><code>/shortcuts</code><code>/undo</code><code>/models</code><code>/settings</code><code>/notes</code><code>/history</code><code>/doctor</code><code>/mode</code><code>/model</code><code>/help</code>
+                </div>
+                <p class="note">{{t "interface.27"}}</p>
+                <!-- The player and the recording load when this is opened. -->
+                <details class="cast" data-cast="{{.Root}}assets/shortcuts.cast">
+                  <summary><svg class="ico" aria-hidden="true"><use href="#i-play"/></svg>{{t "interface.28"}}</summary>
+                  <div class="cast-body"></div>
+                </details>
+              </div>
+            </div>
+          </div>
+          <div class="panel" role="tabpanel" id="app" aria-labelledby="itab-app" hidden>
+            <p class="panel-intro">{{t "app.3"}} {{t "app.23"}}</p>
+            <div class="plates" data-plates>
+              <figure class="plate"><img src="{{.Root}}assets/gui-confirm.png" width="1780" height="1140" loading="lazy" alt="{{attr "app.9"}}"><figcaption>{{t "app.10"}}</figcaption></figure>
+              <figure class="plate"><img src="{{.Root}}assets/gui-home.png" width="1780" height="1140" loading="lazy" alt="{{attr "app.11"}}"><figcaption>{{t "app.12"}}</figcaption></figure>
+              <figure class="plate"><img src="{{.Root}}assets/gui-card.png" width="1780" height="1140" loading="lazy" alt="{{attr "app.13"}}"><figcaption>{{t "app.14"}}</figcaption></figure>
+              <figure class="plate"><img src="{{.Root}}assets/gui-summary.png" width="1780" height="1140" loading="lazy" alt="{{attr "app.15"}}"><figcaption>{{t "app.16"}}</figcaption></figure>
+              <figure class="plate"><img src="{{.Root}}assets/gui-output.png" width="1780" height="1140" loading="lazy" alt="{{attr "app.17"}}"><figcaption>{{t "app.18"}}</figcaption></figure>
+              <figure class="plate"><img src="{{.Root}}assets/gui-setup.png" width="1780" height="1140" loading="lazy" alt="{{attr "app.19"}}"><figcaption>{{t "app.20"}}</figcaption></figure>
+            </div>
+            <p class="note">{{t "app.21"}}</p>
+            <div class="pair">
+              <div><h3>{{t "app.24"}}</h3><p>{{t "app.25"}}</p></div>
+              <div><h3>{{t "app.26"}}</h3><p>{{t "app.27"}}</p></div>
+            </div>
+            <p class="actions">
+              <a class="btn btn-ink" href="https://github.com/lcajigasm/omega/releases/latest/download/omega-macos-universal.dmg"><svg class="ico" aria-hidden="true"><use href="#i-down"/></svg>{{t "app.5"}}</a>
+              <a class="btn btn-line" href="https://github.com/lcajigasm/omega/releases/latest">{{t "app.6"}}</a>
+              <a class="btn btn-line" href="https://github.com/lcajigasm/omega/releases/latest">{{t "app.7"}}</a>
+            </p>
+            <p class="note">{{t "app.8"}}</p>
+          </div>
         </div>
-        <div class="get get-3">
-          <article class="card">
-            <h3 class="card-title"><i class="ph ph-beer-bottle" aria-hidden="true"></i> {{t "install.4"}}</h3>
+      </section>
+
+      <!-- 08 Install -->
+      <section class="sec" id="install" aria-labelledby="install-t">
+        <header class="sec-head">
+          <p class="sec-no"><span>08</span>{{t "install.1"}}</p>
+          <h2 id="install-t">{{t "install.2"}}</h2>
+          <p class="sec-sub">{{t "install.3"}}</p>
+        </header>
+
+        <ol class="procedure" aria-label="{{attr "how.2"}}">
+          <li><h3>{{t "how.3"}}</h3><p>{{t "how.4"}}</p><code>omega setup</code></li>
+          <li><h3>{{t "how.5"}}</h3><p>{{t "how.6"}}</p><code>omega analyze</code></li>
+          <li><h3>{{t "how.7"}}</h3><p>{{t "how.8"}}</p><code>omega</code> <code>omega full</code></li>
+        </ol>
+
+        <div class="get">
+          <article>
+            <h3>{{t "install.4"}}</h3>
             <pre><code>brew install lcajigasm/tap/omega
 omega setup
 omega analyze</code></pre>
             <p>{{t "install.5"}}</p>
-            <button class="btn btn-primary copy-btn" type="button" data-copy="brew install lcajigasm/tap/omega"><i class="ph ph-copy" aria-hidden="true"></i><span class="copy-label">{{t "install.6"}}</span></button>
+            <button class="btn btn-ink copy-btn" type="button" data-copy="brew install lcajigasm/tap/omega"><svg class="ico" aria-hidden="true"><use href="#i-copy"/></svg><span class="copy-label">{{t "install.6"}}</span></button>
           </article>
-          <article class="card">
-            <h3 class="card-title"><i class="ph ph-windows-logo" aria-hidden="true"></i> {{t "install.7"}}</h3>
+          <article>
+            <h3>{{t "install.7"}}</h3>
             <pre><code>{{t "install.8"}}</code></pre>
             <p>{{t "install.9"}}</p>
-            <a class="btn btn-ghost" href="https://github.com/lcajigasm/omega/releases/latest"><i class="ph ph-download-simple" aria-hidden="true"></i> {{t "install.10"}}</a>
+            <a class="btn btn-line" href="https://github.com/lcajigasm/omega/releases/latest"><svg class="ico" aria-hidden="true"><use href="#i-down"/></svg>{{t "install.10"}}</a>
           </article>
-          <article class="card">
-            <h3 class="card-title"><i class="ph ph-linux-logo" aria-hidden="true"></i> {{t "install.11"}}</h3>
+          <article>
+            <h3>{{t "install.11"}}</h3>
             <pre><code>{{t "install.12"}}</code></pre>
             <p>{{t "install.13"}}</p>
-            <a class="btn btn-ghost" href="https://github.com/lcajigasm/omega/releases/latest"><i class="ph ph-download-simple" aria-hidden="true"></i> {{t "install.14"}}</a>
+            <a class="btn btn-line" href="https://github.com/lcajigasm/omega/releases/latest"><svg class="ico" aria-hidden="true"><use href="#i-down"/></svg>{{t "install.14"}}</a>
           </article>
         </div>
         <p class="copy-status" role="status" aria-live="polite"></p>
 
-        <h3 class="subhead" id="install-app">{{t "install.15"}}</h3>
-        <div class="get get-3">
-          <article class="card">
-            <h3 class="card-title"><i class="ph ph-apple-logo" aria-hidden="true"></i> {{t "install.16"}}</h3>
+        <h3 class="sub" id="install-app">{{t "install.15"}}</h3>
+        <div class="get">
+          <article>
+            <h3>{{t "install.16"}}</h3>
             <pre><code>brew install --cask lcajigasm/tap/omega-app
 xattr -dr com.apple.quarantine /Applications/Omega.app</code></pre>
             <p>{{t "install.17"}}</p>
-            <a class="btn btn-primary" href="https://github.com/lcajigasm/omega/releases/latest/download/omega-macos-universal.dmg"><i class="ph ph-download-simple" aria-hidden="true"></i> {{t "install.18"}}</a>
+            <a class="btn btn-ink" href="https://github.com/lcajigasm/omega/releases/latest/download/omega-macos-universal.dmg"><svg class="ico" aria-hidden="true"><use href="#i-down"/></svg>{{t "install.18"}}</a>
           </article>
-          <article class="card">
-            <h3 class="card-title"><i class="ph ph-windows-logo" aria-hidden="true"></i> {{t "install.7"}}</h3>
+          <article>
+            <h3>{{t "install.7"}}</h3>
             <pre><code>{{t "install.19"}}</code></pre>
             <p>{{t "install.20"}}</p>
-            <a class="btn btn-ghost" href="https://github.com/lcajigasm/omega/releases/latest"><i class="ph ph-download-simple" aria-hidden="true"></i> {{t "install.10"}}</a>
+            <a class="btn btn-line" href="https://github.com/lcajigasm/omega/releases/latest"><svg class="ico" aria-hidden="true"><use href="#i-down"/></svg>{{t "install.10"}}</a>
           </article>
-          <article class="card">
-            <h3 class="card-title"><i class="ph ph-linux-logo" aria-hidden="true"></i> Linux</h3>
+          <article>
+            <h3>Linux</h3>
             <pre><code>{{t "install.21"}}</code></pre>
             <p>{{t "install.22"}}</p>
-            <a class="btn btn-ghost" href="https://github.com/lcajigasm/omega/releases/latest"><i class="ph ph-download-simple" aria-hidden="true"></i> {{t "install.23"}}</a>
+            <a class="btn btn-line" href="https://github.com/lcajigasm/omega/releases/latest"><svg class="ico" aria-hidden="true"><use href="#i-down"/></svg>{{t "install.23"}}</a>
           </article>
         </div>
         <p class="note">{{t "install.24"}}</p>
-      </div>
-    </section>
-  </main>
+      </section>
+
+      <!-- 09 FAQ -->
+      <section class="sec" id="faq" aria-labelledby="faq-t">
+        <header class="sec-head">
+          <p class="sec-no"><span>09</span>FAQ</p>
+          <h2 id="faq-t">{{t "faq.1"}}</h2>
+        </header>
+        <div class="faq">
+{{range faq}}          <details><summary><span>{{.Q}}</span></summary><p>{{.A}}</p></details>
+{{end}}        </div>
+      </section>
+    </main>
+  </div>
 
   <footer class="footer">
-    <div class="container footer-inner">
-      <p class="brand"><span class="brand-mark" aria-hidden="true">Ω</span> omega</p>
+    <div class="footer-in">
+      <p class="brand"><span class="brand-mark" aria-hidden="true">Ω</span><span>omega</span></p>
       <ul class="footer-links">
         <li><a href="https://github.com/lcajigasm/omega">GitHub</a></li>
+        <li><a href="https://github.com/lcajigasm/omega/blob/main/docs/manual/README.md">{{t "nav.manual"}}</a></li>
         <li><a href="https://github.com/lcajigasm/omega/releases">{{t "footer.1"}}</a></li>
         <li><a href="https://github.com/lcajigasm/homebrew-tap">{{t "footer.2"}}</a></li>
         <li><a href="privacy.html">{{t "footer.3"}}</a></li>
@@ -811,6 +652,6 @@ xattr -dr com.apple.quarantine /Applications/Omega.app</code></pre>
     </div>
   </footer>
 
-  <script src="{{.Root}}main.js?v=18"></script>
+  <script src="{{.Root}}main.js?v=20"></script>
 </body>
 </html>

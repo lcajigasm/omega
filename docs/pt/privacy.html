@@ -13,33 +13,35 @@
   <link rel="alternate" hreflang="pt" href="https://lcajigasm.github.io/omega/pt/privacy.html">
   <link rel="alternate" hreflang="x-default" href="https://lcajigasm.github.io/omega/privacy.html">
   <link rel="icon" href="../favicon.svg" type="image/svg+xml">
-  <meta name="theme-color" content="#000000">
+  <meta name="theme-color" content="#f3efe6" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#131210" media="(prefers-color-scheme: dark)">
+  <script>(function(){try{var t=localStorage.getItem("omega-theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}})()</script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
-  <link rel="stylesheet" href="../styles.css?v=19">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../styles.css?v=20">
 </head>
 <body class="page">
   <a class="skip" href="#main">Saltar para o conteúdo</a>
-  <header class="nav-wrap">
-    <nav class="nav" aria-label="Principal">
-      <a class="brand" href="./" aria-label="Início do omega"><span class="brand-mark" aria-hidden="true">Ω</span> omega</a>
-      <details class="lang">
-        <summary aria-label="Idioma"><i class="ph ph-translate" aria-hidden="true"></i><span>pt</span></summary>
-        <ul>
-          <li><a href="../privacy.html" lang="en" hreflang="en" data-lang="en">English</a></li>
-          <li><a href="../es/privacy.html" lang="es" hreflang="es" data-lang="es">Español</a></li>
-          <li><a href="../fr/privacy.html" lang="fr" hreflang="fr" data-lang="fr">Français</a></li>
-          <li><a href="../de/privacy.html" lang="de" hreflang="de" data-lang="de">Deutsch</a></li>
-          <li><a href="../pt/privacy.html" lang="pt" hreflang="pt" data-lang="pt" aria-current="true">Português</a></li>
-        </ul>
-      </details>
-      <a class="btn btn-sm btn-primary" href="./">Voltar ao início</a>
-    </nav>
+  <header class="top">
+    <div class="top-in">
+      <a class="brand" href="./" aria-label="Início do omega"><span class="brand-mark" aria-hidden="true">Ω</span><span>omega</span></a>
+      <div class="top-actions">
+        <details class="lang">
+          <summary aria-label="Idioma"><span>pt</span></summary>
+          <ul>
+            <li><a href="../privacy.html" lang="en" hreflang="en" data-lang="en">English</a></li>
+            <li><a href="../es/privacy.html" lang="es" hreflang="es" data-lang="es">Español</a></li>
+            <li><a href="../fr/privacy.html" lang="fr" hreflang="fr" data-lang="fr">Français</a></li>
+            <li><a href="../de/privacy.html" lang="de" hreflang="de" data-lang="de">Deutsch</a></li>
+            <li><a href="../pt/privacy.html" lang="pt" hreflang="pt" data-lang="pt" aria-current="true">Português</a></li>
+          </ul>
+        </details>
+        <a class="btn btn-ink btn-sm" href="./">Voltar ao início</a>
+      </div>
+    </div>
   </header>
   <main id="main">
-    <div class="container narrow">
       <h1>Privacidade</h1>
       <p>O omega é uma ferramenta de linha de comandos e uma app de secretária. Ambas correm na tua máquina. Não tem conta, nem servidor próprio, nem analítica, nem telemetria. Este site não define cookies; quando escolhes um idioma, guarda a escolha no teu navegador.</p>
 
@@ -56,17 +58,16 @@
       <p><code>omega doctor</code> pede ao GitHub (<code>api.github.com</code>) a etiqueta da versão mais recente do omega, para te avisar quando a tua é mais antiga. O pedido não leva nada sobre ti; o GitHub pode registar o teu endereço IP. Nenhum outro comando o faz.</p>
 
       <h2>Este site</h2>
-      <p>Este site está alojado no GitHub Pages e carrega tipos de letra do Google Fonts, ícones do unpkg e, na página inicial, o leitor de sessões do jsDelivr. Esses serviços podem registar o teu endereço IP ao servirem os ficheiros.</p>
+      <p>Este site está alojado no GitHub Pages e carrega tipos de letra do Google Fonts e, na página inicial, o leitor de sessões do jsDelivr. Esses serviços podem registar o teu endereço IP ao servirem os ficheiros.</p>
 
       <h2>Contacto</h2>
       <p>Dúvidas ou preocupações: abre um issue em <a href="https://github.com/lcajigasm/omega/issues">github.com/lcajigasm/omega/issues</a>.</p>
 
-      <a class="btn btn-primary" href="./">Voltar ao início</a>
-    </div>
+      <a class="btn btn-ink" href="./">Voltar ao início</a>
   </main>
   <footer class="footer">
-    <div class="container footer-inner">
-      <p class="brand"><span class="brand-mark" aria-hidden="true">Ω</span> omega</p>
+    <div class="footer-in">
+      <p class="brand"><span class="brand-mark" aria-hidden="true">Ω</span><span>omega</span></p>
       <ul class="footer-links">
         <li><a href="https://github.com/lcajigasm/omega">GitHub</a></li>
         <li><a href="privacy.html" aria-current="page">Privacidade</a></li>
@@ -81,6 +82,6 @@
       </ul>
     </div>
   </footer>
-  <script src="../main.js?v=18"></script>
+  <script src="../main.js?v=20"></script>
 </body>
 </html>

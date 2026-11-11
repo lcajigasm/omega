@@ -19,6 +19,8 @@ import (
 	"text/template"
 
 	"github.com/lcajigasm/omega/internal/i18n"
+	"github.com/lcajigasm/omega/internal/safety"
+	"github.com/lcajigasm/omega/internal/steps"
 )
 
 // Base is where GitHub Pages publishes docs/.
@@ -46,6 +48,49 @@ type Lang struct {
 	Href       string // relative, from the page being built
 	URL        string // absolute, for hreflang
 	Current    bool
+}
+
+// Systems are the operating systems omega has a catalogue for, in the order
+// the page lists them.
+var Systems = []string{"darwin", "linux", "windows"}
+
+// Row is one step of the catalogue as the page shows it.
+type Row struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Cat     string `json:"cat"`
+	Command string `json:"cmd"`
+	Risk    string `json:"risk"`
+}
+
+// Risk is the level the page shows for a command: the classifier's own
+// name, or "always" for the cleanups that ask every time, even with --yes.
+func Risk(command string) string {
+	r := safety.Classify(command)
+	if r != safety.Blocked && safety.AlwaysConfirm(command) {
+		return "always"
+	}
+	return r.String()
+}
+
+// Catalog is the step catalogue of every system, with the steps named in
+// one language: what `omega steps` prints there, taken from the same table
+// the binary carries.
+func Catalog(lang string) map[string][]Row {
+	out := map[string][]Row{}
+	for _, goos := range Systems {
+		for _, s := range steps.Grouped(steps.For(goos)) {
+			risk := s.Risk.String()
+			if s.AlwaysConfirm && s.Risk != safety.Blocked {
+				risk = "always"
+			}
+			out[goos] = append(out[goos], Row{
+				ID: s.ID, Name: i18n.In(lang, "step."+s.ID, s.Name),
+				Cat: s.Category, Command: s.Command, Risk: risk,
+			})
+		}
+	}
+	return out
 }
 
 // QA is one question of the FAQ.
@@ -105,6 +150,11 @@ func Build(src string) (map[string]string, error) {
 			}
 			out[folder(lang)+page] = text
 		}
+		data, err := json.Marshal(Catalog(lang))
+		if err != nil {
+			return nil, err
+		}
+		out[folder(lang)+"catalog.json"] = string(data) + "\n"
 	}
 	text, err := render(src, "404.html", Default, tables)
 	if err != nil {
@@ -193,6 +243,20 @@ func render(src, page, lang string, tables map[string]map[string]string) (string
 		},
 		"langs": langs,
 		"faq":   faq,
+		// risk is what omega's classifier says of a command, so the examples
+		// on the page are classified by the code they describe.
+		"risk": Risk,
+		// count is the number of steps in a system's catalogue.
+		"count": func(goos string) int { return len(steps.For(goos)) },
+		// sample is the first steps of a system's catalogue, for the page as
+		// it is before its script loads the rest.
+		"sample": func(goos string, n int) []Row {
+			rows := Catalog(lang)[goos]
+			if len(rows) > n {
+				rows = rows[:n]
+			}
+			return rows
+		},
 		// faqld is the FAQ as schema.org data, from the questions the page shows.
 		"faqld": func() (string, error) {
 			type answer struct {

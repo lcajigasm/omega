@@ -6,27 +6,21 @@
   <title>{{t "notfound.title"}}</title>
   <meta name="robots" content="noindex">
   <link rel="icon" href="/omega/favicon.svg" type="image/svg+xml">
-  <meta name="theme-color" content="#000000">
+  <meta name="theme-color" content="#f3efe6" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#131210" media="(prefers-color-scheme: dark)">
+  <script>(function(){try{var t=localStorage.getItem("omega-theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}})()</script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;600&family=Geist+Mono:wght@400&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/omega/styles.css?v=19">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/omega/styles.css?v=20">
 </head>
 <body class="page">
   <a class="skip" href="#main" data-k="page.1">{{t "page.1"}}</a>
   <main id="main">
-    <div class="container narrow">
-      <div class="terminal" style="margin: 0 0 32px;">
-        <div class="terminal-bar"><span></span><span></span><span></span><p>omega</p></div>
-        <div class="terminal-body">
-          <p class="t-line" style="opacity:1;transform:none"><span class="t-err">✗ exit 404</span> <span data-k="notfound.cmd">{{t "notfound.cmd"}}</span></p>
-          <p class="t-line t-muted" style="opacity:1;transform:none">  │ <span data-k="notfound.err">{{t "notfound.err"}}</span></p>
-        </div>
-      </div>
+    <p class="notfound"><b>✗ exit 404</b> <span data-k="notfound.cmd">{{t "notfound.cmd"}}</span><br><span>│ </span><span data-k="notfound.err">{{t "notfound.err"}}</span></p>
       <h1 data-k="notfound.heading">{{t "notfound.heading"}}</h1>
       <p data-k="notfound.body">{{t "notfound.body"}}</p>
-      <a class="btn btn-primary" href="/omega/" id="home" data-k="privacy.back">{{t "privacy.back"}}</a>
-    </div>
+      <a class="btn btn-ink" href="/omega/" id="home" data-k="privacy.back">{{t "privacy.back"}}</a>
   </main>
   <!-- GitHub Pages serves this one file for every missing address, so the
        language comes from the address, then from the visitor. -->

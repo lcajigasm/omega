@@ -14,7 +14,8 @@
   <link rel="alternate" hreflang="x-default" href="https://lcajigasm.github.io/omega/">
   <link rel="icon" href="../favicon.svg" type="image/svg+xml">
   <link rel="icon" href="../favicon.png" type="image/png" sizes="64x64">
-  <meta name="theme-color" content="#000000">
+  <meta name="theme-color" content="#f3efe6" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#131210" media="(prefers-color-scheme: dark)">
 
   <meta property="og:type" content="website">
   <meta property="og:title" content="omega · Maintenance par IA pour macOS, Linux et Windows">
@@ -30,13 +31,12 @@
   <meta name="twitter:description" content="Met à jour et nettoie votre Mac, Linux ou Windows, puis répare ce qui casse.">
   <meta name="twitter:image" content="https://lcajigasm.github.io/omega/og.png">
 
+  <!-- The theme the visitor picked, before the first paint. -->
+  <script>(function(){try{var t=localStorage.getItem("omega-theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}})()</script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
-  <link rel="stylesheet" href="../styles.css?v=19">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/asciinema-player@3.8.2/dist/bundle/asciinema-player.css">
-  <script src="https://cdn.jsdelivr.net/npm/asciinema-player@3.8.2/dist/bundle/asciinema-player.min.js" defer></script>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:ital,wght@0,500;0,600;1,500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../styles.css?v=20">
 
   <script type="application/ld+json">
   {
@@ -254,12 +254,32 @@
   </script>
 
 </head>
-<body data-copied="Copié" data-copy-ok="Commande copiée. Collez-la dans votre terminal." data-copy-failed="Impossible de copier. Sélectionnez la commande et copiez-la à la main." data-menu-open="Ouvrir le menu" data-menu-close="Fermer le menu">
+<body data-root="../">
   <a class="skip" href="#main">Aller au contenu</a>
 
-  <!-- Provider logos from @lobehub/icons (MIT). Trademarks belong to their owners. -->
+  <!-- The page's own strings, for its script. -->
+  <script type="application/json" id="strings">{
+    "copied": "Copié", "copyOk": "Commande copiée. Collez-la dans votre terminal.", "copyFailed": "Impossible de copier. Sélectionnez la commande et copiez-la à la main.",
+    "menuOpen": "Ouvrir le menu", "menuClose": "Fermer le menu",
+    "lvl": {"read-only": "Lecture seule", "normal": "Normal", "dangerous": "Dangereux", "always": "Demande toujours", "blocked": "Bloqué"},
+    "verdict": {"read-only": "S'exécute tout de suite : elle ne fait que lire.", "normal": "S'exécute tout de suite : une mise à jour de routine, que vous pouvez refaire.", "dangerous": "Attend votre oui sur une carte.", "always": "Demande à chaque fois, même avec --yes.", "blocked": "Ne s'exécute jamais, même avec --yes."},
+    "clfLive": "En direct : c'est le classifieur du binaire, compilé en WebAssembly et exécuté dans votre navigateur. Rien de ce que vous tapez n'est envoyé où que ce soit.", "clfLoading": "Chargement du classifieur…", "clfFailed": "Le classifieur n'a pas pu être chargé. Les exemples ci-dessus montrent toujours ses réponses.",
+    "catCount": "%d étapes sur %d", "catNone": "Aucune étape ne correspond.", "catMore": "Afficher la commande entière",
+    "cmdCount": "%d commandes sur %d", "cmdNone": "Aucune commande ne correspond. Demandez-le avec vos mots : omega -p \"…\"",
+    "fig": "Fig."
+  }</script>
+
+  <!-- Icons drawn for this page. Provider logos from @lobehub/icons (MIT);
+       trademarks belong to their owners. -->
   <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
     <defs>
+      <symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="1.5"/><path d="M5 15V5.5A1.5 1.5 0 0 1 6.5 4H15"/></symbol>
+      <symbol id="i-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 20h14"/></symbol>
+      <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></symbol>
+      <symbol id="i-globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.5 2.6 2.5 14.4 0 17M12 3.5c-2.5 2.6-2.5 14.4 0 17"/></symbol>
+      <symbol id="i-theme" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5v17a8.5 8.5 0 0 0 0-17Z" fill="currentColor"/></symbol>
+      <symbol id="i-play" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5z"/></symbol>
+      <symbol id="i-github" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.9 1.53 2.34 1.09 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.56-1.11-4.56-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.65 0 0 .84-.27 2.75 1.02a9.56 9.56 0 0 1 5 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.38.2 2.4.1 2.65.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.85v2.75c0 .27.18.58.69.48A10 10 0 0 0 12 2Z"/></symbol>
       <symbol id="logo-anthropic" viewBox="0 0 24 24"><path d="M13.827 3.52h3.603L24 20h-3.603l-6.57-16.48zm-7.258 0h3.767L16.906 20h-3.674l-1.343-3.461H5.017l-1.344 3.46H0L6.57 3.522zm4.132 9.959L8.453 7.687 6.205 13.48H10.7z"></path></symbol>
       <symbol id="logo-openai" viewBox="0 0 24 24"><path d="M9.205 8.658v-2.26c0-.19.072-.333.238-.428l4.543-2.616c.619-.357 1.356-.523 2.117-.523 2.854 0 4.662 2.212 4.662 4.566 0 .167 0 .357-.024.547l-4.71-2.759a.797.797 0 00-.856 0l-5.97 3.473zm10.609 8.8V12.06c0-.333-.143-.57-.429-.737l-5.97-3.473 1.95-1.118a.433.433 0 01.476 0l4.543 2.617c1.309.76 2.189 2.378 2.189 3.948 0 1.808-1.07 3.473-2.76 4.163zM7.802 12.703l-1.95-1.142c-.167-.095-.239-.238-.239-.428V5.899c0-2.545 1.95-4.472 4.591-4.472 1 0 1.927.333 2.712.928L8.23 5.067c-.285.166-.428.404-.428.737v6.898zM12 15.128l-2.795-1.57v-3.33L12 8.658l2.795 1.57v3.33L12 15.128zm1.796 7.23c-1 0-1.927-.332-2.712-.927l4.686-2.712c.285-.166.428-.404.428-.737v-6.898l1.974 1.142c.167.095.238.238.238.428v5.233c0 2.545-1.974 4.472-4.614 4.472zm-5.637-5.303l-4.544-2.617c-1.308-.761-2.188-2.378-2.188-3.948A4.482 4.482 0 014.21 6.327v5.423c0 .333.143.571.428.738l5.947 3.449-1.95 1.118a.432.432 0 01-.476 0zm-.262 3.9c-2.688 0-4.662-2.021-4.662-4.519 0-.19.024-.38.047-.57l4.686 2.71c.286.167.571.167.856 0l5.97-3.448v2.26c0 .19-.07.333-.237.428l-4.543 2.616c-.619.357-1.356.523-2.117.523zm5.899 2.83a5.947 5.947 0 005.827-4.756C22.287 18.339 24 15.84 24 13.296c0-1.665-.713-3.282-1.998-4.448.119-.5.19-.999.19-1.498 0-3.401-2.759-5.947-5.946-5.947-.642 0-1.26.095-1.88.31A5.962 5.962 0 0010.205 0a5.947 5.947 0 00-5.827 4.757C1.713 5.447 0 7.945 0 10.49c0 1.666.713 3.283 1.998 4.448-.119.5-.19 1-.19 1.499 0 3.401 2.759 5.946 5.946 5.946.642 0 1.26-.095 1.88-.309a5.96 5.96 0 004.162 1.713z"></path></symbol>
       <symbol id="logo-openrouter" viewBox="0 0 24 24"><path d="M18.654 3.87a5.087 5.087 0 110 10.174L23.7 19.09c.64.641.187 1.737-.72 1.737H8.48a8.479 8.479 0 010-16.958h10.175zM8.479 7.26a5.087 5.087 0 100 10.176 5.087 5.087 0 000-10.175z"></path></symbol>
@@ -269,669 +289,572 @@
     </defs>
   </svg>
 
-
-  <header class="nav-wrap">
-    <nav class="nav" aria-label="Principal">
-      <a class="brand" href="#top" aria-label="Accueil d&#39;omega"><span class="brand-mark" aria-hidden="true">Ω</span> omega</a>
-      <ul class="nav-links">
-        <li><a href="#features">Fonctionnalités</a></li>
-        <li><a href="#platforms">Plateformes</a></li>
-        <li><a href="#interface">Interface</a></li>
-        <li><a href="#app">App</a></li>
-        <li><a href="#safety">Sécurité</a></li>
-        <li><a href="#models">Modèles</a></li>
-        <li><a href="#faq">FAQ</a></li>
-      </ul>
-      <details class="lang">
-        <summary aria-label="Langue"><i class="ph ph-translate" aria-hidden="true"></i><span>fr</span></summary>
-        <ul>
-          <li><a href="../" lang="en" hreflang="en" data-lang="en">English</a></li>
-          <li><a href="../es/" lang="es" hreflang="es" data-lang="es">Español</a></li>
-          <li><a href="../fr/" lang="fr" hreflang="fr" data-lang="fr" aria-current="true">Français</a></li>
-          <li><a href="../de/" lang="de" hreflang="de" data-lang="de">Deutsch</a></li>
-          <li><a href="../pt/" lang="pt" hreflang="pt" data-lang="pt">Português</a></li>
-        </ul>
-      </details>
-      <a class="nav-gh" href="https://github.com/lcajigasm/omega" aria-label="omega sur GitHub"><i class="ph ph-github-logo" aria-hidden="true"></i></a>
-      <a class="btn btn-sm btn-primary nav-cta" href="#install">Installer</a>
-      <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="mobile-menu" aria-label="Ouvrir le menu">
-        <span class="bar bar-top"></span><span class="bar bar-bottom"></span>
-      </button>
-    </nav>
+  <header class="top">
+    <div class="top-in">
+      <a class="brand" href="#top" aria-label="Accueil d&#39;omega"><span class="brand-mark" aria-hidden="true">Ω</span><span>omega</span></a>
+      <p class="top-tag">Maintenance par IA pour votre machine</p>
+      <div class="top-actions">
+        <details class="lang">
+          <summary aria-label="Langue"><svg class="ico" aria-hidden="true"><use href="#i-globe"/></svg><span>fr</span></summary>
+          <ul>
+            <li><a href="../" lang="en" hreflang="en" data-lang="en">English</a></li>
+            <li><a href="../es/" lang="es" hreflang="es" data-lang="es">Español</a></li>
+            <li><a href="../fr/" lang="fr" hreflang="fr" data-lang="fr" aria-current="true">Français</a></li>
+            <li><a href="../de/" lang="de" hreflang="de" data-lang="de">Deutsch</a></li>
+            <li><a href="../pt/" lang="pt" hreflang="pt" data-lang="pt">Português</a></li>
+          </ul>
+        </details>
+        <button class="icon-btn" type="button" id="theme" aria-label="Basculer entre clair et sombre" title="Basculer entre clair et sombre"><svg class="ico" aria-hidden="true"><use href="#i-theme"/></svg></button>
+        <a class="icon-btn" href="https://github.com/lcajigasm/omega" aria-label="omega sur GitHub" title="GitHub"><svg class="ico" aria-hidden="true"><use href="#i-github"/></svg></a>
+        <a class="btn btn-ink btn-sm top-cta" href="#install">Installer</a>
+        <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="index" aria-label="Ouvrir le menu"><span></span><span></span></button>
+      </div>
+    </div>
   </header>
 
-  <div class="mobile-menu" id="mobile-menu" hidden>
-    <ul>
-      <li><a href="#features">Fonctionnalités</a></li>
-      <li><a href="#platforms">Plateformes</a></li>
-      <li><a href="#interface">Interface</a></li>
-      <li><a href="#app">App</a></li>
-      <li><a href="#safety">Sécurité</a></li>
-      <li><a href="#models">Modèles</a></li>
-      <li><a href="#faq">FAQ</a></li>
-      <li><a href="https://github.com/lcajigasm/omega">GitHub</a></li>
-      <li><a href="#install">Installer</a></li>
-    </ul>
-  </div>
+  <div class="shell">
+    <!-- The index: a rail beside the page on a wide screen, a sheet under
+         the top bar on a narrow one. -->
+    <nav class="rail" id="index" aria-label="Principal">
+      <p class="rail-title">Sommaire</p>
+      <ol>
+        <li><a href="#why"><span>01</span>Le problème</a></li>
+        <li><a href="#commands"><span>02</span>Commandes</a></li>
+        <li><a href="#catalog"><span>03</span>Catalogue</a></li>
+        <li><a href="#safety"><span>04</span>Sécurité</a></li>
+        <li><a href="#models"><span>05</span>Modèles</a></li>
+        <li><a href="#platforms"><span>06</span>Plateformes</a></li>
+        <li><a href="#interface"><span>07</span>Interface</a></li>
+        <li><a href="#install"><span>08</span>Installer</a></li>
+        <li><a href="#faq"><span>09</span>FAQ</a></li>
+      </ol>
+      <p class="rail-foot"><a href="https://github.com/lcajigasm/omega/blob/main/docs/manual/README.md">Manuel ↗</a></p>
+    </nav>
 
-  <main id="main">
-    <!-- Hero -->
-    <section class="hero" id="top">
-      <div class="container hero-grid">
-        <div>
-          <p class="eyebrow"><i class="ph ph-apple-logo" aria-hidden="true"></i><i class="ph ph-linux-logo" aria-hidden="true"></i><i class="ph ph-windows-logo" aria-hidden="true"></i> macOS, Linux et Windows · gratuit et open source</p>
-          <h1 class="hero-title">Des mises à jour qui corrigent <em>leurs propres erreurs</em></h1>
-          <p class="hero-sub">omega met à jour et nettoie votre Mac, Linux ou Windows comme topgrade et Mole, puis lit chaque échec, trouve la cause et le corrige. Vous choisissez ce qu'il fait sur une carte et approuvez tout ce qui est risqué.</p>
+    <main id="main">
+      <!-- Hero -->
+      <section class="hero" id="top">
+        <p class="eyebrow">macOS, Linux et Windows · gratuit et open source</p>
+        <h1>Met à jour. Nettoie. Et quand une étape échoue, <em>la répare.</em></h1>
+        <p class="lede">omega met à jour et nettoie votre Mac, Linux ou Windows comme topgrade et Mole, puis lit chaque échec, trouve la cause et le corrige. Vous choisissez ce qu'il fait sur une carte et approuvez tout ce qui est risqué.</p>
 
-          <div class="install" data-tabs>
-            <div class="tabs" role="tablist" aria-label="Comment l&#39;installer">
-              <button class="tab" type="button" role="tab" aria-selected="true" aria-controls="get-brew" id="tab-brew"><i class="ph ph-beer-bottle" aria-hidden="true"></i> Homebrew</button>
-              <button class="tab" type="button" role="tab" aria-selected="false" aria-controls="get-app" id="tab-app"><i class="ph ph-app-window" aria-hidden="true"></i> App de bureau</button>
-              <button class="tab" type="button" role="tab" aria-selected="false" aria-controls="get-linux" id="tab-linux"><i class="ph ph-linux-logo" aria-hidden="true"></i> Linux</button>
-              <button class="tab" type="button" role="tab" aria-selected="false" aria-controls="get-windows" id="tab-windows"><i class="ph ph-windows-logo" aria-hidden="true"></i> Windows</button>
-            </div>
-            <div class="install-row" role="tabpanel" id="get-brew" aria-labelledby="tab-brew">
-              <code class="install-cmd">brew install lcajigasm/tap/omega</code>
-              <button class="btn btn-primary btn-sm copy-btn" type="button" data-copy="brew install lcajigasm/tap/omega"><i class="ph ph-copy" aria-hidden="true"></i><span class="copy-label">Copier</span></button>
-            </div>
-            <div class="install-row" role="tabpanel" id="get-app" aria-labelledby="tab-app" hidden>
-              <code class="install-cmd">brew install --cask lcajigasm/tap/omega-app</code>
-              <button class="btn btn-primary btn-sm copy-btn" type="button" data-copy="brew install --cask lcajigasm/tap/omega-app"><i class="ph ph-copy" aria-hidden="true"></i><span class="copy-label">Copier</span></button>
-            </div>
-            <div class="install-row" role="tabpanel" id="get-linux" aria-labelledby="tab-linux" hidden>
-              <code class="install-cmd multi">tar -xzf omega_*_linux_amd64.tar.gz
-sudo install -m 755 omega /usr/local/bin/omega</code>
-              <a class="btn btn-ghost btn-sm" href="https://github.com/lcajigasm/omega/releases/latest">Télécharger l'archive</a>
-            </div>
-            <div class="install-row" role="tabpanel" id="get-windows" aria-labelledby="tab-windows" hidden>
-              <code class="install-cmd multi">Expand-Archive omega_*_windows_amd64.zip `
-  -DestinationPath "$env:LOCALAPPDATA\Programs\omega"</code>
-              <a class="btn btn-ghost btn-sm" href="https://github.com/lcajigasm/omega/releases/latest">Télécharger le zip</a>
-            </div>
+        <div class="install" data-tabs>
+          <div class="tabs" role="tablist" aria-label="Comment l&#39;installer">
+            <button class="tab" type="button" role="tab" aria-selected="true" aria-controls="get-brew" id="tab-brew">Homebrew</button>
+            <button class="tab" type="button" role="tab" aria-selected="false" aria-controls="get-app" id="tab-app">App de bureau</button>
+            <button class="tab" type="button" role="tab" aria-selected="false" aria-controls="get-linux" id="tab-linux">Linux</button>
+            <button class="tab" type="button" role="tab" aria-selected="false" aria-controls="get-windows" id="tab-windows" data-os="windows">Windows</button>
           </div>
-          <p class="copy-status" role="status" aria-live="polite"></p>
-          <p class="hero-note">Homebrew fonctionne sous macOS et sous Linux. Si omega venait de l'ancien tap, lancez <code>brew update && brew upgrade omega</code> pour que Homebrew suive la migration, ou réinstallez depuis <code>lcajigasm/tap</code>. Lancez ensuite <code>omega setup</code>, puis <code>omega full</code> pour le parcours guidé. Vous préférez une fenêtre ? <a class="link" href="#app">Téléchargez l'app de bureau</a>.</p>
-
-          <ul class="chips" aria-label="En bref">
-            <li class="chip"><i class="ph ph-check" aria-hidden="true"></i> Étapes pour macOS, Linux et Windows</li>
-            <li class="chip"><i class="ph ph-check" aria-hidden="true"></i> Terminal ou app de bureau</li>
-            <li class="chip"><i class="ph ph-check" aria-hidden="true"></i> Modèles cloud ou locaux</li>
-            <li class="chip"><i class="ph ph-check" aria-hidden="true"></i> Moins d'un centime par exécution</li>
-            <li class="chip"><i class="ph ph-check" aria-hidden="true"></i> Licence MIT</li>
-          </ul>
-        </div>
-
-        <figure class="terminal" aria-label="Exemple de session omega">
-          <div class="terminal-bar"><span></span><span></span><span></span><p>omega · full</p></div>
-          <div class="terminal-body">
-            <p class="t-line t-head"><span class="t-accent">Ω omega</span>  <span class="t-muted">anthropic · claude-haiku-5-5 · task: full</span></p>
-            <p class="t-line"><span class="t-ok">✓</span> system_info</p>
-            <p class="t-line"><span class="t-ok">✓</span> brew update &amp;&amp; brew upgrade <span class="t-muted">· 2m14s</span></p>
-            <p class="t-line"><span class="t-err">✗ exit 1</span> pipx upgrade-all</p>
-            <p class="t-line t-muted">  │ Error: python@3.12 not found</p>
-            <p class="t-line t-muted"><span class="t-accent">↑</span> Passage à claude-sonnet-5-5 pour diagnostiquer l'échec</p>
-            <p class="t-line">Les environnements pipx pointent vers un Python que Homebrew a supprimé. Réinstallation avec la version actuelle.</p>
-            <p class="t-line"><span class="t-warn">? pipx reinstall-all</span> → <span class="t-ok">approuvé</span></p>
-            <p class="t-line"><span class="t-ok">✓</span> pipx reinstall-all <span class="t-muted">· 41s</span></p>
-            <p class="t-line"><span class="t-ok">✓</span> brew cleanup --prune=all <span class="t-muted">· 12s</span></p>
-            <p class="t-line">Terminé : 23 paquets mis à jour, 6.4 GB libérés, pipx réparé et noté pour la prochaine fois.</p>
-            <p class="t-line t-muted">⏵⏵ demande avant les actions risquées · ↑94k ↓4.6k · $0.0061 · 3m12s</p>
+          <div class="install-row" role="tabpanel" id="get-brew" aria-labelledby="tab-brew">
+            <code class="install-cmd">brew install lcajigasm/tap/omega</code>
+            <button class="btn btn-ink btn-sm copy-btn" type="button" data-copy="brew install lcajigasm/tap/omega"><svg class="ico" aria-hidden="true"><use href="#i-copy"/></svg><span class="copy-label">Copier</span></button>
           </div>
-          <figcaption class="sr-only">Une exécution d'omega à titre d'illustration : une étape de mise à jour échoue, omega la diagnostique, demande l'approbation, la corrige et résume.</figcaption>
-        </figure>
-      </div>
-    </section>
-
-    <!-- Providers -->
-    <section class="strip" aria-label="Fonctionne avec ces fournisseurs d&#39;IA">
-      <div class="container strip-inner">
-        <p class="strip-label">Fonctionne avec</p>
-        <ul class="logo-strip">
-          <li><svg class="logo" aria-hidden="true"><use href="#logo-anthropic"/></svg>Anthropic</li>
-          <li><svg class="logo" aria-hidden="true"><use href="#logo-openai"/></svg>OpenAI</li>
-          <li><svg class="logo" aria-hidden="true"><use href="#logo-openrouter"/></svg>OpenRouter</li>
-          <li><svg class="logo" aria-hidden="true"><use href="#logo-opencode"/></svg>OpenCode Zen</li>
-          <li><svg class="logo" aria-hidden="true"><use href="#logo-ollama"/></svg>Ollama</li>
-          <li><svg class="logo" aria-hidden="true"><use href="#logo-lmstudio"/></svg>LM Studio</li>
-        </ul>
-      </div>
-    </section>
-
-    <!-- Why -->
-    <section class="section reveal" id="why" aria-labelledby="why-title">
-      <div class="container">
-        <div class="section-head">
-          <p class="kicker">Le problème</p>
-          <h2 class="section-title" id="why-title">Votre script de mise à jour échoue. Puis vous passez la soirée à le déboguer.</h2>
-        </div>
-        <div class="grid grid-2">
-          <article class="card">
-            <h3 class="card-title"><i class="ph ph-x-circle t-err" aria-hidden="true"></i> Lancer topgrade et Mole à la main</h3>
-            <ul class="list">
-              <li>Une étape échoue et l'exécution continue, avec une ligne rouge qu'il faut remonter chercher</li>
-              <li>Vous cherchez l'erreur, modifiez topgrade.toml et relancez tout</li>
-              <li>Un paquet demande un mot de passe en plein milieu et l'exécution reste bloquée</li>
-              <li>Le même échec de pipx revient le mois suivant</li>
-            </ul>
-          </article>
-          <article class="card card-accent">
-            <h3 class="card-title"><i class="ph ph-check-circle t-ok" aria-hidden="true"></i> Lancer omega</h3>
-            <ul class="list">
-              <li>Il lit l'échec au moment où il se produit et en trouve la cause</li>
-              <li>Il applique le plus petit correctif, réessaie une fois et passe à la suite si l'échec persiste</li>
-              <li>Les commandes s'exécutent sans invite, donc rien n'attend un mot de passe que vous ne voyez pas</li>
-              <li>Il note ce qu'il a appris et repart de là la fois suivante</li>
-            </ul>
-          </article>
-        </div>
-      </div>
-    </section>
-
-    <!-- Features -->
-    <section class="section reveal" id="features" aria-labelledby="features-title">
-      <div class="container">
-        <div class="section-head">
-          <p class="kicker">Ce qu'il fait</p>
-          <h2 class="section-title" id="features-title">Ce qui change quand un agent s'occupe de votre maintenance</h2>
-        </div>
-        <div class="grid grid-3">
-          <article class="card">
-            <span class="feature-icon"><i class="ph ph-wrench" aria-hidden="true"></i></span>
-            <h3 class="card-title">Les échecs sont corrigés, pas seulement signalés</h3>
-            <p>omega lit la sortie, vérifie la configuration en cause et réessaie avec le correctif. Il lit aussi les journaux système pour repérer les plantages en boucle et les services en échec.</p>
-          </article>
-          <article class="card">
-            <span class="feature-icon"><i class="ph ph-check-square" aria-hidden="true"></i></span>
-            <h3 class="card-title">Vous choisissez, il exécute</h3>
-            <p>Les recommandations arrivent sur une carte, avec leur impact. Cochez-en une ou plusieurs : omega fait exactement celles-là. Rien d'autre.</p>
-          </article>
-          <article class="card">
-            <span class="feature-icon"><i class="ph ph-shield-check" aria-hidden="true"></i></span>
-            <h3 class="card-title">Rien de risqué ne s'exécute sans vous</h3>
-            <p>Chaque commande est classée avant son exécution. Les suppressions et les modifications de configuration attendent votre accord, et les commandes vraiment destructrices ne s'exécutent jamais.</p>
-          </article>
-          <article class="card">
-            <span class="feature-icon"><i class="ph ph-coins" aria-hidden="true"></i></span>
-            <h3 class="card-title">Le modèle au meilleur rapport qualité-prix, vérifié chaque jour</h3>
-            <p>omega lit une fois par jour les prix du moment et les scores de benchmark, et choisit un modèle rapide pour la routine et un plus puissant pour les échecs.</p>
-          </article>
-          <article class="card">
-            <span class="feature-icon"><i class="ph ph-sliders-horizontal" aria-hidden="true"></i></span>
-            <h3 class="card-title">Optimise vos outils avec la documentation à jour</h3>
-            <p><code>omega tune</code> revoit la configuration de ce que vous avez installé, lit la documentation officielle et propose des améliorations avec leur source.</p>
-          </article>
-          <article class="card">
-            <span class="feature-icon"><i class="ph ph-terminal-window" aria-hidden="true"></i></span>
-            <h3 class="card-title">Vos outils de développement, installés et en ordre</h3>
-            <p><code>omega dev</code> connaît plus de 70 langages, gestionnaires de versions et outils en ligne de commande. Il installe ce que vous choisissez et repère ce qui fait doublon.</p>
-          </article>
-          <article class="card">
-            <span class="feature-icon"><i class="ph ph-cube" aria-hidden="true"></i></span>
-            <h3 class="card-title">Docker de nouveau sous contrôle</h3>
-            <p><code>omega docker</code> montre ce qu'occupent les images, les volumes et le cache de build, et ne nettoie que ce que vous cochez. Les nettoyages Docker demandent toujours avant.</p>
-          </article>
-          <article class="card">
-            <span class="feature-icon"><i class="ph ph-list-magnifying-glass" aria-hidden="true"></i></span>
-            <h3 class="card-title">Tout, étape par étape</h3>
-            <p><code>omega full</code> parcourt l'ensemble dans une seule interface : un plan qui dit ce que fait chaque étape et pourquoi, le parcours toujours visible, et la possibilité d'ignorer, de répéter ou d'arrêter entre deux étapes. <code>omega menu</code> liste toutes les commandes pour en choisir une.</p>
-          </article>
-          <article class="card">
-            <span class="feature-icon"><i class="ph ph-chat-text" aria-hidden="true"></i></span>
-            <h3 class="card-title">Demandez avec vos mots</h3>
-            <p>Tapez <code>omega why is my disk full</code>, ou « annule le changement d'hier dans le Dock » dans une session. Ce que fait la ligne de commande, l'agent sait le faire aussi.</p>
-          </article>
-          <article class="card">
-            <span class="feature-icon"><i class="ph ph-lightning" aria-hidden="true"></i></span>
-            <h3 class="card-title">Maintenance rapide et sûre en un clic</h3>
-            <p><code>omega quick</code> vide la corbeille, supprime les caches sûrs, vérifie les mises à jour et signale l'état du disque et de la batterie sans risque.</p>
-          </article>
-          <article class="card">
-            <span class="feature-icon"><i class="ph ph-git-branch" aria-hidden="true"></i></span>
-            <h3 class="card-title">Hygiène approfondie pour développeurs et réseau</h3>
-            <p>Auditez les dépôts git avec <code>omega git</code>, nettoyez les artefacts avec <code>omega disk</code>, videz le cache DNS avec <code>omega net</code> et auditez SSH et secrets avec <code>omega audit</code>. Gérez les skills de vos agents d'IA avec <code>omega skills</code> : ce qui est installé, qui le voit, et leur installation, partage et mise à jour.</p>
-          </article>
-          <article class="card">
-            <span class="feature-icon"><i class="ph ph-clock" aria-hidden="true"></i></span>
-            <h3 class="card-title">Mode déterministe hors ligne et automatisé</h3>
-            <p>Exécutez 100% hors ligne avec <code>omega --no-ai</code>, automatisez en arrière-plan avec <code>omega schedule</code> et générez du JSON structuré avec <code>--json</code> pour CI/CD.</p>
-          </article>
-        </div>
-      </div>
-    </section>
-
-    <!-- How it works -->
-    <section class="section reveal" id="how" aria-labelledby="how-title">
-      <div class="container">
-        <div class="section-head">
-          <p class="kicker">Premiers pas</p>
-          <h2 class="section-title" id="how-title">Prêt en trois commandes</h2>
-        </div>
-        <ol class="grid grid-3 steps">
-          <li class="card step">
-            <h3 class="card-title">Connectez un modèle</h3>
-            <p>La configuration demande votre fournisseur, range la clé là où votre système garde ses secrets (trousseau, Gestionnaire d'identification ou trousseau Linux) et vous laisse choisir un modèle.</p>
-            <pre><code>omega setup</code></pre>
-          </li>
-          <li class="card step">
-            <h3 class="card-title">Commencez par un rapport</h3>
-            <p>Analyze est en lecture seule. Vous voyez l'occupation du disque, les logiciels obsolètes et les problèmes de configuration avant le moindre changement.</p>
-            <pre><code>omega analyze</code></pre>
-          </li>
-          <li class="card step">
-            <h3 class="card-title">Laissez-le faire la maintenance</h3>
-            <p>Mises à jour, nettoyage et résumé, avec votre approbation pour tout ce qui est risqué. Ou suivez le parcours guidé complet.</p>
-            <pre><code>omega
-omega full</code></pre>
-          </li>
-        </ol>
-      </div>
-    </section>
-
-    <!-- Platforms -->
-    <section class="section reveal" id="platforms" aria-labelledby="platforms-title">
-      <div class="container">
-        <div class="section-head">
-          <p class="kicker">Plateformes</p>
-          <h2 class="section-title" id="platforms-title">Il connaît le système sur lequel il tourne</h2>
-          <p class="section-sub">Le même agent sous macOS, Linux et Windows, avec les étapes propres à chaque système. Sur un Mac, il revoit aussi ce qui tourne en dehors des apps que vous ouvrez.</p>
-        </div>
-        <div data-tabs>
-          <div class="panel-tabs" role="tablist" aria-label="Plateforme">
-            <button class="tab" type="button" role="tab" aria-selected="true" aria-controls="panel-mac" id="ptab-mac"><i class="ph ph-apple-logo" aria-hidden="true"></i> macOS</button>
-            <button class="tab" type="button" role="tab" aria-selected="false" aria-controls="panel-linux" id="ptab-linux"><i class="ph ph-linux-logo" aria-hidden="true"></i> Linux</button>
-            <button class="tab" type="button" role="tab" aria-selected="false" aria-controls="panel-windows" id="ptab-windows"><i class="ph ph-windows-logo" aria-hidden="true"></i> Windows</button>
-            <button class="tab" type="button" role="tab" aria-selected="false" aria-controls="panel-dev" id="ptab-dev"><i class="ph ph-terminal-window" aria-hidden="true"></i> Outils de développement</button>
-          </div>
-
-          <div class="panel" role="tabpanel" id="panel-mac" aria-labelledby="ptab-mac">
-            <h3 class="panel-name"><i class="ph ph-apple-logo" aria-hidden="true"></i> macOS</h3>
-            <p class="panel-intro">Les apps s'ajoutent à l'ouverture de session, gardent des utilitaires en arrière-plan, s'approprient des raccourcis que d'autres apps utilisent déjà et laissent des autorisations et des fichiers derrière elles en partant. <code>omega mac</code> revoit tout cela, vous interroge sur des cartes et n'applique que ce que vous choisissez. Chaque changement peut être annulé.</p>
-            <div class="split">
-              <dl class="deflist">
-                <div><dt>login</dt><dd>Les apps qui s'ouvrent à la connexion : les outils de mise à jour et les apps que vous ouvrez au besoin s'en vont ; VPN, sécurité et synchronisation restent</dd></div>
-                <div><dt>background</dt><dd>Agents de lancement, daemons et utilitaires d'apps, y compris les restes d'apps désinstallées</dd></div>
-                <div><dt>menubar</dt><dd>Apps de la barre des menus : les quitter, les retirer de l'ouverture ou les masquer avec Bartender, Ice ou Thaw</dd></div>
-                <div><dt>dock</dt><dd>Les apps qui ne sont plus installées ou pas ouvertes depuis 90 jours, et les réglages du Dock que vous préférez</dd></div>
-                <div><dt>shortcuts</dt><dd>Qui garde chaque raccourci disputé ; les autres passent à un raccourci libre</dd></div>
-                <div><dt>permissions</dt><dd>Les entrées de Confidentialité &amp; sécurité dont le binaire ou l'app a disparu, chacune nommée avec sa version pour distinguer les copies</dd></div>
-                <div><dt>apps</dt><dd>Les apps pas ouvertes depuis 180 jours, les apps conçues uniquement pour Intel, et ce que les apps supprimées ont laissé dans <code>~/Library</code></dd></div>
-              </dl>
-              <figure class="terminal" aria-label="Une carte de conflit de raccourcis">
-                <div class="terminal-bar"><span></span><span></span><span></span><p>omega mac shortcuts</p></div>
-                <div class="terminal-body">
-                  <p><span class="t-accent">Qui garde ⌥Space ?</span></p>
-                  <p><span class="t-accent">❯ ◉ Alfred · Afficher Alfred</span>  <span class="t-muted">suggéré</span></p>
-                  <p>  ○ ChatGPT · Ouvrir le lanceur ChatGPT</p>
-                  <p>  ○ Claude · Saisie rapide</p>
-                  <p>  ○ Personne : le désactiver partout</p>
-                  <p class="t-gap t-muted">les autres passent à un raccourci libre</p>
-                  <p><span class="t-strong">ChatGPT</span> <span class="t-muted">→ ⌃⌥Space</span></p>
-                  <p><span class="t-strong">Claude</span>  <span class="t-muted">→ ⌥⇧⌘Space</span></p>
-                  <p class="t-gap"><span class="t-strong">annuler</span>    <span class="t-muted">omega mac undo</span></p>
-                </div>
-                <figcaption class="sr-only">ChatGPT, Claude et Alfred veulent tous Option Espace. omega suggère Alfred, déplace les autres vers des raccourcis libres et retient le choix.</figcaption>
-              </figure>
-            </div>
-          </div>
-
-          <div class="panel" role="tabpanel" id="panel-linux" aria-labelledby="ptab-linux" hidden>
-            <h3 class="panel-name"><i class="ph ph-linux-logo" aria-hidden="true"></i> Linux</h3>
-            <p class="panel-intro">Sous Debian, Ubuntu, Fedora, Arch, openSUSE et leurs dérivées, omega sait sur quelle distribution il tourne et utilise son gestionnaire de paquets. Les étapes qui ont besoin de <code>sudo</code> attendent votre approbation et demandent le mot de passe dans l'interface.</p>
-            <div class="split">
-              <dl class="deflist">
-                <div><dt>paquets</dt><dd>Vérifier, mettre à jour et nettoyer avec <code>apt</code>, <code>dnf</code>, <code>pacman</code> ou <code>zypper</code>, y compris les paquets orphelins et le cache de paquets</dd></div>
-                <div><dt>flatpak, snap</dt><dd>Mises à jour, runtimes inutilisés et anciennes révisions de snap</dd></div>
-                <div><dt>journal, disque</dt><dd>Unités en échec, erreurs depuis le démarrage, core dumps, taille du journal, <code>~/.cache</code> et la Corbeille</dd></div>
-                <div><dt>clés</dt><dd>Dans le trousseau du système (GNOME Keyring, KWallet) ou, sur un serveur qui n'en a pas, dans un fichier que vous seul pouvez lire. omega indique lequel</dd></div>
-                <div><dt>homebrew</dt><dd>Avec Homebrew sous Linux, les étapes <code>brew</code> fonctionnent comme sur un Mac</dd></div>
-              </dl>
-              <figure class="terminal" aria-label="Étapes d&#39;omega sous Ubuntu">
-                <div class="terminal-bar"><span></span><span></span><span></span><p>omega steps · Ubuntu 24.04</p></div>
-                <div class="terminal-body">
-                  <p><span class="t-accent">VÉRIFICATIONS</span></p>
-                  <p><span class="t-ok">✓</span> disk             <span class="t-muted">lecture</span></p>
-                  <p><span class="t-ok">✓</span> apt-outdated     <span class="t-muted">lecture</span></p>
-                  <p><span class="t-ok">✓</span> journal-size     <span class="t-muted">lecture</span></p>
-                  <p><span class="t-ok">✓</span> system-logs      <span class="t-muted">lecture</span></p>
-                  <p class="t-gap"><span class="t-accent">MISES À JOUR</span></p>
-                  <p><span class="t-ok">✓</span> apt              <span class="t-warn">dangereux</span></p>
-                  <p><span class="t-ok">✓</span> snap             <span class="t-warn">dangereux</span></p>
-                  <p class="t-gap"><span class="t-accent">NETTOYAGE</span></p>
-                  <p><span class="t-ok">✓</span> apt-autoremove   <span class="t-warn">dangereux</span></p>
-                  <p><span class="t-ok">✓</span> journal-vacuum   <span class="t-warn">dangereux</span></p>
-                </div>
-                <figcaption class="sr-only">Une sélection des étapes qu'omega détecte sous Ubuntu 24.04, tirée d'une exécution sur un runner Ubuntu de GitHub, sans les étapes d'outils de développement : des vérifications en lecture seule, et des mises à jour et nettoyages apt et snap marqués dangereux parce qu'ils utilisent sudo.</figcaption>
-              </figure>
-            </div>
-            <ul class="facts">
-              <li><i class="ph ph-apple-logo" aria-hidden="true"></i> La revue du Mac (omega mac) et les étapes propres au Mac n'existent pas sous Linux, et omega le dit</li>
-              <li><i class="ph ph-cube" aria-hidden="true"></i> Sans apt, dnf, pacman ni zypper (Alpine, NixOS, Void), les étapes de paquets système n'apparaissent pas</li>
-              <li><i class="ph ph-lock-simple" aria-hidden="true"></i> Les systèmes immuables comme Fedora Silverblue ne sont pas encore pris en charge</li>
-              <li><i class="ph ph-terminal-window" aria-hidden="true"></i> Dans WSL, omega est cette version Linux</li>
-            </ul>
-          </div>
-
-          <div class="panel" role="tabpanel" id="panel-windows" aria-labelledby="ptab-windows" hidden>
-            <h3 class="panel-name"><i class="ph ph-windows-logo" aria-hidden="true"></i> Windows</h3>
-            <p class="panel-intro">Sous Windows 10 et 11, omega exécute ses commandes dans PowerShell et utilise les gestionnaires de paquets que les développeurs Windows ont déjà. Il n'élève jamais ses propres droits : les étapes qui demandent des droits d'administrateur fonctionnent si vous avez ouvert le terminal en tant qu'administrateur.</p>
-            <div class="split">
-              <dl class="deflist">
-                <div><dt>paquets</dt><dd>Vérifier et mettre à jour avec <code>winget</code>, <code>Scoop</code> et <code>Chocolatey</code>, chacun affiché seulement s'il est installé</dd></div>
-                <div><dt>windows</dt><dd>Liste les mises à jour Windows en attente, examine le journal des événements à la recherche d'erreurs, de services en échec et de plantages, et met à jour WSL</dd></div>
-                <div><dt>nettoyage</dt><dd>Fichiers temporaires, Corbeille, anciennes versions de Scoop et magasin de composants Windows</dd></div>
-                <div><dt>clés</dt><dd>Dans le Gestionnaire d'identification de Windows, protégées par votre session</dd></div>
-                <div><dt>outils de dév</dt><dd><code>omega dev install</code> avec Scoop ou winget, et les mêmes étapes d'outils de développement qu'ailleurs</dd></div>
-              </dl>
-              <figure class="terminal" aria-label="Étapes d&#39;omega sous Windows">
-                <div class="terminal-bar"><span></span><span></span><span></span><p>omega steps · Windows Server 2025</p></div>
-                <div class="terminal-body">
-                  <p><span class="t-accent">VÉRIFICATIONS</span></p>
-                  <p><span class="t-ok">✓</span> disk                  <span class="t-muted">lecture</span></p>
-                  <p><span class="t-ok">✓</span> winget-outdated       <span class="t-muted">lecture</span></p>
-                  <p><span class="t-ok">✓</span> windows-update-check  <span class="t-muted">lecture</span></p>
-                  <p><span class="t-ok">✓</span> system-logs           <span class="t-muted">lecture</span></p>
-                  <p class="t-gap"><span class="t-accent">MISES À JOUR</span></p>
-                  <p><span class="t-ok">✓</span> winget                <span class="t-warn">dangereux</span></p>
-                  <p><span class="t-ok">✓</span> choco                 <span class="t-warn">dangereux</span></p>
-                  <p class="t-gap"><span class="t-accent">NETTOYAGE</span></p>
-                  <p><span class="t-ok">✓</span> temp-files            <span class="t-warn">dangereux</span></p>
-                  <p><span class="t-ok">✓</span> recycle-bin           <span class="t-warn">dangereux</span></p>
-                </div>
-                <figcaption class="sr-only">Une sélection des étapes qu'omega détecte sur un runner Windows de GitHub, sans les étapes d'outils de développement : des vérifications en lecture seule du disque, de winget, des mises à jour Windows et du journal des événements, et des mises à jour et nettoyages qui demandent avant.</figcaption>
-              </figure>
-            </div>
-            <ul class="facts">
-              <li><i class="ph ph-shield-check" aria-hidden="true"></i> La politique de sécurité lit PowerShell : une suppression visant un lecteur ou les dossiers de Windows, ou un téléchargement redirigé vers iex, ne s'exécute jamais</li>
-              <li><i class="ph ph-arrows-clockwise" aria-hidden="true"></i> L'installation des mises à jour Windows, comme tout redémarrage, est laissée à Windows Update</li>
-              <li><i class="ph ph-apple-logo" aria-hidden="true"></i> La revue du Mac (omega mac) n'existe pas sous Windows, et omega le dit</li>
-              <li><i class="ph ph-prohibit" aria-hidden="true"></i> omega ne fait pas de « debloat » de Windows et ne désactive ni Defender, ni le pare-feu, ni l'UAC</li>
-            </ul>
-          </div>
-
-          <div class="panel" role="tabpanel" id="panel-dev" aria-labelledby="ptab-dev" hidden>
-            <h3 class="panel-name"><i class="ph ph-terminal-window" aria-hidden="true"></i> Outils de développement</h3>
-            <p class="panel-intro">Les langages et les gestionnaires de versions s'accumulent : deux d'entre eux qui gèrent Node, une commande qui pointe vers la mauvaise copie, une entrée du <code>PATH</code> qui ne mène nulle part. <code>omega dev</code> montre ce qui est installé et qui l'a installé, et corrige ce que vous choisissez. Sur les trois systèmes.</p>
-            <div class="split">
-              <dl class="deflist">
-                <div><dt>dev status</dt><dd>Ce qui est installé, par quel gestionnaire, et ce qui ressort : gestionnaires de versions qui se chevauchent, commandes masquées, <code>PATH</code> cassé, temps de démarrage du shell</dd></div>
-                <div><dt>dev install</dt><dd>Choisissez sur une carte ou nommez les outils : plus de 70 langages, gestionnaires de versions et outils en ligne de commande, installés avec Homebrew, les paquets de votre distribution, Scoop ou winget</dd></div>
-                <div><dt>dev activate</dt><dd>Ajoute la ligne dont un outil a besoin à <code>~/.zshrc</code>, ou à <code>~/.bashrc</code> pour bash, après avoir enregistré une copie du fichier</dd></div>
-                <div><dt>dev</dt><dd>La revue guidée : l'agent lit l'inventaire, explique chaque constat et applique ce que vous approuvez</dd></div>
-              </dl>
-              <figure class="terminal" aria-label="Constats d&#39;omega dev status">
-                <div class="terminal-bar"><span></span><span></span><span></span><p>omega dev status</p></div>
-                <div class="terminal-body">
-                  <p><span class="t-accent">Constats</span></p>
-                  <p><span class="t-warn">!</span> node est géré par nvm et mise</p>
-                  <p><span class="t-warn">!</span> python3 pointe vers /usr/bin avant Homebrew</p>
-                  <p><span class="t-warn">!</span> le PATH contient 2 dossiers inexistants</p>
-                  <p><span class="t-warn">!</span> zoxide est installé mais pas activé</p>
-                  <p class="t-gap t-muted">le shell démarre en 0.41 s</p>
-                  <p class="t-gap"><span class="t-strong">omega dev</span>           <span class="t-muted">correction guidée</span></p>
-                  <p><span class="t-strong">omega dev activate</span>  <span class="t-muted">lignes du shell</span></p>
-                  <p><span class="t-strong">omega dev install</span>   <span class="t-muted">ajouter des outils</span></p>
-                </div>
-                <figcaption class="sr-only">Une illustration de ce que rapporte omega dev status : node géré par deux gestionnaires de versions, python3 qui pointe vers la copie du système, des dossiers du PATH inexistants et un outil non activé.</figcaption>
-              </figure>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Interface -->
-    <section class="section reveal" id="interface" aria-labelledby="interface-title">
-      <div class="container">
-        <div class="section-head">
-          <p class="kicker">Interface</p>
-          <h2 class="section-title" id="interface-title">Dans le terminal</h2>
-          <p class="section-sub">Une interface plein écran : les appels d'outils en direct, un panneau de session avec les étapes, le disque et le coût, et une carte pour chaque décision.</p>
-        </div>
-        <div class="gallery">
-          <figure class="shot shot-wide">
-            <img src="../assets/confirm.png" width="1280" height="820" loading="lazy" alt="omega diagnostique une mise à jour pipx en échec, passe à un modèle plus puissant et demande avant de réinstaller ; à droite, un panneau de session montre les étapes, le disque et les jetons">
-            <figcaption>Un échec est diagnostiqué avec un modèle plus puissant, puis le correctif attend votre approbation. Le panneau de droite suit la session.</figcaption>
-          </figure>
-          <figure class="shot">
-            <img src="../assets/card.png" width="1280" height="820" loading="lazy" alt="Une carte de sélection avec trois actions de nettoyage cochées et l&#39;espace que chacune libère">
-            <figcaption>Des recommandations sur une carte : cochez ce que vous voulez, omega fait exactement cela.</figcaption>
-          </figure>
-          <figure class="shot">
-            <img src="../assets/menu.png" width="1280" height="820" loading="lazy" alt="L&#39;écran d&#39;accueil : espace disque, modèle et toutes les commandes d&#39;omega regroupées par domaine">
-            <figcaption>L'écran d'accueil liste toutes les commandes. Entrée ouvre ou lance, taper lance une recherche.</figcaption>
-          </figure>
-          <figure class="shot">
-            <img src="../assets/docker-confirm.png" width="1280" height="820" loading="lazy" alt="Un nettoyage du cache de build Docker, qui demande toujours confirmation">
-            <figcaption>Les nettoyages Docker demandent toujours, même quand tout le reste est approuvé.</figcaption>
-          </figure>
-          <figure class="shot">
-            <img src="../assets/model.png" width="1280" height="560" loading="lazy" alt="Le sélecteur de modèle, qui liste les modèles proposés par un fournisseur">
-            <figcaption>Choisissez un modèle sur une carte, ou laissez omega choisir.</figcaption>
-          </figure>
-          <figure class="shot">
-            <img src="../assets/summary.png" width="1280" height="820" loading="lazy" alt="Le résumé en fin de session : ce qui a été mis à jour, ce qui a été libéré et ce qui a échoué">
-            <figcaption>Chaque session se termine par ce qui a changé, ce qu'elle a libéré et ce qu'elle a coûté.</figcaption>
-          </figure>
-        </div>
-        <p class="note">Enregistré à partir du binaire <code>omega</code> par <code>scripts/capture.sh</code>, avec <code>omega --demo</code> et un modèle de test local ; aucune API payante.</p>
-
-        <h3 class="subhead">Pilotez-le au clavier</h3>
-        <div class="split">
-          <dl class="deflist keys">
-            <div><dt><kbd>?</kbd></dt><dd>Affiche ou masque la carte des raccourcis, sans quitter l'exécution</dd></div>
-            <div><dt><kbd>shift</kbd> <kbd>tab</kbd></dt><dd>Change le mode d'approbation : demande avant les actions risquées, approbation automatique, lecture seule</dd></div>
-            <div><dt><kbd>ctrl</kbd> <kbd>p</kbd></dt><dd>Passe au modèle suivant de l'exécution, dès le prochain tour</dd></div>
-            <div><dt><kbd>ctrl</kbd> <kbd>b</kbd></dt><dd>Affiche ou masque le panneau de session</dd></div>
-            <div><dt><kbd>ctrl</kbd> <kbd>o</kbd></dt><dd>Déplie ou replie la sortie de chaque appel d'outil</dd></div>
-            <div><dt><kbd>ctrl</kbd> <kbd>f</kbd></dt><dd>Cherche dans l'historique</dd></div>
-            <div><dt><kbd>ctrl</kbd> <kbd>y</kbd></dt><dd>Copie la sortie de l'outil sélectionné</dd></div>
-            <div><dt><kbd>ctrl</kbd> <kbd>c</kbd></dt><dd>Annule l'exécution et quitte</dd></div>
-          </dl>
-          <div>
-            <div class="slash" aria-label="Commandes slash">
-              <code>/update</code><code>/clean</code><code>/analyze</code><code>/health</code><code>/tune</code><code>/fix</code><code>/docker</code><code>/dev</code><code>/install</code><code>/disk</code><code>/logs</code><code>/shell</code><code>/steps</code><code>/mac</code><code>/permissions</code><code>/apps</code><code>/login</code><code>/dock</code><code>/shortcuts</code><code>/undo</code><code>/models</code><code>/settings</code><code>/notes</code><code>/history</code><code>/doctor</code><code>/mode</code><code>/model</code><code>/help</code>
-            </div>
-            <p class="slash-note">Tapez <kbd>/</kbd> dans la zone de saisie pour ouvrir le menu des commandes : chacune lance une autre tâche dans la même session, avec une description au fil de la frappe.</p>
-            <details class="cast">
-              <summary><i class="ph ph-play-circle" aria-hidden="true"></i> Voir une session enregistrée : l'aide, Échap et un refus</summary>
-              <asciinema-player src="../assets/shortcuts.cast" cols="100" rows="32" preload="true" title="omega: help, Esc and a denial"></asciinema-player>
-            </details>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Desktop app -->
-    <section class="section reveal" id="app" aria-labelledby="app-title">
-      <div class="container">
-        <div class="section-head">
-          <p class="kicker">App de bureau</p>
-          <h2 class="section-title" id="app-title">Le même agent, dans une fenêtre</h2>
-          <p class="section-sub">Pour les moments où vous n'avez pas envie d'un terminal. L'app exécute les mêmes tâches avec la même politique de sécurité, la même configuration et les mêmes clés que la commande, sous macOS, Linux et Windows.</p>
-        </div>
-        <div class="install app-install">
-          <div class="install-row">
+          <div class="install-row" role="tabpanel" id="get-app" aria-labelledby="tab-app" hidden>
             <code class="install-cmd">brew install --cask lcajigasm/tap/omega-app</code>
-            <button class="btn btn-primary btn-sm copy-btn" type="button" data-copy="brew install --cask lcajigasm/tap/omega-app"><i class="ph ph-copy" aria-hidden="true"></i><span class="copy-label">Copier</span></button>
+            <button class="btn btn-ink btn-sm copy-btn" type="button" data-copy="brew install --cask lcajigasm/tap/omega-app"><svg class="ico" aria-hidden="true"><use href="#i-copy"/></svg><span class="copy-label">Copier</span></button>
+          </div>
+          <div class="install-row" role="tabpanel" id="get-linux" aria-labelledby="tab-linux" hidden>
+            <code class="install-cmd multi">tar -xzf omega_*_linux_amd64.tar.gz
+sudo install -m 755 omega /usr/local/bin/omega</code>
+            <a class="btn btn-line btn-sm" href="https://github.com/lcajigasm/omega/releases/latest"><svg class="ico" aria-hidden="true"><use href="#i-down"/></svg>Télécharger l'archive</a>
+          </div>
+          <div class="install-row" role="tabpanel" id="get-windows" aria-labelledby="tab-windows" hidden>
+            <code class="install-cmd multi">Expand-Archive omega_*_windows_amd64.zip `
+  -DestinationPath "$env:LOCALAPPDATA\Programs\omega"</code>
+            <a class="btn btn-line btn-sm" href="https://github.com/lcajigasm/omega/releases/latest"><svg class="ico" aria-hidden="true"><use href="#i-down"/></svg>Télécharger le zip</a>
           </div>
         </div>
         <p class="copy-status" role="status" aria-live="polite"></p>
-        <div class="downloads">
-          <a class="btn btn-primary" href="https://github.com/lcajigasm/omega/releases/latest/download/omega-macos-universal.dmg"><i class="ph ph-apple-logo" aria-hidden="true"></i> Télécharger pour macOS</a>
-          <a class="btn btn-ghost" href="https://github.com/lcajigasm/omega/releases/latest"><i class="ph ph-windows-logo" aria-hidden="true"></i> Windows (.zip)</a>
-          <a class="btn btn-ghost" href="https://github.com/lcajigasm/omega/releases/latest"><i class="ph ph-linux-logo" aria-hidden="true"></i> Linux (.tar.gz)</a>
-        </div>
-        <p class="note downloads-note">L'image disque fonctionne sous macOS 13 ou ultérieur, sur Apple Silicon et Intel. Pour Windows et Linux, prenez l'archive <code>omega-gui</code> pour amd64 ou arm64 dans la version publiée.</p>
-        <div class="gallery">
-          <figure class="shot shot-wide shot-center">
-            <img src="../assets/gui-confirm.png" width="1780" height="1140" loading="lazy" alt="L&#39;app omega pendant une maintenance complète : les étapes avec leur résultat, une étape pipx en échec diagnostiquée avec un modèle plus puissant, et une carte qui demande avant d&#39;exécuter le correctif">
-            <figcaption>Les étapes à mesure qu'elles se terminent, un échec diagnostiqué avec un modèle plus puissant, et le correctif qui attend votre approbation.</figcaption>
-          </figure>
-          <figure class="shot shot-center">
-            <img src="../assets/gui-home.png" width="1780" height="1140" loading="lazy" alt="L&#39;écran d&#39;accueil de l&#39;app : les tâches sous forme de boutons et un champ pour dire ce qu&#39;il vous faut">
-            <figcaption>Choisissez une tâche, ou dites ce qu'il vous faut avec vos mots.</figcaption>
-          </figure>
-          <figure class="shot shot-center">
-            <img src="../assets/gui-card.png" width="1780" height="1140" loading="lazy" alt="Une carte de sélection dans l&#39;app, avec des actions de nettoyage cochées et l&#39;espace que chacune libère">
-            <figcaption>Cochez les nettoyages que vous voulez. omega fait exactement ceux-là.</figcaption>
-          </figure>
-          <figure class="shot shot-center">
-            <img src="../assets/gui-summary.png" width="1780" height="1140" loading="lazy" alt="La fin d&#39;une session dans l&#39;app : ce qui a été mis à jour, réparé et libéré, avec les jetons et le coût en dessous">
-            <figcaption>La session se termine par ce qui a changé, et reste ouverte pour une suite.</figcaption>
-          </figure>
-          <figure class="shot shot-center">
-            <img src="../assets/gui-output.png" width="1780" height="1140" loading="lazy" alt="Une étape en échec ouverte dans l&#39;app, avec la sortie de la commande et l&#39;erreur">
-            <figcaption>Ouvrez n'importe quelle étape pour lire ce que la commande a affiché.</figcaption>
-          </figure>
-          <figure class="shot shot-center">
-            <img src="../assets/gui-setup.png" width="1780" height="1140" loading="lazy" alt="L&#39;écran de configuration de l&#39;app, qui liste les fournisseurs et un champ pour la clé d&#39;API">
-            <figcaption>Choisissez un fournisseur et collez sa clé. Elle est vérifiée avant d'être rangée dans le trousseau.</figcaption>
-          </figure>
-        </div>
-        <p class="note">Enregistré à partir de l'app par <code>scripts/capture_gui.mjs</code>, en mode démo : aucune API payante et aucune commande réelle.</p>
-        <div class="grid grid-3">
-          <article class="card">
-            <h3 class="card-title">Un agent, deux visages</h3>
-            <p>Les approbations, les cartes de sélection et le mot de passe sudo arrivent sous forme de cartes dans la fenêtre. Ce que la ligne de commande apprend d'une exécution à l'autre, l'app le sait aussi. La vue Outils lance les vérifications qui n'ont besoin ni de modèle ni de clé : réseau, clés SSH, secrets exposés, disque et dépôts.</p>
-          </article>
-          <article class="card">
-            <h3 class="card-title">Légère pour la machine</h3>
-            <p>Elle s'affiche avec la webview que le système possède déjà : le téléchargement pèse environ 25 MB et n'embarque aucun navigateur.</p>
-          </article>
-          <article class="card">
-            <h3 class="card-title">Pas encore signée</h3>
-            <p>Les builds ne portent aucune signature Apple ni Microsoft. Sous macOS, lancez <code>xattr -dr com.apple.quarantine /Applications/Omega.app</code> une fois après l'installation. Sous Windows, choisissez « Informations complémentaires », puis « Exécuter quand même ». Sous Linux, il faut GTK 4 et WebKitGTK 6.0.</p>
-          </article>
-        </div>
-      </div>
-    </section>
+        <p class="hero-note">Homebrew fonctionne sous macOS et sous Linux. Si omega venait de l'ancien tap, lancez <code>brew update && brew upgrade omega</code> pour que Homebrew suive la migration, ou réinstallez depuis <code>lcajigasm/tap</code>. Lancez ensuite <code>omega setup</code>, puis <code>omega full</code> pour le parcours guidé. Vous préférez une fenêtre ? <a class="link" href="#app">Téléchargez l'app de bureau</a>.</p>
 
-    <!-- Safety -->
-    <section class="section reveal" id="safety" aria-labelledby="safety-title">
-      <div class="container">
-        <div class="section-head">
-          <p class="kicker">Sécurité</p>
-          <h2 class="section-title" id="safety-title">Quatre niveaux de risque. Vous décidez pour ceux qui comptent.</h2>
-          <p class="section-sub">Les commandes composées sont découpées et vérifiées partie par partie, y compris à travers des enveloppes comme <code>env</code>, <code>sudo</code> et <code>sh -c</code>. Le risque le plus élevé l'emporte.</p>
+        <!-- One real session, looked at closely. The frames are captures of
+             the binary; the script only moves the camera over them. -->
+        <figure class="plate tour" data-tour>
+          <div class="tour-stage">
+            <img class="tour-img is-on" data-frame="confirm" src="../assets/confirm.png" width="1280" height="820" alt="omega diagnostique une mise à jour pipx en échec, passe à un modèle plus puissant et demande avant de réinstaller ; à droite, un panneau de session montre les étapes, le disque et les jetons">
+            <img class="tour-img" data-frame="summary" src="../assets/summary.png" width="1280" height="820" loading="lazy" alt="Le résumé en fin de session : ce qui a été mis à jour, ce qui a été libéré et ce qui a échoué">
+            <span class="tour-mark" aria-hidden="true"></span>
+          </div>
+          <ol class="tour-steps">
+            <li><button type="button" data-frame="confirm" data-rect="18,300,600,124"><span class="tour-n">1</span><strong>Une étape échoue</strong><span><code>pipx upgrade-all</code> se termine en erreur. L'exécution continue et l'échec reste bien visible.</span></button></li>
+            <li><button type="button" data-frame="confirm" data-rect="18,432,780,140"><span class="tour-n">2</span><strong>omega trouve la cause</strong><span>Il passe à un modèle plus puissant, qui lit l'erreur : les environnements pointent vers un Python que Homebrew a remplacé.</span></button></li>
+            <li><button type="button" data-frame="confirm" data-rect="30,596,690,138"><span class="tour-n">3</span><strong>Le correctif vous attend</strong><span>Réinstaller est classé comme dangereux : la demande arrive donc sur une carte, avec oui, oui à tout ou non.</span></button></li>
+            <li><button type="button" data-frame="summary" data-rect="20,544,810,134"><span class="tour-n">4</span><strong>Il vous rend des comptes</strong><span>Ce qu'il a mis à jour, réparé et libéré, et une note pour appliquer le correctif d'emblée la prochaine fois.</span></button></li>
+          </ol>
+          <figcaption><b>Fig. 1</b> Enregistré à partir du binaire <code>omega</code> par <code>scripts/capture.sh</code>, avec <code>omega --demo</code> et un modèle de test local ; aucune API payante.</figcaption>
+        </figure>
+
+        <dl class="specs">
+          <div><dt>94</dt><dd>étapes de maintenance sous Linux, 80 sous macOS et 67 sous Windows</dd></div>
+          <div><dt>25</dt><dd>outils ciblés à la disposition de l'agent, rien de plus</dd></div>
+          <div><dt>5</dt><dd>langues d'interface, vérifiées par des tests</dd></div>
+          <div><dt>&lt;1¢</dt><dd>pour une exécution type avec le modèle automatique</dd></div>
+        </dl>
+      </section>
+
+      <!-- 01 Why -->
+      <section class="sec" id="why" aria-labelledby="why-t">
+        <header class="sec-head">
+          <p class="sec-no"><span>01</span>Le problème</p>
+          <h2 id="why-t">Votre script de mise à jour échoue. Puis vous passez la soirée à le déboguer.</h2>
+        </header>
+        <div class="ledger-wrap">
+          <table class="ledger">
+            <thead>
+              <tr><td></td><th scope="col">Lancer topgrade et Mole à la main</th><th scope="col" class="ledger-us">Lancer omega</th></tr>
+            </thead>
+            <tbody>
+              <tr><th scope="row">Une étape échoue</th><td>Une étape échoue et l'exécution continue, avec une ligne rouge qu'il faut remonter chercher</td><td class="ledger-us">Il lit l'échec au moment où il se produit et en trouve la cause</td></tr>
+              <tr><th scope="row">Le correctif</th><td>Vous cherchez l'erreur, modifiez topgrade.toml et relancez tout</td><td class="ledger-us">Il applique le plus petit correctif, réessaie une fois et passe à la suite si l'échec persiste</td></tr>
+              <tr><th scope="row">Un mot de passe demandé</th><td>Un paquet demande un mot de passe en plein milieu et l'exécution reste bloquée</td><td class="ledger-us">Les commandes s'exécutent sans invite, donc rien n'attend un mot de passe que vous ne voyez pas</td></tr>
+              <tr><th scope="row">Le mois suivant</th><td>Le même échec de pipx revient le mois suivant</td><td class="ledger-us">Il note ce qu'il a appris et repart de là la fois suivante</td></tr>
+            </tbody>
+          </table>
         </div>
-        <div class="grid grid-4">
-          <article class="card risk risk-ok">
-            <p class="risk-label"><i class="ph ph-eye" aria-hidden="true"></i> Lecture seule</p>
-            <p class="risk-rule">S'exécute tout de suite</p>
-            <p class="risk-cmds"><code>brew outdated</code><code>df -h</code><code>apt list --upgradable</code></p>
-          </article>
-          <article class="card risk risk-ok">
-            <p class="risk-label"><i class="ph ph-arrows-clockwise" aria-hidden="true"></i> Normal</p>
-            <p class="risk-rule">S'exécute tout de suite</p>
-            <p class="risk-cmds"><code>brew upgrade</code><code>npm update -g</code><code>rustup update</code></p>
-          </article>
-          <article class="card risk risk-warn">
-            <p class="risk-label"><i class="ph ph-hand" aria-hidden="true"></i> Dangereux</p>
-            <p class="risk-rule">Attend votre approbation. Les nettoyages Docker demandent à chaque fois</p>
-            <p class="risk-cmds"><code>rm</code><code>sudo</code><code>docker … prune</code></p>
-          </article>
-          <article class="card risk risk-block">
-            <p class="risk-label"><i class="ph ph-prohibit" aria-hidden="true"></i> Bloqué</p>
-            <p class="risk-rule">Ne s'exécute jamais, même avec <code>--yes</code></p>
-            <p class="risk-cmds"><code>rm -rf ~</code><code>diskutil erase</code><code>curl … | sh</code></p>
-          </article>
+      </section>
+
+      <!-- 02 Commands -->
+      <section class="sec" id="commands" aria-labelledby="commands-t">
+        <header class="sec-head">
+          <p class="sec-no"><span>02</span>Commandes</p>
+          <h2 id="commands-t">Tout ce qu'il fait, selon ce qui vous amène ici</h2>
+          <p class="sec-sub"><code>omega menu</code> liste tout cela sur un seul écran : tapez pour chercher, Entrée pour lancer. Ici, taper filtre.</p>
+        </header>
+        <div class="tools">
+          <label class="search"><svg class="ico" aria-hidden="true"><use href="#i-search"/></svg><span class="sr-only">Filtrer les commandes : disque, docker, ssh…</span><input type="search" id="cmd-filter" placeholder="Filtrer les commandes : disque, docker, ssh…" autocomplete="off" spellcheck="false"></label>
+          <p class="tools-count" id="cmd-count" role="status" aria-live="polite"></p>
         </div>
+        <div class="cmd-index" id="cmd-index">
+          <section class="cmd-group">
+            <h3>Tout mettre à jour</h3>
+            <ul>
+              <li><code>omega</code><span>Vérifie l'état, met à jour, nettoie et vous dit ce qui a changé</span></li>
+              <li><code>omega full</code><span>Toutes les étapes qui s'appliquent à cette machine sur un seul écran, avec un plan que vous pouvez modifier</span></li>
+              <li><code>omega quick</code><span>La partie sûre en quelques secondes : Corbeille, caches, vérification des mises à jour et rapport sur le disque et la batterie</span></li>
+              <li><code>omega update</code><span>Homebrew, l'App Store, apt, dnf, pacman, winget, Scoop, npm, pnpm, pipx, uv, rustup, cargo et d'autres</span></li>
+              <li><code>omega schedule</code><span>Le lance en arrière-plan avec launchd, systemd ou le Planificateur de tâches, et vous prévient sur le bureau</span></li>
+            </ul>
+          </section>
+          <section class="cmd-group">
+            <h3>Récupérer de l'espace disque</h3>
+            <ul>
+              <li><code>omega clean</code><span>Mesure d'abord, puis libère ce qui en vaut la peine : caches de paquets, Xcode, Docker, la Corbeille</span></li>
+              <li><code>omega disk</code><span>Fichiers en double par SHA-256, gros fichiers et dossiers de build à l'abandon : <code>node_modules</code>, <code>target</code>, <code>.venv</code></span></li>
+              <li><code>omega docker</code><span>Montre ce que Docker occupe et ne supprime que ce que vous cochez. Il demande toujours</span></li>
+              <li><code>omega uninstall</code><span>Supprime une app et ce qu'elle laisse dans Application Support, Preferences et Caches</span></li>
+            </ul>
+          </section>
+          <section class="cmd-group">
+            <h3>Savoir ce qui ne va pas</h3>
+            <ul>
+              <li><code>omega analyze</code><span>Disque, logiciels obsolètes et problèmes de configuration, puis une carte de recommandations. Ne change rien</span></li>
+              <li><code>omega health</code><span>Santé du disque et de la batterie, mémoire, sauvegardes, pare-feu, chiffrement et journaux du système</span></li>
+              <li><code>omega fix</code><span>Lance topgrade et Mole à blanc, diagnostique leurs erreurs et corrige la configuration ; avec <code>--log</code>, un journal de build venu d'ailleurs</span></li>
+              <li><code>omega net</code><span>Vidage du cache DNS, latence des registres de paquets, conflits de ports et audit des fichiers hosts et du proxy</span></li>
+              <li><code>omega doctor</code><span>Vérifie la configuration, la clé, le fournisseur et les étapes sans dépenser de jetons, et signale toute version plus récente</span></li>
+            </ul>
+          </section>
+          <section class="cmd-group">
+            <h3>Garder en ordre une machine de développement</h3>
+            <ul>
+              <li><code>omega dev</code><span>Plus de 70 langages, gestionnaires de versions et outils : ce qui est installé, ce qui se chevauche, ce qui est cassé</span></li>
+              <li><code>omega git</code><span>Travail non commité ou non poussé dans vos dossiers, branches fusionnées à supprimer et <code>.git</code> à optimiser</span></li>
+              <li><code>omega skills</code><span>Les skills de Claude Code, Codex, Gemini CLI, opencode, Cursor et Copilot : quel agent voit chacune, et comment les installer, les partager, les mettre à jour et les supprimer</span></li>
+              <li><code>omega tune</code><span>Compare la configuration de vos outils à leur documentation à jour, et la cite</span></li>
+            </ul>
+          </section>
+          <section class="cmd-group">
+            <h3>Vérifier sécurité et confidentialité</h3>
+            <ul>
+              <li><code>omega audit</code><span>Clés SSH et leurs permissions dans <code>~/.ssh</code>, et secrets oubliés dans l'historique du shell</span></li>
+              <li><code>omega privacy</code><span>Passe en revue la télémétrie du système et vide les caches du navigateur sans fermer vos sessions</span></li>
+              <li><code>omega mac</code><span>Ouverture de session et éléments en arrière-plan, barre des menus, Dock, conflits de raccourcis et autorisations de confidentialité périmées</span></li>
+              <li><code>omega rollback</code><span>Un instantané avant les changements (APFS, Btrfs, points de restauration Windows), restauré à votre demande</span></li>
+            </ul>
+          </section>
+          <section class="cmd-group">
+            <h3>Le faire à votre façon</h3>
+            <ul>
+              <li><code>omega -p "…"</code><span>Dites-le avec vos mots : l'agent dispose des mêmes outils que les commandes</span></li>
+              <li><code>omega shell</code><span>Une console de maintenance interactive</span></li>
+              <li><code>omega --no-ai</code><span>Maintenance déterministe, sans modèle ni clé d'API</span></li>
+              <li><code>omega --json</code><span>Sortie structurée et codes de sortie pour les scripts et la CI : <code>--fail-on-outdated</code>, <code>--fail-on-critical</code></span></li>
+              <li><code>omega export</code><span>Écrit l'état de cette machine dans <code>omega-blueprint.json</code> ; <code>omega bootstrap</code> en configure une nouvelle à partir de ce fichier</span></li>
+              <li><code>omega menu</code><span>Toutes les commandes sur un seul écran. Tapez pour chercher, Entrée pour lancer</span></li>
+            </ul>
+          </section>
+        </div>
+        <p class="note">Chaque ligne est expliquée dans le <a class="link" href="https://github.com/lcajigasm/omega/blob/main/docs/manual/tasks.md">manuel</a>. <code>omega mac</code> n'existe que sur un Mac.</p>
+      </section>
+
+      <!-- 03 Catalogue: built from the binary's own table of steps. -->
+      <section class="sec" id="catalog" aria-labelledby="catalog-t">
+        <header class="sec-head">
+          <p class="sec-no"><span>03</span>Catalogue</p>
+          <h2 id="catalog-t">Ce qu'il exécutera sur votre machine, ligne par ligne</h2>
+          <p class="sec-sub">Personne n'a écrit ce tableau pour le site : il est généré à partir du catalogue intégré au binaire, avec la commande et le niveau de risque de chaque étape. Une étape n'apparaît sur votre machine que si son outil est installé ; <code>omega steps</code> affiche les vôtres.</p>
+        </header>
+        <div class="cat" id="cat" data-src="catalog.json">
+          <div class="tools">
+            <div class="seg" role="group" aria-label="Plateforme">
+              <button type="button" data-os="darwin" aria-pressed="true">macOS <b>80</b></button>
+              <button type="button" data-os="linux" aria-pressed="false">Linux <b>94</b></button>
+              <button type="button" data-os="windows" aria-pressed="false">Windows <b>67</b></button>
+            </div>
+            <div class="seg seg-quiet" role="group" aria-label="Type d&#39;étape">
+              <button type="button" data-cat="" aria-pressed="true">Toutes</button>
+              <button type="button" data-cat="check" aria-pressed="false">Vérifications</button>
+              <button type="button" data-cat="update" aria-pressed="false">Mises à jour</button>
+              <button type="button" data-cat="clean" aria-pressed="false">Nettoyage</button>
+              <button type="button" data-cat="backend" aria-pressed="false">Backends</button>
+            </div>
+            <label class="search"><svg class="ico" aria-hidden="true"><use href="#i-search"/></svg><span class="sr-only">Chercher des étapes : brew, docker, cache…</span><input type="search" id="cat-filter" placeholder="Chercher des étapes : brew, docker, cache…" autocomplete="off" spellcheck="false"></label>
+          </div>
+          <div class="cat-scroll" tabindex="0" role="region" aria-labelledby="catalog-t">
+            <table class="cat-table">
+              <thead><tr><th scope="col">Étape</th><th scope="col">Ce que c'est</th><th scope="col">Commande</th><th scope="col">Risque</th></tr></thead>
+              <tbody id="cat-rows">
+                <tr><td class="c-id"><code>disk</code></td><td class="c-name">Espace disque</td><td class="c-cmd"><code>df -h / &amp;&amp; du -sh ~/Library/Caches ~/Library/Logs ~/.Trash 2&gt;/dev/null</code></td><td class="c-risk"><span class="badge" data-risk="read-only">Lecture seule</span></td></tr>
+                <tr><td class="c-id"><code>brew-outdated</code></td><td class="c-name">Paquets Homebrew obsolètes</td><td class="c-cmd"><code>brew outdated --verbose</code></td><td class="c-risk"><span class="badge" data-risk="read-only">Lecture seule</span></td></tr>
+                <tr><td class="c-id"><code>brew-doctor</code></td><td class="c-name">brew doctor</td><td class="c-cmd"><code>brew doctor</code></td><td class="c-risk"><span class="badge" data-risk="read-only">Lecture seule</span></td></tr>
+                <tr><td class="c-id"><code>macos-check</code></td><td class="c-name">Mises à jour de macOS</td><td class="c-cmd"><code>softwareupdate --list</code></td><td class="c-risk"><span class="badge" data-risk="read-only">Lecture seule</span></td></tr>
+                <tr><td class="c-id"><code>system-logs</code></td><td class="c-name">Analyse des journaux système</td><td class="c-cmd"><code>echo &#39;== Crash reports, last 7 days (count, process)&#39;; find ~/Library/Logs/DiagnosticReports /Library/Logs/DiagnosticReports -type f -mtime -7 2&gt;/dev/null | sed -E &#39;s#.*/##; s/[-_][0-9]{4}-.*//&#39; | sort | uniq -c | sort -rn | head -10; echo &#39;== Launch agents that are not running and last exited with an error&#39;; launchctl list | awk &#39;NR&gt;1 &amp;&amp; $1 == &#34;-&#34; &amp;&amp; $2 != &#34;0&#34;&#39; | head -15; echo &#39;== Sleep blockers&#39;; pmset -g assertions | grep -E &#39;Prevent(User)?Idle(System|Display)Sleep|PreventSystemSleep&#39; | grep -v &#39; 0$&#39; | head -10; echo &#39;== Processes logging faults, last 30 min&#39;; /usr/bin/log show --last 30m --style compact --predicate &#39;messageType == fault&#39; 2&gt;/dev/null | awk &#39;NR&gt;1 {print $4}&#39; | sed &#39;s/\[.*//&#39; | sort | uniq -c | sort -rn | head -10; echo &#39;== Log folder sizes&#39;; du -sh ~/Library/Logs /Library/Logs /private/var/log 2&gt;/dev/null</code></td><td class="c-risk"><span class="badge" data-risk="read-only">Lecture seule</span></td></tr>
+                <tr><td class="c-id"><code>health</code></td><td class="c-name">Santé du matériel</td><td class="c-cmd"><code>echo &#39;== Uptime and load&#39;; uptime; echo &#39;== Disk (SMART)&#39;; diskutil info / | grep -E &#39;SMART Status|Solid State&#39; | sed &#39;s/^ *//&#39;; echo &#39;== Battery&#39;; system_profiler SPPowerDataType 2&gt;/dev/null | grep -E &#39;Cycle Count|Condition|Maximum Capacity|State of Charge&#39; | sed &#39;s/^ *//&#39;; echo &#39;== Memory&#39;; memory_pressure -Q 2&gt;/dev/null | tail -1; sysctl -n vm.swapusage; echo &#39;== Time Machine&#39;; tmutil destinationinfo 2&gt;&amp;1 | grep -E &#39;Name|Kind|No destinations&#39; | sed &#39;s/^ *//&#39;; echo &#34;local snapshots: $(tmutil listlocalsnapshots / 2&gt;/dev/null | grep -c com.apple)&#34;</code></td><td class="c-risk"><span class="badge" data-risk="read-only">Lecture seule</span></td></tr>
+                <tr><td class="c-id"><code>security</code></td><td class="c-name">Réglages de sécurité</td><td class="c-cmd"><code>echo &#39;== FileVault&#39;; diskutil apfs list 2&gt;/dev/null | grep -m1 FileVault | sed &#39;s/^ *//&#39;; echo &#39;== Firewall&#39;; /usr/libexec/ApplicationFirewall/socketfilterfw --getglobalstate; echo &#39;== Gatekeeper&#39;; spctl --status; echo &#39;== System Integrity Protection&#39;; csrutil status; echo &#39;== Automatic updates&#39;; softwareupdate --schedule; for k in AutomaticDownload AutomaticallyInstallMacOSUpdates CriticalUpdateInstall; do echo &#34;$k: $(defaults read /Library/Preferences/com.apple.SoftwareUpdate $k 2&gt;/dev/null || echo unset)&#34;; done</code></td><td class="c-risk"><span class="badge" data-risk="read-only">Lecture seule</span></td></tr>
+                <tr><td class="c-id"><code>dev-artifacts</code></td><td class="c-name">Stale project build folders</td><td class="c-cmd"><code>for d in ~/Dev ~/Developer ~/dev ~/Projects ~/projects ~/Code ~/code ~/src ~/work ~/Work ~/Sites ~/repos ~/git ~/Documents/GitHub; do [ -d &#34;$d&#34; ] &amp;&amp; echo &#34;$d&#34;; done | while read -r root; do find &#34;$root&#34; -maxdepth 6 -type d \( -name node_modules -o -name target -o -name .venv -o -name venv -o -name .next -o -name .nuxt -o -name .turbo -o -name Pods -o -name .gradle -o -name DerivedData -o -name .tox -o -name .parcel-cache \) -prune -mtime +60 -print0 2&gt;/dev/null; done | xargs -0 du -sk 2&gt;/dev/null | sort -rn | head -40</code></td><td class="c-risk"><span class="badge" data-risk="read-only">Lecture seule</span></td></tr>
+                <tr><td class="c-id"><code>shell-startup</code></td><td class="c-name">Shell startup time</td><td class="c-cmd"><code>for i in 1 2 3; do /usr/bin/time -p zsh -i -c exit 2&gt;&amp;1 | grep real; done</code></td><td class="c-risk"><span class="badge" data-risk="read-only">Lecture seule</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="tools-count" id="cat-count" role="status" aria-live="polite">Les premières étapes du catalogue macOS. Avec les scripts activés, la page charge le catalogue complet des trois systèmes.</p>
+        </div>
+        <p class="note">Les étapes marquées comme dangereuses attendent votre approbation, sauf si vous lancez omega avec <code>--yes</code>. topgrade et Mole sont des backends facultatifs : omega les utilise s'ils sont installés et peut s'en passer.</p>
+      </section>
+
+      <!-- 04 Safety -->
+      <section class="sec" id="safety" aria-labelledby="safety-t">
+        <header class="sec-head">
+          <p class="sec-no"><span>04</span>Sécurité</p>
+          <h2 id="safety-t">Chaque commande est classée avant de s'exécuter. Essayez la vôtre.</h2>
+          <p class="sec-sub">Les commandes composées sont découpées et vérifiées partie par partie, y compris à travers des enveloppes comme <code>env</code>, <code>sudo</code> et <code>sh -c</code>. Le risque le plus élevé l'emporte.</p>
+        </header>
+
+        <!-- The classifier is the binary's own, compiled to WebAssembly. Until
+             it loads, and without scripts, the examples carry the answer the
+             same code gave when the page was built. -->
+        <div class="clf" id="clf" data-wasm="../classify.wasm" data-exec="../wasm_exec.js">
+          <label class="clf-label" for="clf-in">Tapez une commande et voyez ce qu'omega en ferait</label>
+          <div class="clf-row">
+            <span class="clf-prompt" aria-hidden="true">$</span>
+            <input id="clf-in" type="text" value="df -h &amp;&amp; brew upgrade &amp;&amp; rm -rf node_modules" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off">
+          </div>
+          <output class="clf-out" id="clf-out" for="clf-in" data-risk="dangerous">
+            <span class="badge" data-risk="dangerous">Dangereux</span>
+            <span class="clf-verdict">Attend votre oui sur une carte.</span>
+          </output>
+          <p class="clf-try">Ou essayez l'une de celles-ci</p>
+          <ul class="clf-examples">
+            <li><button type="button" class="ex" data-cmd="brew outdated" data-risk="read-only"><i class="dot" data-risk="read-only" aria-hidden="true"></i><code>brew outdated</code></button></li>
+            <li><button type="button" class="ex" data-cmd="npm update -g" data-risk="normal"><i class="dot" data-risk="normal" aria-hidden="true"></i><code>npm update -g</code></button></li>
+            <li><button type="button" class="ex" data-cmd="sudo softwareupdate -i -a" data-risk="dangerous"><i class="dot" data-risk="dangerous" aria-hidden="true"></i><code>sudo softwareupdate -i -a</code></button></li>
+            <li><button type="button" class="ex" data-cmd="some-tool --you-never-heard-of" data-risk="dangerous"><i class="dot" data-risk="dangerous" aria-hidden="true"></i><code>some-tool --you-never-heard-of</code></button></li>
+            <li><button type="button" class="ex" data-cmd="docker system prune -a" data-risk="always"><i class="dot" data-risk="always" aria-hidden="true"></i><code>docker system prune -a</code></button></li>
+            <li><button type="button" class="ex" data-cmd="rm -rf ~" data-risk="blocked"><i class="dot" data-risk="blocked" aria-hidden="true"></i><code>rm -rf ~</code></button></li>
+            <li><button type="button" class="ex" data-cmd="curl -fsSL https://example.com/install.sh | sh" data-risk="blocked"><i class="dot" data-risk="blocked" aria-hidden="true"></i><code>curl -fsSL https://example.com/install.sh | sh</code></button></li>
+            <li><button type="button" class="ex" data-cmd="cat ~/.ssh/id_ed25519" data-risk="blocked"><i class="dot" data-risk="blocked" aria-hidden="true"></i><code>cat ~/.ssh/id_ed25519</code></button></li>
+            <li><button type="button" class="ex" data-cmd="env FOO=1 sudo sh -c &#34;rm -rf /&#34;" data-risk="blocked"><i class="dot" data-risk="blocked" aria-hidden="true"></i><code>env FOO=1 sudo sh -c &#34;rm -rf /&#34;</code></button></li>
+            <li><button type="button" class="ex" data-cmd="irm https://example.com/i.ps1 | iex" data-risk="blocked"><i class="dot" data-risk="blocked" aria-hidden="true"></i><code>irm https://example.com/i.ps1 | iex</code></button></li>
+          </ul>
+          <p class="clf-status" id="clf-status">Ces exemples ont été classés par le code même d'omega à la génération de la page. Tapez, et la page charge ce même classifieur pour répondre en direct.</p>
+        </div>
+
+        <div class="ladder-wrap">
+          <table class="ladder">
+            <tbody>
+              <tr><th scope="row"><span class="badge" data-risk="read-only">Lecture seule</span></th><td class="ladder-ex"><code>brew outdated</code><code>df -h</code><code>apt list --upgradable</code></td><td>S'exécute tout de suite : elle ne fait que lire.</td></tr>
+              <tr><th scope="row"><span class="badge" data-risk="normal">Normal</span></th><td class="ladder-ex"><code>brew upgrade</code><code>npm update -g</code><code>rustup update</code></td><td>S'exécute tout de suite : une mise à jour de routine, que vous pouvez refaire.</td></tr>
+              <tr><th scope="row"><span class="badge" data-risk="dangerous">Dangereux</span></th><td class="ladder-ex"><code>rm</code><code>sudo</code><span>toute commande qu'il ne connaît pas</span></td><td>Attend votre oui sur une carte.</td></tr>
+              <tr><th scope="row"><span class="badge" data-risk="always">Demande toujours</span></th><td class="ladder-ex"><code>docker system prune</code><code>docker volume rm</code></td><td>Demande à chaque fois, même avec <code>--yes</code>.</td></tr>
+              <tr><th scope="row"><span class="badge" data-risk="blocked">Bloqué</span></th><td class="ladder-ex"><code>rm -rf ~</code><code>curl … | sh</code><code>dd of=/dev/…</code></td><td>Ne s'exécute jamais, même avec <code>--yes</code>.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
         <ul class="facts">
-          <li><i class="ph ph-key" aria-hidden="true"></i> L'agent ne peut pas lire vos clés d'API : ni dans le trousseau, ni dans le Gestionnaire d'identification, ni dans un fichier de clés, ni dans une variable d'environnement</li>
-          <li><i class="ph ph-lock" aria-hidden="true"></i> Il ne peut ni changer de fournisseur ni assouplir sa propre politique d'approbation</li>
-          <li><i class="ph ph-keyboard" aria-hidden="true"></i> Les commandes s'exécutent avec stdin fermé, donc rien ne reste bloqué sur une invite cachée</li>
-          <li><i class="ph ph-floppy-disk" aria-hidden="true"></i> Les modifications de configuration affichent un diff et gardent une sauvegarde horodatée</li>
-          <li><i class="ph ph-file-text" aria-hidden="true"></i> Chaque exécution est journalisée, y compris ce que vous avez approuvé et refusé</li>
-          <li><i class="ph ph-arrow-counter-clockwise" aria-hidden="true"></i> Les changements apportés à votre Mac sont enregistrés et peuvent être annulés un par un</li>
+          <li>L'agent ne peut pas lire vos clés d'API : ni dans le trousseau, ni dans le Gestionnaire d'identification, ni dans un fichier de clés, ni dans une variable d'environnement</li>
+          <li>Il ne peut ni changer de fournisseur ni assouplir sa propre politique d'approbation</li>
+          <li>Les commandes s'exécutent avec stdin fermé, donc rien ne reste bloqué sur une invite cachée</li>
+          <li>Les modifications de configuration affichent un diff et gardent une sauvegarde horodatée</li>
+          <li>Chaque exécution est journalisée, y compris ce que vous avez approuvé et refusé</li>
+          <li>Les changements apportés à votre Mac sont enregistrés et peuvent être annulés un par un</li>
         </ul>
-      </div>
-    </section>
+      </section>
 
-    <!-- Models -->
-    <section class="section reveal" id="models" aria-labelledby="models-title">
-      <div class="container">
-        <div class="section-head">
-          <p class="kicker">Modèles</p>
-          <h2 class="section-title" id="models-title">Le modèle en qui vous avez confiance, à la taille que la tâche demande</h2>
-          <p class="section-sub">Automatique par défaut : un modèle rapide pour la routine, un plus puissant quand quelque chose échoue. Fixez un modèle avec <code>omega model</code>, ou changez-en en cours d'exécution avec <kbd>ctrl</kbd> <kbd>p</kbd>.</p>
-        </div>
+      <!-- 05 Models -->
+      <section class="sec" id="models" aria-labelledby="models-t">
+        <header class="sec-head">
+          <p class="sec-no"><span>05</span>Modèles</p>
+          <h2 id="models-t">Le modèle en qui vous avez confiance, à la taille que la tâche demande</h2>
+          <p class="sec-sub">Automatique par défaut : un modèle rapide pour la routine, un plus puissant quand quelque chose échoue. Fixez un modèle avec <code>omega model</code>, ou changez-en en cours d'exécution avec <kbd>ctrl</kbd> <kbd>p</kbd>.</p>
+        </header>
         <div class="split">
           <div>
-            <h3 class="card-title">Choisi d'après des données à jour, une fois par jour</h3>
-            <p class="panel-intro" style="margin-bottom:0">omega lit les prix publics et les scores de benchmark, garde les modèles que votre clé peut utiliser et en choisit deux.</p>
-            <ul class="rule">
+            <h3>Choisi d'après des données à jour, une fois par jour</h3>
+            <p>omega lit les prix publics et les scores de benchmark, garde les modèles que votre clé peut utiliser et en choisit deux.</p>
+            <ul class="rules">
               <li><strong>Rapide</strong>, pour la routine : le meilleur score par dollar parmi les modèles qui atteignent au moins 40% du meilleur score. Le prix pèse le plus.</li>
               <li><strong>Puissant</strong>, quand une étape échoue : le meilleur rapport qualité-prix parmi les modèles à moins de 20% du meilleur score. Le score pèse le plus.</li>
               <li>Un choix ne change que si un autre modèle le dépasse de plus de 10%, pour que deux modèles proches n'alternent pas.</li>
               <li><code>omega models</code> affiche le tableau. <code>omega config set model_catalog off</code> arrête le téléchargement.</li>
             </ul>
           </div>
-          <figure class="terminal" aria-label="Le tableau des modèles d&#39;omega models">
-            <div class="terminal-bar"><span></span><span></span><span></span><p>omega models</p></div>
-            <div class="terminal-body">
-<pre><span class="t-muted">  model              score   in  out $/M</span>
-  claude-fable-5-2    64.6   $8  $40
-  claude-opus-5-5     59.1   $4  $20
-<span class="t-accent">▸ claude-sonnet-5-5   54.5   $2  $10  smart</span>
-  claude-fable-5-1    50.0  $10  $50
-<span class="t-accent">▸ claude-haiku-5-5    36.5 $0.1 $0.5  fast</span></pre>
-            </div>
-            <figcaption class="sr-only">omega models liste chaque modèle avec son score de benchmark et son prix par million de jetons, et marque claude-haiku-5-5 comme choix rapide et claude-sonnet-5-5 comme choix puissant. Chiffres du 10 novembre 2026.</figcaption>
+          <figure class="listing">
+            <p class="listing-cmd"><span aria-hidden="true">$</span> omega models</p>
+            <table>
+              <thead><tr><th scope="col">model</th><th scope="col">score</th><th scope="col">in</th><th scope="col">out $/M</th><th scope="col"><span class="sr-only">pick</span></th></tr></thead>
+              <tbody>
+                <tr><td>claude-fable-5-2</td><td>64.6</td><td>$8</td><td>$40</td><td></td></tr>
+                <tr><td>claude-opus-5-5</td><td>59.1</td><td>$4</td><td>$20</td><td></td></tr>
+                <tr class="pick"><td>claude-sonnet-5-5</td><td>54.5</td><td>$2</td><td>$10</td><td>smart</td></tr>
+                <tr><td>claude-fable-5-1</td><td>50.0</td><td>$10</td><td>$50</td><td></td></tr>
+                <tr class="pick"><td>claude-haiku-5-5</td><td>36.5</td><td>$0.1</td><td>$0.5</td><td>fast</td></tr>
+              </tbody>
+            </table>
+            <figcaption>omega models liste chaque modèle avec son score de benchmark et son prix par million de jetons, et marque claude-haiku-5-5 comme choix rapide et claude-sonnet-5-5 comme choix puissant. Chiffres du 10 novembre 2026.</figcaption>
           </figure>
         </div>
-        <div class="grid grid-3" style="margin-top:var(--s-7)">
-          <article class="card provider">
-            <span class="provider-logo"><svg class="logo" aria-hidden="true"><use href="#logo-anthropic"/></svg></span>
-            <div><h3>Anthropic</h3><p>SDK Go officiel avec mise en cache de la conversation.</p></div>
-          </article>
-          <article class="card provider">
-            <span class="provider-logo"><svg class="logo" aria-hidden="true"><use href="#logo-openai"/></svg></span>
-            <div><h3>OpenAI</h3><p>Chat Completions avec appel d'outils.</p></div>
-          </article>
-          <article class="card provider">
-            <span class="provider-logo"><svg class="logo" aria-hidden="true"><use href="#logo-openrouter"/></svg></span>
-            <div><h3>OpenRouter</h3><p>Des centaines de modèles derrière une seule clé, comparés entre fournisseurs.</p></div>
-          </article>
-          <article class="card provider">
-            <span class="provider-logo"><svg class="logo" aria-hidden="true"><use href="#logo-opencode"/></svg></span>
-            <div><h3>OpenCode Zen</h3><p>Claude, Qwen, GLM, Kimi et d'autres.</p></div>
-          </article>
-          <article class="card provider">
-            <span class="provider-logo"><svg class="logo" aria-hidden="true"><use href="#logo-ollama"/></svg></span>
-            <div><h3>Ollama et LM Studio</h3><p>Entièrement local et gratuit. Rien ne quitte votre machine, hormis la documentation qu'il consulte.</p></div>
-          </article>
-          <article class="card provider">
-            <span class="provider-logo"><i class="ph ph-plugs-connected" aria-hidden="true"></i></span>
-            <div><h3>Tout point d'accès compatible</h3><p>MLX, llama.cpp, vLLM ou une passerelle d'entreprise via une URL de base.</p></div>
-          </article>
-        </div>
-      </div>
-    </section>
+        <ul class="providers">
+          <li><svg class="logo" aria-hidden="true"><use href="#logo-anthropic"/></svg><div><h3>Anthropic</h3><p>SDK Go officiel avec mise en cache de la conversation.</p></div></li>
+          <li><svg class="logo" aria-hidden="true"><use href="#logo-openai"/></svg><div><h3>OpenAI</h3><p>Chat Completions avec appel d'outils.</p></div></li>
+          <li><svg class="logo" aria-hidden="true"><use href="#logo-openrouter"/></svg><div><h3>OpenRouter</h3><p>Des centaines de modèles derrière une seule clé, comparés entre fournisseurs.</p></div></li>
+          <li><svg class="logo" aria-hidden="true"><use href="#logo-opencode"/></svg><div><h3>OpenCode Zen</h3><p>Claude, Qwen, GLM, Kimi et d'autres.</p></div></li>
+          <li><svg class="logo" aria-hidden="true"><use href="#logo-ollama"/></svg><div><h3>Ollama et LM Studio</h3><p>Entièrement local et gratuit. Rien ne quitte votre machine, hormis la documentation qu'il consulte.</p></div></li>
+          <li><svg class="logo" aria-hidden="true"><use href="#logo-lmstudio"/></svg><div><h3>Tout point d'accès compatible</h3><p>MLX, llama.cpp, vLLM ou une passerelle d'entreprise via une URL de base.</p></div></li>
+        </ul>
+      </section>
 
-    <!-- Numbers -->
-    <section class="section reveal" id="open" aria-labelledby="open-title">
-      <div class="container">
-        <div class="section-head">
-          <p class="kicker">Open source</p>
-          <h2 class="section-title" id="open-title">Développé au grand jour</h2>
-          <p class="section-sub">Lisez chaque ligne avant de l'exécuter : <a class="link" href="https://github.com/lcajigasm/omega">github.com/lcajigasm/omega</a></p>
+      <!-- 06 Platforms -->
+      <section class="sec" id="platforms" aria-labelledby="platforms-t">
+        <header class="sec-head">
+          <p class="sec-no"><span>06</span>Plateformes</p>
+          <h2 id="platforms-t">Il connaît le système sur lequel il tourne</h2>
+          <p class="sec-sub">Le même agent sous macOS, Linux et Windows, avec les étapes propres à chaque système. Sur un Mac, il revoit aussi ce qui tourne en dehors des apps que vous ouvrez.</p>
+        </header>
+        <div data-tabs data-follow-os>
+          <div class="tabs" role="tablist" aria-label="Plateforme">
+            <button class="tab" type="button" role="tab" aria-selected="true" aria-controls="panel-mac" id="ptab-mac" data-os="darwin">macOS</button>
+            <button class="tab" type="button" role="tab" aria-selected="false" aria-controls="panel-linux" id="ptab-linux" data-os="linux">Linux</button>
+            <button class="tab" type="button" role="tab" aria-selected="false" aria-controls="panel-windows" id="ptab-windows" data-os="windows">Windows</button>
+            <button class="tab" type="button" role="tab" aria-selected="false" aria-controls="panel-dev" id="ptab-dev">Outils de développement</button>
+          </div>
+          <div class="panel" role="tabpanel" id="panel-mac" aria-labelledby="ptab-mac">
+            <p class="panel-intro">Les apps s'ajoutent à l'ouverture de session, gardent des utilitaires en arrière-plan, s'approprient des raccourcis que d'autres apps utilisent déjà et laissent des autorisations et des fichiers derrière elles en partant. <code>omega mac</code> revoit tout cela, vous interroge sur des cartes et n'applique que ce que vous choisissez. Chaque changement peut être annulé.</p>
+            <dl class="defs">
+              <div><dt>omega mac login</dt><dd>Les apps qui s'ouvrent à la connexion : les outils de mise à jour et les apps que vous ouvrez au besoin s'en vont ; VPN, sécurité et synchronisation restent</dd></div>
+              <div><dt>omega mac background</dt><dd>Agents de lancement, daemons et utilitaires d'apps, y compris les restes d'apps désinstallées</dd></div>
+              <div><dt>omega mac menubar</dt><dd>Apps de la barre des menus : les quitter, les retirer de l'ouverture ou les masquer avec Bartender, Ice ou Thaw</dd></div>
+              <div><dt>omega mac dock</dt><dd>Les apps qui ne sont plus installées ou pas ouvertes depuis 90 jours, et les réglages du Dock que vous préférez</dd></div>
+              <div><dt>omega mac shortcuts</dt><dd>Qui garde chaque raccourci disputé ; les autres passent à un raccourci libre</dd></div>
+              <div><dt>omega mac permissions</dt><dd>Les entrées de Confidentialité &amp; sécurité dont le binaire ou l'app a disparu, chacune nommée avec sa version pour distinguer les copies</dd></div>
+              <div><dt>omega mac apps</dt><dd>Les apps pas ouvertes depuis 180 jours, les apps conçues uniquement pour Intel, et ce que les apps supprimées ont laissé dans <code>~/Library</code></dd></div>
+            </dl>
+          </div>
+          <div class="panel" role="tabpanel" id="panel-linux" aria-labelledby="ptab-linux" hidden>
+            <p class="panel-intro">Sous Debian, Ubuntu, Fedora, Arch, openSUSE et leurs dérivées, omega sait sur quelle distribution il tourne et utilise son gestionnaire de paquets. Les étapes qui ont besoin de <code>sudo</code> attendent votre approbation et demandent le mot de passe dans l'interface.</p>
+            <dl class="defs">
+              <div><dt>paquets</dt><dd>Vérifier, mettre à jour et nettoyer avec <code>apt</code>, <code>dnf</code>, <code>pacman</code> ou <code>zypper</code>, y compris les paquets orphelins et le cache de paquets</dd></div>
+              <div><dt>flatpak, snap</dt><dd>Mises à jour, runtimes inutilisés et anciennes révisions de snap</dd></div>
+              <div><dt>journal, disque</dt><dd>Unités en échec, erreurs depuis le démarrage, core dumps, taille du journal, <code>~/.cache</code> et la Corbeille</dd></div>
+              <div><dt>clés</dt><dd>Dans le trousseau du système (GNOME Keyring, KWallet) ou, sur un serveur qui n'en a pas, dans un fichier que vous seul pouvez lire. omega indique lequel</dd></div>
+              <div><dt>homebrew</dt><dd>Avec Homebrew sous Linux, les étapes <code>brew</code> fonctionnent comme sur un Mac</dd></div>
+            </dl>
+            <h3 class="limits-title">Bon à savoir</h3>
+            <ul class="limits">
+              <li>La revue du Mac (omega mac) et les étapes propres au Mac n'existent pas sous Linux, et omega le dit</li>
+              <li>Sans apt, dnf, pacman ni zypper (Alpine, NixOS, Void), les étapes de paquets système n'apparaissent pas</li>
+              <li>Les systèmes immuables comme Fedora Silverblue ne sont pas encore pris en charge</li>
+              <li>Dans WSL, omega est cette version Linux</li>
+            </ul>
+          </div>
+          <div class="panel" role="tabpanel" id="panel-windows" aria-labelledby="ptab-windows" hidden>
+            <p class="panel-intro">Sous Windows 10 et 11, omega exécute ses commandes dans PowerShell et utilise les gestionnaires de paquets que les développeurs Windows ont déjà. Il n'élève jamais ses propres droits : les étapes qui demandent des droits d'administrateur fonctionnent si vous avez ouvert le terminal en tant qu'administrateur.</p>
+            <dl class="defs">
+              <div><dt>paquets</dt><dd>Vérifier et mettre à jour avec <code>winget</code>, <code>Scoop</code> et <code>Chocolatey</code>, chacun affiché seulement s'il est installé</dd></div>
+              <div><dt>windows</dt><dd>Liste les mises à jour Windows en attente, examine le journal des événements à la recherche d'erreurs, de services en échec et de plantages, et met à jour WSL</dd></div>
+              <div><dt>nettoyage</dt><dd>Fichiers temporaires, Corbeille, anciennes versions de Scoop et magasin de composants Windows</dd></div>
+              <div><dt>clés</dt><dd>Dans le Gestionnaire d'identification de Windows, protégées par votre session</dd></div>
+              <div><dt>outils de dév</dt><dd><code>omega dev install</code> avec Scoop ou winget, et les mêmes étapes d'outils de développement qu'ailleurs</dd></div>
+            </dl>
+            <h3 class="limits-title">Bon à savoir</h3>
+            <ul class="limits">
+              <li>La politique de sécurité lit PowerShell : une suppression visant un lecteur ou les dossiers de Windows, ou un téléchargement redirigé vers iex, ne s'exécute jamais</li>
+              <li>L'installation des mises à jour Windows, comme tout redémarrage, est laissée à Windows Update</li>
+              <li>La revue du Mac (omega mac) n'existe pas sous Windows, et omega le dit</li>
+              <li>omega ne fait pas de « debloat » de Windows et ne désactive ni Defender, ni le pare-feu, ni l'UAC</li>
+            </ul>
+          </div>
+          <div class="panel" role="tabpanel" id="panel-dev" aria-labelledby="ptab-dev" hidden>
+            <p class="panel-intro">Les langages et les gestionnaires de versions s'accumulent : deux d'entre eux qui gèrent Node, une commande qui pointe vers la mauvaise copie, une entrée du <code>PATH</code> qui ne mène nulle part. <code>omega dev</code> montre ce qui est installé et qui l'a installé, et corrige ce que vous choisissez. Sur les trois systèmes.</p>
+            <dl class="defs">
+              <div><dt>omega dev status</dt><dd>Ce qui est installé, par quel gestionnaire, et ce qui ressort : gestionnaires de versions qui se chevauchent, commandes masquées, <code>PATH</code> cassé, temps de démarrage du shell</dd></div>
+              <div><dt>omega dev install</dt><dd>Choisissez sur une carte ou nommez les outils : plus de 70 langages, gestionnaires de versions et outils en ligne de commande, installés avec Homebrew, les paquets de votre distribution, Scoop ou winget</dd></div>
+              <div><dt>omega dev activate</dt><dd>Ajoute la ligne dont un outil a besoin à <code>~/.zshrc</code>, ou à <code>~/.bashrc</code> pour bash, après avoir enregistré une copie du fichier</dd></div>
+              <div><dt>omega dev</dt><dd>La revue guidée : l'agent lit l'inventaire, explique chaque constat et applique ce que vous approuvez</dd></div>
+            </dl>
+          </div>
         </div>
-        <div class="stats">
-          <div class="stat"><p class="stat-num">90</p><p class="stat-label">étapes de maintenance sous Linux, 78 sous macOS, 64 sous Windows</p></div>
-          <div class="stat"><p class="stat-num">25</p><p class="stat-label">outils ciblés à la disposition de l'agent, rien de plus</p></div>
-          <div class="stat"><p class="stat-num">5</p><p class="stat-label">langues d'interface, vérifiées par des tests</p></div>
-          <div class="stat"><p class="stat-num">&lt;1¢</p><p class="stat-label">pour une exécution type avec le modèle automatique</p></div>
-        </div>
-      </div>
-    </section>
+      </section>
 
-    <!-- FAQ -->
-    <section class="section reveal" id="faq" aria-labelledby="faq-title">
-      <div class="container">
-        <div class="section-head">
-          <p class="kicker">FAQ</p>
-          <h2 class="section-title" id="faq-title">Questions</h2>
+      <!-- 07 Interface: the terminal and the app, in captures of both. -->
+      <section class="sec" id="interface" aria-labelledby="interface-t">
+        <header class="sec-head">
+          <p class="sec-no"><span>07</span>Interface</p>
+          <h2 id="interface-t">Un agent, deux visages</h2>
+        </header>
+        <div data-tabs>
+          <div class="tabs" role="tablist" aria-label="Interface">
+            <button class="tab" type="button" role="tab" aria-selected="true" aria-controls="terminal" id="itab-term">Terminal</button>
+            <button class="tab" type="button" role="tab" aria-selected="false" aria-controls="app" id="itab-app">App de bureau</button>
+          </div>
+          <div class="panel" role="tabpanel" id="terminal" aria-labelledby="itab-term">
+            <p class="panel-intro">Une interface plein écran : les appels d'outils en direct, un panneau de session avec les étapes, le disque et le coût, et une carte pour chaque décision.</p>
+            <div class="plates" data-plates>
+              <figure class="plate"><img src="../assets/confirm.png" width="1280" height="820" loading="lazy" alt="omega diagnostique une mise à jour pipx en échec, passe à un modèle plus puissant et demande avant de réinstaller ; à droite, un panneau de session montre les étapes, le disque et les jetons"><figcaption>Un échec est diagnostiqué avec un modèle plus puissant, puis le correctif attend votre approbation. Le panneau de droite suit la session.</figcaption></figure>
+              <figure class="plate"><img src="../assets/card.png" width="1280" height="820" loading="lazy" alt="Une carte de sélection avec trois actions de nettoyage cochées et l&#39;espace que chacune libère"><figcaption>Des recommandations sur une carte : cochez ce que vous voulez, omega fait exactement cela.</figcaption></figure>
+              <figure class="plate"><img src="../assets/menu.png" width="1280" height="820" loading="lazy" alt="L&#39;écran d&#39;accueil : espace disque, modèle et toutes les commandes d&#39;omega regroupées par domaine"><figcaption>L'écran d'accueil liste toutes les commandes. Entrée ouvre ou lance, taper lance une recherche.</figcaption></figure>
+              <figure class="plate"><img src="../assets/docker-confirm.png" width="1280" height="820" loading="lazy" alt="Un nettoyage du cache de build Docker, qui demande toujours confirmation"><figcaption>Les nettoyages Docker demandent toujours, même quand tout le reste est approuvé.</figcaption></figure>
+              <figure class="plate"><img src="../assets/model.png" width="1280" height="560" loading="lazy" alt="Le sélecteur de modèle, qui liste les modèles proposés par un fournisseur"><figcaption>Choisissez un modèle sur une carte, ou laissez omega choisir.</figcaption></figure>
+              <figure class="plate"><img src="../assets/summary.png" width="1280" height="820" loading="lazy" alt="Le résumé en fin de session : ce qui a été mis à jour, ce qui a été libéré et ce qui a échoué"><figcaption>Chaque session se termine par ce qui a changé, ce qu'elle a libéré et ce qu'elle a coûté.</figcaption></figure>
+            </div>
+            <p class="note">Enregistré à partir du binaire <code>omega</code> par <code>scripts/capture.sh</code>, avec <code>omega --demo</code> et un modèle de test local ; aucune API payante.</p>
+
+            <h3 class="sub">Pilotez-le au clavier</h3>
+            <div class="split">
+              <dl class="keys">
+                <div><dt><kbd>?</kbd></dt><dd>Affiche ou masque la carte des raccourcis, sans quitter l'exécution</dd></div>
+                <div><dt><kbd>shift</kbd> <kbd>tab</kbd></dt><dd>Change le mode d'approbation : demande avant les actions risquées, approbation automatique, lecture seule</dd></div>
+                <div><dt><kbd>ctrl</kbd> <kbd>p</kbd></dt><dd>Passe au modèle suivant de l'exécution, dès le prochain tour</dd></div>
+                <div><dt><kbd>ctrl</kbd> <kbd>b</kbd></dt><dd>Affiche ou masque le panneau de session</dd></div>
+                <div><dt><kbd>ctrl</kbd> <kbd>o</kbd></dt><dd>Déplie ou replie la sortie de chaque appel d'outil</dd></div>
+                <div><dt><kbd>ctrl</kbd> <kbd>f</kbd></dt><dd>Cherche dans l'historique</dd></div>
+                <div><dt><kbd>ctrl</kbd> <kbd>y</kbd></dt><dd>Copie la sortie de l'outil sélectionné</dd></div>
+                <div><dt><kbd>ctrl</kbd> <kbd>c</kbd></dt><dd>Annule l'exécution et quitte</dd></div>
+              </dl>
+              <div>
+                <div class="slash" aria-label="Commandes slash">
+                  <code>/update</code><code>/clean</code><code>/analyze</code><code>/health</code><code>/tune</code><code>/fix</code><code>/docker</code><code>/dev</code><code>/install</code><code>/disk</code><code>/logs</code><code>/shell</code><code>/steps</code><code>/mac</code><code>/permissions</code><code>/apps</code><code>/login</code><code>/dock</code><code>/shortcuts</code><code>/undo</code><code>/models</code><code>/settings</code><code>/notes</code><code>/history</code><code>/doctor</code><code>/mode</code><code>/model</code><code>/help</code>
+                </div>
+                <p class="note">Tapez <kbd>/</kbd> dans la zone de saisie pour ouvrir le menu des commandes : chacune lance une autre tâche dans la même session, avec une description au fil de la frappe.</p>
+                <!-- The player and the recording load when this is opened. -->
+                <details class="cast" data-cast="../assets/shortcuts.cast">
+                  <summary><svg class="ico" aria-hidden="true"><use href="#i-play"/></svg>Voir une session enregistrée : l'aide, Échap et un refus</summary>
+                  <div class="cast-body"></div>
+                </details>
+              </div>
+            </div>
+          </div>
+          <div class="panel" role="tabpanel" id="app" aria-labelledby="itab-app" hidden>
+            <p class="panel-intro">Pour les moments où vous n'avez pas envie d'un terminal. L'app exécute les mêmes tâches avec la même politique de sécurité, la même configuration et les mêmes clés que la commande, sous macOS, Linux et Windows. Les approbations, les cartes de sélection et le mot de passe sudo arrivent sous forme de cartes dans la fenêtre. Ce que la ligne de commande apprend d'une exécution à l'autre, l'app le sait aussi. La vue Outils lance les vérifications qui n'ont besoin ni de modèle ni de clé : réseau, clés SSH, secrets exposés, disque et dépôts.</p>
+            <div class="plates" data-plates>
+              <figure class="plate"><img src="../assets/gui-confirm.png" width="1780" height="1140" loading="lazy" alt="L&#39;app omega pendant une maintenance complète : les étapes avec leur résultat, une étape pipx en échec diagnostiquée avec un modèle plus puissant, et une carte qui demande avant d&#39;exécuter le correctif"><figcaption>Les étapes à mesure qu'elles se terminent, un échec diagnostiqué avec un modèle plus puissant, et le correctif qui attend votre approbation.</figcaption></figure>
+              <figure class="plate"><img src="../assets/gui-home.png" width="1780" height="1140" loading="lazy" alt="L&#39;écran d&#39;accueil de l&#39;app : les tâches sous forme de boutons et un champ pour dire ce qu&#39;il vous faut"><figcaption>Choisissez une tâche, ou dites ce qu'il vous faut avec vos mots.</figcaption></figure>
+              <figure class="plate"><img src="../assets/gui-card.png" width="1780" height="1140" loading="lazy" alt="Une carte de sélection dans l&#39;app, avec des actions de nettoyage cochées et l&#39;espace que chacune libère"><figcaption>Cochez les nettoyages que vous voulez. omega fait exactement ceux-là.</figcaption></figure>
+              <figure class="plate"><img src="../assets/gui-summary.png" width="1780" height="1140" loading="lazy" alt="La fin d&#39;une session dans l&#39;app : ce qui a été mis à jour, réparé et libéré, avec les jetons et le coût en dessous"><figcaption>La session se termine par ce qui a changé, et reste ouverte pour une suite.</figcaption></figure>
+              <figure class="plate"><img src="../assets/gui-output.png" width="1780" height="1140" loading="lazy" alt="Une étape en échec ouverte dans l&#39;app, avec la sortie de la commande et l&#39;erreur"><figcaption>Ouvrez n'importe quelle étape pour lire ce que la commande a affiché.</figcaption></figure>
+              <figure class="plate"><img src="../assets/gui-setup.png" width="1780" height="1140" loading="lazy" alt="L&#39;écran de configuration de l&#39;app, qui liste les fournisseurs et un champ pour la clé d&#39;API"><figcaption>Choisissez un fournisseur et collez sa clé. Elle est vérifiée avant d'être rangée dans le trousseau.</figcaption></figure>
+            </div>
+            <p class="note">Enregistré à partir de l'app par <code>scripts/capture_gui.mjs</code>, en mode démo : aucune API payante et aucune commande réelle.</p>
+            <div class="pair">
+              <div><h3>Légère pour la machine</h3><p>Elle s'affiche avec la webview que le système possède déjà : le téléchargement pèse environ 25 MB et n'embarque aucun navigateur.</p></div>
+              <div><h3>Pas encore signée</h3><p>Les builds ne portent aucune signature Apple ni Microsoft. Sous macOS, lancez <code>xattr -dr com.apple.quarantine /Applications/Omega.app</code> une fois après l'installation. Sous Windows, choisissez « Informations complémentaires », puis « Exécuter quand même ». Sous Linux, il faut GTK 4 et WebKitGTK 6.0.</p></div>
+            </div>
+            <p class="actions">
+              <a class="btn btn-ink" href="https://github.com/lcajigasm/omega/releases/latest/download/omega-macos-universal.dmg"><svg class="ico" aria-hidden="true"><use href="#i-down"/></svg>Télécharger pour macOS</a>
+              <a class="btn btn-line" href="https://github.com/lcajigasm/omega/releases/latest">Windows (.zip)</a>
+              <a class="btn btn-line" href="https://github.com/lcajigasm/omega/releases/latest">Linux (.tar.gz)</a>
+            </p>
+            <p class="note">L'image disque fonctionne sous macOS 13 ou ultérieur, sur Apple Silicon et Intel. Pour Windows et Linux, prenez l'archive <code>omega-gui</code> pour amd64 ou arm64 dans la version publiée.</p>
+          </div>
         </div>
+      </section>
+
+      <!-- 08 Install -->
+      <section class="sec" id="install" aria-labelledby="install-t">
+        <header class="sec-head">
+          <p class="sec-no"><span>08</span>Installer</p>
+          <h2 id="install-t">Commencez par un rapport qui ne change rien</h2>
+          <p class="sec-sub">Gratuit et open source, sous licence MIT. <code>omega analyze</code> est en lecture seule : vous voyez ce qu'il ferait avant de le laisser faire quoi que ce soit.</p>
+        </header>
+
+        <ol class="procedure" aria-label="Prêt en trois commandes">
+          <li><h3>Connectez un modèle</h3><p>La configuration demande votre fournisseur, range la clé là où votre système garde ses secrets (trousseau, Gestionnaire d'identification ou trousseau Linux) et vous laisse choisir un modèle.</p><code>omega setup</code></li>
+          <li><h3>Commencez par un rapport</h3><p>Analyze est en lecture seule. Vous voyez l'occupation du disque, les logiciels obsolètes et les problèmes de configuration avant le moindre changement.</p><code>omega analyze</code></li>
+          <li><h3>Laissez-le faire la maintenance</h3><p>Mises à jour, nettoyage et résumé, avec votre approbation pour tout ce qui est risqué. Ou suivez le parcours guidé complet.</p><code>omega</code> <code>omega full</code></li>
+        </ol>
+
+        <div class="get">
+          <article>
+            <h3>Homebrew, sous macOS et Linux</h3>
+            <pre><code>brew install lcajigasm/tap/omega
+omega setup
+omega analyze</code></pre>
+            <p>Si omega venait de l'ancien tap, lancez <code>brew update &amp;&amp; brew upgrade omega</code> pour que Homebrew suive la migration, ou réinstallez depuis <code>lcajigasm/tap</code>.</p>
+            <button class="btn btn-ink copy-btn" type="button" data-copy="brew install lcajigasm/tap/omega"><svg class="ico" aria-hidden="true"><use href="#i-copy"/></svg><span class="copy-label">Copier la commande d'installation</span></button>
+          </article>
+          <article>
+            <h3>Windows 10 et 11</h3>
+            <pre><code>Expand-Archive omega_*_windows_amd64.zip `
+  -DestinationPath "$env:LOCALAPPDATA\Programs\omega"
+# ajoutez ce dossier à votre PATH, puis :
+omega setup</code></pre>
+            <p>Prenez le zip pour amd64 ou arm64 dans la version publiée. omega s'exécute dans PowerShell ; Windows Terminal est recommandé.</p>
+            <a class="btn btn-line" href="https://github.com/lcajigasm/omega/releases/latest"><svg class="ico" aria-hidden="true"><use href="#i-down"/></svg>Télécharger le zip</a>
+          </article>
+          <article>
+            <h3>Linux sans Homebrew</h3>
+            <pre><code>tar -xzf omega_*_linux_amd64.tar.gz   # ou linux_arm64
+sha256sum -c SHA256SUMS --ignore-missing
+sudo install -m 755 omega /usr/local/bin/omega</code></pre>
+            <p>Chaque version propose des archives pour macOS, Linux et Windows, amd64 et arm64, avec leurs sommes de contrôle.</p>
+            <a class="btn btn-line" href="https://github.com/lcajigasm/omega/releases/latest"><svg class="ico" aria-hidden="true"><use href="#i-down"/></svg>Télécharger depuis GitHub Releases</a>
+          </article>
+        </div>
+        <p class="copy-status" role="status" aria-live="polite"></p>
+
+        <h3 class="sub" id="install-app">L'app de bureau</h3>
+        <div class="get">
+          <article>
+            <h3>macOS 13 ou ultérieur</h3>
+            <pre><code>brew install --cask lcajigasm/tap/omega-app
+xattr -dr com.apple.quarantine /Applications/Omega.app</code></pre>
+            <p>Ou ouvrez l'image disque et faites glisser Omega dans Applications. La deuxième ligne est nécessaire une seule fois, car l'app n'est pas encore notarisée.</p>
+            <a class="btn btn-ink" href="https://github.com/lcajigasm/omega/releases/latest/download/omega-macos-universal.dmg"><svg class="ico" aria-hidden="true"><use href="#i-down"/></svg>Télécharger l'image disque</a>
+          </article>
+          <article>
+            <h3>Windows 10 et 11</h3>
+            <pre><code>Expand-Archive omega-gui_*_windows_amd64.zip `
+  -DestinationPath "$env:LOCALAPPDATA\Programs\omega"
+# puis ouvrez omega-gui.exe</code></pre>
+            <p>Prenez le zip <code>omega-gui</code> pour amd64 ou arm64 dans la version publiée. SmartScreen avertit au premier lancement : choisissez « Informations complémentaires », puis « Exécuter quand même ».</p>
+            <a class="btn btn-line" href="https://github.com/lcajigasm/omega/releases/latest"><svg class="ico" aria-hidden="true"><use href="#i-down"/></svg>Télécharger le zip</a>
+          </article>
+          <article>
+            <h3>Linux</h3>
+            <pre><code>tar -xzf omega-gui_*_linux_amd64.tar.gz   # ou linux_arm64
+./omega-gui</code></pre>
+            <p>Il faut GTK 4 et WebKitGTK 6.0, que les distributions de bureau actuelles fournissent : <code>libgtk-4-1</code> et <code>libwebkitgtk-6.0-4</code> sous Debian et Ubuntu.</p>
+            <a class="btn btn-line" href="https://github.com/lcajigasm/omega/releases/latest"><svg class="ico" aria-hidden="true"><use href="#i-down"/></svg>Télécharger l'archive</a>
+          </article>
+        </div>
+        <p class="note">L'app et la commande s'installent séparément et partagent leur configuration et leurs clés d'API. Installez les deux, ou une seule.</p>
+      </section>
+
+      <!-- 09 FAQ -->
+      <section class="sec" id="faq" aria-labelledby="faq-t">
+        <header class="sec-head">
+          <p class="sec-no"><span>09</span>FAQ</p>
+          <h2 id="faq-t">Questions</h2>
+        </header>
         <div class="faq">
           <details><summary><span>omega remplace-t-il topgrade et Mole ?</span></summary><p>Pour une machine de développement classique, oui. omega a ses propres étapes pour Homebrew, le Mac App Store et macOS sur un Mac, pour apt, dnf, pacman, zypper, Flatpak et snap sous Linux, et sur les deux pour npm, pnpm, bun, pipx, uv, rustup, cargo, les extensions gh, Oh My Zsh, les caches, Docker et la Corbeille. Si topgrade ou Mole sont installés, il les utilise aussi et peut réparer leur configuration avec <code>omega fix</code>.</p></details>
           <details><summary><span>Qu'est-ce qu'omega envoie au fournisseur d'IA ?</span></summary><p>Ses instructions, la sortie abrégée des commandes qu'il exécute et les fichiers de configuration qu'il lit. Il a pour consigne de ne jamais ouvrir vos documents. Chaque exécution est journalisée dans <code>~/.local/state/omega/runs</code>. <code>omega logs</code> liste ces journaux et <code>omega logs view</code> en affiche un. omega garde les 30 plus récents.</p></details>
@@ -958,81 +881,16 @@ omega full</code></pre>
           <details><summary><span>Où sont stockées mes clés d'API ?</span></summary><p>Dans le trousseau macOS, sous le service <code>omega-cli</code>. Sous Windows, dans le Gestionnaire d'identification. Sous Linux, dans le trousseau du système (Secret Service) quand il y en a un qui répond, sinon dans <code>~/.config/omega/keys</code>, un fichier que vous seul pouvez lire ; omega indique lequel il a utilisé. Les variables d'environnement comme <code>ANTHROPIC_API_KEY</code> sont prioritaires quand elles sont définies.</p></details>
           <details><summary><span>Quelles langues l'interface prend-elle en charge ?</span></summary><p>Anglais, espagnol, français, allemand et portugais, dans la commande, dans l'app de bureau et sur ce site. omega suit la langue de votre système, et vous pouvez la remplacer avec <code>omega config set language</code>. L'agent répond dans la même langue.</p></details>
         </div>
-      </div>
-    </section>
-
-    <!-- Install -->
-    <section class="section final reveal" id="install" aria-labelledby="final-title">
-      <div class="container">
-        <div class="section-head">
-          <p class="kicker">Installer</p>
-          <h2 class="section-title" id="final-title">Commencez par un rapport qui ne change rien</h2>
-          <p class="section-sub">Gratuit et open source, sous licence MIT. <code>omega analyze</code> est en lecture seule : vous voyez ce qu'il ferait avant de le laisser faire quoi que ce soit.</p>
-        </div>
-        <div class="get get-3">
-          <article class="card">
-            <h3 class="card-title"><i class="ph ph-beer-bottle" aria-hidden="true"></i> Homebrew, sous macOS et Linux</h3>
-            <pre><code>brew install lcajigasm/tap/omega
-omega setup
-omega analyze</code></pre>
-            <p>Si omega venait de l'ancien tap, lancez <code>brew update &amp;&amp; brew upgrade omega</code> pour que Homebrew suive la migration, ou réinstallez depuis <code>lcajigasm/tap</code>.</p>
-            <button class="btn btn-primary copy-btn" type="button" data-copy="brew install lcajigasm/tap/omega"><i class="ph ph-copy" aria-hidden="true"></i><span class="copy-label">Copier la commande d'installation</span></button>
-          </article>
-          <article class="card">
-            <h3 class="card-title"><i class="ph ph-windows-logo" aria-hidden="true"></i> Windows 10 et 11</h3>
-            <pre><code>Expand-Archive omega_*_windows_amd64.zip `
-  -DestinationPath "$env:LOCALAPPDATA\Programs\omega"
-# ajoutez ce dossier à votre PATH, puis :
-omega setup</code></pre>
-            <p>Prenez le zip pour amd64 ou arm64 dans la version publiée. omega s'exécute dans PowerShell ; Windows Terminal est recommandé.</p>
-            <a class="btn btn-ghost" href="https://github.com/lcajigasm/omega/releases/latest"><i class="ph ph-download-simple" aria-hidden="true"></i> Télécharger le zip</a>
-          </article>
-          <article class="card">
-            <h3 class="card-title"><i class="ph ph-linux-logo" aria-hidden="true"></i> Linux sans Homebrew</h3>
-            <pre><code>tar -xzf omega_*_linux_amd64.tar.gz   # ou linux_arm64
-sha256sum -c SHA256SUMS --ignore-missing
-sudo install -m 755 omega /usr/local/bin/omega</code></pre>
-            <p>Chaque version propose des archives pour macOS, Linux et Windows, amd64 et arm64, avec leurs sommes de contrôle.</p>
-            <a class="btn btn-ghost" href="https://github.com/lcajigasm/omega/releases/latest"><i class="ph ph-download-simple" aria-hidden="true"></i> Télécharger depuis GitHub Releases</a>
-          </article>
-        </div>
-        <p class="copy-status" role="status" aria-live="polite"></p>
-
-        <h3 class="subhead" id="install-app">L'app de bureau</h3>
-        <div class="get get-3">
-          <article class="card">
-            <h3 class="card-title"><i class="ph ph-apple-logo" aria-hidden="true"></i> macOS 13 ou ultérieur</h3>
-            <pre><code>brew install --cask lcajigasm/tap/omega-app
-xattr -dr com.apple.quarantine /Applications/Omega.app</code></pre>
-            <p>Ou ouvrez l'image disque et faites glisser Omega dans Applications. La deuxième ligne est nécessaire une seule fois, car l'app n'est pas encore notarisée.</p>
-            <a class="btn btn-primary" href="https://github.com/lcajigasm/omega/releases/latest/download/omega-macos-universal.dmg"><i class="ph ph-download-simple" aria-hidden="true"></i> Télécharger l'image disque</a>
-          </article>
-          <article class="card">
-            <h3 class="card-title"><i class="ph ph-windows-logo" aria-hidden="true"></i> Windows 10 et 11</h3>
-            <pre><code>Expand-Archive omega-gui_*_windows_amd64.zip `
-  -DestinationPath "$env:LOCALAPPDATA\Programs\omega"
-# puis ouvrez omega-gui.exe</code></pre>
-            <p>Prenez le zip <code>omega-gui</code> pour amd64 ou arm64 dans la version publiée. SmartScreen avertit au premier lancement : choisissez « Informations complémentaires », puis « Exécuter quand même ».</p>
-            <a class="btn btn-ghost" href="https://github.com/lcajigasm/omega/releases/latest"><i class="ph ph-download-simple" aria-hidden="true"></i> Télécharger le zip</a>
-          </article>
-          <article class="card">
-            <h3 class="card-title"><i class="ph ph-linux-logo" aria-hidden="true"></i> Linux</h3>
-            <pre><code>tar -xzf omega-gui_*_linux_amd64.tar.gz   # ou linux_arm64
-./omega-gui</code></pre>
-            <p>Il faut GTK 4 et WebKitGTK 6.0, que les distributions de bureau actuelles fournissent : <code>libgtk-4-1</code> et <code>libwebkitgtk-6.0-4</code> sous Debian et Ubuntu.</p>
-            <a class="btn btn-ghost" href="https://github.com/lcajigasm/omega/releases/latest"><i class="ph ph-download-simple" aria-hidden="true"></i> Télécharger l'archive</a>
-          </article>
-        </div>
-        <p class="note">L'app et la commande s'installent séparément et partagent leur configuration et leurs clés d'API. Installez les deux, ou une seule.</p>
-      </div>
-    </section>
-  </main>
+      </section>
+    </main>
+  </div>
 
   <footer class="footer">
-    <div class="container footer-inner">
-      <p class="brand"><span class="brand-mark" aria-hidden="true">Ω</span> omega</p>
+    <div class="footer-in">
+      <p class="brand"><span class="brand-mark" aria-hidden="true">Ω</span><span>omega</span></p>
       <ul class="footer-links">
         <li><a href="https://github.com/lcajigasm/omega">GitHub</a></li>
+        <li><a href="https://github.com/lcajigasm/omega/blob/main/docs/manual/README.md">Manuel</a></li>
         <li><a href="https://github.com/lcajigasm/omega/releases">Versions</a></li>
         <li><a href="https://github.com/lcajigasm/homebrew-tap">Tap Homebrew</a></li>
         <li><a href="privacy.html">Confidentialité</a></li>
@@ -1049,6 +907,6 @@ xattr -dr com.apple.quarantine /Applications/Omega.app</code></pre>
     </div>
   </footer>
 
-  <script src="../main.js?v=18"></script>
+  <script src="../main.js?v=20"></script>
 </body>
 </html>

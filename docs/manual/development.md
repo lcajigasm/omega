@@ -97,6 +97,21 @@ string, and when a translation changes a command, a key or the markup.
 The styles, the script and the captures (`docs/styles.css`, `docs/main.js`,
 `docs/assets/`) are shared by every language and edited in place.
 
+Two parts of the page come from the program itself, not from the tables.
+The step catalogue (`docs/catalog.json` and one per language) is
+`internal/steps` written out, with each step's command and risk, so it
+changes when the catalogue does. The risk examples are classified by
+`internal/safety` when the page is built, and the box where a visitor types
+a command runs that same package in the browser: `make site` compiles
+`internal/site/wasm` to `docs/classify.wasm` and copies Go's loader next to
+it (`docs/wasm_exec.js`). Run `make site` after changing the catalogue or the
+classifier; the test catches a stale catalogue, not a stale `classify.wasm`.
+
+The page's captures are the ones under `docs/assets/`. The session at the top
+moves a camera over two of them (`confirm.png`, `summary.png`): each step in
+the template names a rectangle of the capture in its own pixels, so check
+those rectangles after recording the captures again.
+
 ### Wiki
 
 The [GitHub wiki](https://github.com/lcajigasm/omega/wiki) holds this manual,

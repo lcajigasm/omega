@@ -13,33 +13,35 @@
   <link rel="alternate" hreflang="pt" href="https://lcajigasm.github.io/omega/pt/privacy.html">
   <link rel="alternate" hreflang="x-default" href="https://lcajigasm.github.io/omega/privacy.html">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
-  <meta name="theme-color" content="#000000">
+  <meta name="theme-color" content="#f3efe6" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#131210" media="(prefers-color-scheme: dark)">
+  <script>(function(){try{var t=localStorage.getItem("omega-theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}})()</script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
-  <link rel="stylesheet" href="styles.css?v=19">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css?v=20">
 </head>
 <body class="page">
   <a class="skip" href="#main">Skip to content</a>
-  <header class="nav-wrap">
-    <nav class="nav" aria-label="Main">
-      <a class="brand" href="./" aria-label="omega home"><span class="brand-mark" aria-hidden="true">Ω</span> omega</a>
-      <details class="lang">
-        <summary aria-label="Language"><i class="ph ph-translate" aria-hidden="true"></i><span>en</span></summary>
-        <ul>
-          <li><a href="privacy.html" lang="en" hreflang="en" data-lang="en" aria-current="true">English</a></li>
-          <li><a href="es/privacy.html" lang="es" hreflang="es" data-lang="es">Español</a></li>
-          <li><a href="fr/privacy.html" lang="fr" hreflang="fr" data-lang="fr">Français</a></li>
-          <li><a href="de/privacy.html" lang="de" hreflang="de" data-lang="de">Deutsch</a></li>
-          <li><a href="pt/privacy.html" lang="pt" hreflang="pt" data-lang="pt">Português</a></li>
-        </ul>
-      </details>
-      <a class="btn btn-sm btn-primary" href="./">Back to home</a>
-    </nav>
+  <header class="top">
+    <div class="top-in">
+      <a class="brand" href="./" aria-label="omega home"><span class="brand-mark" aria-hidden="true">Ω</span><span>omega</span></a>
+      <div class="top-actions">
+        <details class="lang">
+          <summary aria-label="Language"><span>en</span></summary>
+          <ul>
+            <li><a href="privacy.html" lang="en" hreflang="en" data-lang="en" aria-current="true">English</a></li>
+            <li><a href="es/privacy.html" lang="es" hreflang="es" data-lang="es">Español</a></li>
+            <li><a href="fr/privacy.html" lang="fr" hreflang="fr" data-lang="fr">Français</a></li>
+            <li><a href="de/privacy.html" lang="de" hreflang="de" data-lang="de">Deutsch</a></li>
+            <li><a href="pt/privacy.html" lang="pt" hreflang="pt" data-lang="pt">Português</a></li>
+          </ul>
+        </details>
+        <a class="btn btn-ink btn-sm" href="./">Back to home</a>
+      </div>
+    </div>
   </header>
   <main id="main">
-    <div class="container narrow">
       <h1>Privacy</h1>
       <p>omega is a command line tool and a desktop app. Both run on your machine. It has no account, no server of its own, no analytics and no telemetry. This website sets no cookies; when you pick a language, it remembers the choice in your browser.</p>
 
@@ -56,17 +58,16 @@
       <p><code>omega doctor</code> asks GitHub (<code>api.github.com</code>) for the tag of the latest omega release, to tell you when yours is older. The request carries nothing about you; GitHub may log your IP address. No other command makes it.</p>
 
       <h2>This website</h2>
-      <p>This site is hosted on GitHub Pages and loads fonts from Google Fonts, icons from unpkg and, on the home page, the session player from jsDelivr. Those services may log your IP address as part of serving the files.</p>
+      <p>This site is hosted on GitHub Pages and loads fonts from Google Fonts and, on the home page, the session player from jsDelivr. Those services may log your IP address as part of serving the files.</p>
 
       <h2>Contact</h2>
       <p>Questions or concerns: open an issue at <a href="https://github.com/lcajigasm/omega/issues">github.com/lcajigasm/omega/issues</a>.</p>
 
-      <a class="btn btn-primary" href="./">Back to home</a>
-    </div>
+      <a class="btn btn-ink" href="./">Back to home</a>
   </main>
   <footer class="footer">
-    <div class="container footer-inner">
-      <p class="brand"><span class="brand-mark" aria-hidden="true">Ω</span> omega</p>
+    <div class="footer-in">
+      <p class="brand"><span class="brand-mark" aria-hidden="true">Ω</span><span>omega</span></p>
       <ul class="footer-links">
         <li><a href="https://github.com/lcajigasm/omega">GitHub</a></li>
         <li><a href="privacy.html" aria-current="page">Privacy</a></li>
@@ -81,6 +82,6 @@
       </ul>
     </div>
   </footer>
-  <script src="main.js?v=18"></script>
+  <script src="main.js?v=20"></script>
 </body>
 </html>

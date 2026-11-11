@@ -14,7 +14,8 @@
   <link rel="alternate" hreflang="x-default" href="https://lcajigasm.github.io/omega/">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="icon" href="favicon.png" type="image/png" sizes="64x64">
-  <meta name="theme-color" content="#000000">
+  <meta name="theme-color" content="#f3efe6" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#131210" media="(prefers-color-scheme: dark)">
 
   <meta property="og:type" content="website">
   <meta property="og:title" content="omega · AI maintenance for macOS, Linux and Windows">
@@ -30,13 +31,12 @@
   <meta name="twitter:description" content="Updates and cleans your Mac, Linux or Windows machine, then fixes what breaks.">
   <meta name="twitter:image" content="https://lcajigasm.github.io/omega/og.png">
 
+  <!-- The theme the visitor picked, before the first paint. -->
+  <script>(function(){try{var t=localStorage.getItem("omega-theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}})()</script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
-  <link rel="stylesheet" href="styles.css?v=19">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/asciinema-player@3.8.2/dist/bundle/asciinema-player.css">
-  <script src="https://cdn.jsdelivr.net/npm/asciinema-player@3.8.2/dist/bundle/asciinema-player.min.js" defer></script>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:ital,wght@0,500;0,600;1,500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css?v=20">
 
   <script type="application/ld+json">
   {
@@ -257,12 +257,32 @@
   <script>(function(){try{var l=(localStorage.getItem("omega-lang")||navigator.language||"").slice(0,2).toLowerCase();if(["es","fr","de","pt"].indexOf(l)>=0)location.replace(l+"/"+location.search+location.hash)}catch(e){}})()</script>
 
 </head>
-<body data-copied="Copied" data-copy-ok="Command copied. Paste it into your terminal." data-copy-failed="Copy failed. Select the command and copy it by hand." data-menu-open="Open menu" data-menu-close="Close menu">
+<body data-root="">
   <a class="skip" href="#main">Skip to content</a>
 
-  <!-- Provider logos from @lobehub/icons (MIT). Trademarks belong to their owners. -->
+  <!-- The page's own strings, for its script. -->
+  <script type="application/json" id="strings">{
+    "copied": "Copied", "copyOk": "Command copied. Paste it into your terminal.", "copyFailed": "Copy failed. Select the command and copy it by hand.",
+    "menuOpen": "Open menu", "menuClose": "Close menu",
+    "lvl": {"read-only": "Read only", "normal": "Normal", "dangerous": "Dangerous", "always": "Always asks", "blocked": "Blocked"},
+    "verdict": {"read-only": "Runs straight away: it only reads.", "normal": "Runs straight away: a routine update you can redo.", "dangerous": "Waits for your yes on a card.", "always": "Asks every time, even with --yes.", "blocked": "Never runs, not even with --yes."},
+    "clfLive": "Live: this is the classifier inside the binary, compiled to WebAssembly and running in your browser. Nothing you type is sent anywhere.", "clfLoading": "Loading the classifier…", "clfFailed": "The classifier could not be loaded. The examples above still show its answers.",
+    "catCount": "%d of %d steps", "catNone": "No step matches.", "catMore": "Show the whole command",
+    "cmdCount": "%d of %d commands", "cmdNone": "No command matches. Ask in words: omega -p \"…\"",
+    "fig": "Fig."
+  }</script>
+
+  <!-- Icons drawn for this page. Provider logos from @lobehub/icons (MIT);
+       trademarks belong to their owners. -->
   <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
     <defs>
+      <symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="1.5"/><path d="M5 15V5.5A1.5 1.5 0 0 1 6.5 4H15"/></symbol>
+      <symbol id="i-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 20h14"/></symbol>
+      <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></symbol>
+      <symbol id="i-globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.5 2.6 2.5 14.4 0 17M12 3.5c-2.5 2.6-2.5 14.4 0 17"/></symbol>
+      <symbol id="i-theme" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5v17a8.5 8.5 0 0 0 0-17Z" fill="currentColor"/></symbol>
+      <symbol id="i-play" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5z"/></symbol>
+      <symbol id="i-github" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.9 1.53 2.34 1.09 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.56-1.11-4.56-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.65 0 0 .84-.27 2.75 1.02a9.56 9.56 0 0 1 5 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.38.2 2.4.1 2.65.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.85v2.75c0 .27.18.58.69.48A10 10 0 0 0 12 2Z"/></symbol>
       <symbol id="logo-anthropic" viewBox="0 0 24 24"><path d="M13.827 3.52h3.603L24 20h-3.603l-6.57-16.48zm-7.258 0h3.767L16.906 20h-3.674l-1.343-3.461H5.017l-1.344 3.46H0L6.57 3.522zm4.132 9.959L8.453 7.687 6.205 13.48H10.7z"></path></symbol>
       <symbol id="logo-openai" viewBox="0 0 24 24"><path d="M9.205 8.658v-2.26c0-.19.072-.333.238-.428l4.543-2.616c.619-.357 1.356-.523 2.117-.523 2.854 0 4.662 2.212 4.662 4.566 0 .167 0 .357-.024.547l-4.71-2.759a.797.797 0 00-.856 0l-5.97 3.473zm10.609 8.8V12.06c0-.333-.143-.57-.429-.737l-5.97-3.473 1.95-1.118a.433.433 0 01.476 0l4.543 2.617c1.309.76 2.189 2.378 2.189 3.948 0 1.808-1.07 3.473-2.76 4.163zM7.802 12.703l-1.95-1.142c-.167-.095-.239-.238-.239-.428V5.899c0-2.545 1.95-4.472 4.591-4.472 1 0 1.927.333 2.712.928L8.23 5.067c-.285.166-.428.404-.428.737v6.898zM12 15.128l-2.795-1.57v-3.33L12 8.658l2.795 1.57v3.33L12 15.128zm1.796 7.23c-1 0-1.927-.332-2.712-.927l4.686-2.712c.285-.166.428-.404.428-.737v-6.898l1.974 1.142c.167.095.238.238.238.428v5.233c0 2.545-1.974 4.472-4.614 4.472zm-5.637-5.303l-4.544-2.617c-1.308-.761-2.188-2.378-2.188-3.948A4.482 4.482 0 014.21 6.327v5.423c0 .333.143.571.428.738l5.947 3.449-1.95 1.118a.432.432 0 01-.476 0zm-.262 3.9c-2.688 0-4.662-2.021-4.662-4.519 0-.19.024-.38.047-.57l4.686 2.71c.286.167.571.167.856 0l5.97-3.448v2.26c0 .19-.07.333-.237.428l-4.543 2.616c-.619.357-1.356.523-2.117.523zm5.899 2.83a5.947 5.947 0 005.827-4.756C22.287 18.339 24 15.84 24 13.296c0-1.665-.713-3.282-1.998-4.448.119-.5.19-.999.19-1.498 0-3.401-2.759-5.947-5.946-5.947-.642 0-1.26.095-1.88.31A5.962 5.962 0 0010.205 0a5.947 5.947 0 00-5.827 4.757C1.713 5.447 0 7.945 0 10.49c0 1.666.713 3.283 1.998 4.448-.119.5-.19 1-.19 1.499 0 3.401 2.759 5.946 5.946 5.946.642 0 1.26-.095 1.88-.309a5.96 5.96 0 004.162 1.713z"></path></symbol>
       <symbol id="logo-openrouter" viewBox="0 0 24 24"><path d="M18.654 3.87a5.087 5.087 0 110 10.174L23.7 19.09c.64.641.187 1.737-.72 1.737H8.48a8.479 8.479 0 010-16.958h10.175zM8.479 7.26a5.087 5.087 0 100 10.176 5.087 5.087 0 000-10.175z"></path></symbol>
@@ -272,669 +292,572 @@
     </defs>
   </svg>
 
-
-  <header class="nav-wrap">
-    <nav class="nav" aria-label="Main">
-      <a class="brand" href="#top" aria-label="omega home"><span class="brand-mark" aria-hidden="true">Ω</span> omega</a>
-      <ul class="nav-links">
-        <li><a href="#features">Features</a></li>
-        <li><a href="#platforms">Platforms</a></li>
-        <li><a href="#interface">Interface</a></li>
-        <li><a href="#app">App</a></li>
-        <li><a href="#safety">Safety</a></li>
-        <li><a href="#models">Models</a></li>
-        <li><a href="#faq">FAQ</a></li>
-      </ul>
-      <details class="lang">
-        <summary aria-label="Language"><i class="ph ph-translate" aria-hidden="true"></i><span>en</span></summary>
-        <ul>
-          <li><a href="./" lang="en" hreflang="en" data-lang="en" aria-current="true">English</a></li>
-          <li><a href="es/" lang="es" hreflang="es" data-lang="es">Español</a></li>
-          <li><a href="fr/" lang="fr" hreflang="fr" data-lang="fr">Français</a></li>
-          <li><a href="de/" lang="de" hreflang="de" data-lang="de">Deutsch</a></li>
-          <li><a href="pt/" lang="pt" hreflang="pt" data-lang="pt">Português</a></li>
-        </ul>
-      </details>
-      <a class="nav-gh" href="https://github.com/lcajigasm/omega" aria-label="omega on GitHub"><i class="ph ph-github-logo" aria-hidden="true"></i></a>
-      <a class="btn btn-sm btn-primary nav-cta" href="#install">Install</a>
-      <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="mobile-menu" aria-label="Open menu">
-        <span class="bar bar-top"></span><span class="bar bar-bottom"></span>
-      </button>
-    </nav>
+  <header class="top">
+    <div class="top-in">
+      <a class="brand" href="#top" aria-label="omega home"><span class="brand-mark" aria-hidden="true">Ω</span><span>omega</span></a>
+      <p class="top-tag">AI maintenance for your machine</p>
+      <div class="top-actions">
+        <details class="lang">
+          <summary aria-label="Language"><svg class="ico" aria-hidden="true"><use href="#i-globe"/></svg><span>en</span></summary>
+          <ul>
+            <li><a href="./" lang="en" hreflang="en" data-lang="en" aria-current="true">English</a></li>
+            <li><a href="es/" lang="es" hreflang="es" data-lang="es">Español</a></li>
+            <li><a href="fr/" lang="fr" hreflang="fr" data-lang="fr">Français</a></li>
+            <li><a href="de/" lang="de" hreflang="de" data-lang="de">Deutsch</a></li>
+            <li><a href="pt/" lang="pt" hreflang="pt" data-lang="pt">Português</a></li>
+          </ul>
+        </details>
+        <button class="icon-btn" type="button" id="theme" aria-label="Switch between light and dark" title="Switch between light and dark"><svg class="ico" aria-hidden="true"><use href="#i-theme"/></svg></button>
+        <a class="icon-btn" href="https://github.com/lcajigasm/omega" aria-label="omega on GitHub" title="GitHub"><svg class="ico" aria-hidden="true"><use href="#i-github"/></svg></a>
+        <a class="btn btn-ink btn-sm top-cta" href="#install">Install</a>
+        <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="index" aria-label="Open menu"><span></span><span></span></button>
+      </div>
+    </div>
   </header>
 
-  <div class="mobile-menu" id="mobile-menu" hidden>
-    <ul>
-      <li><a href="#features">Features</a></li>
-      <li><a href="#platforms">Platforms</a></li>
-      <li><a href="#interface">Interface</a></li>
-      <li><a href="#app">App</a></li>
-      <li><a href="#safety">Safety</a></li>
-      <li><a href="#models">Models</a></li>
-      <li><a href="#faq">FAQ</a></li>
-      <li><a href="https://github.com/lcajigasm/omega">GitHub</a></li>
-      <li><a href="#install">Install</a></li>
-    </ul>
-  </div>
+  <div class="shell">
+    <!-- The index: a rail beside the page on a wide screen, a sheet under
+         the top bar on a narrow one. -->
+    <nav class="rail" id="index" aria-label="Main">
+      <p class="rail-title">Contents</p>
+      <ol>
+        <li><a href="#why"><span>01</span>The problem</a></li>
+        <li><a href="#commands"><span>02</span>Commands</a></li>
+        <li><a href="#catalog"><span>03</span>Catalogue</a></li>
+        <li><a href="#safety"><span>04</span>Safety</a></li>
+        <li><a href="#models"><span>05</span>Models</a></li>
+        <li><a href="#platforms"><span>06</span>Platforms</a></li>
+        <li><a href="#interface"><span>07</span>Interface</a></li>
+        <li><a href="#install"><span>08</span>Install</a></li>
+        <li><a href="#faq"><span>09</span>FAQ</a></li>
+      </ol>
+      <p class="rail-foot"><a href="https://github.com/lcajigasm/omega/blob/main/docs/manual/README.md">Manual ↗</a></p>
+    </nav>
 
-  <main id="main">
-    <!-- Hero -->
-    <section class="hero" id="top">
-      <div class="container hero-grid">
-        <div>
-          <p class="eyebrow"><i class="ph ph-apple-logo" aria-hidden="true"></i><i class="ph ph-linux-logo" aria-hidden="true"></i><i class="ph ph-windows-logo" aria-hidden="true"></i> macOS, Linux and Windows · free and open source</p>
-          <h1 class="hero-title">Updates that fix <em>their own errors</em></h1>
-          <p class="hero-sub">omega updates and cleans your Mac, Linux or Windows machine like topgrade and Mole, then reads every failure, finds the cause and fixes it. You pick what it does from a card and approve anything risky.</p>
+    <main id="main">
+      <!-- Hero -->
+      <section class="hero" id="top">
+        <p class="eyebrow">macOS, Linux and Windows · free and open source</p>
+        <h1>Updates. Cleans. And when a step fails, <em>fixes it.</em></h1>
+        <p class="lede">omega updates and cleans your Mac, Linux or Windows machine like topgrade and Mole, then reads every failure, finds the cause and fixes it. You pick what it does from a card and approve anything risky.</p>
 
-          <div class="install" data-tabs>
-            <div class="tabs" role="tablist" aria-label="How to install">
-              <button class="tab" type="button" role="tab" aria-selected="true" aria-controls="get-brew" id="tab-brew"><i class="ph ph-beer-bottle" aria-hidden="true"></i> Homebrew</button>
-              <button class="tab" type="button" role="tab" aria-selected="false" aria-controls="get-app" id="tab-app"><i class="ph ph-app-window" aria-hidden="true"></i> Desktop app</button>
-              <button class="tab" type="button" role="tab" aria-selected="false" aria-controls="get-linux" id="tab-linux"><i class="ph ph-linux-logo" aria-hidden="true"></i> Linux</button>
-              <button class="tab" type="button" role="tab" aria-selected="false" aria-controls="get-windows" id="tab-windows"><i class="ph ph-windows-logo" aria-hidden="true"></i> Windows</button>
-            </div>
-            <div class="install-row" role="tabpanel" id="get-brew" aria-labelledby="tab-brew">
-              <code class="install-cmd">brew install lcajigasm/tap/omega</code>
-              <button class="btn btn-primary btn-sm copy-btn" type="button" data-copy="brew install lcajigasm/tap/omega"><i class="ph ph-copy" aria-hidden="true"></i><span class="copy-label">Copy</span></button>
-            </div>
-            <div class="install-row" role="tabpanel" id="get-app" aria-labelledby="tab-app" hidden>
-              <code class="install-cmd">brew install --cask lcajigasm/tap/omega-app</code>
-              <button class="btn btn-primary btn-sm copy-btn" type="button" data-copy="brew install --cask lcajigasm/tap/omega-app"><i class="ph ph-copy" aria-hidden="true"></i><span class="copy-label">Copy</span></button>
-            </div>
-            <div class="install-row" role="tabpanel" id="get-linux" aria-labelledby="tab-linux" hidden>
-              <code class="install-cmd multi">tar -xzf omega_*_linux_amd64.tar.gz
-sudo install -m 755 omega /usr/local/bin/omega</code>
-              <a class="btn btn-ghost btn-sm" href="https://github.com/lcajigasm/omega/releases/latest">Get the archive</a>
-            </div>
-            <div class="install-row" role="tabpanel" id="get-windows" aria-labelledby="tab-windows" hidden>
-              <code class="install-cmd multi">Expand-Archive omega_*_windows_amd64.zip `
-  -DestinationPath "$env:LOCALAPPDATA\Programs\omega"</code>
-              <a class="btn btn-ghost btn-sm" href="https://github.com/lcajigasm/omega/releases/latest">Get the zip</a>
-            </div>
+        <div class="install" data-tabs>
+          <div class="tabs" role="tablist" aria-label="How to install">
+            <button class="tab" type="button" role="tab" aria-selected="true" aria-controls="get-brew" id="tab-brew">Homebrew</button>
+            <button class="tab" type="button" role="tab" aria-selected="false" aria-controls="get-app" id="tab-app">Desktop app</button>
+            <button class="tab" type="button" role="tab" aria-selected="false" aria-controls="get-linux" id="tab-linux">Linux</button>
+            <button class="tab" type="button" role="tab" aria-selected="false" aria-controls="get-windows" id="tab-windows" data-os="windows">Windows</button>
           </div>
-          <p class="copy-status" role="status" aria-live="polite"></p>
-          <p class="hero-note">Homebrew works on macOS and on Linux. If omega came from the old tap, run <code>brew update && brew upgrade omega</code> so Homebrew follows the migration, or reinstall from <code>lcajigasm/tap</code>. Then run <code>omega setup</code>, and <code>omega full</code> for the guided run. Prefer a window? <a class="link" href="#app">Get the desktop app</a>.</p>
-
-          <ul class="chips" aria-label="At a glance">
-            <li class="chip"><i class="ph ph-check" aria-hidden="true"></i> macOS, Linux and Windows steps</li>
-            <li class="chip"><i class="ph ph-check" aria-hidden="true"></i> Terminal or desktop app</li>
-            <li class="chip"><i class="ph ph-check" aria-hidden="true"></i> Cloud or local models</li>
-            <li class="chip"><i class="ph ph-check" aria-hidden="true"></i> Under one cent a run</li>
-            <li class="chip"><i class="ph ph-check" aria-hidden="true"></i> MIT licensed</li>
-          </ul>
-        </div>
-
-        <figure class="terminal" aria-label="Example omega session">
-          <div class="terminal-bar"><span></span><span></span><span></span><p>omega · full</p></div>
-          <div class="terminal-body">
-            <p class="t-line t-head"><span class="t-accent">Ω omega</span>  <span class="t-muted">anthropic · claude-haiku-5-5 · task: full</span></p>
-            <p class="t-line"><span class="t-ok">✓</span> system_info</p>
-            <p class="t-line"><span class="t-ok">✓</span> brew update &amp;&amp; brew upgrade <span class="t-muted">· 2m14s</span></p>
-            <p class="t-line"><span class="t-err">✗ exit 1</span> pipx upgrade-all</p>
-            <p class="t-line t-muted">  │ Error: python@3.12 not found</p>
-            <p class="t-line t-muted"><span class="t-accent">↑</span> Switched to claude-sonnet-5-5 to diagnose the failure</p>
-            <p class="t-line">The pipx environments point at a Python that Homebrew removed. Reinstalling them against the current one.</p>
-            <p class="t-line"><span class="t-warn">? pipx reinstall-all</span> → <span class="t-ok">approved</span></p>
-            <p class="t-line"><span class="t-ok">✓</span> pipx reinstall-all <span class="t-muted">· 41s</span></p>
-            <p class="t-line"><span class="t-ok">✓</span> brew cleanup --prune=all <span class="t-muted">· 12s</span></p>
-            <p class="t-line">Done: 23 packages updated, 6.4 GB freed, pipx repaired and noted for next time.</p>
-            <p class="t-line t-muted">⏵⏵ asks before risky actions · ↑94k ↓4.6k · $0.0061 · 3m12s</p>
+          <div class="install-row" role="tabpanel" id="get-brew" aria-labelledby="tab-brew">
+            <code class="install-cmd">brew install lcajigasm/tap/omega</code>
+            <button class="btn btn-ink btn-sm copy-btn" type="button" data-copy="brew install lcajigasm/tap/omega"><svg class="ico" aria-hidden="true"><use href="#i-copy"/></svg><span class="copy-label">Copy</span></button>
           </div>
-          <figcaption class="sr-only">An illustrative omega run: an update step fails, omega diagnoses it, asks for approval, fixes it and summarises.</figcaption>
-        </figure>
-      </div>
-    </section>
-
-    <!-- Providers -->
-    <section class="strip" aria-label="Works with these AI providers">
-      <div class="container strip-inner">
-        <p class="strip-label">Works with</p>
-        <ul class="logo-strip">
-          <li><svg class="logo" aria-hidden="true"><use href="#logo-anthropic"/></svg>Anthropic</li>
-          <li><svg class="logo" aria-hidden="true"><use href="#logo-openai"/></svg>OpenAI</li>
-          <li><svg class="logo" aria-hidden="true"><use href="#logo-openrouter"/></svg>OpenRouter</li>
-          <li><svg class="logo" aria-hidden="true"><use href="#logo-opencode"/></svg>OpenCode Zen</li>
-          <li><svg class="logo" aria-hidden="true"><use href="#logo-ollama"/></svg>Ollama</li>
-          <li><svg class="logo" aria-hidden="true"><use href="#logo-lmstudio"/></svg>LM Studio</li>
-        </ul>
-      </div>
-    </section>
-
-    <!-- Why -->
-    <section class="section reveal" id="why" aria-labelledby="why-title">
-      <div class="container">
-        <div class="section-head">
-          <p class="kicker">The problem</p>
-          <h2 class="section-title" id="why-title">Your update script fails. Then you debug it all evening.</h2>
-        </div>
-        <div class="grid grid-2">
-          <article class="card">
-            <h3 class="card-title"><i class="ph ph-x-circle t-err" aria-hidden="true"></i> Running topgrade and Mole by hand</h3>
-            <ul class="list">
-              <li>A step fails and the run moves on with a red line you have to scroll back to</li>
-              <li>You search the error, edit topgrade.toml and launch everything again</li>
-              <li>A package asks for a password halfway through and the run hangs</li>
-              <li>The same pipx failure comes back next month</li>
-            </ul>
-          </article>
-          <article class="card card-accent">
-            <h3 class="card-title"><i class="ph ph-check-circle t-ok" aria-hidden="true"></i> Running omega</h3>
-            <ul class="list">
-              <li>It reads the failure the moment it happens and works out the cause</li>
-              <li>It applies the smallest fix, retries once and moves on if it still fails</li>
-              <li>Commands run without a prompt, so nothing waits on a password you cannot see</li>
-              <li>It writes down what it learned and starts there next time</li>
-            </ul>
-          </article>
-        </div>
-      </div>
-    </section>
-
-    <!-- Features -->
-    <section class="section reveal" id="features" aria-labelledby="features-title">
-      <div class="container">
-        <div class="section-head">
-          <p class="kicker">What it does</p>
-          <h2 class="section-title" id="features-title">What changes when an agent runs your maintenance</h2>
-        </div>
-        <div class="grid grid-3">
-          <article class="card">
-            <span class="feature-icon"><i class="ph ph-wrench" aria-hidden="true"></i></span>
-            <h3 class="card-title">Failures get fixed, not just reported</h3>
-            <p>omega reads the output, checks the config behind it and retries with the fix. It also reads the system logs for crash loops and failing services.</p>
-          </article>
-          <article class="card">
-            <span class="feature-icon"><i class="ph ph-check-square" aria-hidden="true"></i></span>
-            <h3 class="card-title">You pick, it does</h3>
-            <p>Recommendations arrive on a card with their impact. Tick one or several, and omega carries out exactly those. Nothing else.</p>
-          </article>
-          <article class="card">
-            <span class="feature-icon"><i class="ph ph-shield-check" aria-hidden="true"></i></span>
-            <h3 class="card-title">Nothing risky runs without you</h3>
-            <p>Every command is classified before it runs. Deletes and config edits wait for your yes, and the truly destructive commands never run.</p>
-          </article>
-          <article class="card">
-            <span class="feature-icon"><i class="ph ph-coins" aria-hidden="true"></i></span>
-            <h3 class="card-title">The best value model, checked daily</h3>
-            <p>omega reads current prices and benchmark scores once a day and picks a fast model for routine work and a stronger one for failures.</p>
-          </article>
-          <article class="card">
-            <span class="feature-icon"><i class="ph ph-sliders-horizontal" aria-hidden="true"></i></span>
-            <h3 class="card-title">Tunes your tools with current docs</h3>
-            <p><code>omega tune</code> reviews the config of what you have installed, reads the official documentation and proposes improvements with their source.</p>
-          </article>
-          <article class="card">
-            <span class="feature-icon"><i class="ph ph-terminal-window" aria-hidden="true"></i></span>
-            <h3 class="card-title">Your toolchain, installed and in order</h3>
-            <p><code>omega dev</code> knows more than 70 languages, version managers and command-line tools. It installs what you pick and finds what overlaps.</p>
-          </article>
-          <article class="card">
-            <span class="feature-icon"><i class="ph ph-cube" aria-hidden="true"></i></span>
-            <h3 class="card-title">Docker back under control</h3>
-            <p><code>omega docker</code> shows what images, volumes and build cache take, and cleans only what you tick. Docker cleanups always ask first.</p>
-          </article>
-          <article class="card">
-            <span class="feature-icon"><i class="ph ph-list-magnifying-glass" aria-hidden="true"></i></span>
-            <h3 class="card-title">Everything, step by step</h3>
-            <p><code>omega full</code> walks through all of it in one interface: a plan that says what each stage does and why, the route always in view, and skip, repeat or stop between stages. <code>omega menu</code> lists every command to pick from.</p>
-          </article>
-          <article class="card">
-            <span class="feature-icon"><i class="ph ph-chat-text" aria-hidden="true"></i></span>
-            <h3 class="card-title">Ask in words</h3>
-            <p>Type <code>omega why is my disk full</code>, or "undo yesterday's Dock change" inside a session. What the command line does, the agent can do too.</p>
-          </article>
-          <article class="card">
-            <span class="feature-icon"><i class="ph ph-lightning" aria-hidden="true"></i></span>
-            <h3 class="card-title">One-click safe quick maintenance</h3>
-            <p><code>omega quick</code> empties trash, removes safe caches, checks pending updates, and reports battery and disk health in seconds with zero risk.</p>
-          </article>
-          <article class="card">
-            <span class="feature-icon"><i class="ph ph-git-branch" aria-hidden="true"></i></span>
-            <h3 class="card-title">Deep developer hygiene and network</h3>
-            <p>Audit git repos with <code>omega git</code>, clean stale build artifacts with <code>omega disk</code>, flush DNS with <code>omega net</code>, and audit SSH and secrets with <code>omega audit</code>. Manage the skills of your AI coding agents with <code>omega skills</code>: what is installed, who sees it, and installing, sharing and updating them.</p>
-          </article>
-          <article class="card">
-            <span class="feature-icon"><i class="ph ph-clock" aria-hidden="true"></i></span>
-            <h3 class="card-title">Offline deterministic and automated</h3>
-            <p>Run 100% offline with <code>omega --no-ai</code>, automate via background daemons with <code>omega schedule</code>, and output structured JSON with <code>--json</code> for CI/CD.</p>
-          </article>
-        </div>
-      </div>
-    </section>
-
-    <!-- How it works -->
-    <section class="section reveal" id="how" aria-labelledby="how-title">
-      <div class="container">
-        <div class="section-head">
-          <p class="kicker">Getting started</p>
-          <h2 class="section-title" id="how-title">Running in three commands</h2>
-        </div>
-        <ol class="grid grid-3 steps">
-          <li class="card step">
-            <h3 class="card-title">Connect a model</h3>
-            <p>The setup asks for your provider, stores the key where your system keeps secrets (Keychain, Credential Manager or keyring), and lets you pick a model.</p>
-            <pre><code>omega setup</code></pre>
-          </li>
-          <li class="card step">
-            <h3 class="card-title">Get a report first</h3>
-            <p>Analyze is read only. You see disk usage, outdated software and config problems before anything changes.</p>
-            <pre><code>omega analyze</code></pre>
-          </li>
-          <li class="card step">
-            <h3 class="card-title">Let it do the maintenance</h3>
-            <p>Updates, cleanup and a summary, with your approval on anything risky. Or take the guided run through everything.</p>
-            <pre><code>omega
-omega full</code></pre>
-          </li>
-        </ol>
-      </div>
-    </section>
-
-    <!-- Platforms -->
-    <section class="section reveal" id="platforms" aria-labelledby="platforms-title">
-      <div class="container">
-        <div class="section-head">
-          <p class="kicker">Platforms</p>
-          <h2 class="section-title" id="platforms-title">It knows the system it runs on</h2>
-          <p class="section-sub">The same agent on macOS, Linux and Windows, with each system's own steps. On a Mac it also reviews what runs outside the apps you open.</p>
-        </div>
-        <div data-tabs>
-          <div class="panel-tabs" role="tablist" aria-label="Platform">
-            <button class="tab" type="button" role="tab" aria-selected="true" aria-controls="panel-mac" id="ptab-mac"><i class="ph ph-apple-logo" aria-hidden="true"></i> macOS</button>
-            <button class="tab" type="button" role="tab" aria-selected="false" aria-controls="panel-linux" id="ptab-linux"><i class="ph ph-linux-logo" aria-hidden="true"></i> Linux</button>
-            <button class="tab" type="button" role="tab" aria-selected="false" aria-controls="panel-windows" id="ptab-windows"><i class="ph ph-windows-logo" aria-hidden="true"></i> Windows</button>
-            <button class="tab" type="button" role="tab" aria-selected="false" aria-controls="panel-dev" id="ptab-dev"><i class="ph ph-terminal-window" aria-hidden="true"></i> Developer tools</button>
-          </div>
-
-          <div class="panel" role="tabpanel" id="panel-mac" aria-labelledby="ptab-mac">
-            <h3 class="panel-name"><i class="ph ph-apple-logo" aria-hidden="true"></i> macOS</h3>
-            <p class="panel-intro">Apps add themselves to login, keep helpers running in the background, grab shortcuts other apps already use and leave permissions and files behind when they go. <code>omega mac</code> reviews all of it, asks you on cards and applies only what you pick. Every change can be undone.</p>
-            <div class="split">
-              <dl class="deflist">
-                <div><dt>login</dt><dd>Apps that open at login: updaters and apps you open when needed go, VPN, security and sync stay</dd></div>
-                <div><dt>background</dt><dd>Launch agents, daemons and app helpers, including leftovers of uninstalled apps</dd></div>
-                <div><dt>menubar</dt><dd>Menu bar apps: quit them, stop them at login, or hide them with Bartender, Ice or Thaw</dd></div>
-                <div><dt>dock</dt><dd>Apps no longer installed or not opened in 90 days, and the Dock settings you prefer</dd></div>
-                <div><dt>shortcuts</dt><dd>Who keeps each contested shortcut; the others move to a free one</dd></div>
-                <div><dt>permissions</dt><dd>Privacy &amp; Security entries whose binary or app is gone, each named with its version so the copies can be told apart</dd></div>
-                <div><dt>apps</dt><dd>Apps not opened in 180 days, apps built only for Intel, and what removed apps left in <code>~/Library</code></dd></div>
-              </dl>
-              <figure class="terminal" aria-label="A shortcut conflict card">
-                <div class="terminal-bar"><span></span><span></span><span></span><p>omega mac shortcuts</p></div>
-                <div class="terminal-body">
-                  <p><span class="t-accent">Who keeps ⌥Space?</span></p>
-                  <p><span class="t-accent">❯ ◉ Alfred · Show Alfred</span>  <span class="t-muted">suggested</span></p>
-                  <p>  ○ ChatGPT · Open the ChatGPT launcher</p>
-                  <p>  ○ Claude · Quick Entry</p>
-                  <p>  ○ Nobody: turn it off for all of them</p>
-                  <p class="t-gap t-muted">the others get a free shortcut</p>
-                  <p><span class="t-strong">ChatGPT</span> <span class="t-muted">→ ⌃⌥Space</span></p>
-                  <p><span class="t-strong">Claude</span>  <span class="t-muted">→ ⌥⇧⌘Space</span></p>
-                  <p class="t-gap"><span class="t-strong">undo</span>    <span class="t-muted">omega mac undo</span></p>
-                </div>
-                <figcaption class="sr-only">ChatGPT, Claude and Alfred all want Option Space. omega suggests Alfred, moves the others to free shortcuts and remembers the choice.</figcaption>
-              </figure>
-            </div>
-          </div>
-
-          <div class="panel" role="tabpanel" id="panel-linux" aria-labelledby="ptab-linux" hidden>
-            <h3 class="panel-name"><i class="ph ph-linux-logo" aria-hidden="true"></i> Linux</h3>
-            <p class="panel-intro">On Debian, Ubuntu, Fedora, Arch, openSUSE and their relatives, omega knows which distribution it runs on and uses its package manager. The steps that need <code>sudo</code> wait for your approval and ask for the password inside the interface.</p>
-            <div class="split">
-              <dl class="deflist">
-                <div><dt>packages</dt><dd>Check, update and clean with <code>apt</code>, <code>dnf</code>, <code>pacman</code> or <code>zypper</code>, including orphaned packages and the package cache</dd></div>
-                <div><dt>flatpak, snap</dt><dd>Updates, unused runtimes and old snap revisions</dd></div>
-                <div><dt>journal, disk</dt><dd>Failed units, errors since boot, core dumps, the size of the journal, <code>~/.cache</code> and the Trash</dd></div>
-                <div><dt>keys</dt><dd>In the system keyring (GNOME Keyring, KWallet) or, on a server with none, in a file only you can read. omega says which</dd></div>
-                <div><dt>homebrew</dt><dd>With Homebrew on Linux, the <code>brew</code> steps work as they do on a Mac</dd></div>
-              </dl>
-              <figure class="terminal" aria-label="omega steps on Ubuntu">
-                <div class="terminal-bar"><span></span><span></span><span></span><p>omega steps · Ubuntu 24.04</p></div>
-                <div class="terminal-body">
-                  <p><span class="t-accent">CHECKS</span></p>
-                  <p><span class="t-ok">✓</span> disk             <span class="t-muted">read-only</span></p>
-                  <p><span class="t-ok">✓</span> apt-outdated     <span class="t-muted">read-only</span></p>
-                  <p><span class="t-ok">✓</span> journal-size     <span class="t-muted">read-only</span></p>
-                  <p><span class="t-ok">✓</span> system-logs      <span class="t-muted">read-only</span></p>
-                  <p class="t-gap"><span class="t-accent">UPDATES</span></p>
-                  <p><span class="t-ok">✓</span> apt              <span class="t-warn">dangerous</span></p>
-                  <p><span class="t-ok">✓</span> snap             <span class="t-warn">dangerous</span></p>
-                  <p class="t-gap"><span class="t-accent">CLEANUP</span></p>
-                  <p><span class="t-ok">✓</span> apt-autoremove   <span class="t-warn">dangerous</span></p>
-                  <p><span class="t-ok">✓</span> journal-vacuum   <span class="t-warn">dangerous</span></p>
-                </div>
-                <figcaption class="sr-only">A selection of the steps omega detects on Ubuntu 24.04, taken from a run on a GitHub Ubuntu runner with the developer-tool steps left out: read-only checks, and apt and snap updates and cleanups marked dangerous because they use sudo.</figcaption>
-              </figure>
-            </div>
-            <ul class="facts">
-              <li><i class="ph ph-apple-logo" aria-hidden="true"></i> The Mac review (omega mac) and the Mac-only steps do not exist on Linux, and say so</li>
-              <li><i class="ph ph-cube" aria-hidden="true"></i> Without apt, dnf, pacman or zypper (Alpine, NixOS, Void) the system-package steps do not appear</li>
-              <li><i class="ph ph-lock-simple" aria-hidden="true"></i> Immutable systems such as Fedora Silverblue are not adapted yet</li>
-              <li><i class="ph ph-terminal-window" aria-hidden="true"></i> Inside WSL, omega is this Linux version</li>
-            </ul>
-          </div>
-
-          <div class="panel" role="tabpanel" id="panel-windows" aria-labelledby="ptab-windows" hidden>
-            <h3 class="panel-name"><i class="ph ph-windows-logo" aria-hidden="true"></i> Windows</h3>
-            <p class="panel-intro">On Windows 10 and 11 omega runs its commands in PowerShell and uses the package managers Windows developers already have. It never elevates itself: the steps that need administrator rights work when you opened the terminal as administrator.</p>
-            <div class="split">
-              <dl class="deflist">
-                <div><dt>packages</dt><dd>Check and update with <code>winget</code>, <code>Scoop</code> and <code>Chocolatey</code>, each shown only when it is installed</dd></div>
-                <div><dt>windows</dt><dd>Lists pending Windows updates, reviews the event log for errors, failing services and crashes, and updates WSL</dd></div>
-                <div><dt>cleanup</dt><dd>Temporary files, the Recycle Bin, old Scoop versions and the Windows component store</dd></div>
-                <div><dt>keys</dt><dd>In the Windows Credential Manager, protected by your login</dd></div>
-                <div><dt>dev tools</dt><dd><code>omega dev install</code> with Scoop or winget, and the same developer-tool steps as elsewhere</dd></div>
-              </dl>
-              <figure class="terminal" aria-label="omega steps on Windows">
-                <div class="terminal-bar"><span></span><span></span><span></span><p>omega steps · Windows Server 2025</p></div>
-                <div class="terminal-body">
-                  <p><span class="t-accent">CHECKS</span></p>
-                  <p><span class="t-ok">✓</span> disk                  <span class="t-muted">read-only</span></p>
-                  <p><span class="t-ok">✓</span> winget-outdated       <span class="t-muted">read-only</span></p>
-                  <p><span class="t-ok">✓</span> windows-update-check  <span class="t-muted">read-only</span></p>
-                  <p><span class="t-ok">✓</span> system-logs           <span class="t-muted">read-only</span></p>
-                  <p class="t-gap"><span class="t-accent">UPDATES</span></p>
-                  <p><span class="t-ok">✓</span> winget                <span class="t-warn">dangerous</span></p>
-                  <p><span class="t-ok">✓</span> choco                 <span class="t-warn">dangerous</span></p>
-                  <p class="t-gap"><span class="t-accent">CLEANUP</span></p>
-                  <p><span class="t-ok">✓</span> temp-files            <span class="t-warn">dangerous</span></p>
-                  <p><span class="t-ok">✓</span> recycle-bin           <span class="t-warn">dangerous</span></p>
-                </div>
-                <figcaption class="sr-only">A selection of the steps omega detects on a GitHub Windows runner, with the developer-tool steps left out: read-only checks for disk, winget, Windows updates and the event log, and updates and cleanups that ask first.</figcaption>
-              </figure>
-            </div>
-            <ul class="facts">
-              <li><i class="ph ph-shield-check" aria-hidden="true"></i> The safety policy reads PowerShell: a delete aimed at a drive or the Windows folders, or a download piped into iex, never runs</li>
-              <li><i class="ph ph-arrows-clockwise" aria-hidden="true"></i> Installing Windows updates, and any restart, is left to Windows Update</li>
-              <li><i class="ph ph-apple-logo" aria-hidden="true"></i> The Mac review (omega mac) does not exist on Windows, and says so</li>
-              <li><i class="ph ph-prohibit" aria-hidden="true"></i> omega does not "debloat" Windows or turn off Defender, the firewall or UAC</li>
-            </ul>
-          </div>
-
-          <div class="panel" role="tabpanel" id="panel-dev" aria-labelledby="ptab-dev" hidden>
-            <h3 class="panel-name"><i class="ph ph-terminal-window" aria-hidden="true"></i> Developer tools</h3>
-            <p class="panel-intro">Languages and version managers pile up: two of them managing Node, a command that resolves to the wrong copy, a <code>PATH</code> entry that points nowhere. <code>omega dev</code> shows what is installed and who installed it, and fixes what you pick. On all three systems.</p>
-            <div class="split">
-              <dl class="deflist">
-                <div><dt>dev status</dt><dd>What is installed, by which manager, and what stands out: overlapping version managers, shadowed commands, a broken <code>PATH</code>, shell startup time</dd></div>
-                <div><dt>dev install</dt><dd>Pick from a card or name the tools: more than 70 languages, version managers and command-line tools, installed with Homebrew, your distribution's packages, Scoop or winget</dd></div>
-                <div><dt>dev activate</dt><dd>Adds the line a tool needs to <code>~/.zshrc</code>, or <code>~/.bashrc</code> for bash, after saving a copy of the file</dd></div>
-                <div><dt>dev</dt><dd>The guided review: the agent reads the inventory, explains each finding and applies what you approve</dd></div>
-              </dl>
-              <figure class="terminal" aria-label="Findings from omega dev status">
-                <div class="terminal-bar"><span></span><span></span><span></span><p>omega dev status</p></div>
-                <div class="terminal-body">
-                  <p><span class="t-accent">Findings</span></p>
-                  <p><span class="t-warn">!</span> node is managed by nvm and mise</p>
-                  <p><span class="t-warn">!</span> python3 resolves to /usr/bin before Homebrew</p>
-                  <p><span class="t-warn">!</span> PATH has 2 folders that do not exist</p>
-                  <p><span class="t-warn">!</span> zoxide is installed but not activated</p>
-                  <p class="t-gap t-muted">shell starts in 0.41 s</p>
-                  <p class="t-gap"><span class="t-strong">omega dev</span>           <span class="t-muted">guided fix</span></p>
-                  <p><span class="t-strong">omega dev activate</span>  <span class="t-muted">shell lines</span></p>
-                  <p><span class="t-strong">omega dev install</span>   <span class="t-muted">add tools</span></p>
-                </div>
-                <figcaption class="sr-only">An illustration of what omega dev status reports: node managed by two version managers, python3 resolving to the system copy, PATH folders that do not exist and a tool that is not activated.</figcaption>
-              </figure>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Interface -->
-    <section class="section reveal" id="interface" aria-labelledby="interface-title">
-      <div class="container">
-        <div class="section-head">
-          <p class="kicker">Interface</p>
-          <h2 class="section-title" id="interface-title">Inside the terminal</h2>
-          <p class="section-sub">A full screen interface: tool calls as they happen, a session panel with steps, disk and cost, and a card for every decision.</p>
-        </div>
-        <div class="gallery">
-          <figure class="shot shot-wide">
-            <img src="assets/confirm.png" width="1280" height="820" loading="lazy" alt="omega diagnoses a failed pipx upgrade, switches to a stronger model and asks before reinstalling; a session panel on the right shows steps, disk and tokens">
-            <figcaption>A failure is diagnosed on a stronger model, then the fix waits for your approval. The panel on the right follows the session.</figcaption>
-          </figure>
-          <figure class="shot">
-            <img src="assets/card.png" width="1280" height="820" loading="lazy" alt="A selection card with three cleanup actions ticked and the space each one frees">
-            <figcaption>Recommendations on a card: tick what you want, omega does exactly that.</figcaption>
-          </figure>
-          <figure class="shot">
-            <img src="assets/menu.png" width="1280" height="820" loading="lazy" alt="The home screen: disk space, model and every omega command grouped by area">
-            <figcaption>The home screen lists every command. Enter opens or runs, typing searches.</figcaption>
-          </figure>
-          <figure class="shot">
-            <img src="assets/docker-confirm.png" width="1280" height="820" loading="lazy" alt="A Docker build cache cleanup that always asks for confirmation">
-            <figcaption>Docker cleanups always ask, even when everything else is approved.</figcaption>
-          </figure>
-          <figure class="shot">
-            <img src="assets/model.png" width="1280" height="560" loading="lazy" alt="The model picker listing the models a provider offers">
-            <figcaption>Pick a model from a card, or leave the choice to omega.</figcaption>
-          </figure>
-          <figure class="shot">
-            <img src="assets/summary.png" width="1280" height="820" loading="lazy" alt="The summary at the end of a session: what was updated, what was freed and what failed">
-            <figcaption>Every session ends with what changed, what it freed and what it cost.</figcaption>
-          </figure>
-        </div>
-        <p class="note">Recorded from the <code>omega</code> binary by <code>scripts/capture.sh</code>, with <code>omega --demo</code> and a local test model; no paid API.</p>
-
-        <h3 class="subhead">Drive it from the keyboard</h3>
-        <div class="split">
-          <dl class="deflist keys">
-            <div><dt><kbd>?</kbd></dt><dd>Show or hide the shortcut card, without leaving the run</dd></div>
-            <div><dt><kbd>shift</kbd> <kbd>tab</kbd></dt><dd>Cycle the approval mode: asks before risky actions, auto approve, read only</dd></div>
-            <div><dt><kbd>ctrl</kbd> <kbd>p</kbd></dt><dd>Switch to the next model of the run, from the next turn</dd></div>
-            <div><dt><kbd>ctrl</kbd> <kbd>b</kbd></dt><dd>Show or hide the session panel</dd></div>
-            <div><dt><kbd>ctrl</kbd> <kbd>o</kbd></dt><dd>Expand or collapse the output of every tool call</dd></div>
-            <div><dt><kbd>ctrl</kbd> <kbd>f</kbd></dt><dd>Search the transcript</dd></div>
-            <div><dt><kbd>ctrl</kbd> <kbd>y</kbd></dt><dd>Copy the focused tool output</dd></div>
-            <div><dt><kbd>ctrl</kbd> <kbd>c</kbd></dt><dd>Cancel the run and leave</dd></div>
-          </dl>
-          <div>
-            <div class="slash" aria-label="Slash commands">
-              <code>/update</code><code>/clean</code><code>/analyze</code><code>/health</code><code>/tune</code><code>/fix</code><code>/docker</code><code>/dev</code><code>/install</code><code>/disk</code><code>/logs</code><code>/shell</code><code>/steps</code><code>/mac</code><code>/permissions</code><code>/apps</code><code>/login</code><code>/dock</code><code>/shortcuts</code><code>/undo</code><code>/models</code><code>/settings</code><code>/notes</code><code>/history</code><code>/doctor</code><code>/mode</code><code>/model</code><code>/help</code>
-            </div>
-            <p class="slash-note">Type <kbd>/</kbd> in the input box for the command menu: each of these starts another task in the same session, with a description as you type.</p>
-            <details class="cast">
-              <summary><i class="ph ph-play-circle" aria-hidden="true"></i> Watch a recorded session: help, Esc and a denial</summary>
-              <asciinema-player src="assets/shortcuts.cast" cols="100" rows="32" preload="true" title="omega: help, Esc and a denial"></asciinema-player>
-            </details>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Desktop app -->
-    <section class="section reveal" id="app" aria-labelledby="app-title">
-      <div class="container">
-        <div class="section-head">
-          <p class="kicker">Desktop app</p>
-          <h2 class="section-title" id="app-title">The same agent, in a window</h2>
-          <p class="section-sub">For when a terminal is not where you want to be. The app runs the same tasks under the same safety policy, with the same configuration and keys as the command, on macOS, Linux and Windows.</p>
-        </div>
-        <div class="install app-install">
-          <div class="install-row">
+          <div class="install-row" role="tabpanel" id="get-app" aria-labelledby="tab-app" hidden>
             <code class="install-cmd">brew install --cask lcajigasm/tap/omega-app</code>
-            <button class="btn btn-primary btn-sm copy-btn" type="button" data-copy="brew install --cask lcajigasm/tap/omega-app"><i class="ph ph-copy" aria-hidden="true"></i><span class="copy-label">Copy</span></button>
+            <button class="btn btn-ink btn-sm copy-btn" type="button" data-copy="brew install --cask lcajigasm/tap/omega-app"><svg class="ico" aria-hidden="true"><use href="#i-copy"/></svg><span class="copy-label">Copy</span></button>
+          </div>
+          <div class="install-row" role="tabpanel" id="get-linux" aria-labelledby="tab-linux" hidden>
+            <code class="install-cmd multi">tar -xzf omega_*_linux_amd64.tar.gz
+sudo install -m 755 omega /usr/local/bin/omega</code>
+            <a class="btn btn-line btn-sm" href="https://github.com/lcajigasm/omega/releases/latest"><svg class="ico" aria-hidden="true"><use href="#i-down"/></svg>Get the archive</a>
+          </div>
+          <div class="install-row" role="tabpanel" id="get-windows" aria-labelledby="tab-windows" hidden>
+            <code class="install-cmd multi">Expand-Archive omega_*_windows_amd64.zip `
+  -DestinationPath "$env:LOCALAPPDATA\Programs\omega"</code>
+            <a class="btn btn-line btn-sm" href="https://github.com/lcajigasm/omega/releases/latest"><svg class="ico" aria-hidden="true"><use href="#i-down"/></svg>Get the zip</a>
           </div>
         </div>
         <p class="copy-status" role="status" aria-live="polite"></p>
-        <div class="downloads">
-          <a class="btn btn-primary" href="https://github.com/lcajigasm/omega/releases/latest/download/omega-macos-universal.dmg"><i class="ph ph-apple-logo" aria-hidden="true"></i> Download for macOS</a>
-          <a class="btn btn-ghost" href="https://github.com/lcajigasm/omega/releases/latest"><i class="ph ph-windows-logo" aria-hidden="true"></i> Windows (.zip)</a>
-          <a class="btn btn-ghost" href="https://github.com/lcajigasm/omega/releases/latest"><i class="ph ph-linux-logo" aria-hidden="true"></i> Linux (.tar.gz)</a>
-        </div>
-        <p class="note downloads-note">The disk image runs on macOS 13 or later, on Apple Silicon and Intel. For Windows and Linux, take the <code>omega-gui</code> archive for amd64 or arm64 from the release.</p>
-        <div class="gallery">
-          <figure class="shot shot-wide shot-center">
-            <img src="assets/gui-confirm.png" width="1780" height="1140" loading="lazy" alt="The omega app during a full maintenance: steps with their result, a failed pipx step diagnosed on a stronger model, and a card asking before the fix runs">
-            <figcaption>Steps as they finish, a failure diagnosed on a stronger model, and the fix waiting for your approval.</figcaption>
-          </figure>
-          <figure class="shot shot-center">
-            <img src="assets/gui-home.png" width="1780" height="1140" loading="lazy" alt="The app&#39;s home screen: the tasks as buttons and a field to say what you need">
-            <figcaption>Pick a task, or say what you need in words.</figcaption>
-          </figure>
-          <figure class="shot shot-center">
-            <img src="assets/gui-card.png" width="1780" height="1140" loading="lazy" alt="A selection card in the app with cleanup actions ticked and the space each one frees">
-            <figcaption>Tick the cleanups you want. omega does exactly those.</figcaption>
-          </figure>
-          <figure class="shot shot-center">
-            <img src="assets/gui-summary.png" width="1780" height="1140" loading="lazy" alt="The end of a session in the app: what was updated, fixed and freed, with tokens and cost below">
-            <figcaption>The session ends with what changed, and stays open for a follow-up.</figcaption>
-          </figure>
-          <figure class="shot shot-center">
-            <img src="assets/gui-output.png" width="1780" height="1140" loading="lazy" alt="A failed step opened in the app, showing the command&#39;s output and the error">
-            <figcaption>Open any step to read what the command printed.</figcaption>
-          </figure>
-          <figure class="shot shot-center">
-            <img src="assets/gui-setup.png" width="1780" height="1140" loading="lazy" alt="The app&#39;s setup screen listing the providers and a field for the API key">
-            <figcaption>Choose a provider and paste its key. It is checked before it is stored in the keychain.</figcaption>
-          </figure>
-        </div>
-        <p class="note">Recorded from the app by <code>scripts/capture_gui.mjs</code>, in its demo mode: no paid API and no real commands.</p>
-        <div class="grid grid-3">
-          <article class="card">
-            <h3 class="card-title">One agent, two faces</h3>
-            <p>Approvals, selection cards and the sudo password arrive as cards in the window. What the command line learns between runs, the app knows too. The Tools view runs the checks that need no model or key: network, SSH keys, leaked secrets, disk and repositories.</p>
-          </article>
-          <article class="card">
-            <h3 class="card-title">Light on the machine</h3>
-            <p>It draws with the webview the system already has, so the download is about 25 MB and there is no bundled browser.</p>
-          </article>
-          <article class="card">
-            <h3 class="card-title">Not signed yet</h3>
-            <p>The builds carry no Apple or Microsoft signature. On macOS, run <code>xattr -dr com.apple.quarantine /Applications/Omega.app</code> once after installing. On Windows, choose More info and then Run anyway. On Linux it needs GTK 4 and WebKitGTK 6.0.</p>
-          </article>
-        </div>
-      </div>
-    </section>
+        <p class="hero-note">Homebrew works on macOS and on Linux. If omega came from the old tap, run <code>brew update && brew upgrade omega</code> so Homebrew follows the migration, or reinstall from <code>lcajigasm/tap</code>. Then run <code>omega setup</code>, and <code>omega full</code> for the guided run. Prefer a window? <a class="link" href="#app">Get the desktop app</a>.</p>
 
-    <!-- Safety -->
-    <section class="section reveal" id="safety" aria-labelledby="safety-title">
-      <div class="container">
-        <div class="section-head">
-          <p class="kicker">Safety</p>
-          <h2 class="section-title" id="safety-title">Four risk levels. You decide on the ones that matter.</h2>
-          <p class="section-sub">Compound commands are split and checked part by part, through wrappers such as <code>env</code>, <code>sudo</code> and <code>sh -c</code>. The highest risk wins.</p>
+        <!-- One real session, looked at closely. The frames are captures of
+             the binary; the script only moves the camera over them. -->
+        <figure class="plate tour" data-tour>
+          <div class="tour-stage">
+            <img class="tour-img is-on" data-frame="confirm" src="assets/confirm.png" width="1280" height="820" alt="omega diagnoses a failed pipx upgrade, switches to a stronger model and asks before reinstalling; a session panel on the right shows steps, disk and tokens">
+            <img class="tour-img" data-frame="summary" src="assets/summary.png" width="1280" height="820" loading="lazy" alt="The summary at the end of a session: what was updated, what was freed and what failed">
+            <span class="tour-mark" aria-hidden="true"></span>
+          </div>
+          <ol class="tour-steps">
+            <li><button type="button" data-frame="confirm" data-rect="18,300,600,124"><span class="tour-n">1</span><strong>A step fails</strong><span><code>pipx upgrade-all</code> exits with an error. The run goes on, and the failure stays in view.</span></button></li>
+            <li><button type="button" data-frame="confirm" data-rect="18,432,780,140"><span class="tour-n">2</span><strong>omega finds the cause</strong><span>It switches to a stronger model, which reads the error: the environments point at a Python that Homebrew replaced.</span></button></li>
+            <li><button type="button" data-frame="confirm" data-rect="30,596,690,138"><span class="tour-n">3</span><strong>The fix waits for you</strong><span>Reinstalling is classified as dangerous, so it arrives on a card: yes, yes to all, or no.</span></button></li>
+            <li><button type="button" data-frame="summary" data-rect="20,544,810,134"><span class="tour-n">4</span><strong>You get the account</strong><span>What it updated, fixed and freed, and a note so that next time the fix is applied straight away.</span></button></li>
+          </ol>
+          <figcaption><b>Fig. 1</b> Recorded from the <code>omega</code> binary by <code>scripts/capture.sh</code>, with <code>omega --demo</code> and a local test model; no paid API.</figcaption>
+        </figure>
+
+        <dl class="specs">
+          <div><dt>94</dt><dd>maintenance steps on Linux, 80 on macOS and 67 on Windows</dd></div>
+          <div><dt>25</dt><dd>narrow tools the agent can use, nothing more</dd></div>
+          <div><dt>5</dt><dd>interface languages, checked by tests</dd></div>
+          <div><dt>&lt;1¢</dt><dd>for a typical run on the automatic model</dd></div>
+        </dl>
+      </section>
+
+      <!-- 01 Why -->
+      <section class="sec" id="why" aria-labelledby="why-t">
+        <header class="sec-head">
+          <p class="sec-no"><span>01</span>The problem</p>
+          <h2 id="why-t">Your update script fails. Then you debug it all evening.</h2>
+        </header>
+        <div class="ledger-wrap">
+          <table class="ledger">
+            <thead>
+              <tr><td></td><th scope="col">Running topgrade and Mole by hand</th><th scope="col" class="ledger-us">Running omega</th></tr>
+            </thead>
+            <tbody>
+              <tr><th scope="row">A step fails</th><td>A step fails and the run moves on with a red line you have to scroll back to</td><td class="ledger-us">It reads the failure the moment it happens and works out the cause</td></tr>
+              <tr><th scope="row">The fix</th><td>You search the error, edit topgrade.toml and launch everything again</td><td class="ledger-us">It applies the smallest fix, retries once and moves on if it still fails</td></tr>
+              <tr><th scope="row">A password prompt</th><td>A package asks for a password halfway through and the run hangs</td><td class="ledger-us">Commands run without a prompt, so nothing waits on a password you cannot see</td></tr>
+              <tr><th scope="row">Next month</th><td>The same pipx failure comes back next month</td><td class="ledger-us">It writes down what it learned and starts there next time</td></tr>
+            </tbody>
+          </table>
         </div>
-        <div class="grid grid-4">
-          <article class="card risk risk-ok">
-            <p class="risk-label"><i class="ph ph-eye" aria-hidden="true"></i> Read only</p>
-            <p class="risk-rule">Runs straight away</p>
-            <p class="risk-cmds"><code>brew outdated</code><code>df -h</code><code>apt list --upgradable</code></p>
-          </article>
-          <article class="card risk risk-ok">
-            <p class="risk-label"><i class="ph ph-arrows-clockwise" aria-hidden="true"></i> Normal</p>
-            <p class="risk-rule">Runs straight away</p>
-            <p class="risk-cmds"><code>brew upgrade</code><code>npm update -g</code><code>rustup update</code></p>
-          </article>
-          <article class="card risk risk-warn">
-            <p class="risk-label"><i class="ph ph-hand" aria-hidden="true"></i> Dangerous</p>
-            <p class="risk-rule">Waits for your approval. Docker cleanups ask every time</p>
-            <p class="risk-cmds"><code>rm</code><code>sudo</code><code>docker … prune</code></p>
-          </article>
-          <article class="card risk risk-block">
-            <p class="risk-label"><i class="ph ph-prohibit" aria-hidden="true"></i> Blocked</p>
-            <p class="risk-rule">Never runs, even with <code>--yes</code></p>
-            <p class="risk-cmds"><code>rm -rf ~</code><code>diskutil erase</code><code>curl … | sh</code></p>
-          </article>
+      </section>
+
+      <!-- 02 Commands -->
+      <section class="sec" id="commands" aria-labelledby="commands-t">
+        <header class="sec-head">
+          <p class="sec-no"><span>02</span>Commands</p>
+          <h2 id="commands-t">Everything it does, by what brought you here</h2>
+          <p class="sec-sub"><code>omega menu</code> lists all of this on one screen: type to search, Enter to run. Here, typing filters.</p>
+        </header>
+        <div class="tools">
+          <label class="search"><svg class="ico" aria-hidden="true"><use href="#i-search"/></svg><span class="sr-only">Filter commands: disk, docker, ssh…</span><input type="search" id="cmd-filter" placeholder="Filter commands: disk, docker, ssh…" autocomplete="off" spellcheck="false"></label>
+          <p class="tools-count" id="cmd-count" role="status" aria-live="polite"></p>
         </div>
+        <div class="cmd-index" id="cmd-index">
+          <section class="cmd-group">
+            <h3>Bring everything up to date</h3>
+            <ul>
+              <li><code>omega</code><span>Checks the state, updates, cleans up and tells you what changed</span></li>
+              <li><code>omega full</code><span>Every stage that applies to this machine on one screen, with a plan you can edit</span></li>
+              <li><code>omega quick</code><span>The safe part in seconds: Trash, caches, an updates check and a disk and battery report</span></li>
+              <li><code>omega update</code><span>Homebrew, the App Store, apt, dnf, pacman, winget, Scoop, npm, pnpm, pipx, uv, rustup, cargo and more</span></li>
+              <li><code>omega schedule</code><span>Runs it in the background with launchd, systemd or Task Scheduler, and alerts you on the desktop</span></li>
+            </ul>
+          </section>
+          <section class="cmd-group">
+            <h3>Get disk space back</h3>
+            <ul>
+              <li><code>omega clean</code><span>Measures first, then frees what is worth it: package caches, Xcode, Docker, the Trash</span></li>
+              <li><code>omega disk</code><span>Duplicate files by SHA-256, large files and stale build folders: <code>node_modules</code>, <code>target</code>, <code>.venv</code></span></li>
+              <li><code>omega docker</code><span>Shows what Docker uses and removes only what you select. It always asks</span></li>
+              <li><code>omega uninstall</code><span>Removes an app and what it leaves behind in Application Support, Preferences and Caches</span></li>
+            </ul>
+          </section>
+          <section class="cmd-group">
+            <h3>Find out what is wrong</h3>
+            <ul>
+              <li><code>omega analyze</code><span>Disk, outdated software and config problems, then a card with recommendations. Changes nothing</span></li>
+              <li><code>omega health</code><span>Disk and battery health, memory, backups, firewall, encryption and the system logs</span></li>
+              <li><code>omega fix</code><span>Dry-runs topgrade and Mole, diagnoses their errors and fixes the config; with <code>--log</code>, a build log from elsewhere</span></li>
+              <li><code>omega net</code><span>DNS flush, package registry latency, port conflicts and a hosts and proxy audit</span></li>
+              <li><code>omega doctor</code><span>Checks config, key, provider and steps without spending tokens, and says when a newer release exists</span></li>
+            </ul>
+          </section>
+          <section class="cmd-group">
+            <h3>Keep a developer machine in order</h3>
+            <ul>
+              <li><code>omega dev</code><span>More than 70 languages, version managers and tools: what is installed, what overlaps, what is broken</span></li>
+              <li><code>omega git</code><span>Uncommitted and unpushed work across your folders, merged branches to delete and <code>.git</code> to optimise</span></li>
+              <li><code>omega skills</code><span>The skills of Claude Code, Codex, Gemini CLI, opencode, Cursor and Copilot: which agent sees each one, and installing, sharing, updating and removing them</span></li>
+              <li><code>omega tune</code><span>Reviews your tools' configuration against their current documentation, and cites it</span></li>
+            </ul>
+          </section>
+          <section class="cmd-group">
+            <h3>Check security and privacy</h3>
+            <ul>
+              <li><code>omega audit</code><span>SSH keys and their permissions in <code>~/.ssh</code>, and secrets left in the shell history</span></li>
+              <li><code>omega privacy</code><span>Reviews the system's telemetry and cleans browser caches without closing your sessions</span></li>
+              <li><code>omega mac</code><span>Login and background items, the menu bar, the Dock, shortcut conflicts and stale privacy permissions</span></li>
+              <li><code>omega rollback</code><span>A snapshot before the changes (APFS, Btrfs, Windows restore points), restored when you ask</span></li>
+            </ul>
+          </section>
+          <section class="cmd-group">
+            <h3>Do it your way</h3>
+            <ul>
+              <li><code>omega -p "…"</code><span>Say it in words: the agent has the same tools as the commands</span></li>
+              <li><code>omega shell</code><span>An interactive maintenance console</span></li>
+              <li><code>omega --no-ai</code><span>Deterministic maintenance, with no model and no API key</span></li>
+              <li><code>omega --json</code><span>Structured output and exit codes for scripts and CI: <code>--fail-on-outdated</code>, <code>--fail-on-critical</code></span></li>
+              <li><code>omega export</code><span>Writes this machine's state to <code>omega-blueprint.json</code>; <code>omega bootstrap</code> sets up a new one from it</span></li>
+              <li><code>omega menu</code><span>Every command on one screen. Type to search, Enter to run</span></li>
+            </ul>
+          </section>
+        </div>
+        <p class="note">Each row is explained in the <a class="link" href="https://github.com/lcajigasm/omega/blob/main/docs/manual/tasks.md">manual</a>. <code>omega mac</code> exists only on a Mac.</p>
+      </section>
+
+      <!-- 03 Catalogue: built from the binary's own table of steps. -->
+      <section class="sec" id="catalog" aria-labelledby="catalog-t">
+        <header class="sec-head">
+          <p class="sec-no"><span>03</span>Catalogue</p>
+          <h2 id="catalog-t">What it will run on your machine, line by line</h2>
+          <p class="sec-sub">Nobody wrote this table for the website: it is built from the catalogue inside the binary, with the command and the risk level of every step. A step appears on your machine only when its tool is installed; <code>omega steps</code> prints yours.</p>
+        </header>
+        <div class="cat" id="cat" data-src="catalog.json">
+          <div class="tools">
+            <div class="seg" role="group" aria-label="Platform">
+              <button type="button" data-os="darwin" aria-pressed="true">macOS <b>80</b></button>
+              <button type="button" data-os="linux" aria-pressed="false">Linux <b>94</b></button>
+              <button type="button" data-os="windows" aria-pressed="false">Windows <b>67</b></button>
+            </div>
+            <div class="seg seg-quiet" role="group" aria-label="Kind of step">
+              <button type="button" data-cat="" aria-pressed="true">All</button>
+              <button type="button" data-cat="check" aria-pressed="false">Checks</button>
+              <button type="button" data-cat="update" aria-pressed="false">Updates</button>
+              <button type="button" data-cat="clean" aria-pressed="false">Cleanup</button>
+              <button type="button" data-cat="backend" aria-pressed="false">Backends</button>
+            </div>
+            <label class="search"><svg class="ico" aria-hidden="true"><use href="#i-search"/></svg><span class="sr-only">Search steps: brew, docker, cache…</span><input type="search" id="cat-filter" placeholder="Search steps: brew, docker, cache…" autocomplete="off" spellcheck="false"></label>
+          </div>
+          <div class="cat-scroll" tabindex="0" role="region" aria-labelledby="catalog-t">
+            <table class="cat-table">
+              <thead><tr><th scope="col">Step</th><th scope="col">What it is</th><th scope="col">Command</th><th scope="col">Risk</th></tr></thead>
+              <tbody id="cat-rows">
+                <tr><td class="c-id"><code>disk</code></td><td class="c-name">Disk space</td><td class="c-cmd"><code>df -h / &amp;&amp; du -sh ~/Library/Caches ~/Library/Logs ~/.Trash 2&gt;/dev/null</code></td><td class="c-risk"><span class="badge" data-risk="read-only">Read only</span></td></tr>
+                <tr><td class="c-id"><code>brew-outdated</code></td><td class="c-name">Outdated Homebrew packages</td><td class="c-cmd"><code>brew outdated --verbose</code></td><td class="c-risk"><span class="badge" data-risk="read-only">Read only</span></td></tr>
+                <tr><td class="c-id"><code>brew-doctor</code></td><td class="c-name">brew doctor</td><td class="c-cmd"><code>brew doctor</code></td><td class="c-risk"><span class="badge" data-risk="read-only">Read only</span></td></tr>
+                <tr><td class="c-id"><code>macos-check</code></td><td class="c-name">macOS updates</td><td class="c-cmd"><code>softwareupdate --list</code></td><td class="c-risk"><span class="badge" data-risk="read-only">Read only</span></td></tr>
+                <tr><td class="c-id"><code>system-logs</code></td><td class="c-name">System logs review</td><td class="c-cmd"><code>echo &#39;== Crash reports, last 7 days (count, process)&#39;; find ~/Library/Logs/DiagnosticReports /Library/Logs/DiagnosticReports -type f -mtime -7 2&gt;/dev/null | sed -E &#39;s#.*/##; s/[-_][0-9]{4}-.*//&#39; | sort | uniq -c | sort -rn | head -10; echo &#39;== Launch agents that are not running and last exited with an error&#39;; launchctl list | awk &#39;NR&gt;1 &amp;&amp; $1 == &#34;-&#34; &amp;&amp; $2 != &#34;0&#34;&#39; | head -15; echo &#39;== Sleep blockers&#39;; pmset -g assertions | grep -E &#39;Prevent(User)?Idle(System|Display)Sleep|PreventSystemSleep&#39; | grep -v &#39; 0$&#39; | head -10; echo &#39;== Processes logging faults, last 30 min&#39;; /usr/bin/log show --last 30m --style compact --predicate &#39;messageType == fault&#39; 2&gt;/dev/null | awk &#39;NR&gt;1 {print $4}&#39; | sed &#39;s/\[.*//&#39; | sort | uniq -c | sort -rn | head -10; echo &#39;== Log folder sizes&#39;; du -sh ~/Library/Logs /Library/Logs /private/var/log 2&gt;/dev/null</code></td><td class="c-risk"><span class="badge" data-risk="read-only">Read only</span></td></tr>
+                <tr><td class="c-id"><code>health</code></td><td class="c-name">Hardware health</td><td class="c-cmd"><code>echo &#39;== Uptime and load&#39;; uptime; echo &#39;== Disk (SMART)&#39;; diskutil info / | grep -E &#39;SMART Status|Solid State&#39; | sed &#39;s/^ *//&#39;; echo &#39;== Battery&#39;; system_profiler SPPowerDataType 2&gt;/dev/null | grep -E &#39;Cycle Count|Condition|Maximum Capacity|State of Charge&#39; | sed &#39;s/^ *//&#39;; echo &#39;== Memory&#39;; memory_pressure -Q 2&gt;/dev/null | tail -1; sysctl -n vm.swapusage; echo &#39;== Time Machine&#39;; tmutil destinationinfo 2&gt;&amp;1 | grep -E &#39;Name|Kind|No destinations&#39; | sed &#39;s/^ *//&#39;; echo &#34;local snapshots: $(tmutil listlocalsnapshots / 2&gt;/dev/null | grep -c com.apple)&#34;</code></td><td class="c-risk"><span class="badge" data-risk="read-only">Read only</span></td></tr>
+                <tr><td class="c-id"><code>security</code></td><td class="c-name">Security settings</td><td class="c-cmd"><code>echo &#39;== FileVault&#39;; diskutil apfs list 2&gt;/dev/null | grep -m1 FileVault | sed &#39;s/^ *//&#39;; echo &#39;== Firewall&#39;; /usr/libexec/ApplicationFirewall/socketfilterfw --getglobalstate; echo &#39;== Gatekeeper&#39;; spctl --status; echo &#39;== System Integrity Protection&#39;; csrutil status; echo &#39;== Automatic updates&#39;; softwareupdate --schedule; for k in AutomaticDownload AutomaticallyInstallMacOSUpdates CriticalUpdateInstall; do echo &#34;$k: $(defaults read /Library/Preferences/com.apple.SoftwareUpdate $k 2&gt;/dev/null || echo unset)&#34;; done</code></td><td class="c-risk"><span class="badge" data-risk="read-only">Read only</span></td></tr>
+                <tr><td class="c-id"><code>dev-artifacts</code></td><td class="c-name">Stale project build folders</td><td class="c-cmd"><code>for d in ~/Dev ~/Developer ~/dev ~/Projects ~/projects ~/Code ~/code ~/src ~/work ~/Work ~/Sites ~/repos ~/git ~/Documents/GitHub; do [ -d &#34;$d&#34; ] &amp;&amp; echo &#34;$d&#34;; done | while read -r root; do find &#34;$root&#34; -maxdepth 6 -type d \( -name node_modules -o -name target -o -name .venv -o -name venv -o -name .next -o -name .nuxt -o -name .turbo -o -name Pods -o -name .gradle -o -name DerivedData -o -name .tox -o -name .parcel-cache \) -prune -mtime +60 -print0 2&gt;/dev/null; done | xargs -0 du -sk 2&gt;/dev/null | sort -rn | head -40</code></td><td class="c-risk"><span class="badge" data-risk="read-only">Read only</span></td></tr>
+                <tr><td class="c-id"><code>shell-startup</code></td><td class="c-name">Shell startup time</td><td class="c-cmd"><code>for i in 1 2 3; do /usr/bin/time -p zsh -i -c exit 2&gt;&amp;1 | grep real; done</code></td><td class="c-risk"><span class="badge" data-risk="read-only">Read only</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="tools-count" id="cat-count" role="status" aria-live="polite">The first steps of the macOS catalogue. With scripts on, the page loads the whole catalogue of the three systems.</p>
+        </div>
+        <p class="note">Steps marked dangerous wait for your approval unless you start omega with <code>--yes</code>. topgrade and Mole are optional backends: omega uses them when they are installed and does not need them.</p>
+      </section>
+
+      <!-- 04 Safety -->
+      <section class="sec" id="safety" aria-labelledby="safety-t">
+        <header class="sec-head">
+          <p class="sec-no"><span>04</span>Safety</p>
+          <h2 id="safety-t">Every command is classified before it runs. Try yours.</h2>
+          <p class="sec-sub">Compound commands are split and checked part by part, through wrappers such as <code>env</code>, <code>sudo</code> and <code>sh -c</code>. The highest risk wins.</p>
+        </header>
+
+        <!-- The classifier is the binary's own, compiled to WebAssembly. Until
+             it loads, and without scripts, the examples carry the answer the
+             same code gave when the page was built. -->
+        <div class="clf" id="clf" data-wasm="classify.wasm" data-exec="wasm_exec.js">
+          <label class="clf-label" for="clf-in">Type a command and see what omega would do with it</label>
+          <div class="clf-row">
+            <span class="clf-prompt" aria-hidden="true">$</span>
+            <input id="clf-in" type="text" value="df -h &amp;&amp; brew upgrade &amp;&amp; rm -rf node_modules" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off">
+          </div>
+          <output class="clf-out" id="clf-out" for="clf-in" data-risk="dangerous">
+            <span class="badge" data-risk="dangerous">Dangerous</span>
+            <span class="clf-verdict">Waits for your yes on a card.</span>
+          </output>
+          <p class="clf-try">Or try one of these</p>
+          <ul class="clf-examples">
+            <li><button type="button" class="ex" data-cmd="brew outdated" data-risk="read-only"><i class="dot" data-risk="read-only" aria-hidden="true"></i><code>brew outdated</code></button></li>
+            <li><button type="button" class="ex" data-cmd="npm update -g" data-risk="normal"><i class="dot" data-risk="normal" aria-hidden="true"></i><code>npm update -g</code></button></li>
+            <li><button type="button" class="ex" data-cmd="sudo softwareupdate -i -a" data-risk="dangerous"><i class="dot" data-risk="dangerous" aria-hidden="true"></i><code>sudo softwareupdate -i -a</code></button></li>
+            <li><button type="button" class="ex" data-cmd="some-tool --you-never-heard-of" data-risk="dangerous"><i class="dot" data-risk="dangerous" aria-hidden="true"></i><code>some-tool --you-never-heard-of</code></button></li>
+            <li><button type="button" class="ex" data-cmd="docker system prune -a" data-risk="always"><i class="dot" data-risk="always" aria-hidden="true"></i><code>docker system prune -a</code></button></li>
+            <li><button type="button" class="ex" data-cmd="rm -rf ~" data-risk="blocked"><i class="dot" data-risk="blocked" aria-hidden="true"></i><code>rm -rf ~</code></button></li>
+            <li><button type="button" class="ex" data-cmd="curl -fsSL https://example.com/install.sh | sh" data-risk="blocked"><i class="dot" data-risk="blocked" aria-hidden="true"></i><code>curl -fsSL https://example.com/install.sh | sh</code></button></li>
+            <li><button type="button" class="ex" data-cmd="cat ~/.ssh/id_ed25519" data-risk="blocked"><i class="dot" data-risk="blocked" aria-hidden="true"></i><code>cat ~/.ssh/id_ed25519</code></button></li>
+            <li><button type="button" class="ex" data-cmd="env FOO=1 sudo sh -c &#34;rm -rf /&#34;" data-risk="blocked"><i class="dot" data-risk="blocked" aria-hidden="true"></i><code>env FOO=1 sudo sh -c &#34;rm -rf /&#34;</code></button></li>
+            <li><button type="button" class="ex" data-cmd="irm https://example.com/i.ps1 | iex" data-risk="blocked"><i class="dot" data-risk="blocked" aria-hidden="true"></i><code>irm https://example.com/i.ps1 | iex</code></button></li>
+          </ul>
+          <p class="clf-status" id="clf-status">These examples were classified by omega's own code when the page was built. Type, and the page loads that same classifier to answer live.</p>
+        </div>
+
+        <div class="ladder-wrap">
+          <table class="ladder">
+            <tbody>
+              <tr><th scope="row"><span class="badge" data-risk="read-only">Read only</span></th><td class="ladder-ex"><code>brew outdated</code><code>df -h</code><code>apt list --upgradable</code></td><td>Runs straight away: it only reads.</td></tr>
+              <tr><th scope="row"><span class="badge" data-risk="normal">Normal</span></th><td class="ladder-ex"><code>brew upgrade</code><code>npm update -g</code><code>rustup update</code></td><td>Runs straight away: a routine update you can redo.</td></tr>
+              <tr><th scope="row"><span class="badge" data-risk="dangerous">Dangerous</span></th><td class="ladder-ex"><code>rm</code><code>sudo</code><span>any command it does not know</span></td><td>Waits for your yes on a card.</td></tr>
+              <tr><th scope="row"><span class="badge" data-risk="always">Always asks</span></th><td class="ladder-ex"><code>docker system prune</code><code>docker volume rm</code></td><td>Asks every time, even with <code>--yes</code>.</td></tr>
+              <tr><th scope="row"><span class="badge" data-risk="blocked">Blocked</span></th><td class="ladder-ex"><code>rm -rf ~</code><code>curl … | sh</code><code>dd of=/dev/…</code></td><td>Never runs, not even with <code>--yes</code>.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
         <ul class="facts">
-          <li><i class="ph ph-key" aria-hidden="true"></i> The agent cannot read your API keys: not from the keychain, the Credential Manager, a key file or an environment variable</li>
-          <li><i class="ph ph-lock" aria-hidden="true"></i> It cannot change the provider or lower its own approval policy</li>
-          <li><i class="ph ph-keyboard" aria-hidden="true"></i> Commands run with stdin closed, so nothing hangs on a hidden prompt</li>
-          <li><i class="ph ph-floppy-disk" aria-hidden="true"></i> Config edits show a diff and keep a timestamped backup</li>
-          <li><i class="ph ph-file-text" aria-hidden="true"></i> Every run is logged, including what you approved and denied</li>
-          <li><i class="ph ph-arrow-counter-clockwise" aria-hidden="true"></i> Changes to your Mac are recorded and can be undone one by one</li>
+          <li>The agent cannot read your API keys: not from the keychain, the Credential Manager, a key file or an environment variable</li>
+          <li>It cannot change the provider or lower its own approval policy</li>
+          <li>Commands run with stdin closed, so nothing hangs on a hidden prompt</li>
+          <li>Config edits show a diff and keep a timestamped backup</li>
+          <li>Every run is logged, including what you approved and denied</li>
+          <li>Changes to your Mac are recorded and can be undone one by one</li>
         </ul>
-      </div>
-    </section>
+      </section>
 
-    <!-- Models -->
-    <section class="section reveal" id="models" aria-labelledby="models-title">
-      <div class="container">
-        <div class="section-head">
-          <p class="kicker">Models</p>
-          <h2 class="section-title" id="models-title">The model you trust, at the size the job needs</h2>
-          <p class="section-sub">Automatic by default: a fast model for routine work, a stronger one when something fails. Pin any model with <code>omega model</code>, or switch mid-run with <kbd>ctrl</kbd> <kbd>p</kbd>.</p>
-        </div>
+      <!-- 05 Models -->
+      <section class="sec" id="models" aria-labelledby="models-t">
+        <header class="sec-head">
+          <p class="sec-no"><span>05</span>Models</p>
+          <h2 id="models-t">The model you trust, at the size the job needs</h2>
+          <p class="sec-sub">Automatic by default: a fast model for routine work, a stronger one when something fails. Pin any model with <code>omega model</code>, or switch mid-run with <kbd>ctrl</kbd> <kbd>p</kbd>.</p>
+        </header>
         <div class="split">
           <div>
-            <h3 class="card-title">Picked from live data, once a day</h3>
-            <p class="panel-intro" style="margin-bottom:0">omega reads public list prices and benchmark scores, keeps the models your key can use and picks two.</p>
-            <ul class="rule">
+            <h3>Picked from live data, once a day</h3>
+            <p>omega reads public list prices and benchmark scores, keeps the models your key can use and picks two.</p>
+            <ul class="rules">
               <li><strong>Fast</strong>, for routine work: the best score per dollar among models with at least 40% of the best score. Price weighs most.</li>
               <li><strong>Smart</strong>, when a step fails: the best value among models within 20% of the best score. Score weighs most.</li>
               <li>A pick changes only when another model beats it by more than 10%, so two close models do not alternate.</li>
               <li><code>omega models</code> shows the table. <code>omega config set model_catalog off</code> stops the download.</li>
             </ul>
           </div>
-          <figure class="terminal" aria-label="The model table from omega models">
-            <div class="terminal-bar"><span></span><span></span><span></span><p>omega models</p></div>
-            <div class="terminal-body">
-<pre><span class="t-muted">  model              score   in  out $/M</span>
-  claude-fable-5-2    64.6   $8  $40
-  claude-opus-5-5     59.1   $4  $20
-<span class="t-accent">▸ claude-sonnet-5-5   54.5   $2  $10  smart</span>
-  claude-fable-5-1    50.0  $10  $50
-<span class="t-accent">▸ claude-haiku-5-5    36.5 $0.1 $0.5  fast</span></pre>
-            </div>
-            <figcaption class="sr-only">omega models lists each model with its benchmark score and price per million tokens, and marks claude-haiku-5-5 as the fast pick and claude-sonnet-5-5 as the smart pick. Figures of 10 November 2026.</figcaption>
+          <figure class="listing">
+            <p class="listing-cmd"><span aria-hidden="true">$</span> omega models</p>
+            <table>
+              <thead><tr><th scope="col">model</th><th scope="col">score</th><th scope="col">in</th><th scope="col">out $/M</th><th scope="col"><span class="sr-only">pick</span></th></tr></thead>
+              <tbody>
+                <tr><td>claude-fable-5-2</td><td>64.6</td><td>$8</td><td>$40</td><td></td></tr>
+                <tr><td>claude-opus-5-5</td><td>59.1</td><td>$4</td><td>$20</td><td></td></tr>
+                <tr class="pick"><td>claude-sonnet-5-5</td><td>54.5</td><td>$2</td><td>$10</td><td>smart</td></tr>
+                <tr><td>claude-fable-5-1</td><td>50.0</td><td>$10</td><td>$50</td><td></td></tr>
+                <tr class="pick"><td>claude-haiku-5-5</td><td>36.5</td><td>$0.1</td><td>$0.5</td><td>fast</td></tr>
+              </tbody>
+            </table>
+            <figcaption>omega models lists each model with its benchmark score and price per million tokens, and marks claude-haiku-5-5 as the fast pick and claude-sonnet-5-5 as the smart pick. Figures of 10 November 2026.</figcaption>
           </figure>
         </div>
-        <div class="grid grid-3" style="margin-top:var(--s-7)">
-          <article class="card provider">
-            <span class="provider-logo"><svg class="logo" aria-hidden="true"><use href="#logo-anthropic"/></svg></span>
-            <div><h3>Anthropic</h3><p>Official Go SDK with conversation caching.</p></div>
-          </article>
-          <article class="card provider">
-            <span class="provider-logo"><svg class="logo" aria-hidden="true"><use href="#logo-openai"/></svg></span>
-            <div><h3>OpenAI</h3><p>Chat Completions with tool calling.</p></div>
-          </article>
-          <article class="card provider">
-            <span class="provider-logo"><svg class="logo" aria-hidden="true"><use href="#logo-openrouter"/></svg></span>
-            <div><h3>OpenRouter</h3><p>Hundreds of models behind one key, compared across vendors.</p></div>
-          </article>
-          <article class="card provider">
-            <span class="provider-logo"><svg class="logo" aria-hidden="true"><use href="#logo-opencode"/></svg></span>
-            <div><h3>OpenCode Zen</h3><p>Claude, Qwen, GLM, Kimi and more.</p></div>
-          </article>
-          <article class="card provider">
-            <span class="provider-logo"><svg class="logo" aria-hidden="true"><use href="#logo-ollama"/></svg></span>
-            <div><h3>Ollama and LM Studio</h3><p>Fully local and free. Nothing leaves your machine but the docs it reads.</p></div>
-          </article>
-          <article class="card provider">
-            <span class="provider-logo"><i class="ph ph-plugs-connected" aria-hidden="true"></i></span>
-            <div><h3>Any compatible endpoint</h3><p>MLX, llama.cpp, vLLM or a company gateway through a base URL.</p></div>
-          </article>
-        </div>
-      </div>
-    </section>
+        <ul class="providers">
+          <li><svg class="logo" aria-hidden="true"><use href="#logo-anthropic"/></svg><div><h3>Anthropic</h3><p>Official Go SDK with conversation caching.</p></div></li>
+          <li><svg class="logo" aria-hidden="true"><use href="#logo-openai"/></svg><div><h3>OpenAI</h3><p>Chat Completions with tool calling.</p></div></li>
+          <li><svg class="logo" aria-hidden="true"><use href="#logo-openrouter"/></svg><div><h3>OpenRouter</h3><p>Hundreds of models behind one key, compared across vendors.</p></div></li>
+          <li><svg class="logo" aria-hidden="true"><use href="#logo-opencode"/></svg><div><h3>OpenCode Zen</h3><p>Claude, Qwen, GLM, Kimi and more.</p></div></li>
+          <li><svg class="logo" aria-hidden="true"><use href="#logo-ollama"/></svg><div><h3>Ollama and LM Studio</h3><p>Fully local and free. Nothing leaves your machine but the docs it reads.</p></div></li>
+          <li><svg class="logo" aria-hidden="true"><use href="#logo-lmstudio"/></svg><div><h3>Any compatible endpoint</h3><p>MLX, llama.cpp, vLLM or a company gateway through a base URL.</p></div></li>
+        </ul>
+      </section>
 
-    <!-- Numbers -->
-    <section class="section reveal" id="open" aria-labelledby="open-title">
-      <div class="container">
-        <div class="section-head">
-          <p class="kicker">Open source</p>
-          <h2 class="section-title" id="open-title">Built in the open</h2>
-          <p class="section-sub">Read every line before you run it: <a class="link" href="https://github.com/lcajigasm/omega">github.com/lcajigasm/omega</a></p>
+      <!-- 06 Platforms -->
+      <section class="sec" id="platforms" aria-labelledby="platforms-t">
+        <header class="sec-head">
+          <p class="sec-no"><span>06</span>Platforms</p>
+          <h2 id="platforms-t">It knows the system it runs on</h2>
+          <p class="sec-sub">The same agent on macOS, Linux and Windows, with each system's own steps. On a Mac it also reviews what runs outside the apps you open.</p>
+        </header>
+        <div data-tabs data-follow-os>
+          <div class="tabs" role="tablist" aria-label="Platform">
+            <button class="tab" type="button" role="tab" aria-selected="true" aria-controls="panel-mac" id="ptab-mac" data-os="darwin">macOS</button>
+            <button class="tab" type="button" role="tab" aria-selected="false" aria-controls="panel-linux" id="ptab-linux" data-os="linux">Linux</button>
+            <button class="tab" type="button" role="tab" aria-selected="false" aria-controls="panel-windows" id="ptab-windows" data-os="windows">Windows</button>
+            <button class="tab" type="button" role="tab" aria-selected="false" aria-controls="panel-dev" id="ptab-dev">Developer tools</button>
+          </div>
+          <div class="panel" role="tabpanel" id="panel-mac" aria-labelledby="ptab-mac">
+            <p class="panel-intro">Apps add themselves to login, keep helpers running in the background, grab shortcuts other apps already use and leave permissions and files behind when they go. <code>omega mac</code> reviews all of it, asks you on cards and applies only what you pick. Every change can be undone.</p>
+            <dl class="defs">
+              <div><dt>omega mac login</dt><dd>Apps that open at login: updaters and apps you open when needed go, VPN, security and sync stay</dd></div>
+              <div><dt>omega mac background</dt><dd>Launch agents, daemons and app helpers, including leftovers of uninstalled apps</dd></div>
+              <div><dt>omega mac menubar</dt><dd>Menu bar apps: quit them, stop them at login, or hide them with Bartender, Ice or Thaw</dd></div>
+              <div><dt>omega mac dock</dt><dd>Apps no longer installed or not opened in 90 days, and the Dock settings you prefer</dd></div>
+              <div><dt>omega mac shortcuts</dt><dd>Who keeps each contested shortcut; the others move to a free one</dd></div>
+              <div><dt>omega mac permissions</dt><dd>Privacy &amp; Security entries whose binary or app is gone, each named with its version so the copies can be told apart</dd></div>
+              <div><dt>omega mac apps</dt><dd>Apps not opened in 180 days, apps built only for Intel, and what removed apps left in <code>~/Library</code></dd></div>
+            </dl>
+          </div>
+          <div class="panel" role="tabpanel" id="panel-linux" aria-labelledby="ptab-linux" hidden>
+            <p class="panel-intro">On Debian, Ubuntu, Fedora, Arch, openSUSE and their relatives, omega knows which distribution it runs on and uses its package manager. The steps that need <code>sudo</code> wait for your approval and ask for the password inside the interface.</p>
+            <dl class="defs">
+              <div><dt>packages</dt><dd>Check, update and clean with <code>apt</code>, <code>dnf</code>, <code>pacman</code> or <code>zypper</code>, including orphaned packages and the package cache</dd></div>
+              <div><dt>flatpak, snap</dt><dd>Updates, unused runtimes and old snap revisions</dd></div>
+              <div><dt>journal, disk</dt><dd>Failed units, errors since boot, core dumps, the size of the journal, <code>~/.cache</code> and the Trash</dd></div>
+              <div><dt>keys</dt><dd>In the system keyring (GNOME Keyring, KWallet) or, on a server with none, in a file only you can read. omega says which</dd></div>
+              <div><dt>homebrew</dt><dd>With Homebrew on Linux, the <code>brew</code> steps work as they do on a Mac</dd></div>
+            </dl>
+            <h3 class="limits-title">Good to know</h3>
+            <ul class="limits">
+              <li>The Mac review (omega mac) and the Mac-only steps do not exist on Linux, and say so</li>
+              <li>Without apt, dnf, pacman or zypper (Alpine, NixOS, Void) the system-package steps do not appear</li>
+              <li>Immutable systems such as Fedora Silverblue are not adapted yet</li>
+              <li>Inside WSL, omega is this Linux version</li>
+            </ul>
+          </div>
+          <div class="panel" role="tabpanel" id="panel-windows" aria-labelledby="ptab-windows" hidden>
+            <p class="panel-intro">On Windows 10 and 11 omega runs its commands in PowerShell and uses the package managers Windows developers already have. It never elevates itself: the steps that need administrator rights work when you opened the terminal as administrator.</p>
+            <dl class="defs">
+              <div><dt>packages</dt><dd>Check and update with <code>winget</code>, <code>Scoop</code> and <code>Chocolatey</code>, each shown only when it is installed</dd></div>
+              <div><dt>windows</dt><dd>Lists pending Windows updates, reviews the event log for errors, failing services and crashes, and updates WSL</dd></div>
+              <div><dt>cleanup</dt><dd>Temporary files, the Recycle Bin, old Scoop versions and the Windows component store</dd></div>
+              <div><dt>keys</dt><dd>In the Windows Credential Manager, protected by your login</dd></div>
+              <div><dt>dev tools</dt><dd><code>omega dev install</code> with Scoop or winget, and the same developer-tool steps as elsewhere</dd></div>
+            </dl>
+            <h3 class="limits-title">Good to know</h3>
+            <ul class="limits">
+              <li>The safety policy reads PowerShell: a delete aimed at a drive or the Windows folders, or a download piped into iex, never runs</li>
+              <li>Installing Windows updates, and any restart, is left to Windows Update</li>
+              <li>The Mac review (omega mac) does not exist on Windows, and says so</li>
+              <li>omega does not "debloat" Windows or turn off Defender, the firewall or UAC</li>
+            </ul>
+          </div>
+          <div class="panel" role="tabpanel" id="panel-dev" aria-labelledby="ptab-dev" hidden>
+            <p class="panel-intro">Languages and version managers pile up: two of them managing Node, a command that resolves to the wrong copy, a <code>PATH</code> entry that points nowhere. <code>omega dev</code> shows what is installed and who installed it, and fixes what you pick. On all three systems.</p>
+            <dl class="defs">
+              <div><dt>omega dev status</dt><dd>What is installed, by which manager, and what stands out: overlapping version managers, shadowed commands, a broken <code>PATH</code>, shell startup time</dd></div>
+              <div><dt>omega dev install</dt><dd>Pick from a card or name the tools: more than 70 languages, version managers and command-line tools, installed with Homebrew, your distribution's packages, Scoop or winget</dd></div>
+              <div><dt>omega dev activate</dt><dd>Adds the line a tool needs to <code>~/.zshrc</code>, or <code>~/.bashrc</code> for bash, after saving a copy of the file</dd></div>
+              <div><dt>omega dev</dt><dd>The guided review: the agent reads the inventory, explains each finding and applies what you approve</dd></div>
+            </dl>
+          </div>
         </div>
-        <div class="stats">
-          <div class="stat"><p class="stat-num">90</p><p class="stat-label">maintenance steps on Linux, 78 on macOS, 64 on Windows</p></div>
-          <div class="stat"><p class="stat-num">25</p><p class="stat-label">narrow tools the agent can use, nothing more</p></div>
-          <div class="stat"><p class="stat-num">5</p><p class="stat-label">interface languages, checked by tests</p></div>
-          <div class="stat"><p class="stat-num">&lt;1¢</p><p class="stat-label">for a typical run on the automatic model</p></div>
-        </div>
-      </div>
-    </section>
+      </section>
 
-    <!-- FAQ -->
-    <section class="section reveal" id="faq" aria-labelledby="faq-title">
-      <div class="container">
-        <div class="section-head">
-          <p class="kicker">FAQ</p>
-          <h2 class="section-title" id="faq-title">Questions</h2>
+      <!-- 07 Interface: the terminal and the app, in captures of both. -->
+      <section class="sec" id="interface" aria-labelledby="interface-t">
+        <header class="sec-head">
+          <p class="sec-no"><span>07</span>Interface</p>
+          <h2 id="interface-t">One agent, two faces</h2>
+        </header>
+        <div data-tabs>
+          <div class="tabs" role="tablist" aria-label="Interface">
+            <button class="tab" type="button" role="tab" aria-selected="true" aria-controls="terminal" id="itab-term">Terminal</button>
+            <button class="tab" type="button" role="tab" aria-selected="false" aria-controls="app" id="itab-app">Desktop app</button>
+          </div>
+          <div class="panel" role="tabpanel" id="terminal" aria-labelledby="itab-term">
+            <p class="panel-intro">A full screen interface: tool calls as they happen, a session panel with steps, disk and cost, and a card for every decision.</p>
+            <div class="plates" data-plates>
+              <figure class="plate"><img src="assets/confirm.png" width="1280" height="820" loading="lazy" alt="omega diagnoses a failed pipx upgrade, switches to a stronger model and asks before reinstalling; a session panel on the right shows steps, disk and tokens"><figcaption>A failure is diagnosed on a stronger model, then the fix waits for your approval. The panel on the right follows the session.</figcaption></figure>
+              <figure class="plate"><img src="assets/card.png" width="1280" height="820" loading="lazy" alt="A selection card with three cleanup actions ticked and the space each one frees"><figcaption>Recommendations on a card: tick what you want, omega does exactly that.</figcaption></figure>
+              <figure class="plate"><img src="assets/menu.png" width="1280" height="820" loading="lazy" alt="The home screen: disk space, model and every omega command grouped by area"><figcaption>The home screen lists every command. Enter opens or runs, typing searches.</figcaption></figure>
+              <figure class="plate"><img src="assets/docker-confirm.png" width="1280" height="820" loading="lazy" alt="A Docker build cache cleanup that always asks for confirmation"><figcaption>Docker cleanups always ask, even when everything else is approved.</figcaption></figure>
+              <figure class="plate"><img src="assets/model.png" width="1280" height="560" loading="lazy" alt="The model picker listing the models a provider offers"><figcaption>Pick a model from a card, or leave the choice to omega.</figcaption></figure>
+              <figure class="plate"><img src="assets/summary.png" width="1280" height="820" loading="lazy" alt="The summary at the end of a session: what was updated, what was freed and what failed"><figcaption>Every session ends with what changed, what it freed and what it cost.</figcaption></figure>
+            </div>
+            <p class="note">Recorded from the <code>omega</code> binary by <code>scripts/capture.sh</code>, with <code>omega --demo</code> and a local test model; no paid API.</p>
+
+            <h3 class="sub">Drive it from the keyboard</h3>
+            <div class="split">
+              <dl class="keys">
+                <div><dt><kbd>?</kbd></dt><dd>Show or hide the shortcut card, without leaving the run</dd></div>
+                <div><dt><kbd>shift</kbd> <kbd>tab</kbd></dt><dd>Cycle the approval mode: asks before risky actions, auto approve, read only</dd></div>
+                <div><dt><kbd>ctrl</kbd> <kbd>p</kbd></dt><dd>Switch to the next model of the run, from the next turn</dd></div>
+                <div><dt><kbd>ctrl</kbd> <kbd>b</kbd></dt><dd>Show or hide the session panel</dd></div>
+                <div><dt><kbd>ctrl</kbd> <kbd>o</kbd></dt><dd>Expand or collapse the output of every tool call</dd></div>
+                <div><dt><kbd>ctrl</kbd> <kbd>f</kbd></dt><dd>Search the transcript</dd></div>
+                <div><dt><kbd>ctrl</kbd> <kbd>y</kbd></dt><dd>Copy the focused tool output</dd></div>
+                <div><dt><kbd>ctrl</kbd> <kbd>c</kbd></dt><dd>Cancel the run and leave</dd></div>
+              </dl>
+              <div>
+                <div class="slash" aria-label="Slash commands">
+                  <code>/update</code><code>/clean</code><code>/analyze</code><code>/health</code><code>/tune</code><code>/fix</code><code>/docker</code><code>/dev</code><code>/install</code><code>/disk</code><code>/logs</code><code>/shell</code><code>/steps</code><code>/mac</code><code>/permissions</code><code>/apps</code><code>/login</code><code>/dock</code><code>/shortcuts</code><code>/undo</code><code>/models</code><code>/settings</code><code>/notes</code><code>/history</code><code>/doctor</code><code>/mode</code><code>/model</code><code>/help</code>
+                </div>
+                <p class="note">Type <kbd>/</kbd> in the input box for the command menu: each of these starts another task in the same session, with a description as you type.</p>
+                <!-- The player and the recording load when this is opened. -->
+                <details class="cast" data-cast="assets/shortcuts.cast">
+                  <summary><svg class="ico" aria-hidden="true"><use href="#i-play"/></svg>Watch a recorded session: help, Esc and a denial</summary>
+                  <div class="cast-body"></div>
+                </details>
+              </div>
+            </div>
+          </div>
+          <div class="panel" role="tabpanel" id="app" aria-labelledby="itab-app" hidden>
+            <p class="panel-intro">For when a terminal is not where you want to be. The app runs the same tasks under the same safety policy, with the same configuration and keys as the command, on macOS, Linux and Windows. Approvals, selection cards and the sudo password arrive as cards in the window. What the command line learns between runs, the app knows too. The Tools view runs the checks that need no model or key: network, SSH keys, leaked secrets, disk and repositories.</p>
+            <div class="plates" data-plates>
+              <figure class="plate"><img src="assets/gui-confirm.png" width="1780" height="1140" loading="lazy" alt="The omega app during a full maintenance: steps with their result, a failed pipx step diagnosed on a stronger model, and a card asking before the fix runs"><figcaption>Steps as they finish, a failure diagnosed on a stronger model, and the fix waiting for your approval.</figcaption></figure>
+              <figure class="plate"><img src="assets/gui-home.png" width="1780" height="1140" loading="lazy" alt="The app&#39;s home screen: the tasks as buttons and a field to say what you need"><figcaption>Pick a task, or say what you need in words.</figcaption></figure>
+              <figure class="plate"><img src="assets/gui-card.png" width="1780" height="1140" loading="lazy" alt="A selection card in the app with cleanup actions ticked and the space each one frees"><figcaption>Tick the cleanups you want. omega does exactly those.</figcaption></figure>
+              <figure class="plate"><img src="assets/gui-summary.png" width="1780" height="1140" loading="lazy" alt="The end of a session in the app: what was updated, fixed and freed, with tokens and cost below"><figcaption>The session ends with what changed, and stays open for a follow-up.</figcaption></figure>
+              <figure class="plate"><img src="assets/gui-output.png" width="1780" height="1140" loading="lazy" alt="A failed step opened in the app, showing the command&#39;s output and the error"><figcaption>Open any step to read what the command printed.</figcaption></figure>
+              <figure class="plate"><img src="assets/gui-setup.png" width="1780" height="1140" loading="lazy" alt="The app&#39;s setup screen listing the providers and a field for the API key"><figcaption>Choose a provider and paste its key. It is checked before it is stored in the keychain.</figcaption></figure>
+            </div>
+            <p class="note">Recorded from the app by <code>scripts/capture_gui.mjs</code>, in its demo mode: no paid API and no real commands.</p>
+            <div class="pair">
+              <div><h3>Light on the machine</h3><p>It draws with the webview the system already has, so the download is about 25 MB and there is no bundled browser.</p></div>
+              <div><h3>Not signed yet</h3><p>The builds carry no Apple or Microsoft signature. On macOS, run <code>xattr -dr com.apple.quarantine /Applications/Omega.app</code> once after installing. On Windows, choose More info and then Run anyway. On Linux it needs GTK 4 and WebKitGTK 6.0.</p></div>
+            </div>
+            <p class="actions">
+              <a class="btn btn-ink" href="https://github.com/lcajigasm/omega/releases/latest/download/omega-macos-universal.dmg"><svg class="ico" aria-hidden="true"><use href="#i-down"/></svg>Download for macOS</a>
+              <a class="btn btn-line" href="https://github.com/lcajigasm/omega/releases/latest">Windows (.zip)</a>
+              <a class="btn btn-line" href="https://github.com/lcajigasm/omega/releases/latest">Linux (.tar.gz)</a>
+            </p>
+            <p class="note">The disk image runs on macOS 13 or later, on Apple Silicon and Intel. For Windows and Linux, take the <code>omega-gui</code> archive for amd64 or arm64 from the release.</p>
+          </div>
         </div>
+      </section>
+
+      <!-- 08 Install -->
+      <section class="sec" id="install" aria-labelledby="install-t">
+        <header class="sec-head">
+          <p class="sec-no"><span>08</span>Install</p>
+          <h2 id="install-t">Start with a report that changes nothing</h2>
+          <p class="sec-sub">Free and open source under the MIT license. <code>omega analyze</code> is read only, so you can see what it would do before you let it do anything.</p>
+        </header>
+
+        <ol class="procedure" aria-label="Running in three commands">
+          <li><h3>Connect a model</h3><p>The setup asks for your provider, stores the key where your system keeps secrets (Keychain, Credential Manager or keyring), and lets you pick a model.</p><code>omega setup</code></li>
+          <li><h3>Get a report first</h3><p>Analyze is read only. You see disk usage, outdated software and config problems before anything changes.</p><code>omega analyze</code></li>
+          <li><h3>Let it do the maintenance</h3><p>Updates, cleanup and a summary, with your approval on anything risky. Or take the guided run through everything.</p><code>omega</code> <code>omega full</code></li>
+        </ol>
+
+        <div class="get">
+          <article>
+            <h3>Homebrew, on macOS and Linux</h3>
+            <pre><code>brew install lcajigasm/tap/omega
+omega setup
+omega analyze</code></pre>
+            <p>If omega came from the old tap, run <code>brew update &amp;&amp; brew upgrade omega</code> so Homebrew follows the migration, or reinstall from <code>lcajigasm/tap</code>.</p>
+            <button class="btn btn-ink copy-btn" type="button" data-copy="brew install lcajigasm/tap/omega"><svg class="ico" aria-hidden="true"><use href="#i-copy"/></svg><span class="copy-label">Copy install command</span></button>
+          </article>
+          <article>
+            <h3>Windows 10 and 11</h3>
+            <pre><code>Expand-Archive omega_*_windows_amd64.zip `
+  -DestinationPath "$env:LOCALAPPDATA\Programs\omega"
+# add that folder to your PATH, then:
+omega setup</code></pre>
+            <p>Take the zip for amd64 or arm64 from the release. omega runs in PowerShell; Windows Terminal is recommended.</p>
+            <a class="btn btn-line" href="https://github.com/lcajigasm/omega/releases/latest"><svg class="ico" aria-hidden="true"><use href="#i-down"/></svg>Download the zip</a>
+          </article>
+          <article>
+            <h3>Linux without Homebrew</h3>
+            <pre><code>tar -xzf omega_*_linux_amd64.tar.gz   # or linux_arm64
+sha256sum -c SHA256SUMS --ignore-missing
+sudo install -m 755 omega /usr/local/bin/omega</code></pre>
+            <p>Every release has archives for macOS, Linux and Windows, amd64 and arm64, with checksums.</p>
+            <a class="btn btn-line" href="https://github.com/lcajigasm/omega/releases/latest"><svg class="ico" aria-hidden="true"><use href="#i-down"/></svg>Download from GitHub Releases</a>
+          </article>
+        </div>
+        <p class="copy-status" role="status" aria-live="polite"></p>
+
+        <h3 class="sub" id="install-app">The desktop app</h3>
+        <div class="get">
+          <article>
+            <h3>macOS 13 or later</h3>
+            <pre><code>brew install --cask lcajigasm/tap/omega-app
+xattr -dr com.apple.quarantine /Applications/Omega.app</code></pre>
+            <p>Or open the disk image and drag Omega to Applications. The second line is needed once, because the app is not notarized yet.</p>
+            <a class="btn btn-ink" href="https://github.com/lcajigasm/omega/releases/latest/download/omega-macos-universal.dmg"><svg class="ico" aria-hidden="true"><use href="#i-down"/></svg>Download the disk image</a>
+          </article>
+          <article>
+            <h3>Windows 10 and 11</h3>
+            <pre><code>Expand-Archive omega-gui_*_windows_amd64.zip `
+  -DestinationPath "$env:LOCALAPPDATA\Programs\omega"
+# then open omega-gui.exe</code></pre>
+            <p>Take the <code>omega-gui</code> zip for amd64 or arm64 from the release. SmartScreen warns on the first run: choose More info, then Run anyway.</p>
+            <a class="btn btn-line" href="https://github.com/lcajigasm/omega/releases/latest"><svg class="ico" aria-hidden="true"><use href="#i-down"/></svg>Download the zip</a>
+          </article>
+          <article>
+            <h3>Linux</h3>
+            <pre><code>tar -xzf omega-gui_*_linux_amd64.tar.gz   # or linux_arm64
+./omega-gui</code></pre>
+            <p>It needs GTK 4 and WebKitGTK 6.0, which current desktop distributions ship: <code>libgtk-4-1</code> and <code>libwebkitgtk-6.0-4</code> on Debian and Ubuntu.</p>
+            <a class="btn btn-line" href="https://github.com/lcajigasm/omega/releases/latest"><svg class="ico" aria-hidden="true"><use href="#i-down"/></svg>Download the archive</a>
+          </article>
+        </div>
+        <p class="note">The app and the command are separate installs that share their configuration and API keys. Have both, or only one.</p>
+      </section>
+
+      <!-- 09 FAQ -->
+      <section class="sec" id="faq" aria-labelledby="faq-t">
+        <header class="sec-head">
+          <p class="sec-no"><span>09</span>FAQ</p>
+          <h2 id="faq-t">Questions</h2>
+        </header>
         <div class="faq">
           <details><summary><span>Does omega replace topgrade and Mole?</span></summary><p>For a typical developer machine, yes. omega has its own steps for Homebrew, the Mac App Store and macOS on a Mac, for apt, dnf, pacman, zypper, Flatpak and snap on Linux, and on both for npm, pnpm, bun, pipx, uv, rustup, cargo, gh extensions, Oh My Zsh, caches, Docker and the Trash. If topgrade or Mole are installed, it also uses them and can fix their configuration with <code>omega fix</code>.</p></details>
           <details><summary><span>What does omega send to the AI provider?</span></summary><p>Its instructions, the trimmed output of the commands it runs and the configuration files it reads. It is instructed never to open your documents. Every run is logged to <code>~/.local/state/omega/runs</code>. <code>omega logs</code> lists those transcripts and <code>omega logs view</code> prints one. omega keeps the newest 30.</p></details>
@@ -961,81 +884,16 @@ omega full</code></pre>
           <details><summary><span>Where are my API keys stored?</span></summary><p>In the macOS Keychain, under the service <code>omega-cli</code>. On Windows, in the Credential Manager. On Linux, in the system keyring (Secret Service) when one answers, otherwise in <code>~/.config/omega/keys</code>, a file only you can read; omega says which one it used. Environment variables such as <code>ANTHROPIC_API_KEY</code> take precedence when set.</p></details>
           <details><summary><span>Which languages does the interface support?</span></summary><p>English, Spanish, French, German and Portuguese, in the command, in the desktop app and on this website. omega follows your system locale, and you can override it with <code>omega config set language</code>. The agent replies in the same language.</p></details>
         </div>
-      </div>
-    </section>
-
-    <!-- Install -->
-    <section class="section final reveal" id="install" aria-labelledby="final-title">
-      <div class="container">
-        <div class="section-head">
-          <p class="kicker">Install</p>
-          <h2 class="section-title" id="final-title">Start with a report that changes nothing</h2>
-          <p class="section-sub">Free and open source under the MIT license. <code>omega analyze</code> is read only, so you can see what it would do before you let it do anything.</p>
-        </div>
-        <div class="get get-3">
-          <article class="card">
-            <h3 class="card-title"><i class="ph ph-beer-bottle" aria-hidden="true"></i> Homebrew, on macOS and Linux</h3>
-            <pre><code>brew install lcajigasm/tap/omega
-omega setup
-omega analyze</code></pre>
-            <p>If omega came from the old tap, run <code>brew update &amp;&amp; brew upgrade omega</code> so Homebrew follows the migration, or reinstall from <code>lcajigasm/tap</code>.</p>
-            <button class="btn btn-primary copy-btn" type="button" data-copy="brew install lcajigasm/tap/omega"><i class="ph ph-copy" aria-hidden="true"></i><span class="copy-label">Copy install command</span></button>
-          </article>
-          <article class="card">
-            <h3 class="card-title"><i class="ph ph-windows-logo" aria-hidden="true"></i> Windows 10 and 11</h3>
-            <pre><code>Expand-Archive omega_*_windows_amd64.zip `
-  -DestinationPath "$env:LOCALAPPDATA\Programs\omega"
-# add that folder to your PATH, then:
-omega setup</code></pre>
-            <p>Take the zip for amd64 or arm64 from the release. omega runs in PowerShell; Windows Terminal is recommended.</p>
-            <a class="btn btn-ghost" href="https://github.com/lcajigasm/omega/releases/latest"><i class="ph ph-download-simple" aria-hidden="true"></i> Download the zip</a>
-          </article>
-          <article class="card">
-            <h3 class="card-title"><i class="ph ph-linux-logo" aria-hidden="true"></i> Linux without Homebrew</h3>
-            <pre><code>tar -xzf omega_*_linux_amd64.tar.gz   # or linux_arm64
-sha256sum -c SHA256SUMS --ignore-missing
-sudo install -m 755 omega /usr/local/bin/omega</code></pre>
-            <p>Every release has archives for macOS, Linux and Windows, amd64 and arm64, with checksums.</p>
-            <a class="btn btn-ghost" href="https://github.com/lcajigasm/omega/releases/latest"><i class="ph ph-download-simple" aria-hidden="true"></i> Download from GitHub Releases</a>
-          </article>
-        </div>
-        <p class="copy-status" role="status" aria-live="polite"></p>
-
-        <h3 class="subhead" id="install-app">The desktop app</h3>
-        <div class="get get-3">
-          <article class="card">
-            <h3 class="card-title"><i class="ph ph-apple-logo" aria-hidden="true"></i> macOS 13 or later</h3>
-            <pre><code>brew install --cask lcajigasm/tap/omega-app
-xattr -dr com.apple.quarantine /Applications/Omega.app</code></pre>
-            <p>Or open the disk image and drag Omega to Applications. The second line is needed once, because the app is not notarized yet.</p>
-            <a class="btn btn-primary" href="https://github.com/lcajigasm/omega/releases/latest/download/omega-macos-universal.dmg"><i class="ph ph-download-simple" aria-hidden="true"></i> Download the disk image</a>
-          </article>
-          <article class="card">
-            <h3 class="card-title"><i class="ph ph-windows-logo" aria-hidden="true"></i> Windows 10 and 11</h3>
-            <pre><code>Expand-Archive omega-gui_*_windows_amd64.zip `
-  -DestinationPath "$env:LOCALAPPDATA\Programs\omega"
-# then open omega-gui.exe</code></pre>
-            <p>Take the <code>omega-gui</code> zip for amd64 or arm64 from the release. SmartScreen warns on the first run: choose More info, then Run anyway.</p>
-            <a class="btn btn-ghost" href="https://github.com/lcajigasm/omega/releases/latest"><i class="ph ph-download-simple" aria-hidden="true"></i> Download the zip</a>
-          </article>
-          <article class="card">
-            <h3 class="card-title"><i class="ph ph-linux-logo" aria-hidden="true"></i> Linux</h3>
-            <pre><code>tar -xzf omega-gui_*_linux_amd64.tar.gz   # or linux_arm64
-./omega-gui</code></pre>
-            <p>It needs GTK 4 and WebKitGTK 6.0, which current desktop distributions ship: <code>libgtk-4-1</code> and <code>libwebkitgtk-6.0-4</code> on Debian and Ubuntu.</p>
-            <a class="btn btn-ghost" href="https://github.com/lcajigasm/omega/releases/latest"><i class="ph ph-download-simple" aria-hidden="true"></i> Download the archive</a>
-          </article>
-        </div>
-        <p class="note">The app and the command are separate installs that share their configuration and API keys. Have both, or only one.</p>
-      </div>
-    </section>
-  </main>
+      </section>
+    </main>
+  </div>
 
   <footer class="footer">
-    <div class="container footer-inner">
-      <p class="brand"><span class="brand-mark" aria-hidden="true">Ω</span> omega</p>
+    <div class="footer-in">
+      <p class="brand"><span class="brand-mark" aria-hidden="true">Ω</span><span>omega</span></p>
       <ul class="footer-links">
         <li><a href="https://github.com/lcajigasm/omega">GitHub</a></li>
+        <li><a href="https://github.com/lcajigasm/omega/blob/main/docs/manual/README.md">Manual</a></li>
         <li><a href="https://github.com/lcajigasm/omega/releases">Releases</a></li>
         <li><a href="https://github.com/lcajigasm/homebrew-tap">Homebrew tap</a></li>
         <li><a href="privacy.html">Privacy</a></li>
@@ -1052,6 +910,6 @@ xattr -dr com.apple.quarantine /Applications/Omega.app</code></pre>
     </div>
   </footer>
 
-  <script src="main.js?v=18"></script>
+  <script src="main.js?v=20"></script>
 </body>
 </html>
