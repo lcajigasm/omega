@@ -69,8 +69,10 @@ Between two stages a card says how the last one ended and what comes next:
 | `p` | opens the plan again, to tick or untick what has not run |
 | `q` | ends the run here |
 
-Inside a stage, `Esc` on an empty input ends it and moves on, and `ctrl+c`
-stops that stage only. A stage that fails does not stop the run. The run ends
+A stage ends when its work does, and the card for the next one appears: you
+never type `/exit` to move on. What a stage needs from you it asks on cards
+while it runs, never as a question in its last message. `ctrl+c` stops that
+stage only. A stage that fails does not stop the run. The run ends
 with a summary of what was done, skipped, stopped and failed, with the time
 and the cost of each stage and the command that runs a pending one on its own;
 the same summary stays in the terminal after omega leaves.

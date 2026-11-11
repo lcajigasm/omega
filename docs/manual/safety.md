@@ -33,6 +33,11 @@ commands with `&&`, `;`, `|`) and applies the highest risk level found:
   with sudo and keeps it in memory for that run only (never logged, never sent to
   the AI). `Esc` skips what needs admin access. `omega --sudo` asks for it before
   the run starts instead.
+- On a Mac, a command that macOS stops for lack of a privacy permission (Full
+  Disk Access, Automation, Accessibility, a protected folder) brings up a card
+  that opens the place to grant it and retries when you have; see
+  [When macOS blocks omega itself](mac.md#when-macos-blocks-omega-itself).
+  omega never grants itself a permission: only you can, in macOS's own window.
 - `write_file` always requires approval (unless `--yes`), shows the diff and saves
   a `file.omega-bak-YYYYMMDD-HHMMSS` copy.
 - Denied actions are shown in the interface and recorded in the run log.

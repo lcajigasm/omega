@@ -43,10 +43,14 @@ type Options struct {
 	AutoYes     bool   // --yes: approve everything except blocked and always-confirm actions
 	ReadOnly    bool   // only Safe actions are allowed until the user picks actions
 	Interactive bool   // wait for follow-up input after the model finishes
-	Timeout     time.Duration
-	Config      *config.Config
-	Exec        ExecFunc
-	SkipDetect  bool // run catalogue steps without checking they are installed (demo mode)
+	// OneShot ends the session when the model finishes its turn, although
+	// someone is there to answer cards and passwords: a stage of the guided
+	// run goes on to the next one instead of waiting for a message.
+	OneShot    bool
+	Timeout    time.Duration
+	Config     *config.Config
+	Exec       ExecFunc
+	SkipDetect bool // run catalogue steps without checking they are installed (demo mode)
 	// SudoPassword, when set (omega --sudo), answers sudo prompts without asking.
 	SudoPassword string
 	// Doctor runs omega's preflight check and returns its report. The CLI
@@ -85,7 +89,10 @@ type Agent struct {
 	notes     []string // messages for the model about what the user changed
 
 	macInv *macos.Inventory // read once per run; dropped after a change
-	logMu  sync.Mutex       // serializes transcript writes from parallel tools
+
+	accessMu    sync.Mutex      // one permission card at a time
+	accessAsked map[string]bool // privacy permissions already asked for
+	logMu       sync.Mutex      // serializes transcript writes from parallel tools
 }
 
 // New creates an agent for the given provider.
@@ -217,7 +224,7 @@ func (a *Agent) Run(ctx context.Context, task string) {
 			a.setExit(ExitError)
 			a.emit(Event{Kind: EvError, Text: i18n.T("agent.model_error", err.Error())})
 			// The failed message was rolled back; let the user retry or quit.
-			if !a.opts.Interactive {
+			if !a.opts.Interactive || a.opts.OneShot {
 				a.emit(Event{Kind: EvDone, Stats: a.stats()})
 				return
 			}
@@ -287,7 +294,7 @@ func (a *Agent) executeAll(ctx context.Context, calls []llm.ToolCall) []llm.Tool
 // waitInput blocks for a follow-up in interactive mode. It returns false when
 // the session should end.
 func (a *Agent) waitInput(ctx context.Context, text *string) bool {
-	if !a.opts.Interactive {
+	if !a.opts.Interactive || a.opts.OneShot {
 		a.emit(Event{Kind: EvDone, Stats: a.stats()})
 		return false
 	}
@@ -481,6 +488,9 @@ func (a *Agent) execute(ctx context.Context, call llm.ToolCall) llm.ToolResult {
 		return res
 	}
 	out, err := h(ctx, a, in)
+	if service, blocked := blockedAccess(out, err); blocked {
+		out, err = a.regainAccess(ctx, call, service, func() (string, error) { return h(ctx, a, in) }, out, err)
+	}
 	if err != nil {
 		res.Content, res.IsError = err.Error(), true
 		// A denial or a finished card already carries the text. Anything else

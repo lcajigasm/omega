@@ -3,6 +3,60 @@ package i18n
 // Messages of omega mac: login and background items, menu bar, Dock and
 // keyboard shortcuts. Same order as messages: en, es, fr, de, pt.
 var macMessages = map[string][]string{
+	// Privacy permissions macOS asks for while a session runs.
+	"access.ask": {
+		"macOS blocked this: %[1]s does not have the “%[2]s” permission. How do you want to go on?",
+		"macOS ha bloqueado esto: %[1]s no tiene el permiso «%[2]s». ¿Cómo quieres seguir?",
+		"macOS a bloqué ceci : %[1]s n'a pas l'autorisation « %[2]s ». Comment voulez-vous continuer ?",
+		"macOS hat das blockiert: %[1]s hat die Berechtigung „%[2]s“ nicht. Wie soll es weitergehen?",
+		"O macOS bloqueou isto: %[1]s não tem a permissão «%[2]s». Como queres continuar?",
+	},
+	"access.dialog": {
+		"Have macOS ask me again", "Que macOS me lo vuelva a preguntar", "Que macOS me le redemande",
+		"macOS soll mich noch einmal fragen", "Que o macOS me volte a perguntar",
+	},
+	"access.dialog_detail": {
+		"Forgets the earlier answer for %s; macOS shows its dialog when omega tries again.",
+		"Olvida la respuesta anterior para %s; macOS muestra su ventana cuando omega lo reintenta.",
+		"Oublie la réponse précédente pour %s ; macOS affiche sa fenêtre quand omega réessaie.",
+		"Vergisst die frühere Antwort für %s; macOS zeigt seinen Dialog, wenn omega es erneut versucht.",
+		"Esquece a resposta anterior para %s; o macOS mostra a sua janela quando o omega volta a tentar.",
+	},
+	"access.settings": {
+		"Open System Settings on that permission", "Abrir Ajustes del Sistema en ese permiso", "Ouvrir Réglages Système sur cette autorisation",
+		"Systemeinstellungen bei dieser Berechtigung öffnen", "Abrir as Definições do Sistema nessa permissão",
+	},
+	"access.settings_detail": {
+		"Turn on “%[1]s” for %[2]s in the list; omega waits and tries again.",
+		"Activa «%[1]s» para %[2]s en la lista; omega espera y lo reintenta.",
+		"Activez « %[1]s » pour %[2]s dans la liste ; omega attend et réessaie.",
+		"Aktiviere „%[1]s“ für %[2]s in der Liste; omega wartet und versucht es erneut.",
+		"Ativa «%[1]s» para %[2]s na lista; o omega espera e volta a tentar.",
+	},
+	"access.skip": {"Continue without it", "Seguir sin él", "Continuer sans", "Ohne weitermachen", "Continuar sem ela"},
+	"access.skip_detail": {
+		"This part is left out and named in the summary.", "Esta parte se queda fuera y se nombra en el resumen.",
+		"Cette partie est laissée de côté et mentionnée dans le résumé.", "Dieser Teil bleibt aus und wird in der Zusammenfassung genannt.",
+		"Esta parte fica de fora e é referida no resumo.",
+	},
+	"access.wait": {
+		"System Settings is open on “%[1]s”. Turn it on for %[2]s (add it with + if it is not in the list), then come back here.",
+		"Ajustes del Sistema está abierto en «%[1]s». Actívalo para %[2]s (añádelo con + si no está en la lista) y vuelve aquí.",
+		"Réglages Système est ouvert sur « %[1]s ». Activez-la pour %[2]s (ajoutez-le avec + s'il n'est pas dans la liste), puis revenez ici.",
+		"Die Systemeinstellungen sind bei „%[1]s“ geöffnet. Aktiviere sie für %[2]s (mit + hinzufügen, falls es fehlt) und komm hierher zurück.",
+		"As Definições do Sistema estão abertas em «%[1]s». Ativa-a para %[2]s (adiciona com + se não estiver na lista) e volta aqui.",
+	},
+	"access.retry": {"Done, try again", "Hecho, reinténtalo", "C'est fait, réessayer", "Erledigt, erneut versuchen", "Feito, tenta de novo"},
+	"mac.no_tcc_open": {
+		"Open System Settings on Full Disk Access now?", "¿Abrir ahora Ajustes del Sistema en Acceso total al disco?",
+		"Ouvrir maintenant Réglages Système sur Accès complet au disque ?", "Jetzt die Systemeinstellungen bei Festplattenvollzugriff öffnen?",
+		"Abrir agora as Definições do Sistema em Acesso total ao disco?",
+	},
+	"mac.no_tcc_opened": {
+		"Turn it on for %s, reopen it and run the command again.", "Actívalo para %s, vuelve a abrirlo y lanza el comando otra vez.",
+		"Activez-le pour %s, rouvrez-le et relancez la commande.", "Aktiviere ihn für %s, öffne es neu und starte den Befehl noch einmal.",
+		"Ativa-o para %s, volta a abri-lo e corre o comando outra vez.",
+	},
 	"cmd.mac": {
 		"Control what opens at login, runs in the background, sits in the menu bar or the Dock, and global keyboard shortcuts (AI-guided)",
 		"Controla lo que se abre al iniciar sesión, corre en segundo plano, está en la barra de menús o en el Dock, y los atajos de teclado globales (guiado por IA)",

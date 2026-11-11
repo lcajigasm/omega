@@ -69,7 +69,7 @@ type SessionInfo struct {
 
 // homeTasks are the presets in the order the home screen shows them. The
 // ones this system has no prompt for are left out.
-var homeTasks = []string{agent.TaskFull, agent.TaskUpdate, agent.TaskClean, agent.TaskAnalyze, agent.TaskHealth,
+var homeTasks = []string{agent.TaskFull, agent.TaskQuick, agent.TaskUpdate, agent.TaskClean, agent.TaskAnalyze, agent.TaskHealth,
 	agent.TaskFix, agent.TaskTune, agent.TaskDev, agent.TaskMac, agent.TaskDocker}
 
 // Info returns the texts and the tasks of the home screen. The frontend asks
@@ -136,6 +136,14 @@ func (a *App) Notes() string { return cli.Notes() }
 
 // ClearNotes forgets it.
 func (a *App) ClearNotes() error { return cli.ClearNotes() }
+
+// Tools lists the checks that need no model: network, security, disk, git
+// and the system, the same commands the terminal has.
+func (a *App) Tools() []cli.ToolInfo { return cli.ToolList() }
+
+// RunTool runs one of them and returns what it printed. arg is its optional
+// argument: a port, a folder, a number of days or a file.
+func (a *App) RunTool(id, arg string) (string, error) { return cli.RunTool(id, arg) }
 
 // Providers lists the providers for the setup screen.
 func (a *App) Providers() ([]cli.ProviderStatus, error) { return cli.SetupProviders() }

@@ -14,6 +14,7 @@
   <button type="button" data-view="home"><i data-icon="home"></i><span class="label" data-t="gui.nav.home"></span></button>
   <button type="button" data-view="session"><i data-icon="session"></i><span class="label" data-t="gui.nav.session"></span><span id="nav-badge" class="badge-dot" hidden></span></button>
   <button type="button" data-view="history"><i data-icon="history"></i><span class="label" data-t="gui.nav.history"></span></button>
+  <button type="button" data-view="tools"><i data-icon="tools"></i><span class="label" data-t="gui.nav.tools"></span></button>
   <button type="button" data-view="system"><i data-icon="system"></i><span class="label" data-t="gui.nav.system"></span></button>
   <button type="button" data-view="settings"><i data-icon="settings"></i><span class="label" data-t="gui.nav.settings"></span></button>
   <span class="grow"></span>
@@ -106,6 +107,33 @@
         </header>
         <div id="run-none" class="empty"><i data-icon="history"></i><p id="run-none-text"></p></div>
         <div id="run-text" class="log transcript" hidden></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="tools" class="view" hidden>
+    <div class="split">
+      <aside class="list">
+        <header class="head">
+          <h1 data-t="gui.nav.tools"></h1>
+          <p class="muted" data-t="gui.tools.intro"></p>
+        </header>
+        <div id="tool-list"></div>
+      </aside>
+      <div class="column">
+        <header id="tool-bar" class="bar" hidden>
+          <div class="title"><b id="tool-title"></b><span id="tool-detail" class="muted"></span></div>
+          <span class="grow"></span>
+          <button type="button" id="tool-copy" data-t="gui.copy" hidden></button>
+        </header>
+        <form id="tool-form" class="ask tool-form" hidden>
+          <input id="tool-arg" type="text" autocomplete="off" spellcheck="false" hidden>
+          <span id="tool-cmd" class="muted mono selectable"></span>
+          <span class="grow"></span>
+          <button type="submit" id="tool-run" class="primary" data-t="gui.tools.run"></button>
+        </form>
+        <div id="tool-none" class="empty"><i data-icon="tools"></i><p data-t="gui.tools.pick"></p></div>
+        <pre id="tool-out" class="log tool-out selectable" hidden></pre>
       </div>
     </div>
   </section>

@@ -149,6 +149,31 @@ and fail, it opens the pane and names the entry to select. The AI cannot touch e
 database: a command that writes to `TCC.db` is blocked. The Local Network list
 is stored elsewhere and is not covered.
 
+### When macOS blocks omega itself
+
+macOS gives a permission to the app that runs omega: your terminal, or the
+desktop app. When a command of a session is stopped for lack of one (reading
+the privacy database or Mail without Full Disk Access, a script that needs
+Automation or Accessibility, a look into Documents you once refused), omega
+does not just report it. A card names the permission and the app, and offers:
+
+- **Open System Settings on that permission.** omega opens the right pane,
+  waits while you turn it on, and runs the command again. Full Disk Access,
+  Accessibility and the other system-wide permissions have no dialog of their
+  own: this is the only way to grant them.
+- **Have macOS ask me again**, for the permissions macOS asks about itself
+  (Automation, Desktop, Documents, Downloads). omega forgets your earlier
+  answer for that app with `tccutil reset`, and macOS shows its dialog when
+  the command is retried.
+- **Continue without it.** That part is left out and named in the summary.
+
+Each permission is asked once per session. Full Disk Access usually takes
+effect only after the app is quit and opened again; when the retry is still
+blocked, omega says so instead of asking twice. Without anybody to answer (a
+scheduled run) nothing is opened, and the summary says which permission was
+missing. `omega mac permissions` and the other `omega mac` commands offer to
+open the Full Disk Access pane too when they cannot read your list.
+
 ### Apps and what they leave behind
 
 ```bash

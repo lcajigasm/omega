@@ -96,19 +96,39 @@ string, and when a translation changes a command, a key or the markup.
 The styles, the script and the captures (`docs/styles.css`, `docs/main.js`,
 `docs/assets/`) are shared by every language and edited in place.
 
+### Wiki
+
+The [GitHub wiki](https://github.com/lcajigasm/omega/wiki) holds this manual,
+page by page. It is a copy: edit `docs/manual/`, then write the wiki's pages
+from it into a clone of `omega.wiki.git` and push that.
+
+```bash
+git clone https://github.com/lcajigasm/omega.wiki.git ../omega.wiki
+scripts/sync_wiki.py docs/manual ../omega.wiki   # every page but Home, Roadmap, sidebar and footer
+```
+
 ### Desktop app
 
 `cmd/omega-gui` is the same agent in a window, for macOS, Linux and Windows:
-a sidebar with five views that stay one click away while a session runs.
+a sidebar with six views that stay one click away while a session runs.
 **Maintenance** has the tasks and a field to ask in words; **Session** has the
 steps with their live output and the cards for approvals, selections and the
-sudo password; **History** reads the saved transcripts; **Status** runs the
+sudo password; **History** reads the saved transcripts; **Tools** runs the
+checks that need no model and no key (registry latency, listening ports, hosts
+and proxies, SSH keys, secrets left in the shell history, the privacy review,
+large and duplicate files, stale build folders, repositories, the schedule,
+snapshots and the blueprint export), each one the `omega` command of the same
+name with what it prints shown in the window; **Status** runs the
 checks of `omega doctor`, turns steps on and off and shows the notes; and
 **Settings** has the provider and its key, the model, the language and the
 rest of `omega config set`. The language changes at once, without restarting.
 It is built with [Wails](https://wails.io) on the system webview and shares
 the agent, the safety policy, the configuration and the translations with the
-command. What the views ask of omega is in `internal/cli/guiapi.go`.
+command. What the views ask of omega is in `internal/cli/guiapi.go`, and the
+tools in `internal/cli/toolsapi.go`: a list of commands the app may run, so a
+tool is never anything the terminal does not have. The commands that delete
+(`omega git clean`, `omega uninstall`, `omega privacy --clean`) ask on a
+terminal and are not offered in the window.
 
 A release publishes
 `omega-macos-universal.dmg` (`Omega.app`, Apple Silicon and Intel),

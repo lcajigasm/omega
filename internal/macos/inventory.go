@@ -434,8 +434,9 @@ func (inv *Inventory) reportPermissions(b *strings.Builder) {
 	if inv.NoTCC {
 		b.WriteString("NOTE: the user's privacy database could not be read, so only system-wide permissions (Full Disk Access, Accessibility, " +
 			"Screen Recording, Input Monitoring, Developer Tools, App Management) are listed. To see the rest (Files & Folders, Automation, " +
-			"Camera, Microphone, data from other apps), the terminal that runs omega needs Full Disk Access: tell the user, and offer to open " +
-			"the pane with `" + PrivacyPane("SystemPolicyAllFiles") + "`.\n")
+			"Camera, Microphone, data from other apps), the app that runs omega needs Full Disk Access. omega asks the user for it on a card " +
+			"of its own and reads the inventory again when it is granted; if a NOTE below says it was not, name it in the summary " +
+			"(`" + PrivacyPane("SystemPolicyAllFiles") + "` opens the pane).\n")
 	}
 	stale := inv.StalePermissions()
 	fmt.Fprintf(b, "%d entries, %d left over.\n", len(inv.Permissions), len(stale))

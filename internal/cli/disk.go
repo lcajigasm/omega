@@ -33,13 +33,13 @@ func diskCmd() *cobra.Command {
 					dir = filepath.Join(home, "Downloads")
 				}
 
-				fmt.Printf("\n🔍 Scanning '%s' for duplicate files (>1MB)...\n", dir)
+				fmt.Fprintf(cmd.OutOrStdout(), "\n🔍 Scanning '%s' for duplicate files (>1MB)...\n", dir)
 				dups, err := cleaner.FindDuplicates(dir, 1)
 				if err != nil {
 					return err
 				}
 				if len(dups) == 0 {
-					fmt.Println("  ✓ No duplicate files found.")
+					fmt.Fprintln(cmd.OutOrStdout(), "  ✓ No duplicate files found.")
 					return nil
 				}
 
@@ -47,12 +47,12 @@ func diskCmd() *cobra.Command {
 				for i, g := range dups {
 					wasted := g.SizeMB * float64(len(g.Paths)-1)
 					totalWasted += wasted
-					fmt.Printf("\n[%d] Duplicate set (%.1f MB per file, wasted: %.1f MB):\n", i+1, g.SizeMB, wasted)
+					fmt.Fprintf(cmd.OutOrStdout(), "\n[%d] Duplicate set (%.1f MB per file, wasted: %.1f MB):\n", i+1, g.SizeMB, wasted)
 					for _, p := range g.Paths {
-						fmt.Printf("    • %s\n", p)
+						fmt.Fprintf(cmd.OutOrStdout(), "    • %s\n", p)
 					}
 				}
-				fmt.Printf("\nTotal space wasted by duplicates: %.1f MB\n", totalWasted)
+				fmt.Fprintf(cmd.OutOrStdout(), "\nTotal space wasted by duplicates: %.1f MB\n", totalWasted)
 				return nil
 			},
 		},
@@ -75,19 +75,19 @@ func diskCmd() *cobra.Command {
 					}
 				}
 
-				fmt.Printf("\n🔍 Finding files larger than %d MB in '%s'...\n\n", minMB, dir)
+				fmt.Fprintf(cmd.OutOrStdout(), "\n🔍 Finding files larger than %d MB in '%s'...\n\n", minMB, dir)
 				files, err := cleaner.FindLargeFiles(dir, minMB, 25)
 				if err != nil {
 					return err
 				}
 				if len(files) == 0 {
-					fmt.Printf("  No files larger than %d MB found.\n", minMB)
+					fmt.Fprintf(cmd.OutOrStdout(), "  No files larger than %d MB found.\n", minMB)
 					return nil
 				}
 				for _, f := range files {
-					fmt.Printf("  %8.1f MB  %s\n", f.SizeMB, f.Path)
+					fmt.Fprintf(cmd.OutOrStdout(), "  %8.1f MB  %s\n", f.SizeMB, f.Path)
 				}
-				fmt.Println()
+				fmt.Fprintln(cmd.OutOrStdout())
 				return nil
 			},
 		},
@@ -104,29 +104,33 @@ func diskCmd() *cobra.Command {
 				}
 
 				roots := gitops.DefaultRoots()
-				fmt.Printf("\n🔍 Scanning dev projects for artifacts untouched for >%d days...\n", days)
+				fmt.Fprintf(cmd.OutOrStdout(), "\n🔍 Scanning dev projects for artifacts untouched for >%d days...\n", days)
 				artifacts := cleaner.FindArtifacts(roots, days)
 				if len(artifacts) == 0 {
-					fmt.Println("  ✓ No stale build artifacts found.")
+					fmt.Fprintln(cmd.OutOrStdout(), "  ✓ No stale build artifacts found.")
 					return nil
 				}
 
 				var totalMB int64
-				fmt.Printf("\n%-18s %10s  %s\n", "Type", "Size", "Path")
-				fmt.Println(stringsRepeat("─", 75))
+				fmt.Fprintf(cmd.OutOrStdout(), "\n%-18s %10s  %s\n", "Type", "Size", "Path")
+				fmt.Fprintln(cmd.OutOrStdout(), stringsRepeat("─", 75))
 				for _, a := range artifacts {
-					fmt.Printf("%-18s %8d MB  %s (inactive %d days)\n", a.Type, a.SizeMB, a.Path, a.DaysOld)
+					fmt.Fprintf(cmd.OutOrStdout(), "%-18s %8d MB  %s (inactive %d days)\n", a.Type, a.SizeMB, a.Path, a.DaysOld)
 					totalMB += a.SizeMB
 				}
-				fmt.Printf("\nTotal reclaimable space: %d MB (%.1f GB)\n", totalMB, float64(totalMB)/1024)
+				fmt.Fprintf(cmd.OutOrStdout(), "\nTotal reclaimable space: %d MB (%.1f GB)\n", totalMB, float64(totalMB)/1024)
 
+				// Deleting is asked on a terminal only: the desktop app lists.
+				if cmd.OutOrStdout() != os.Stdout {
+					return nil
+				}
 				ans := ask("\nDelete these stale build artifacts? [y/N]", "n")
 				if ans == "y" || ans == "Y" {
 					for _, a := range artifacts {
 						_ = cleaner.PruneArtifact(a.Path)
-						fmt.Printf("  ✓ Removed %s\n", a.Path)
+						fmt.Fprintf(cmd.OutOrStdout(), "  ✓ Removed %s\n", a.Path)
 					}
-					fmt.Println("\n✓ All selected artifacts deleted.")
+					fmt.Fprintln(cmd.OutOrStdout(), "\n✓ All selected artifacts deleted.")
 				}
 				return nil
 			},

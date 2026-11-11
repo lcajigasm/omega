@@ -38,6 +38,7 @@ type runFlags struct {
 	sudo           bool
 	prompt         string
 	once           bool
+	stage          bool // a stage of the guided run: it ends when the model does
 	demo           bool
 	auto           bool
 	noAI           bool
@@ -299,10 +300,10 @@ func bindRunFlags(pf *pflag.FlagSet, f *runFlags) {
 	pf.BoolVar(&f.noAI, "no-ai", false, "run deterministically without calling an AI model")
 	pf.BoolVar(&f.offline, "offline", false, "alias for --no-ai")
 	pf.BoolVar(&f.json, "json", false, "output report as structured JSON")
-	pf.StringVar(&f.format, "format", "", "output format: json, yaml, or table")
+	pf.StringVar(&f.format, "format", "", "output format; json is the only one written for now")
 	pf.BoolVarP(&f.quiet, "quiet", "q", false, "quiet mode; suppress non-essential output")
 	pf.BoolVarP(&f.verbose, "verbose", "v", false, "verbose output showing commands and streaming output")
-	pf.BoolVar(&f.debug, "debug", false, "print debug traces, token counts, and runner timings")
+	pf.BoolVar(&f.debug, "debug", false, "reserved; prints nothing more yet")
 	pf.BoolVar(&f.failOnWarning, "fail-on-warning", false, "exit with non-zero code if any warning is found")
 	pf.BoolVar(&f.failOnOutdated, "fail-on-outdated", false, "exit with non-zero code if outdated packages are detected")
 	pf.BoolVar(&f.failOnCritical, "fail-on-critical", false, "exit with non-zero code if any step fails")
@@ -367,6 +368,9 @@ func prepareRun(task string, f runFlags) (*run, error) {
 	if f.auto {
 		prompt += agent.AutoSuffix
 	}
+	if f.stage {
+		prompt += agent.StageSuffix
+	}
 	readOnly := f.dryRun || task == agent.TaskAnalyze
 
 	planTask := task
@@ -423,6 +427,7 @@ func (r *run) agent(interactive, demoInteractive bool, sudoPassword string) *age
 		},
 		MaxCost:  r.f.maxCost,
 		MaxTurns: r.f.maxTurns,
+		OneShot:  r.f.stage,
 	}
 	if r.f.demo {
 		opts.Provider = "anthropic"
