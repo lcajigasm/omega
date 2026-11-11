@@ -67,6 +67,7 @@ jobs:
   test:
     needs: version
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
@@ -91,6 +92,7 @@ jobs:
   build:
     needs: [version, test]
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     env:
       TAG: ${{ needs.version.outputs.tag }}
     strategy:
@@ -168,6 +170,8 @@ jobs:
             arch: arm64
             os: ubuntu-latest
     runs-on: ${{ matrix.os }}
+    # The macOS runner can wait in a queue; that wait does not count here.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
         with:
@@ -215,6 +219,7 @@ jobs:
   image:
     needs: [version, build, gui]
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     permissions:
       contents: read
       packages: write
@@ -263,6 +268,7 @@ jobs:
   publish:
     needs: [version, build, gui]
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     env:
       TAG: ${{ needs.version.outputs.tag }}
     steps:
@@ -345,6 +351,14 @@ jobs:
             exit 0
           fi
           GH_TOKEN="$HOMEBREW_TAP_TOKEN" gh workflow run update.yml --repo lcajigasm/homebrew-tap --ref main
+      - name: start the captures
+        # The captures workflow records the README media on a pushed tag. A
+        # tag created by this workflow's token starts nothing, so it is
+        # started here. It only uploads files: a failure to start it does
+        # not undo a release.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run captures.yml --ref "$TAG" || echo "::warning::the captures workflow did not start for ${TAG}"
       - name: start tap check
         # A release created with this token does not start other workflows.
         # verify-taps reads the formula and the cask from the tap until both
