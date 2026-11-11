@@ -195,6 +195,17 @@ omega [task] [flags]
 | `--no-tui` | plain text output |
 | `--once` | exit when the agent finishes instead of asking for more |
 | `-v, --version` | version |
+| `--no-ai`, `--offline` | run deterministically without calling an AI model |
+| `--json` | output report as structured JSON |
+| `--format` | output format: json, yaml, or table |
+| `-q, --quiet` | quiet mode; suppress non-essential output |
+| `-v, --verbose` | verbose output showing commands and streaming output |
+| `--debug` | print debug traces, token counts, and runner timings |
+| `--fail-on-warning` | exit with non-zero code if any warning is found |
+| `--fail-on-outdated` | exit with non-zero code if outdated packages are detected |
+| `--fail-on-critical` | exit with non-zero code if any step fails |
+| `--max-cost` | maximum estimated session cost in USD before stopping |
+| `--max-turns` | maximum number of agent turns |
 
 | Subcommand | Description |
 |---|---|
@@ -218,7 +229,21 @@ omega [task] [flags]
 | `omega logs` | list run transcripts, newest first |
 | `omega logs view [n\|file]` | print one transcript (the latest if omitted) |
 | `omega doctor` | check config, key shape, provider, the configured model and installed steps; no chat, no tokens |
-| `omega completion zsh\|bash\|fish` | completion script |
+| `omega completion zsh\|bash\|fish\|powershell\|install` | completion script and automatic installer |
+| `omega quick` | one-click safe maintenance for everyday users |
+| `omega net flush\|ping\|ports\|kill\|audit` | network, DNS cache flush, registry ping, port conflict hunter and hosts audit |
+| `omega git status\|clean\|gc` | git repository hygiene across dev folders: merged branches, unpushed work, .git optimization |
+| `omega disk duplicates\|large\|artifacts` | duplicate file finder by SHA-256, large files, and dev build artifact cleanup |
+| `omega audit ssh\|secrets` | SSH directory & key permissions audit, and shell history secret leak scanner |
+| `omega privacy [--clean]` | review OS telemetry and safely clean browser caches |
+| `omega uninstall <app>` | deep uninstallation locating leftover preferences, caches and app support files |
+| `omega schedule install\|status\|uninstall` | automated background maintenance with native daemons (launchd, systemd, Windows Task Scheduler) and desktop alerts |
+| `omega rollback` | inspect and restore safety filesystem snapshots (APFS, Btrfs, Windows System Restore) |
+| `omega export [file]` | export machine blueprint (packages, dev tools, config) to omega-blueprint.json |
+| `omega bootstrap <file>` | restore and provision a system from an Omega blueprint |
+| `omega shell` | interactive maintenance REPL console |
+| `omega man [dir]` | generate troff man pages for Omega commands |
+| `omega fix [--log <file>] [error...]` | diagnose and fix failing commands, configuration or external build logs |
 
 `omega logs view` prints the newest transcript, `omega logs view 2` prints the second row of `omega logs`, and `omega logs view <file>` prints that file. A new run deletes older transcripts until 30 remain.
 

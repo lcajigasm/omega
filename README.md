@@ -35,6 +35,7 @@ finds the cause and fixes it.
 brew install lcajigasm/tap/omega   # macOS, and Linux with Homebrew
 omega setup                        # pick a provider and store its key
 omega analyze                      # a first report that changes nothing
+omega quick                        # fast, safe maintenance: trash, caches, updates & health
 omega                              # the maintenance: update, clean, summarise
 ```
 
@@ -45,6 +46,7 @@ release page.
 > [!TIP]
 > `omega analyze` is read only. You see what omega would do before you let it
 > do anything, and nothing changes until you tick it on a card.
+> You can also run completely offline without an AI model using `omega --no-ai` or `omega --offline`.
 
 <details>
 <summary><b>Windows 10 and 11</b></summary>
@@ -127,15 +129,26 @@ topgrade and Mole are excellent until something breaks. Then the work is yours.
 |---|---|---|
 | **Everything** | `omega` | Checks the state, updates, cleans up and tells you what changed |
 | **A guided run** | `omega full` | Every stage that applies to this machine, on one screen, with a plan you can edit |
+| **Quick clean** | `omega quick` | One-click safe cleanup (trash, caches), updates check, disk & battery health report |
 | **Update** | `omega update` | Homebrew, the App Store, apt, dnf, pacman, winget, Scoop, npm, pnpm, pipx, uv, rustup, cargo and more |
 | **Clean** | `omega clean` | Measures first, then frees what is worth it: package caches, Xcode, Docker, the Trash |
 | **Report** | `omega analyze` | Disk, outdated software and config problems, then a card with recommendations |
 | **Health** | `omega health` | Disk and battery health, memory, backups, firewall, encryption and the system logs |
-| **Repair** | `omega fix` | Runs the topgrade and Mole dry runs, diagnoses their configuration and fixes it |
+| **Repair** | `omega fix` | Runs topgrade and Mole dry runs, diagnoses errors and fixes config or external build logs (`--log`) |
 | **Tune** | `omega tune` | Reviews your tools' configuration against their current documentation |
 | **Developer setup** | `omega dev` | More than 70 languages, version managers and tools: what is installed, what overlaps, what is broken |
+| **Git hygiene** | `omega git` | Scans dev folders for uncommitted/unpushed work, deletes merged branches and optimizes `.git` |
+| **Disk & artifacts** | `omega disk` | Finds duplicate files by SHA-256, locates large files, and prunes stale build folders (`node_modules`, `target`, `.venv`) |
+| **Network & DNS** | `omega net` | Universal DNS flush, package registry latency test, port conflict hunter and hosts/proxy auditor |
+| **Security audit** | `omega audit` | Audits SSH keys and permissions (`~/.ssh`), and scans shell history for leaked secrets |
+| **Privacy** | `omega privacy` | Reviews OS telemetry and safely cleans browser caches without losing sessions |
+| **Uninstall apps** | `omega uninstall` | Deep software uninstallation finding residual Application Support, Preferences and Cache files |
+| **Automate** | `omega schedule` | Native background scheduling (`launchd`, `systemd --user`, Windows Task Scheduler) with desktop alerts |
+| **Snapshot safety** | `omega rollback` | Creates filesystem safety snapshots (APFS, Btrfs, Windows Restore Points) and restores them on demand |
+| **Blueprint & setup** | `omega export` | Exports machine state to `omega-blueprint.json` and provisions new environments with `omega bootstrap` |
 | **Docker** | `omega docker` | Shows what Docker uses and removes only what you select. It always asks |
 | **Your Mac** | `omega mac` | Login and background items, the menu bar, the Dock, shortcut conflicts, stale privacy permissions |
+| **Interactive shell** | `omega shell` | Interactive REPL maintenance console |
 | **Anything else** | `omega -p "…"` | Say it in words; the agent has the same tools |
 
 `omega menu` lists all of it on one screen. Each row is explained in
@@ -280,6 +293,10 @@ and API keys: have both, or only one. More in
 
 ## Also
 
+- **Deterministic offline mode**: run `omega --no-ai` or `omega --offline` for completely deterministic maintenance without calling external AI models or needing API keys.
+- **CI/CD & Scripting ready**: structured JSON output with `--json` or `--format json|yaml|table`, quiet mode `-q`, and assertion flags `--fail-on-warning`, `--fail-on-outdated`, and `--fail-on-critical` with semantic exit codes.
+- **Custom steps & lifecycle hooks**: define custom steps in `~/.config/omega/steps.d/*.toml` and configure lifecycle hooks (`pre_full`, `post_full`, `on_error`).
+- **Autocompletions & man pages**: install completions automatically with `omega completion install` and generate troff man pages with `omega man`.
 - **Speaks five languages**: English, Spanish, French, German and Portuguese,
   in the command, in the app and on the [website](https://lcajigasm.github.io/omega/).
 - **Remembers**: it learns from each run and starts there next time.

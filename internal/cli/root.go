@@ -17,27 +17,41 @@ import (
 
 	"github.com/lcajigasm/omega/internal/agent"
 	"github.com/lcajigasm/omega/internal/config"
+	"github.com/lcajigasm/omega/internal/customsteps"
 	"github.com/lcajigasm/omega/internal/demo"
 	"github.com/lcajigasm/omega/internal/i18n"
 	"github.com/lcajigasm/omega/internal/llm"
 	"github.com/lcajigasm/omega/internal/runner"
 	"github.com/lcajigasm/omega/internal/secrets"
+	"github.com/lcajigasm/omega/internal/steps"
 	"github.com/lcajigasm/omega/internal/sudo"
 	"github.com/lcajigasm/omega/internal/ui"
 )
 
 type runFlags struct {
-	provider string
-	model    string
-	effort   string
-	yes      bool
-	noTUI    bool
-	dryRun   bool
-	sudo     bool
-	prompt   string
-	once     bool
-	demo     bool
-	auto     bool
+	provider       string
+	model          string
+	effort         string
+	yes            bool
+	noTUI          bool
+	dryRun         bool
+	sudo           bool
+	prompt         string
+	once           bool
+	demo           bool
+	auto           bool
+	noAI           bool
+	offline        bool
+	json           bool
+	format         string
+	quiet          bool
+	verbose        bool
+	debug          bool
+	failOnWarning  bool
+	failOnOutdated bool
+	failOnCritical bool
+	maxCost        float64
+	maxTurns       int
 }
 
 // version is set by Execute for the TUI header.
@@ -50,6 +64,11 @@ func Init(v string) {
 	version = v
 	runner.ExtendPath()
 	withholdProviderKeys()
+	if custom, err := customsteps.LoadCustomSteps(); err == nil {
+		for _, s := range custom {
+			steps.Register(s)
+		}
+	}
 	// The language must be known before the commands' help text is built.
 	if cfg, err := config.Load(); err == nil {
 		i18n.Init(cfg.Language)
@@ -79,7 +98,7 @@ func newRoot(f *runFlags) *cobra.Command {
 		Args:          cobra.ArbitraryArgs,
 		SilenceUsage:  true,
 		SilenceErrors: true,
-		ValidArgs:     []string{agent.TaskFull, agent.TaskUpdate, agent.TaskClean, agent.TaskAnalyze, agent.TaskHealth, agent.TaskFix, agent.TaskTune, agent.TaskDev},
+		ValidArgs:     []string{agent.TaskFull, agent.TaskQuick, agent.TaskUpdate, agent.TaskClean, agent.TaskAnalyze, agent.TaskHealth, agent.TaskFix, agent.TaskTune, agent.TaskDev},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			task, prompt, err := interpret(cmd.Root(), args)
 			if err != nil {
@@ -94,7 +113,13 @@ func newRoot(f *runFlags) *cobra.Command {
 	}
 	bindRunFlags(root.Flags(), f)
 
-	root.AddCommand(fullCmd(), setupCmd(), authCmd(), modelCmd(), modelsCmd(), dockerCmd(), macCmd(), devCmd(), menuCmd(), configCmd(), stepsCmd(), notesCmd(), logsCmd(), doctorCmd())
+	root.AddCommand(
+		fullCmd(), quickCmd(f), fixCmd(f), setupCmd(), authCmd(), modelCmd(), modelsCmd(),
+		dockerCmd(), macCmd(), devCmd(), menuCmd(), configCmd(), stepsCmd(), notesCmd(),
+		logsCmd(), doctorCmd(), netCmd(), auditCmd(), privacyCmd(), gitCmd(), diskCmd(),
+		uninstallCmd(), scheduleCmd(), rollbackCmd(), exportCmd(), bootstrapCmd(), shellCmd(),
+		completionCmd(root), manCmd(root),
+	)
 	return root
 }
 
@@ -103,6 +128,7 @@ func newRoot(f *runFlags) *cobra.Command {
 var taskWords = map[string]string{
 	"maintain": agent.TaskFull, "maintenance": agent.TaskFull, "run": agent.TaskFull,
 	"completo": agent.TaskFull, "mantenimiento": agent.TaskFull, "tout": agent.TaskFull, "alles": agent.TaskFull, "tudo": agent.TaskFull,
+	"easy": agent.TaskQuick, "rapido": agent.TaskQuick, "facil": agent.TaskQuick,
 	"upgrade": agent.TaskUpdate, "updates": agent.TaskUpdate, "actualizar": agent.TaskUpdate, "actualiza": agent.TaskUpdate,
 	"aktualisieren": agent.TaskUpdate, "atualizar": agent.TaskUpdate,
 	"cleanup": agent.TaskClean, "clear": agent.TaskClean, "limpiar": agent.TaskClean, "limpia": agent.TaskClean, "limpieza": agent.TaskClean,
@@ -132,6 +158,7 @@ var shortcuts = map[string][]string{
 	// A bare "status" or "check" gets the check that costs nothing.
 	"diagnose": {"doctor"}, "status": {"doctor"}, "check": {"doctor"}, "estado": {"doctor"}, "ranking": {"models"}, "modelos": {"models"},
 	"memory": {"notes"}, "notas": {"notes"}, "pasos": {"steps"}, "wizard": {"setup"}, "configure": {"setup"}, "init": {"setup"},
+	"cron": {"schedule"}, "daemon": {"schedule"}, "backup": {"export"},
 }
 
 // expandShortcut rewrites a command line whose first word is a shortcut.
@@ -182,7 +209,7 @@ func taskFor(word string) (string, bool) {
 }
 
 // rootTasks are the tasks `omega <task>` starts.
-var rootTasks = []string{agent.TaskFull, agent.TaskUpdate, agent.TaskClean, agent.TaskAnalyze, agent.TaskHealth, agent.TaskFix, agent.TaskTune}
+var rootTasks = []string{agent.TaskFull, agent.TaskQuick, agent.TaskUpdate, agent.TaskClean, agent.TaskAnalyze, agent.TaskHealth, agent.TaskFix, agent.TaskTune}
 
 // editDistance is the Levenshtein distance between two words.
 func editDistance(a, b string) int {
@@ -268,6 +295,19 @@ func bindRunFlags(pf *pflag.FlagSet, f *runFlags) {
 	pf.BoolVar(&f.auto, "auto", false, i18n.T("flag.auto"))
 	pf.BoolVar(&f.demo, "demo", false, "scripted session with no API calls and no real commands (for screenshots)")
 	pf.MarkHidden("demo")
+
+	pf.BoolVar(&f.noAI, "no-ai", false, "run deterministically without calling an AI model")
+	pf.BoolVar(&f.offline, "offline", false, "alias for --no-ai")
+	pf.BoolVar(&f.json, "json", false, "output report as structured JSON")
+	pf.StringVar(&f.format, "format", "", "output format: json, yaml, or table")
+	pf.BoolVarP(&f.quiet, "quiet", "q", false, "quiet mode; suppress non-essential output")
+	pf.BoolVarP(&f.verbose, "verbose", "v", false, "verbose output showing commands and streaming output")
+	pf.BoolVar(&f.debug, "debug", false, "print debug traces, token counts, and runner timings")
+	pf.BoolVar(&f.failOnWarning, "fail-on-warning", false, "exit with non-zero code if any warning is found")
+	pf.BoolVar(&f.failOnOutdated, "fail-on-outdated", false, "exit with non-zero code if outdated packages are detected")
+	pf.BoolVar(&f.failOnCritical, "fail-on-critical", false, "exit with non-zero code if any step fails")
+	pf.Float64Var(&f.maxCost, "max-cost", 0.0, "maximum estimated session cost in USD before stopping")
+	pf.IntVar(&f.maxTurns, "max-turns", 0, "maximum number of agent turns")
 }
 
 var getKey = secrets.Get
@@ -381,6 +421,8 @@ func (r *run) agent(interactive, demoInteractive bool, sudoPassword string) *age
 			}
 			return b.String()
 		},
+		MaxCost:  r.f.maxCost,
+		MaxTurns: r.f.maxTurns,
 	}
 	if r.f.demo {
 		opts.Provider = "anthropic"
@@ -392,8 +434,20 @@ func (r *run) agent(interactive, demoInteractive bool, sudoPassword string) *age
 }
 
 func runTask(task string, f runFlags) error {
+	if f.noAI || f.offline || f.json || f.format == "json" {
+		return runDeterministic(task, f)
+	}
+
+	_ = customsteps.RunHook(context.Background(), "pre_"+task)
+	defer func() {
+		_ = customsteps.RunHook(context.Background(), "post_"+task)
+	}()
+
 	r, err := prepareRun(task, f)
 	if err != nil {
+		if f.prompt == "" && (task == agent.TaskQuick || task == agent.TaskUpdate || task == agent.TaskClean || task == agent.TaskAnalyze || task == agent.TaskHealth) {
+			return runDeterministic(task, f)
+		}
 		return err
 	}
 

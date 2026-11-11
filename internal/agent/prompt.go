@@ -12,6 +12,7 @@ import (
 // Task presets.
 const (
 	TaskFull    = "full"
+	TaskQuick   = "quick"
 	TaskUpdate  = "update"
 	TaskClean   = "clean"
 	TaskAnalyze = "analyze"
@@ -92,6 +93,7 @@ func taskPrompts(goos string) map[string]string {
 
 // windowsTaskPrompts replace the presets that talk about the Mac, Mole or zsh.
 var windowsTaskPrompts = map[string]string{
+	TaskQuick: "Run quick safe maintenance on this Windows machine: clean user temp folders and Recycle Bin, check for pending software updates, check battery and disk health, and finish with a simple friendly summary.",
 	TaskFull: "Run full maintenance on this Windows machine: check its state, update all installed software " +
 		"(winget, Scoop, Chocolatey and developer tools: what topgrade would do), clean up what is no longer needed " +
 		"(temporary files, package caches, the Recycle Bin) and finish with a summary.",
@@ -125,6 +127,7 @@ var windowsTaskPrompts = map[string]string{
 
 // linuxTaskPrompts replace the presets that talk about the Mac, Mole or zsh.
 var linuxTaskPrompts = map[string]string{
+	TaskQuick: "Run quick safe maintenance on this Linux machine: empty user trash and thumbnails, check for package updates, verify battery and disk health, and finish with a simple friendly summary.",
 	TaskFull: "Run full maintenance on this Linux machine: check its state, update all installed software " +
 		"(system packages, Flatpak, snap and developer tools: what topgrade would do), clean up what is no longer needed " +
 		"(package caches, orphaned packages, old journal entries, caches) and finish with a summary.",
@@ -158,6 +161,7 @@ var linuxTaskPrompts = map[string]string{
 }
 
 var macTaskPrompts = map[string]string{
+	TaskQuick: "Run quick safe maintenance on this Mac: empty the Trash, clean safe caches, check for app updates, verify battery and disk health, and finish with a simple friendly summary.",
 	TaskFull: "Run full maintenance on this Mac: check its state, update all installed software " +
 		"(what topgrade would do), clean up what is no longer needed (what Mole would do) and finish with a summary.",
 	TaskUpdate: "Update all software installed on this Mac (what topgrade would do). " +

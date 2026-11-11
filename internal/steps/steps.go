@@ -516,6 +516,19 @@ var catalog = []Step{
 	{OS: windows, ID: "recycle-bin", Name: "Recycle Bin", Category: Clean, Command: "Clear-RecycleBin -Force -ErrorAction SilentlyContinue", Risk: safety.Dangerous},
 }
 
+// Register adds a step to the catalogue.
+func Register(s Step) {
+	for i, existing := range catalog {
+		if existing.ID == s.ID && (existing.OS == s.OS || existing.OS == "") {
+			catalog[i] = s
+			All = For(runtime.GOOS)
+			return
+		}
+	}
+	catalog = append(catalog, s)
+	All = For(runtime.GOOS)
+}
+
 // Find returns a step of this machine's catalogue by ID.
 func Find(id string) (Step, bool) {
 	for _, s := range All {
