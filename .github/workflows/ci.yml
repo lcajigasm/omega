@@ -226,7 +226,7 @@ jobs:
           # The guided run lists its steps without a terminal only when told to run unattended.
           $full = (./omega.exe full 2>&1 | Out-String)
           Check ($LASTEXITCODE -ne 0) 'omega full ran without a terminal and without --yes'
-          Check ($full -match '--yes') "omega full did not say how to run unattended: $full"
+          Check ($full -match '--unattended') "omega full did not say how to run unattended: $full"
           exit 0
       - name: windows key storage and doctor
         if: runner.os == 'Windows'
