@@ -4,7 +4,11 @@ name: release
 # tab, or `gh workflow run release.yml -f bump=minor`) and it works out the
 # next version, tests main, creates the tag and publishes everything: the
 # archives, the desktop app, the container image, and the formula and cask
-# in this repository. The tap follows by itself.
+# in this repository and in lcajigasm/homebrew-tap.
+#
+# The builds do not wait for the tests: they start with them, on the same
+# commit, so the macOS runner's queue overlaps the tests. Nothing is tagged
+# or published until the tests and every build have passed.
 #
 # Pushing a tag vX.Y.Z by hand still does the same for that tag.
 on:
@@ -89,10 +93,12 @@ jobs:
           git tag "$TAG" "$GITHUB_SHA"
           git push origin "refs/tags/${TAG}"
 
+  # Every build checks out the commit this run started on (GITHUB_SHA): the
+  # pushed tag, or main where the test job puts the new tag.
   build:
-    needs: [version, test]
+    needs: version
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
     env:
       TAG: ${{ needs.version.outputs.tag }}
     strategy:
@@ -113,8 +119,6 @@ jobs:
             goarch: arm64
     steps:
       - uses: actions/checkout@v7
-        with:
-          ref: ${{ needs.version.outputs.tag }}
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
@@ -147,7 +151,7 @@ jobs:
   # The desktop app. macOS and Linux need the system webview's headers, so
   # each builds on its own runner; Windows needs no cgo and is cross-compiled.
   gui:
-    needs: [version, test]
+    needs: version
     env:
       TAG: ${{ needs.version.outputs.tag }}
     strategy:
@@ -171,20 +175,28 @@ jobs:
             os: ubuntu-latest
     runs-on: ${{ matrix.os }}
     # The macOS runner can wait in a queue; that wait does not count here.
-    timeout-minutes: 45
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
-        with:
-          ref: ${{ needs.version.outputs.tag }}
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       - name: disk image
         if: matrix.target == 'macos'
         run: scripts/package_macos.sh "$TAG" dist
-      - name: webview libraries
+      - name: webview cache
         if: matrix.target == 'linux'
-        run: sudo apt-get update && sudo apt-get install -y libgtk-4-dev libwebkitgtk-6.0-dev
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/webview-debs
+          key: webview-debs-${{ runner.arch }}-${{ env.ImageOS }}-${{ env.ImageVersion }}
+          restore-keys: webview-debs-${{ runner.arch }}-${{ env.ImageOS }}-
+      - name: webview libraries
+        # A slow apt mirror once held this step for 45 minutes. The script
+        # gives up on a dead mirror in seconds and retries; this is the cap.
+        if: matrix.target == 'linux'
+        timeout-minutes: 10
+        run: scripts/install_webview_deps.sh ~/.cache/webview-debs
       - name: package
         if: matrix.target != 'macos'
         env:
@@ -217,7 +229,7 @@ jobs:
   # the same builds as the release, so a tag that cannot be released leaves
   # no image behind. v1.2.3 is tagged 1.2.3, 1.2 and latest.
   image:
-    needs: [version, build, gui]
+    needs: [version, test, build, gui]
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
@@ -266,7 +278,7 @@ jobs:
           cache-to: type=gha,mode=max
 
   publish:
-    needs: [version, build, gui]
+    needs: [version, test, build, gui]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -333,24 +345,51 @@ jobs:
           done
           echo "::error::could not push the formula for ${ver} to main"
           exit 1
-      - name: refresh the tap
+      - name: update the tap
         # brew install reads lcajigasm/homebrew-tap, which rewrites its own
         # Formula/omega.rb and Casks/omega-app.rb from this repository's
-        # latest release (script/update_tap.py there): no pull request and
-        # nothing to merge. Its schedule runs four times an hour, but GitHub
-        # may deliver it late, so when HOMEBREW_TAP_TOKEN is present (a token
-        # that may start workflows on the tap) it is started now. Without the
-        # token the release is still complete: the tap follows on its next
-        # scheduled run, and verify-taps waits for it.
+        # latest release (script/update_tap.py there). Its schedule asks for
+        # a run every 15 minutes, but GitHub delays and drops those events:
+        # on 2026-11-11 a whole day had six. So when HOMEBREW_TAP_TOKEN is
+        # set (a fine-grained token on lcajigasm/homebrew-tap with Actions
+        # and Contents read and write), the release starts that update now,
+        # waits for it, and checks that brew sees this version. The release
+        # then ends with the tap up to date, a minute or two after the tag.
+        #
+        # Without the token the release is still complete: the tap follows
+        # on a scheduled run, and verify-taps (started below) waits for it.
         env:
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
         run: |
           set -euo pipefail
           if [ -z "${HOMEBREW_TAP_TOKEN}" ]; then
-            echo "::notice::HOMEBREW_TAP_TOKEN is not set: lcajigasm/homebrew-tap picks ${TAG} up on its next scheduled update (every 15 minutes)."
+            echo "::warning::HOMEBREW_TAP_TOKEN is not set: lcajigasm/homebrew-tap picks ${TAG} up on its next scheduled run, which GitHub may delay by an hour or more. verify-taps waits for it."
             exit 0
           fi
-          GH_TOKEN="$HOMEBREW_TAP_TOKEN" gh workflow run update.yml --repo lcajigasm/homebrew-tap --ref main
+          export GH_TOKEN="$HOMEBREW_TAP_TOKEN"
+          tap=lcajigasm/homebrew-tap
+          since="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          gh workflow run update.yml --repo "$tap" --ref main
+          run=""
+          for _ in $(seq 30); do
+            run="$(gh run list --repo "$tap" --workflow update.yml --event workflow_dispatch --limit 5 \
+              --json databaseId,createdAt --jq "[.[] | select(.createdAt >= \"$since\")][-1].databaseId // empty")"
+            [ -n "$run" ] && break
+            sleep 2
+          done
+          if [ -z "$run" ]; then
+            echo "::error::the update on ${tap} did not start"
+            exit 1
+          fi
+          echo "waiting for https://github.com/${tap}/actions/runs/${run}"
+          # The tap updates other programs too: one of them failing turns
+          # its run red without touching omega. What counts is what brew
+          # reads, checked right after.
+          gh run watch "$run" --repo "$tap" --interval 5 || true
+          # The contents API may answer from a cache for a minute or so.
+          python3 scripts/verify_taps.py "$TAG" --interval 15 --deadline 180
+          echo "brew install lcajigasm/tap/omega installs ${TAG#v}" >> "$GITHUB_STEP_SUMMARY"
+          echo "tap_done=true" >> "$GITHUB_ENV"
       - name: start the captures
         # The captures workflow records the README media on a pushed tag. A
         # tag created by this workflow's token starts nothing, so it is
@@ -360,9 +399,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run captures.yml --ref "$TAG" || echo "::warning::the captures workflow did not start for ${TAG}"
       - name: start tap check
-        # A release created with this token does not start other workflows.
-        # verify-taps reads the formula and the cask from the tap until both
-        # are this version, and fails the run if they never get there.
+        # Only when the tap was not updated above. A release created with
+        # this token does not start other workflows. verify-taps reads the
+        # formula and the cask from the tap until both are this version, and
+        # fails the run if they never get there.
+        if: env.tap_done != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run verify-taps.yml --ref main -f tag="$TAG"
