@@ -2,18 +2,25 @@ name: ci
 on:
   push:
     branches: [main]
+    # The release commits the new version of the formula and the cask to
+    # main. That commit changes no code: testing it again on three systems
+    # only took a macOS runner away from the release that was still running.
+    paths-ignore:
+      - "Formula/**"
+      - "Casks/**"
   pull_request:
 
 # Reading the code is all these jobs need.
 permissions:
   contents: read
 
-# A new push to a pull request replaces its older run: the macOS runners
-# queue, and a run nobody will read should not hold one. Runs on main are
-# never cancelled, so every commit there has its own result.
+# A newer push replaces the older run, on a pull request and on main alike.
+# The account has only a handful of macOS runners: runs piling up on main
+# held them for two hours and left releases waiting in the queue. The newest
+# commit on main is tested in full, and it contains the older ones.
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.sha }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   # The scripts a release depends on, and the workflows themselves: a mistake
@@ -48,31 +55,6 @@ jobs:
             abort "release.yml no longer releases a pushed tag" unless on.dig("push", "tags")
           '
 
-  # The desktop app has its own build tag, so the jobs below never compile
-  # it. Build it on the three systems it ships for and check its packages.
-  gui:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
-        with:
-          go-version-file: go.mod
-      - name: webview libraries
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libgtk-4-dev libwebkitgtk-6.0-dev
-      - name: vet
-        run: go vet -tags gui ./cmd/omega-gui
-      - name: build
-        run: make gui
-      - name: bundle
-        if: runner.os == 'macOS'
-        run: make gui-app && plutil -lint bin/Omega.app/Contents/Info.plist && codesign --verify bin/Omega.app
-
   # The container image a release pushes to ghcr.io: build it and run it.
   image:
     runs-on: ubuntu-latest
@@ -90,6 +72,10 @@ jobs:
           # The apt steps call sudo, which the image has for that.
           docker run --rm -e OMEGA_LANG=en omega:ci steps run --yes apt-outdated apt-clean
 
+  # One job per system: the command's tests and the desktop app. The app has
+  # its own build tag, so go test and go vet never compile it; it is built
+  # here on the three systems it ships for. A single macOS job per run, not
+  # two, because the macOS runners are the ones that queue.
   test:
     strategy:
       fail-fast: false
@@ -304,3 +290,21 @@ jobs:
       - name: cross-compile
         if: runner.os == 'Linux'
         run: make cross
+      - name: webview cache
+        if: runner.os == 'Linux'
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/webview-debs
+          key: webview-debs-${{ runner.arch }}-${{ env.ImageOS }}-${{ env.ImageVersion }}
+          restore-keys: webview-debs-${{ runner.arch }}-${{ env.ImageOS }}-
+      - name: webview libraries
+        if: runner.os == 'Linux'
+        timeout-minutes: 10
+        run: scripts/install_webview_deps.sh ~/.cache/webview-debs
+      - name: gui vet
+        run: go vet -tags gui ./cmd/omega-gui
+      - name: gui build
+        run: make gui
+      - name: gui bundle
+        if: runner.os == 'macOS'
+        run: make gui-app && plutil -lint bin/Omega.app/Contents/Info.plist && codesign --verify bin/Omega.app
