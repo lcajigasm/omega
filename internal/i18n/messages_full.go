@@ -23,17 +23,38 @@ var fullMessages = map[string][]string{
 	"flag.full_only": {
 		"tick only these stages", "marca solo estas etapas", "ne cocher que ces étapes", "nur diese Etappen ankreuzen", "marca só estas etapas",
 	},
+	"flag.unattended": {
+		"run every stage without asking anything: the sudo password once at the start, then every approval answered yes (blocked commands never run)",
+		"ejecutar todas las etapas sin preguntar nada: la contraseña de sudo una vez al principio y luego todas las aprobaciones con un sí (los comandos bloqueados nunca se ejecutan)",
+		"lancer toutes les étapes sans rien demander : le mot de passe sudo une fois au début, puis oui à toutes les approbations (les commandes bloquées ne s'exécutent jamais)",
+		"alle Etappen ohne Rückfragen ausführen: das sudo-Passwort einmal am Anfang, danach wird jede Freigabe mit Ja beantwortet (blockierte Befehle laufen nie)",
+		"executar todas as etapas sem perguntar nada: a palavra-passe do sudo uma vez no início e depois sim a todas as aprovações (os comandos bloqueados nunca correm)",
+	},
+	"unattended.intro": {
+		"Unattended run: every stage that applies here, one after another, with every approval answered yes. Blocked commands never run, and what deletes data you may want to keep (Docker volumes, for one) is skipped and listed at the end. ctrl+c stops it.",
+		"Ejecución desatendida: todas las etapas que aplican aquí, una tras otra, con todas las aprobaciones respondidas que sí. Los comandos bloqueados nunca se ejecutan, y lo que borra datos que quizá quieras conservar (volúmenes de Docker, por ejemplo) se salta y se lista al final. ctrl+c la detiene.",
+		"Exécution sans surveillance : toutes les étapes qui s'appliquent ici, l'une après l'autre, avec oui à toutes les approbations. Les commandes bloquées ne s'exécutent jamais, et ce qui efface des données que vous voudriez garder (les volumes Docker, par exemple) est sauté et listé à la fin. ctrl+c l'arrête.",
+		"Unbeaufsichtigter Lauf: alle Etappen, die hier zutreffen, nacheinander, jede Freigabe mit Ja beantwortet. Blockierte Befehle laufen nie, und was Daten löscht, die du vielleicht behalten willst (etwa Docker-Volumes), wird übersprungen und am Ende aufgelistet. ctrl+c hält ihn an.",
+		"Execução sem vigilância: todas as etapas que se aplicam aqui, uma após outra, com sim a todas as aprovações. Os comandos bloqueados nunca correm, e o que apaga dados que talvez queiras manter (volumes do Docker, por exemplo) é saltado e listado no fim. ctrl+c para-a.",
+	},
+	"unattended.no_sudo": {
+		"No terminal to ask for the sudo password: the steps that need it will fail and be listed in the summary.",
+		"No hay terminal para pedir la contraseña de sudo: los pasos que la necesiten fallarán y aparecerán en el resumen.",
+		"Pas de terminal pour demander le mot de passe sudo : les étapes qui en ont besoin échoueront et figureront dans le résumé.",
+		"Kein Terminal, um nach dem sudo-Passwort zu fragen: Schritte, die es brauchen, schlagen fehl und stehen in der Zusammenfassung.",
+		"Não há terminal para pedir a palavra-passe do sudo: os passos que precisarem dela vão falhar e aparecer no resumo.",
+	},
 	"full.unknown_stage": {
 		"omega full has no stage %q. The stages are: %s", "omega full no tiene ninguna etapa %q. Las etapas son: %s",
 		"omega full n'a pas d'étape %q. Les étapes sont : %s", "omega full hat keine Etappe %q. Die Etappen sind: %s",
 		"o omega full não tem nenhuma etapa %q. As etapas são: %s",
 	},
 	"full.need_tty": {
-		"omega full asks which stages to run, so it needs a terminal. To run every stage unattended, add --yes (and --skip or --only to choose).",
-		"omega full pregunta qué etapas ejecutar, así que necesita un terminal. Para ejecutar todas sin atención, añade --yes (y --skip u --only para elegir).",
-		"omega full demande quelles étapes lancer, il lui faut donc un terminal. Pour tout lancer sans surveillance, ajoutez --yes (et --skip ou --only pour choisir).",
-		"omega full fragt, welche Etappen laufen sollen, und braucht dafür ein Terminal. Für einen unbeaufsichtigten Lauf --yes anhängen (und --skip oder --only zur Auswahl).",
-		"o omega full pergunta que etapas executar, por isso precisa de um terminal. Para executar todas sem vigilância, acrescenta --yes (e --skip ou --only para escolher).",
+		"omega full asks which stages to run, so it needs a terminal. To run every stage unattended, use omega full --unattended (and --skip or --only to choose).",
+		"omega full pregunta qué etapas ejecutar, así que necesita un terminal. Para ejecutarlas todas sin atención, usa omega full --unattended (y --skip u --only para elegir).",
+		"omega full demande quelles étapes lancer, il lui faut donc un terminal. Pour tout lancer sans surveillance, utilisez omega full --unattended (et --skip ou --only pour choisir).",
+		"omega full fragt, welche Etappen laufen sollen, und braucht dafür ein Terminal. Für einen unbeaufsichtigten Lauf omega full --unattended verwenden (und --skip oder --only zur Auswahl).",
+		"o omega full pergunta que etapas executar, por isso precisa de um terminal. Para executar todas sem vigilância, usa omega full --unattended (e --skip ou --only para escolher).",
 	},
 	"full.title": {"Guided run", "Recorrido guiado", "Parcours guidé", "Geführter Durchlauf", "Percurso guiado"},
 	"full.hint": {

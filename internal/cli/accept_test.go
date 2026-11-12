@@ -98,9 +98,23 @@ func TestShortcutsExpandToRealCommands(t *testing.T) {
 		if strings.HasPrefix(to[0], "-") {
 			continue
 		}
-		c, rest, err := root.Find(to)
+		// A shortcut may end in flags of the command it leads to.
+		words, flags := to, []string(nil)
+		for i, w := range to {
+			if strings.HasPrefix(w, "--") {
+				words, flags = to[:i], to[i:]
+				break
+			}
+		}
+		c, rest, err := root.Find(words)
 		if err != nil || c == root || len(rest) != 0 {
 			t.Errorf("shortcut %q -> %v does not resolve (%v, rest %v)", word, to, err, rest)
+			continue
+		}
+		for _, fl := range flags {
+			if c.Flags().Lookup(strings.TrimPrefix(fl, "--")) == nil {
+				t.Errorf("shortcut %q -> %v: %s has no flag %s", word, to, c.Name(), fl)
+			}
 		}
 		for _, c := range root.Commands() {
 			if c.Name() == word || c.HasAlias(word) {

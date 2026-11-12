@@ -398,3 +398,44 @@ func TestUserChangesApplyBeforeNextTurn(t *testing.T) {
 		t.Fatalf("notes must be sent once: %q", text)
 	}
 }
+
+// An unattended run waits for nobody: every option offered is taken, and an
+// action that always needs a person is skipped instead of asked.
+func TestUnattendedTakesEveryOptionAndSkipsAlwaysAsk(t *testing.T) {
+	p := &scriptedProvider{replies: []*llm.Reply{
+		{Calls: []llm.ToolCall{call("1", "propose_actions", map[string]any{
+			"question": "Clean?", "multiple": true,
+			"options": []map[string]any{{"id": "a", "label": "A"}, {"id": "b", "label": "B"}},
+		})}},
+		{Calls: []llm.ToolCall{call("2", "run_command", map[string]any{"command": "brew cleanup", "reason": "r"})}},
+		{Calls: []llm.ToolCall{call("3", "run_command", map[string]any{"command": "docker volume prune -f", "reason": "r"})}},
+		{Text: "done"},
+	}}
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	var ran []string
+	a := New(p, Options{ReadOnly: true, AutoYes: true, Unattended: true, Config: config.Default(), Approval: config.ApproveAll,
+		Timeout: 5 * time.Second, Exec: func(_ context.Context, cmd string, _ time.Duration, _ func(string)) runner.Result {
+			ran = append(ran, cmd)
+			return runner.Result{}
+		}})
+	go a.Run(context.Background(), "test")
+	for e := range a.Events() {
+		switch e.Kind {
+		case EvChoice, EvConfirm, EvPassword, EvIdle:
+			t.Fatalf("an unattended run asked something: %+v", e)
+		}
+	}
+	if got := p.results[1][0].Content; !strings.Contains(got, "- a: A") || !strings.Contains(got, "- b: B") {
+		t.Fatalf("every option should be taken: %q", got)
+	}
+	if r := p.results[2][0]; r.IsError {
+		t.Fatalf("an approved command was rejected: %+v", r)
+	}
+	if r := p.results[3][0]; !r.IsError || !strings.Contains(r.Content, "Unattended run") {
+		t.Fatalf("an always-ask action must be skipped: %+v", r)
+	}
+	if strings.Join(ran, ";") != "brew cleanup" {
+		t.Fatalf("ran %q", ran)
+	}
+}

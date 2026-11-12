@@ -46,7 +46,11 @@ type Options struct {
 	// OneShot ends the session when the model finishes its turn, although
 	// someone is there to answer cards and passwords: a stage of the guided
 	// run goes on to the next one instead of waiting for a message.
-	OneShot    bool
+	OneShot bool
+	// Unattended is a run nobody watches (omega full --unattended): every
+	// option offered with propose_actions is taken, and the actions that
+	// always need a person are skipped instead of waiting for one.
+	Unattended bool
 	Timeout    time.Duration
 	Config     *config.Config
 	Exec       ExecFunc
@@ -412,6 +416,10 @@ func (a *Agent) authorize(ctx context.Context, tool, command, reason string, ris
 	if mode == ModeReadOnly && risk > safety.Safe {
 		return deny("Read-only mode: this action would change the system and was rejected. " +
 			"Offer it to the user with propose_actions instead.")
+	}
+	if always && a.opts.Unattended {
+		return deny("Unattended run: this action deletes data the user may want to keep, so it always needs a person and was skipped. " +
+			"Do not retry it; list it in your summary as something to do by hand.")
 	}
 	if !always {
 		if risk == safety.Safe || mode == ModeAuto || a.opts.Approval == config.ApproveNever {

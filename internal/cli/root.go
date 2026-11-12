@@ -39,6 +39,7 @@ type runFlags struct {
 	prompt         string
 	once           bool
 	stage          bool // a stage of the guided run: it ends when the model does
+	unattended     bool // omega full --unattended: nobody answers anything
 	demo           bool
 	auto           bool
 	noAI           bool
@@ -159,6 +160,7 @@ var shortcuts = map[string][]string{
 	// A bare "status" or "check" gets the check that costs nothing.
 	"diagnose": {"doctor"}, "status": {"doctor"}, "check": {"doctor"}, "estado": {"doctor"}, "ranking": {"models"}, "modelos": {"models"},
 	"memory": {"notes"}, "notas": {"notes"}, "pasos": {"steps"}, "wizard": {"setup"}, "configure": {"setup"}, "init": {"setup"},
+	"unattended": {"full", "--unattended"}, "desatendido": {"full", "--unattended"}, "autopilot": {"full", "--unattended"},
 	"cron": {"schedule"}, "daemon": {"schedule"}, "backup": {"export"},
 }
 
@@ -371,6 +373,9 @@ func prepareRun(task string, f runFlags) (*run, error) {
 	if f.stage {
 		prompt += agent.StageSuffix
 	}
+	if f.unattended {
+		prompt += agent.UnattendedSuffix
+	}
 	readOnly := f.dryRun || task == agent.TaskAnalyze
 
 	planTask := task
@@ -425,9 +430,10 @@ func (r *run) agent(interactive, demoInteractive bool, sudoPassword string) *age
 			}
 			return b.String()
 		},
-		MaxCost:  r.f.maxCost,
-		MaxTurns: r.f.maxTurns,
-		OneShot:  r.f.stage,
+		MaxCost:    r.f.maxCost,
+		MaxTurns:   r.f.maxTurns,
+		OneShot:    r.f.stage,
+		Unattended: r.f.unattended,
 	}
 	if r.f.demo {
 		opts.Provider = "anthropic"
@@ -475,7 +481,9 @@ func runTask(task string, f runFlags) error {
 	go ag.Run(ctx, r.prompt)
 
 	if f.noTUI || !stdinTTY || !stdoutTTY {
-		ui.RunPlain(ag, os.Stdin, stdinTTY)
+		// An unattended run answers nothing at the terminal, although the
+		// user who started it may still be sitting there.
+		ui.RunPlain(ag, os.Stdin, stdinTTY && !f.unattended)
 	} else {
 		err = ui.RunTUI(ctx, cancel, ag, ui.Header{Version: version, Provider: r.p.Name(), Model: r.plan.Model,
 			Escalate: r.plan.Escalate, Models: r.plan.Choices, Task: r.task})

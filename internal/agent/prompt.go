@@ -39,6 +39,13 @@ const StageSuffix = "\n\nThis is one stage of a guided run (omega full): the ses
 	"Ask every decision with propose_actions before you finish, apply what is picked, and close with a short summary of what was done " +
 	"and what is left for the user to do by hand."
 
+// UnattendedSuffix tells the model nobody is watching: every option it
+// offers is applied, so it offers only what it recommends.
+const UnattendedSuffix = "\n\nUnattended run (omega full --unattended): nobody is watching and the user approved everything in advance. " +
+	"Every option you offer with propose_actions is selected automatically, so offer only what you recommend doing on this machine, " +
+	"never a matter of taste or something irreversible the user did not ask for. Actions that always need a person are skipped: " +
+	"list them in your summary as things to do by hand."
+
 // TaskPrompts are the opening user messages for each preset, worded for the
 // operating system omega runs on.
 var TaskPrompts = taskPrompts(runtime.GOOS)
