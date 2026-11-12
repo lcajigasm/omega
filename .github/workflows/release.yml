@@ -2,13 +2,17 @@ name: release
 
 # One click publishes a version: start this workflow from main (the Actions
 # tab, or `gh workflow run release.yml -f bump=minor`) and it works out the
-# next version, tests main, creates the tag and publishes everything: the
+# next version, tests main, and publishes everything with a new tag: the
 # archives, the desktop app, the container image, and the formula and cask
 # in this repository and in lcajigasm/homebrew-tap.
 #
 # The builds do not wait for the tests: they start with them, on the same
 # commit, so the macOS runner's queue overlaps the tests. Nothing is tagged
-# or published until the tests and every build have passed.
+# or published until the tests and every build have passed: the tag is
+# created together with the release, in the publish job. A release that
+# fails or is cancelled earlier leaves no tag behind. (Three cancelled runs
+# on 2026-11-11 left v0.20.0, v0.21.0 and v0.22.0, and the next patch
+# release became v0.22.1.)
 #
 # Pushing a tag vX.Y.Z by hand still does the same for that tag.
 on:
@@ -79,22 +83,9 @@ jobs:
           go-version-file: go.mod
       - run: make lint
       - run: go test ./...
-      - name: tag
-        # A release started by hand has no tag yet: it is created here, on
-        # the commit that has just passed the tests. A tag pushed with the
-        # workflow's token starts no second run.
-        if: github.event_name == 'workflow_dispatch'
-        env:
-          TAG: ${{ needs.version.outputs.tag }}
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag "$TAG" "$GITHUB_SHA"
-          git push origin "refs/tags/${TAG}"
 
   # Every build checks out the commit this run started on (GITHUB_SHA): the
-  # pushed tag, or main where the test job puts the new tag.
+  # pushed tag, or the commit of main that the publish job tags.
   build:
     needs: version
     runs-on: ubuntu-latest
@@ -236,9 +227,9 @@ jobs:
       contents: read
       packages: write
     steps:
+      # GITHUB_SHA, the commit being released: the tag may not exist yet,
+      # because publish creates it while this job runs.
       - uses: actions/checkout@v7
-        with:
-          ref: ${{ needs.version.outputs.tag }}
       # The arm64 half of the image installs its packages under emulation;
       # the Go build is cross-compiled and does not need it.
       - uses: docker/setup-qemu-action@v4
@@ -286,7 +277,6 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ needs.version.outputs.tag }}
           fetch-depth: 0
       - uses: actions/download-artifact@v8
         with:
@@ -299,11 +289,19 @@ jobs:
           cd dist
           sha256sum omega_* omega-* > SHA256SUMS
       - name: publish
+        # A release started by hand has no tag yet: gh creates it here, on
+        # the commit that was tested and built, in the same call that
+        # publishes the release. A tag created with the workflow's token
+        # starts no second run. A pushed tag already exists and is used as is.
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          gh release create "$TAG" dist/* \
+          target=()
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            target=(--target "$GITHUB_SHA")
+          fi
+          gh release create "$TAG" dist/* "${target[@]}" \
             --title "omega ${TAG#v}" \
             --generate-notes
       - uses: actions/setup-go@v7
