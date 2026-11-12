@@ -144,6 +144,14 @@ func Validate(password string) bool {
 	return cmd.Run() == nil
 }
 
+// Passwordless reports whether sudo runs without a password here (NOPASSWD),
+// ignoring any cached ticket, so omega does not ask for one it never needs.
+func Passwordless() bool {
+	cmd := exec.Command("/usr/bin/sudo", "-n", "-k", "true")
+	setSession(cmd)
+	return cmd.Run() == nil
+}
+
 // IsHelper reports whether the process was started as the askpass helper.
 func IsHelper(args []string) bool { return len(args) > 1 && args[1] == helperArg }
 

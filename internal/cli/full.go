@@ -15,6 +15,7 @@ import (
 	"github.com/lcajigasm/omega/internal/agent"
 	"github.com/lcajigasm/omega/internal/i18n"
 	"github.com/lcajigasm/omega/internal/runner"
+	"github.com/lcajigasm/omega/internal/sudo"
 	"github.com/lcajigasm/omega/internal/ui"
 )
 
@@ -289,6 +290,9 @@ func fullCmd() *cobra.Command {
 			// A stage ends when its work does: the run goes on to the next
 			// one without anybody typing /exit.
 			f.stage = true
+			if f.unattended {
+				return runUnattended(os.Stdout, stages, byID, f)
+			}
 			tty := term.IsTerminal(int(os.Stdin.Fd())) && term.IsTerminal(int(os.Stdout.Fd()))
 			if !tty && !f.yes {
 				return fmt.Errorf("%s", i18n.T("full.need_tty"))
@@ -379,5 +383,63 @@ func fullCmd() *cobra.Command {
 	c.Flags().MarkHidden("once")
 	c.Flags().StringSliceVar(&skip, "skip", nil, i18n.T("flag.full_skip", stageIDList()))
 	c.Flags().StringSliceVar(&only, "only", nil, i18n.T("flag.full_only"))
+	c.Flags().BoolVarP(&f.unattended, "unattended", "U", false, i18n.T("flag.unattended"))
 	return c
+}
+
+// Seams the tests replace.
+var (
+	sudoPasswordless = sudo.Passwordless
+	askSudoOnce      = askSudo
+	stdinIsTerminal  = func() bool { return term.IsTerminal(int(os.Stdin.Fd())) }
+)
+
+// unattendedFlags turns a guided run into one nobody watches: every approval
+// is answered yes, low-risk improvements are applied, every option offered is
+// taken, and each stage ends on its own and goes on to the next.
+func unattendedFlags(f runFlags) runFlags {
+	f.unattended, f.yes, f.auto, f.once, f.noTUI, f.stage = true, true, true, true, true, true
+	return f
+}
+
+// runUnattended is omega full --unattended: the sudo password is asked once,
+// at the start, and from then on nothing waits for anybody. Every stage
+// ticked by --only and --skip runs, one after another, and a failure does not
+// stop the ones after it.
+func runUnattended(w io.Writer, stages []ui.GuideStage, byID map[string]fullStage, f runFlags) error {
+	f = unattendedFlags(f)
+	fmt.Fprintln(w, i18n.T("unattended.intro"))
+	if goos != "windows" && !f.dryRun {
+		switch {
+		case sudoPasswordless():
+			// sudo never asks here: nothing to ask either.
+		case stdinIsTerminal():
+			pw, err := askSudoOnce()
+			if err != nil {
+				return err
+			}
+			sudoAsked, f.sudo = pw, true
+			defer func() { sudoAsked = "" }()
+		default:
+			fmt.Fprintln(w, i18n.T("unattended.no_sudo"))
+		}
+	}
+	// ctrl+c stops the stage that is running and the run with it.
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, os.Interrupt)
+	defer signal.Stop(sig)
+	stopped := func() bool {
+		select {
+		case <-sig:
+			return true
+		default:
+			return false
+		}
+	}
+	res := runFull(w, stages, func(id string) error { return runStage(byID[id], f, w) }, nil, stopped)
+	fullSummary(w, stages, res)
+	if fullFailed(res) {
+		return exitCode(1)
+	}
+	return nil
 }

@@ -520,11 +520,20 @@ func toolProposeActions(ctx context.Context, a *Agent, in map[string]any) (strin
 	if len(opts) == 0 {
 		return "", fmt.Errorf("options is empty")
 	}
-	if !a.opts.Interactive {
+	var ids []string
+	switch {
+	case a.opts.Unattended:
+		// Nobody is watching and the user asked for everything: every
+		// option is taken, and each command still passes the safety policy.
+		for _, c := range opts {
+			ids = append(ids, c.ID)
+		}
+	case !a.opts.Interactive:
 		return "No user is available to choose (non-interactive run). Do not carry out these actions; " +
 			"list them in your summary instead.", nil
+	default:
+		ids = a.choose(ctx, question, opts, multi)
 	}
-	ids := a.choose(ctx, question, opts, multi)
 	if len(ids) == 0 {
 		return "The user chose none of the options. Do not carry them out.", nil
 	}

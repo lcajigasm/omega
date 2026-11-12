@@ -129,6 +129,7 @@ topgrade and Mole are excellent until something breaks. Then the work is yours.
 |---|---|---|
 | **Everything** | `omega` | Checks the state, updates, cleans up and tells you what changed |
 | **A guided run** | `omega full` | Every stage that applies to this machine, on one screen, with a plan you can edit |
+| **Hands-off** | `omega unattended` | The same stages with no questions: the sudo password once, then every approval answered yes |
 | **Quick clean** | `omega quick` | One-click safe cleanup (trash, caches), updates check, disk & battery health report |
 | **Update** | `omega update` | Homebrew, the App Store, apt, dnf, pacman, winget, Scoop, npm, pnpm, pipx, uv, rustup, cargo and more |
 | **Clean** | `omega clean` | Measures first, then frees what is worth it: package caches, Xcode, Docker, the Trash |
@@ -310,7 +311,8 @@ and API keys: have both, or only one. More in
 - **Speaks five languages**: English, Spanish, French, German and Portuguese,
   in the command, in the app and on the [website](https://lcajigasm.github.io/omega/).
 - **Remembers**: it learns from each run and starts there next time.
-- **Runs unattended**: plain output for scripts, cron, launchd and CI
+- **Runs unattended**: `omega unattended` does everything with one password
+  and no questions; plain output for scripts, cron, launchd and CI
   ([how](docs/manual/tasks.md#unattended-runs)).
 - **Keeps a log** of every run, which `omega logs` reads back.
 - **One Go binary**, MIT licensed.

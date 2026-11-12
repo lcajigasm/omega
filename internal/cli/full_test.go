@@ -313,3 +313,73 @@ func TestMenuKnowsWhatTakesTheWholeScreen(t *testing.T) {
 		}
 	}
 }
+
+// omega full --unattended asks for the sudo password once, before the first
+// stage, then runs every ticked stage with every approval answered.
+func TestFullUnattended(t *testing.T) {
+	stages := fullFixture(t, "darwin", false)
+	oldStart, oldFree, oldAsk, oldTTY := startTask, sudoPasswordless, askSudoOnce, stdinIsTerminal
+	t.Cleanup(func() { startTask, sudoPasswordless, askSudoOnce, stdinIsTerminal = oldStart, oldFree, oldAsk, oldTTY })
+	asked := 0
+	askSudoOnce = func() (string, error) { asked++; return "pw", nil }
+	sudoPasswordless = func() bool { return false }
+	stdinIsTerminal = func() bool { return true }
+	var started []string
+	startTask = func(task string, f runFlags) error {
+		if !f.unattended || !f.yes || !f.auto || !f.once || !f.noTUI || !f.stage || !f.sudo || sudoAsked != "pw" {
+			t.Errorf("%s is not unattended: %+v (password %q)", task, f, sudoAsked)
+		}
+		started = append(started, task)
+		if task == "clean" {
+			return exitCode(1)
+		}
+		return nil
+	}
+	chosen, err := pickStages(stages, nil, []string{"doctor"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	byID := map[string]fullStage{}
+	for _, s := range stages {
+		byID[s.id] = s
+	}
+	var b strings.Builder
+	err = runUnattended(&b, guideStages(stages, chosen), byID, runFlags{})
+	if asked != 1 {
+		t.Errorf("the password was asked %d times", asked)
+	}
+	if sudoAsked != "" {
+		t.Error("the password outlived the run")
+	}
+	if got := strings.Join(started, " "); got != "analyze health update clean tune dev mac" {
+		t.Errorf("started %s", got)
+	}
+	if code, ok := err.(exitCode); !ok || code != 1 {
+		t.Errorf("a failed stage must end with exit 1, got %v", err)
+	}
+	if out := b.String(); !strings.Contains(out, "Unattended run") || !strings.Contains(out, "✗ ") {
+		t.Errorf("output:\n%s", out)
+	}
+
+	// Where sudo needs no password, nothing is asked; read-only asks nothing either.
+	asked, started = 0, nil
+	sudoPasswordless = func() bool { return true }
+	startTask = func(task string, f runFlags) error { started = append(started, task); return nil }
+	if err := runUnattended(io.Discard, guideStages(stages, chosen), byID, runFlags{}); err != nil || asked != 0 {
+		t.Errorf("passwordless sudo: err %v, asked %d", err, asked)
+	}
+	sudoPasswordless = func() bool { t.Error("a dry run must not touch sudo"); return false }
+	if err := runUnattended(io.Discard, guideStages(stages, chosen), byID, runFlags{dryRun: true}); err != nil || asked != 0 {
+		t.Errorf("dry run: err %v, asked %d", err, asked)
+	}
+}
+
+func TestUnattendedShortcut(t *testing.T) {
+	var f runFlags
+	root := newRoot(&f)
+	for _, word := range []string{"unattended", "desatendido", "autopilot"} {
+		if got := strings.Join(expandShortcut(root, []string{word, "--skip", "mac"}), " "); got != "full --unattended --skip mac" {
+			t.Errorf("%s → %s", word, got)
+		}
+	}
+}

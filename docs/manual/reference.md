@@ -194,6 +194,7 @@ omega [task] [flags]
 | `--sudo` | ask for sudo at the start and keep it alive |
 | `--no-tui` | plain text output |
 | `--once` | exit when the agent finishes instead of asking for more |
+| `-U, --unattended` | `omega full` only: every stage with no questions, the sudo password asked once ([more](tasks.md#unattended-runs)) |
 | `-v, --version` | version |
 | `--no-ai`, `--offline` | run deterministically without calling an AI model |
 | `--json` | output report as structured JSON |
@@ -215,6 +216,7 @@ omega [task] [flags]
 | `omega docker` | measure Docker and clean what you select |
 | `omega menu` | home screen: every command on one screen, started with Enter |
 | `omega full [--only a,b] [--skip a,b]` | everything, stage by stage in one interface: choose the stages, see what each does and why, skip, repeat or stop |
+| `omega unattended [--only a,b] [--skip a,b]` | `omega full --unattended`: every stage with no questions, the sudo password asked once and every approval answered yes |
 | `omega mac [status\|login\|background\|menubar\|dock\|shortcuts]` | review what runs at login and in the background, the menu bar, the Dock and shortcut conflicts (AI-guided without a subcommand) |
 | `omega mac permissions` | remove privacy entries of binaries and apps that are gone |
 | `omega mac apps` | unused apps, Intel-only apps and leftovers of removed apps |

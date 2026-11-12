@@ -29,6 +29,7 @@ omega full                      # the plan first, then one stage at a time
 omega full --skip tune,dev      # the same, with two stages unticked from the start
 omega full --only update,clean  # only these two ticked
 omega full --dry-run            # every stage in read-only mode
+omega unattended                # everything, no questions: the sudo password once, then all approved
 omega full --yes --skip mac     # unattended: every other stage, one after another
 omega full --no-tui             # the same run, line by line
 ```
@@ -110,6 +111,38 @@ omega -p "topgrade fails on the rustup step, fix it"
 ```
 
 ## Unattended runs
+
+### Everything, with one password
+
+```bash
+omega unattended                 # the same as omega full --unattended (or -U)
+omega unattended --skip docker   # --only and --skip still choose the stages
+omega desatendido                # the same, in Spanish
+```
+
+`omega unattended` is the guided run with nobody at the keyboard. It asks for
+the sudo password once, before the first stage, checks it and keeps it in
+memory until the run ends; if sudo needs no password on this machine, it asks
+nothing. Then every stage that applies here runs, one after another, with
+plain output:
+
+- every approval is answered yes, as with `--yes`, and the low-risk
+  improvements are applied, as with `--auto`;
+- every option a stage would offer on a card is taken, so the model is told to
+  offer only what it recommends for this machine;
+- blocked commands still never run, and the actions that always need a person
+  (deleting Docker volumes or images you may want to keep) are skipped and
+  listed in the summary as things to do by hand;
+- macOS privacy permissions are not asked for; a stage that needs one says so
+  in its summary;
+- a stage that fails does not stop the ones after it; Ctrl+C stops the run.
+
+It ends with the summary of every stage and exits with status **1** if any of
+them failed. With `--dry-run` nothing changes and no password is asked. Without
+a terminal (from launchd or cron) there is nobody to type the password, so the
+steps that need sudo fail and are listed.
+
+### One task, from a schedule
 
 ```bash
 omega update --yes --no-tui --once
