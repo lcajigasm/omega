@@ -6,34 +6,34 @@ class Omega < Formula
   desc "AI-driven macOS maintenance: updates like topgrade, cleans like Mole"
   homepage "https://github.com/lcajigasm/omega"
   license "MIT"
-  version "0.24.0"
+  version "0.25.0"
 
   on_macos do
     on_arm do
-      url "https://github.com/lcajigasm/omega/releases/download/v0.24.0/omega_0.24.0_darwin_arm64.tar.gz"
-      sha256 "5d1df768533eb1f5385bd00e65196613680bea2ed987b7fce987c45c990f360c"
+      url "https://github.com/lcajigasm/omega/releases/download/v0.25.0/omega_0.25.0_darwin_arm64.tar.gz"
+      sha256 "267631e4c8eb1281fff5af3329cc2cf5773b87a3cfb91867430f0a765883e3b7"
     end
     on_intel do
-      url "https://github.com/lcajigasm/omega/releases/download/v0.24.0/omega_0.24.0_darwin_amd64.tar.gz"
-      sha256 "c80e34bcec6333e2e90ad479c1db1672f34254fc82f1a8eeb52f39f2a42cf25c"
+      url "https://github.com/lcajigasm/omega/releases/download/v0.25.0/omega_0.25.0_darwin_amd64.tar.gz"
+      sha256 "d1baa4f429b5f6988d0151afadecdb69d76d6bee1e4598ec86bd8be04e0df43e"
     end
   end
 
   on_linux do
     on_arm do
-      url "https://github.com/lcajigasm/omega/releases/download/v0.24.0/omega_0.24.0_linux_arm64.tar.gz"
-      sha256 "7bd2e4e86b2a99fc8bd9c6030a5c52a5899b96e7ba20437289b7c667c70c4dcd"
+      url "https://github.com/lcajigasm/omega/releases/download/v0.25.0/omega_0.25.0_linux_arm64.tar.gz"
+      sha256 "8f5d6d7db88a15d56b9daefc16c75556ddd60644753c63eefbd7e8a3a4e9afca"
     end
     on_intel do
-      url "https://github.com/lcajigasm/omega/releases/download/v0.24.0/omega_0.24.0_linux_amd64.tar.gz"
-      sha256 "322e79e8503e1fd4df735b900c813b59ff8335e3087a6179ff93263f8b71a4e6"
+      url "https://github.com/lcajigasm/omega/releases/download/v0.25.0/omega_0.25.0_linux_amd64.tar.gz"
+      sha256 "f85a3790b22019ac9daf282610e77bb26f6fe37992baa4d08c4db4c41d378e0a"
     end
   end
 
   # Windows archives are not installed by Homebrew. The release workflow
   # rewrites these checksums together with the urls above.
-  # omega_0.24.0_windows_amd64.zip sha256 863af2cc5c0fbac4bb7249e17aeab43d5bb868ae53f13c6f1725f199e1e05db9
-  # omega_0.24.0_windows_arm64.zip sha256 718056d11e6114f6696c640fffd8c57c25ff769a85d014b75f6374f64f5f3e92
+  # omega_0.25.0_windows_amd64.zip sha256 d89633a986c6b40516167aa8ccbcaad8edf848a2ddd0e7c4d44ea87bd4fde216
+  # omega_0.25.0_windows_arm64.zip sha256 d5e1c04c5b99ca0b055c198347c35588398926c842f9c95f6531045f93ab2b74
 
   def install
     bin.install "omega"
