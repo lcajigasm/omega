@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-
-	"github.com/lcajigasm/omega/internal/runner"
 )
 
 // hint points the model at a tool's configuration and its authoritative
@@ -93,6 +91,81 @@ var hints = []hint{
 		Check:  []string{"go env GOPATH GOMODCACHE GOCACHE GOFLAGS"},
 		Ideas:  "module and build cache size, GOFLAGS=-modcacherw so the module cache can be deleted",
 		Docs:   []string{"https://pkg.go.dev/cmd/go#hdr-Environment_variables"}},
+	{Tool: "winget", Bin: "winget", OS: "windows",
+		Config: []string{"%LOCALAPPDATA%\\Packages\\Microsoft.DesktopAppInstaller_8wekyb3d8bbwe\\LocalState\\settings.json (winget settings)"},
+		Check:  []string{"winget --info", "winget source list", "winget pin list"},
+		Ideas:  "pinned packages that block upgrades, sources that fail to refresh, upgrade behaviour for apps that update themselves, the progress and telemetry settings",
+		Docs:   []string{"https://learn.microsoft.com/en-us/windows/package-manager/winget/", "https://learn.microsoft.com/en-us/windows/package-manager/winget/settings"}},
+	{Tool: "Scoop", Bin: "scoop", OS: "windows",
+		Config: []string{"~/.config/scoop/config.json"},
+		Check:  []string{"scoop config", "scoop status", "scoop bucket list", "scoop checkup"},
+		Ideas:  "what scoop checkup reports, old versions and the download cache (scoop cleanup, scoop cache), aria2 for downloads, held apps",
+		Docs:   []string{"https://github.com/ScoopInstaller/Scoop/wiki"}},
+	{Tool: "Chocolatey", Bin: "choco", OS: "windows",
+		Config: []string{"C:\\ProgramData\\chocolatey\\config\\chocolatey.config"},
+		Check:  []string{"choco config list", "choco feature list", "choco pin list", "choco source list"},
+		Ideas:  "pinned packages, cacheLocation and its size, features such as useRememberedArgumentsForUpgrades, sources that no longer answer",
+		Docs:   []string{"https://docs.chocolatey.org/en-us/choco/commands/"}},
+	{Tool: "PowerShell profile", Bin: "powershell", OS: "windows",
+		Config: []string{"$PROFILE (per host) and $PROFILE.CurrentUserAllHosts"},
+		Check:  []string{"$PROFILE | Select-Object *", "Measure-Command { powershell -NoLogo -Command exit }", "Get-Module -ListAvailable | Group-Object Name | Where-Object Count -gt 1"},
+		Ideas:  "a slow profile (modules imported eagerly, version managers), duplicated module versions, PATH entries that are gone",
+		Docs:   []string{"https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_profiles", "https://learn.microsoft.com/en-us/powershell/scripting/overview"}},
+	{Tool: "WSL", Bin: "wsl", OS: "windows",
+		Config: []string{"~/.wslconfig (all distributions)", "/etc/wsl.conf (inside each distribution)"},
+		Check:  []string{"wsl --status", "wsl --list --verbose", "wsl --version"},
+		Ideas:  "memory and swap limits, autoMemoryReclaim and sparseVhd so the virtual disk gives space back, distributions still on WSL 1, distributions nobody uses",
+		Docs:   []string{"https://learn.microsoft.com/en-us/windows/wsl/wsl-config", "https://learn.microsoft.com/en-us/windows/wsl/"}},
+	{Tool: "zypper", Bin: "zypper",
+		Config: []string{"/etc/zypp/zypp.conf", "/etc/zypp/zypper.conf", "/etc/zypp/repos.d/"},
+		Check:  []string{"zypper repos --details", "zypper locks", "snapper list"},
+		Ideas:  "repositories that fail to refresh, package locks that block updates, how many kernels are kept (multiversion.kernels), snapper snapshots holding space",
+		Docs:   []string{"https://doc.opensuse.org/"}},
+	{Tool: "Bun", Bin: "bun",
+		Config: []string{"~/.bunfig.toml"},
+		Check:  []string{"bun --version", "bun pm cache"},
+		Ideas:  "the install cache and its location, telemetry, the registry and scopes",
+		Docs:   []string{"https://bun.sh/docs/runtime/bunfig"}},
+	{Tool: "Yarn", Bin: "yarn",
+		Config: []string{"~/.yarnrc.yml", "~/.yarnrc"},
+		Check:  []string{"yarn --version", "yarn config"},
+		Ideas:  "the global cache (enableGlobalCache, cacheFolder), telemetry, a Yarn 1 left as the default where projects use Corepack",
+		Docs:   []string{"https://yarnpkg.com/configuration/yarnrc"}},
+	{Tool: "mise", Bin: "mise",
+		Config: []string{"~/.config/mise/config.toml"},
+		Check:  []string{"mise doctor", "mise ls", "mise settings"},
+		Ideas:  "what mise doctor reports, versions no project uses (mise prune), shims versus activation in the shell",
+		Docs:   []string{"https://mise.jdx.dev/configuration.html"}},
+	{Tool: "conda", Bin: "conda",
+		Config: []string{"~/.condarc"},
+		Check:  []string{"conda info", "conda config --show-sources", "conda env list"},
+		Ideas:  "auto_activate_base slowing every shell, package and tarball caches (conda clean), environments nobody uses, channel priority",
+		Docs:   []string{"https://docs.conda.io/projects/conda/en/stable/user-guide/configuration/index.html"}},
+	{Tool: "RubyGems", Bin: "gem",
+		Config: []string{"~/.gemrc"},
+		Check:  []string{"gem env", "gem list --local | wc -l"},
+		Ideas:  "old versions of gems (gem cleanup), documentation installed with every gem, gems installed into the system Ruby",
+		Docs:   []string{"https://guides.rubygems.org/command-reference/"}},
+	{Tool: "GitHub CLI", Bin: "gh",
+		Config: []string{"~/.config/gh/config.yml"},
+		Check:  []string{"gh config list", "gh extension list", "gh auth status"},
+		Ideas:  "git_protocol, extensions that are out of date or unused, a token that expired",
+		Docs:   []string{"https://cli.github.com/manual/"}},
+	{Tool: "OpenSSH client", Bin: "ssh",
+		Config: []string{"~/.ssh/config"},
+		Check:  []string{"ssh -V", "ssh -G github.com | head -40"},
+		Ideas:  "connection reuse (ControlMaster, ControlPersist), keep-alives, AddKeysToAgent and the keychain on a Mac; never read or print the keys",
+		Docs:   []string{"https://man.openbsd.org/ssh_config"}},
+	{Tool: "bash startup", Bin: "bash", OS: "linux",
+		Config: []string{"~/.bashrc", "~/.bash_profile", "~/.profile"},
+		Check:  []string{"time bash -i -c exit"},
+		Ideas:  "slow startup (version managers, completions loaded eagerly), duplicated PATH entries, history size and deduplication",
+		Docs:   []string{"https://www.gnu.org/software/bash/manual/bash.html"}},
+	{Tool: "fish", Bin: "fish",
+		Config: []string{"~/.config/fish/config.fish", "~/.config/fish/conf.d/"},
+		Check:  []string{"fish --version", "fish --profile-startup /dev/stderr -c exit 2>&1 | sort -nk2 | tail -15"},
+		Ideas:  "slow startup files, universal variables that are stale, PATH entries that are gone",
+		Docs:   []string{"https://fishshell.com/docs/current/"}},
 	{Tool: "apt", Bin: "apt-get",
 		Config: []string{"/etc/apt/apt.conf.d/", "/etc/apt/sources.list.d/", "/etc/apt/apt.conf.d/50unattended-upgrades"},
 		Check:  []string{"apt-config dump | grep -i -E 'periodic|unattended'", "apt-mark showhold", "ls /etc/apt/sources.list.d"},
@@ -139,14 +212,8 @@ func toolConfigHints(_ context.Context, a *Agent, in map[string]any) (string, er
 	want := strings.ToLower(getString(in, "tool"))
 	var b strings.Builder
 	n := 0
-	for _, h := range hints {
+	for _, h := range hintsHere() {
 		if want != "" && !strings.Contains(strings.ToLower(h.Tool), want) {
-			continue
-		}
-		if h.Bin != "" && !runner.Has(h.Bin) {
-			continue
-		}
-		if h.OS != "" && h.OS != goos {
 			continue
 		}
 		n++
@@ -161,9 +228,9 @@ func toolConfigHints(_ context.Context, a *Agent, in map[string]any) (string, er
 		fmt.Fprintf(&b, "docs: %s\n\n", strings.Join(h.Docs, " "))
 	}
 	if n == 0 {
-		return "No hints for that tool. Use web_search to find its official configuration docs.", nil
+		return "No hints for that tool. official_docs lists the references of this system; use web_search to find the tool's own documentation.", nil
 	}
 	b.WriteString("These are starting points, not answers. Read the current docs with fetch_url or web_search " +
-		"before recommending a setting, and cite the source in the option's detail.")
+		"before recommending a setting, and cite the source in the option's detail. official_docs has the references of the operating system itself.")
 	return b.String(), nil
 }

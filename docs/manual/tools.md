@@ -13,15 +13,34 @@ omega tune            # guided: proposals on a card, applies what you pick
 omega tune --auto     # automatic: applies low-risk improvements itself, offers the rest
 ```
 
-omega does not ship a list of "best settings" that would go stale. Instead the
-agent gets three tools:
+omega does not ship a list of "best settings" that would go stale. It ships
+the addresses of the official documentation and the agent reads it when it
+needs it, on every platform:
 
-- `config_hints`: for each tool **installed on your Mac** (topgrade, Mole,
-  Homebrew, npm, pnpm, pip/pipx, uv, git, Docker Desktop, zsh, Oh My Zsh, mas,
-  Rust, Go, Time Machine and Spotlight), where its configuration lives, read-only
-  commands to inspect it, what is usually worth reviewing, and its official docs.
+- `official_docs`: the official documentation of **the system omega runs on**
+  and of the tools installed there, plus how to read the manuals on the
+  machine itself (`man`, `--help`, `Get-Help`), which match the installed
+  version. On macOS that is Apple's user, deployment and security guides and
+  the release notes; on Windows, Microsoft Learn (the commands reference, the
+  component store, troubleshooting, release health, PowerShell); on Linux, the
+  systemd and kernel manuals plus the distribution's own: Debian, Ubuntu,
+  Fedora and its derivatives, Arch and openSUSE.
+- `config_hints`: for each tool **installed here**, where its configuration
+  lives, read-only commands to inspect it, what is usually worth reviewing and
+  its official docs. It covers topgrade, Mole, Homebrew, mas, npm, pnpm, Yarn,
+  Bun, pip/pipx, uv, conda, RubyGems, mise, Rust, Go, git, the GitHub CLI,
+  OpenSSH, Docker, zsh, Oh My Zsh, bash, fish, Time Machine and Spotlight,
+  apt, dnf, pacman, zypper, Flatpak, snap, systemd, winget, Scoop, Chocolatey,
+  the PowerShell profile and WSL.
 - `fetch_url`: reads a documentation page or raw file as text.
-- `web_search`: searches the web when the official docs are not enough.
+- `web_search`: searches the web when the page is not listed; results from the
+  official documentation sites omega knows are marked `[official]`.
+
+The agent is told to work from the documentation, not from memory: before a
+fix, an optimisation or a setting that is not a step of omega's catalogue, it
+finds where the vendor documents it, checks that it applies to the installed
+version, applies only what the documentation supports and names the source.
+Tweaks that only forums or blogs recommend are not applied.
 
 Every proposal comes with what changes, why, its impact and its source.
 Configuration edits always show a diff and keep a timestamped backup. Fetched

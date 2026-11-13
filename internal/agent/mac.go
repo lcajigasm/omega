@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -70,11 +71,33 @@ func toolMacInventory(_ context.Context, a *Agent, in map[string]any) (string, e
 	if err != nil {
 		return "", err
 	}
-	return inv.Report(section), nil
+	out := inv.Report(section)
+	if a.opts.Unattended {
+		out += "\n\n" + unattendedPersonal
+	}
+	return out, nil
+}
+
+// unattendedPersonal is what an unattended run is told about the parts of a
+// Mac that are the user's own arrangement.
+const unattendedPersonal = "UNATTENDED RUN: the Dock, the menu bar, keyboard shortcuts and the installed apps are how the user arranged " +
+	"this Mac, not maintenance. Report what stands out there, but do not offer or apply changes to them: mac_change rejects them and " +
+	"mac_policy saves nothing. Login and background items, stale privacy entries and leftovers of removed apps are still yours to tidy."
+
+// personalDenied rejects, in a run nobody watches, a change to what the user
+// arranged themselves.
+func (a *Agent) personalDenied(tool, command, what string) error {
+	why := "Unattended run: " + what + " is how the user arranged this machine, not maintenance, so it was left as it is. " +
+		"Do not retry it or an equivalent; mention it in your summary as a suggestion the user can apply with omega mac."
+	a.emit(Event{Kind: EvDenied, Tool: tool, Command: command, Reason: why})
+	return explained(errors.New(why))
 }
 
 func toolMacChange(ctx context.Context, a *Agent, in map[string]any) (string, error) {
 	id := getString(in, "change")
+	if what := macos.Personal(id); what != "" && a.opts.Unattended {
+		return "", a.personalDenied("mac_change", id, what)
+	}
 	section, _, _ := strings.Cut(id, ":")
 	switch {
 	case strings.HasPrefix(section, "hotkey"):
@@ -126,6 +149,10 @@ func toolMacChange(ctx context.Context, a *Agent, in map[string]any) (string, er
 
 func toolMacPolicy(_ context.Context, a *Agent, in map[string]any) (string, error) {
 	kind, value := getString(in, "kind"), getString(in, "value")
+	if a.opts.Unattended {
+		// Rules record what the user decided, and nobody decided anything.
+		return "", a.personalDenied("mac_policy", kind+" "+value, "a rule in mac.toml")
+	}
 	p, err := macos.LoadPolicy()
 	if err != nil {
 		return "", err

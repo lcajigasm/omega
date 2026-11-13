@@ -311,8 +311,12 @@ and API keys: have both, or only one. More in
 - **Speaks five languages**: English, Spanish, French, German and Portuguese,
   in the command, in the app and on the [website](https://lcajigasm.github.io/omega/).
 - **Remembers**: it learns from each run and starts there next time.
+- **Works from the official documentation**: before a fix or a setting of its
+  own, the agent reads what Apple, Microsoft, your Linux distribution and each
+  tool's vendor document ([how](docs/manual/tools.md#tuning-your-tools-configuration)).
 - **Runs unattended**: `omega unattended` does everything with one password
-  and no questions; plain output for scripts, cron, launchd and CI
+  and no questions, and never rearranges your Dock, menu bar, shortcuts or
+  apps; plain output for scripts, cron, launchd and CI
   ([how](docs/manual/tasks.md#unattended-runs)).
 - **Keeps a log** of every run, which `omega logs` reads back.
 - **One Go binary**, MIT licensed.
