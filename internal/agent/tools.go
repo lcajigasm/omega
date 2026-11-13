@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -385,17 +386,45 @@ func toolReadFile(_ context.Context, a *Agent, in map[string]any) (string, error
 		a.emit(Event{Kind: EvToolEnd, Tool: "read_file", Command: path, Failed: true, Reason: msg})
 		return "", explained(errors.New(msg))
 	}
-	data, err := os.ReadFile(path)
+	data, truncated, err := readHead(path, maxReadFile)
 	if err != nil {
 		a.emit(Event{Kind: EvToolEnd, Tool: "read_file", Command: path, Failed: true, Reason: err.Error()})
 		return "", explained(err)
 	}
 	a.emit(Event{Kind: EvToolEnd, Tool: "read_file", Command: path})
-	const max = 64 * 1024
-	if len(data) > max {
-		return string(data[:max]) + "\n[… file truncated …]", nil
+	if truncated {
+		return string(data) + "\n[… file truncated …]", nil
 	}
 	return string(data), nil
+}
+
+// maxReadFile is how much of a file read_file hands to the model.
+const maxReadFile = 64 * 1024
+
+// readHead reads the first max bytes of a regular file. A device or a pipe
+// is refused: /dev/zero never ends and a FIFO never starts, and the whole
+// file was read before it was cut.
+func readHead(path string, max int64) (data []byte, truncated bool, err error) {
+	fi, err := os.Stat(path)
+	if err != nil {
+		return nil, false, err
+	}
+	if !fi.Mode().IsRegular() {
+		return nil, false, fmt.Errorf("%s is not a regular file", path)
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, false, err
+	}
+	defer f.Close()
+	data, err = io.ReadAll(io.LimitReader(f, max+1))
+	if err != nil {
+		return nil, false, err
+	}
+	if int64(len(data)) > max {
+		return data[:max], true, nil
+	}
+	return data, false, nil
 }
 
 // secretPath reports a file read_file must refuse: as typed, as an absolute
@@ -433,7 +462,12 @@ func toolWriteFile(ctx context.Context, a *Agent, in map[string]any) (string, er
 	backup := ""
 	if readErr == nil {
 		backup = fmt.Sprintf("%s.omega-bak-%s", path, time.Now().Format("20060102-150405"))
-		if err := os.WriteFile(backup, old, 0o644); err != nil {
+		// The copy is as private as the original was.
+		mode := os.FileMode(0o600)
+		if fi, err := os.Stat(path); err == nil {
+			mode = fi.Mode().Perm()
+		}
+		if err := os.WriteFile(backup, old, mode); err != nil {
 			msg := fmt.Errorf("could not create the backup: %w", err)
 			a.emit(Event{Kind: EvToolEnd, Tool: "write_file", Command: summary, Failed: true, Reason: msg.Error()})
 			return "", explained(msg)

@@ -131,7 +131,7 @@ func (c *anthropicChat) Send(ctx context.Context, text string, results []ToolRes
 		c.params.Messages = c.params.Messages[:len(c.params.Messages)-1]
 		return nil, describeAnthropicError(err)
 	}
-	c.params.Messages = append(c.params.Messages, resp.ToParam())
+	c.params.Messages = append(c.params.Messages, historyParam(resp))
 
 	reply := &Reply{Usage: Usage{
 		InputTokens:  resp.Usage.InputTokens,
@@ -159,9 +159,30 @@ func (c *anthropicChat) Send(ctx context.Context, text string, results []ToolRes
 	case anthropic.StopReasonMaxTokens:
 		// A tool call cut off mid-input is not safe to run.
 		reply.Calls = nil
+		reply.Truncated = true
 		reply.Text += "\n[response truncated at max_tokens]"
 	}
 	return reply, nil
+}
+
+// historyParam is the reply as it is kept in the conversation. A reply cut
+// at max_tokens loses its tool calls: they are not run, so no result will
+// ever follow them, and the API refuses every later message of a
+// conversation that holds a tool_use without its tool_result.
+func historyParam(resp *anthropic.Message) anthropic.MessageParam {
+	if resp.StopReason != anthropic.StopReasonMaxTokens {
+		return resp.ToParam()
+	}
+	var blocks []anthropic.ContentBlockParamUnion
+	for _, block := range resp.Content {
+		if b, ok := block.AsAny().(anthropic.TextBlock); ok && strings.TrimSpace(b.Text) != "" {
+			blocks = append(blocks, anthropic.NewTextBlock(b.Text))
+		}
+	}
+	if len(blocks) == 0 {
+		blocks = append(blocks, anthropic.NewTextBlock("[response truncated at max_tokens]"))
+	}
+	return anthropic.NewAssistantMessage(blocks...)
 }
 
 // sendRetried calls the Messages API up to four times. A network error, a 429

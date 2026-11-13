@@ -241,8 +241,8 @@ omega [task] [flags]
 | `omega disk duplicates\|large\|artifacts` | duplicate file finder by SHA-256, large files, and dev build artifact cleanup |
 | `omega audit ssh\|secrets` | SSH directory & key permissions audit, and shell history secret leak scanner |
 | `omega privacy [--clean]` | review OS telemetry and safely clean browser caches |
-| `omega uninstall <app>` | deep uninstallation locating leftover preferences, caches and app support files |
-| `omega schedule install\|status\|uninstall` | automated background maintenance with native daemons (launchd, systemd, Windows Task Scheduler) and desktop alerts |
+| `omega uninstall <app>` | finds one app by its exact name and what it left behind (preferences, caches, app support), and moves it all to the Trash after asking |
+| `omega schedule install\|status\|uninstall` | automated background maintenance with native daemons (launchd, systemd, Windows Task Scheduler) and desktop alerts; `--interval daily\|weekly\|monthly`, `--task quick\|update\|clean\|full\|analyze\|health` |
 | `omega rollback` | inspect and restore safety filesystem snapshots (APFS, Btrfs, Windows System Restore) |
 | `omega export [file]` | export machine blueprint (packages, dev tools, config) to omega-blueprint.json |
 | `omega bootstrap <file>` | restore and provision a system from an Omega blueprint |

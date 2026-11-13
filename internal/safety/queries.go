@@ -49,6 +49,20 @@ func queryTool(p string) (risk Risk, ok bool) {
 	}
 	sub := subcommand(args)
 	switch f[0] {
+	case "loginctl", "hostnamectl", "systemctl", "systemd-analyze":
+		// An option that takes a value hides the real subcommand:
+		// "systemctl -p status poweroff" powers the machine off. Only
+		// options known to stand alone may come before it.
+		for _, a := range args {
+			if !strings.HasPrefix(a, "-") {
+				break
+			}
+			if !has("--no-pager --user --system --all -a --full -l --failed --no-legend --plain --quiet -q --no-ask-password --value --reverse --after --before", a) && !strings.Contains(a, "=") {
+				return Dangerous, true
+			}
+		}
+	}
+	switch f[0] {
 	case "loginctl":
 		return safe(sub == "" || has("list-sessions list-users list-seats show-session show-user show-seat session-status user-status seat-status", sub))
 	case "hostnamectl":

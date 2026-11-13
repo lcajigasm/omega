@@ -174,12 +174,18 @@ func (c *openAIChat) Send(ctx context.Context, text string, results []ToolResult
 		return nil, err
 	}
 
+	// A reply that cannot be read is a failed send like any other: the
+	// messages go back, so a retry does not send them twice.
+	rollback := func(err error) (*Reply, error) {
+		c.messages = c.messages[:len(c.messages)-added]
+		return nil, err
+	}
 	var resp oaResponse
 	if err := json.Unmarshal(raw, &resp); err != nil {
-		return nil, fmt.Errorf("invalid response: %w", err)
+		return rollback(fmt.Errorf("invalid response: %w", err))
 	}
 	if len(resp.Choices) == 0 {
-		return nil, fmt.Errorf("empty response: %s", truncate(string(raw), 300))
+		return rollback(fmt.Errorf("empty response: %s", truncate(string(raw), 300)))
 	}
 	choice := resp.Choices[0]
 	var msg struct {
@@ -188,12 +194,23 @@ func (c *openAIChat) Send(ctx context.Context, text string, results []ToolResult
 		ToolCalls []oaToolCall `json:"tool_calls"`
 	}
 	if err := json.Unmarshal(choice.Message, &msg); err != nil {
-		return nil, fmt.Errorf("invalid message: %w", err)
+		return rollback(fmt.Errorf("invalid message: %w", err))
 	}
+	truncated := choice.FinishReason == "length"
 
 	// Keep only the fields every compatible API accepts back in history.
 	hist := map[string]any{"role": "assistant", "content": msg.Content}
-	if len(msg.ToolCalls) > 0 {
+	switch {
+	case truncated:
+		// The tool calls of a reply cut by length are not run, so no
+		// result will follow them: kept in history, every later request
+		// is refused for the missing tool messages.
+		text := "[response truncated by length]"
+		if msg.Content != nil && strings.TrimSpace(*msg.Content) != "" {
+			text = *msg.Content
+		}
+		hist["content"] = text
+	case len(msg.ToolCalls) > 0:
 		hist["tool_calls"] = msg.ToolCalls
 	}
 	c.messages = append(c.messages, hist)
@@ -214,8 +231,9 @@ func (c *openAIChat) Send(ctx context.Context, text string, results []ToolResult
 		}
 		reply.Calls = append(reply.Calls, ToolCall{ID: tc.ID, Name: tc.Function.Name, Input: json.RawMessage(args)})
 	}
-	if choice.FinishReason == "length" {
+	if truncated {
 		reply.Calls = nil
+		reply.Truncated = true
 		reply.Text += "\n[response truncated by length]"
 	}
 	return reply, nil

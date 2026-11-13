@@ -462,3 +462,52 @@ func TestInstallFromGit(t *testing.T) {
 		t.Errorf("a second update: %+v", res)
 	}
 }
+
+// Replacing a folder never deletes what was there: a copy may hold a file
+// or a .git that no hash comparison sees.
+func TestReplaceKeepsTheOldFolder(t *testing.T) {
+	home := machine(t, "claude")
+	src := write(t, filepath.Join(home, "src"), "pdf", "new")
+	dest := write(t, filepath.Join(home, ".claude", "skills"), "pdf", "old")
+	os.MkdirAll(filepath.Join(dest, ".git"), 0o755)
+	os.WriteFile(filepath.Join(dest, ".git", "HEAD"), []byte("ref\n"), 0o644)
+	os.WriteFile(filepath.Join(dest, "MY-NOTES.md"), []byte("mine\n"), 0o644)
+
+	if err := replace(dest, src); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(dest, "MY-NOTES.md")); err == nil {
+		t.Error("the new folder holds a file the source does not have")
+	}
+	var found int
+	filepath.Walk(home, func(path string, fi os.FileInfo, err error) error {
+		if err == nil && !strings.HasPrefix(path, dest) && (strings.HasSuffix(path, "MY-NOTES.md") || strings.HasSuffix(path, filepath.Join(".git", "HEAD"))) {
+			found++
+		}
+		return nil
+	})
+	if found != 2 {
+		t.Errorf("the old folder was not kept whole: %d of 2 files found", found)
+	}
+}
+
+func TestCopyAllKeepsGitAndLinks(t *testing.T) {
+	dir := t.TempDir()
+	src := filepath.Join(dir, "a")
+	os.MkdirAll(filepath.Join(src, ".git"), 0o755)
+	os.WriteFile(filepath.Join(src, ".git", "HEAD"), []byte("ref\n"), 0o644)
+	os.WriteFile(filepath.Join(src, "run.sh"), []byte("#!/bin/sh\n"), 0o755)
+	linked := os.Symlink("run.sh", filepath.Join(src, "link")) == nil
+	dst := filepath.Join(dir, "b")
+	if err := copyAll(src, dst); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(dst, ".git", "HEAD")); err != nil {
+		t.Error(".git was left out")
+	}
+	if linked {
+		if to, err := os.Readlink(filepath.Join(dst, "link")); err != nil || to != "run.sh" {
+			t.Errorf("the link was not copied as a link: %q, %v", to, err)
+		}
+	}
+}

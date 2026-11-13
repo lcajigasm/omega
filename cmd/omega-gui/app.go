@@ -23,8 +23,11 @@ type App struct {
 
 	mu     sync.Mutex
 	bridge *gui.Bridge
-	cancel context.CancelFunc
-	done   chan struct{}
+	// starting is set while a session is being prepared: there is no
+	// bridge yet, and a second Start must not begin another.
+	starting bool
+	cancel   context.CancelFunc
+	done     chan struct{}
 }
 
 // Task is a preset the home screen offers.
@@ -169,15 +172,26 @@ var errRunning = errors.New("a session is already running")
 
 // Start begins a session: a preset task, or prompt as free text.
 func (a *App) Start(task, prompt string, dryRun bool) (SessionInfo, error) {
+	// The place is taken under the lock, and the lock is let go while the
+	// provider and the model are looked up: that goes over the network, and
+	// Stop and closing the window must not wait for it. Stop cancels ctx.
 	a.mu.Lock()
-	defer a.mu.Unlock()
-	if a.bridge != nil {
+	if a.bridge != nil || a.starting {
+		a.mu.Unlock()
 		return SessionInfo{}, errRunning
 	}
 	ctx, cancel := context.WithCancel(context.Background())
+	a.starting, a.cancel = true, cancel
+	a.mu.Unlock()
+
 	s, err := cli.StartSession(ctx, cli.SessionRequest{Task: task, Prompt: prompt, DryRun: dryRun, Demo: a.demo})
+
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.starting = false
 	if err != nil {
 		cancel()
+		a.cancel = nil
 		return SessionInfo{}, err
 	}
 	b := gui.New(ctx, s.Agent, a.emit)
@@ -273,6 +287,9 @@ func (a *App) shutdown() {
 		return
 	}
 	cancel()
+	if done == nil {
+		return // still starting: nothing to wait for
+	}
 	select {
 	case <-done:
 	case <-time.After(3 * time.Second):

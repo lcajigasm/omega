@@ -43,6 +43,9 @@ var blocked = []*regexp.Regexp{
 	regexp.MustCompile(`--no-preserve-root`),
 	// The privacy database is only ever changed through tccutil: a direct
 	// write can grant a permission the user never approved.
+	// The helper that answers sudo with the password omega holds for this
+	// run. Only sudo calls it: a command that names it wants the password.
+	regexp.MustCompile(`(?i)sudo_askpass|askpass\.sock|omega_askpass_sock`),
 	regexp.MustCompile(`(?i)TCC\.db.*\b(insert|update|delete|replace|drop|alter)\b|\b(insert|update|delete|replace|drop|alter)\b.*TCC\.db`),
 }
 
@@ -102,7 +105,7 @@ var normalPrefixes = []string{
 }
 
 var (
-	findDestructive = regexp.MustCompile(`\s-(delete|exec|execdir|ok|okdir)\b`)
+	findDestructive = regexp.MustCompile(`\s-(delete|exec|execdir|ok|okdir|fprint|fprint0|fprintf|fls)\b`)
 	sedInPlace      = regexp.MustCompile(`\bsed\b.*\s-i`)
 	// journalctl only reads, except when it trims, rotates or rewrites the journal.
 	journalWrites   = regexp.MustCompile(`\s--(vacuum-\w+|rotate|flush|sync|relinquish-var|smart-relinquish-var|setup-keys|update-catalog)\b`)
@@ -143,6 +146,9 @@ func Classify(command string) Risk {
 	if strings.Contains(cmd, "$(") || strings.Contains(cmd, "`") || strings.Contains(cmd, "<(") {
 		return Dangerous
 	}
+	if hidesCommands(cmd) {
+		return Dangerous
+	}
 	// Any output redirection other than fd duplication or /dev/null writes a file.
 	if strings.Contains(fdDup.ReplaceAllString(devNullRedirect.ReplaceAllString(cmd, ""), ""), ">") {
 		return Dangerous
@@ -155,6 +161,142 @@ func Classify(command string) Risk {
 		}
 	}
 	return max
+}
+
+// escapedBreak is a backslash before a character that ends a command or
+// opens a quote. The POSIX shells and PowerShell read it in opposite ways
+// (in sh, \; is a literal semicolon and \" a literal quote; in PowerShell
+// the backslash is an ordinary character), so what follows cannot be split
+// into commands with any confidence.
+var escapedBreak = regexp.MustCompile("\\\\[;|&\"'`\n\r]")
+
+// hidesCommands reports syntax that can carry a command where the splitter
+// does not see one:
+//
+//   - an escaped quote or separator: echo \"; rm -rf x; echo \" is three
+//     commands for the shell and one quoted word for a naive reader;
+//   - $'…', whose quoting rules differ from '…';
+//   - any parenthesis outside quotes: a subshell, zsh's =(cmd), the glob
+//     qualifier *(e:'cmd':), or a PowerShell expression (Remove-Item x).
+func hidesCommands(cmd string) bool {
+	if escapedBreak.MatchString(cmd) || strings.Contains(cmd, "$'") {
+		return true
+	}
+	return strings.Contains(unquoted(cmd), "(")
+}
+
+// unquoted is the command without what is inside its quotes.
+func unquoted(cmd string) string {
+	var out strings.Builder
+	var quote byte
+	for i := 0; i < len(cmd); i++ {
+		c := cmd[i]
+		switch {
+		case quote != 0:
+			if c == quote {
+				quote = 0
+			}
+		case c == '\'' || c == '"':
+			quote = c
+		default:
+			out.WriteByte(c)
+		}
+	}
+	return out.String()
+}
+
+// harmlessVars are the variables a command may be given without changing
+// what it runs. Any other assignment in front of a command is treated as a
+// change: PATH picks another program, GIT_CONFIG_* and PAGER make a
+// read-only tool run one.
+var harmlessVars = regexp.MustCompile(`^(LANG|LANGUAGE|LC_[A-Z]+|TZ|TERM|COLUMNS|LINES|NO_COLOR|CLICOLOR|CLICOLOR_FORCE|CI|DEBIAN_FRONTEND|HOMEBREW_NO_[A-Z_]+|HOMEBREW_COLOR|NONINTERACTIVE)=[\w.:/@+-]*$`)
+
+// writesByOption reports a tool from the read-only list used in a way that
+// writes a file, changes a setting or runs another program.
+func writesByOption(p string) bool {
+	f := strings.Fields(p)
+	if len(f) == 0 {
+		return false
+	}
+	args := f[1:]
+	opt := func(names ...string) bool {
+		for _, a := range args {
+			name, _, _ := strings.Cut(a, "=")
+			for _, n := range names {
+				if name == n {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	// short reports a letter in a cluster of one-letter options (-uo).
+	short := func(letter string) bool {
+		for _, a := range args {
+			if strings.HasPrefix(a, "-") && !strings.HasPrefix(a, "--") && strings.Contains(a, letter) {
+				return true
+			}
+		}
+		return false
+	}
+	positional := func() (n int) {
+		for _, a := range args {
+			if !strings.HasPrefix(a, "-") {
+				n++
+			}
+		}
+		return n
+	}
+	switch f[0] {
+	case "rg":
+		return opt("--pre", "--pre-glob", "--hostname-bin")
+	case "sort":
+		return short("o") || opt("--output", "--compress-program", "--files0-from")
+	case "uniq":
+		return positional() > 1
+	case "date":
+		return short("s") || opt("--set") || positional() > 0 && !strings.HasPrefix(firstPositional(args), "+")
+	case "hostname":
+		return positional() > 0 || short("F") || opt("--file")
+	case "sysctl":
+		return short("w") || short("p") || strings.Contains(strings.Join(args, " "), "=")
+	case "go":
+		return len(args) > 0 && args[0] == "env" && (opt("-w", "-u"))
+	case "brew":
+		return len(args) > 0 && args[0] == "tap" && positional() > 1
+	case "git":
+		if opt("--output", "--ext-diff", "--textconv") {
+			return true
+		}
+		if len(args) > 0 && args[0] == "branch" {
+			lists := opt("--list", "-l", "--merged", "--no-merged", "--contains", "--no-contains", "--points-at", "--show-current", "-a", "--all", "-r", "--remotes")
+			for _, a := range args[1:] {
+				switch {
+				case strings.HasPrefix(a, "--"):
+					name, _, _ := strings.Cut(a, "=")
+					if !has("--list --all --remotes --merged --no-merged --contains --no-contains --points-at --show-current --verbose --sort --format --color --no-color --column --no-column --abbrev --no-abbrev", name) {
+						return true
+					}
+				case strings.HasPrefix(a, "-"):
+					if strings.Trim(a, "-alrv") != "" {
+						return true
+					}
+				case !lists:
+					return true // a name alone creates a branch
+				}
+			}
+		}
+	}
+	return false
+}
+
+func firstPositional(args []string) string {
+	for _, a := range args {
+		if !strings.HasPrefix(a, "-") {
+			return a
+		}
+	}
+	return ""
 }
 
 // dryRun matches commands that only preview what they would do.
@@ -280,15 +422,28 @@ func classifyOne(part string) Risk {
 		return Blocked
 	}
 	p := strings.TrimSpace(part)
-	// Strip leading env assignments such as FOO=1 cmd.
+	// Strip leading env assignments such as LC_ALL=C cmd. One that can
+	// change what the command runs makes it a change, whatever follows.
+	floor := Safe
 	for {
 		f := strings.Fields(p)
 		if len(f) > 1 && strings.Contains(f[0], "=") && !strings.HasPrefix(f[0], "-") {
+			if !harmlessVars.MatchString(f[0]) {
+				floor = Dangerous
+			}
 			p = strings.TrimSpace(strings.TrimPrefix(p, f[0]))
 			continue
 		}
 		break
 	}
+	if r := classifyBare(p); r > floor {
+		return r
+	}
+	return floor
+}
+
+// classifyBare decides one command with its leading assignments removed.
+func classifyBare(p string) Risk {
 	if p == "" || p == "true" || p == "false" {
 		return Safe
 	}
@@ -299,16 +454,31 @@ func classifyOne(part string) Risk {
 	// environment. Alone, or with only assignments, it prints variables.
 	if f := strings.Fields(p); f[0] == "env" {
 		i := 1
+		floor := Safe
 		for i < len(f) && (strings.HasPrefix(f[i], "-") || strings.Contains(f[i], "=")) {
-			if f[i] == "-u" || f[i] == "-C" || f[i] == "-S" {
+			switch {
+			case f[i] == "-u" || f[i] == "--unset":
 				i++
+			case f[i] == "-i" || f[i] == "-" || f[i] == "--ignore-environment" || f[i] == "-0" || f[i] == "--null" || strings.HasPrefix(f[i], "--unset="):
+			case strings.HasPrefix(f[i], "-"):
+				// -S runs the string that follows, -C changes directory,
+				// -P changes the search path: not a look at the environment.
+				return Dangerous
+			case !harmlessVars.MatchString(f[i]):
+				floor = Dangerous
 			}
 			i++
 		}
 		if i >= len(f) {
-			return Safe
+			return floor
 		}
-		return classifyOne(strings.Join(f[i:], " "))
+		if r := classifyOne(strings.Join(f[i:], " ")); r > floor {
+			return r
+		}
+		return floor
+	}
+	if writesByOption(p) {
+		return Dangerous
 	}
 	if risk, ok := queryTool(p); ok {
 		return risk

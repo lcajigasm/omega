@@ -207,12 +207,15 @@ func (a *Agent) Run(ctx context.Context, task string) {
 		if turn >= limit {
 			a.setExit(ExitError)
 			a.emit(Event{Kind: EvError, Text: i18n.T("agent.turn_limit", limit)})
-			results, text = nil, ""
+			// The results of the last tools stay: they go with the next
+			// message. Dropping them leaves the model's tool calls without
+			// an answer, and the provider then refuses every message.
+			text = ""
 			if !a.waitInput(ctx, &text) {
 				return
 			}
 			a.clearExit()
-			turn = 0
+			turn = -1 // the loop adds one: a full allowance again
 			continue
 		}
 
@@ -242,6 +245,11 @@ func (a *Agent) Run(ctx context.Context, task string) {
 			continue
 		}
 		a.clearExit()
+		if reply.Truncated {
+			// The model was cut before it finished: a run that ends here
+			// did not do its task.
+			a.setExit(ExitError)
+		}
 		a.usage = a.usage.Add(reply.Usage)
 		if price, ok := llm.PriceFor(a.opts.Provider, a.model); ok {
 			a.cost += price.Cost(reply.Usage)

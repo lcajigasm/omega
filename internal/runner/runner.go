@@ -29,6 +29,9 @@ type Result struct {
 	TimedOut bool
 }
 
+// maxLine is the longest line of output kept; the rest of it is dropped.
+const maxLine = 64 * 1024
+
 const (
 	headBytes = 2000
 	tailBytes = 8000
@@ -190,6 +193,63 @@ func Withhold(names ...string) {
 	}
 }
 
+// secretName matches environment variables that hold a credential.
+var secretName = regexp.MustCompile(`(?i)(token|secret|passw(or)?d|api_?key|credential|private_?key)`)
+
+var (
+	redactMu sync.RWMutex
+	redacted []string
+	envOnce  sync.Once
+)
+
+// Redact makes every later command's output show "[redacted]" in place of
+// the value: what a command prints goes to the model and to the run log.
+// The sudo password is registered here when omega holds it for the run.
+func Redact(values ...string) {
+	redactMu.Lock()
+	defer redactMu.Unlock()
+	for _, v := range values {
+		if len(v) < 4 {
+			continue // too short to tell from ordinary text
+		}
+		known := false
+		for _, r := range redacted {
+			known = known || r == v
+		}
+		if !known {
+			redacted = append(redacted, v)
+		}
+	}
+	// Longest first, so a value that contains another is replaced whole.
+	sort.Slice(redacted, func(i, j int) bool { return len(redacted[i]) > len(redacted[j]) })
+}
+
+// redactEnv registers the credentials of omega's own environment
+// (GITHUB_TOKEN, AWS_SECRET_ACCESS_KEY, the provider keys…). They stay in
+// the commands' environment, because tools such as gh and brew use them;
+// "env" just no longer shows them to the model.
+func redactEnv() {
+	for _, kv := range os.Environ() {
+		name, value, _ := strings.Cut(kv, "=")
+		// A path is where a secret is kept, not the secret.
+		if len(value) >= 8 && secretName.MatchString(name) && !strings.HasPrefix(value, "/") && !strings.HasPrefix(value, "~") {
+			Redact(value)
+		}
+	}
+}
+
+// scrub replaces the registered values in a line of output.
+func scrub(line string) string {
+	redactMu.RLock()
+	defer redactMu.RUnlock()
+	for _, v := range redacted {
+		if strings.Contains(line, v) {
+			line = strings.ReplaceAll(line, v, "[redacted]")
+		}
+	}
+	return line
+}
+
 // childEnv is omega's environment without the withheld variables.
 func childEnv() []string {
 	var out []string
@@ -219,6 +279,7 @@ func Run(ctx context.Context, command string, timeout time.Duration, onLine func
 		ctx, cancel = context.WithTimeout(ctx, timeout)
 		defer cancel()
 	}
+	envOnce.Do(redactEnv)
 	name, args := shellInvocation(command)
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Stdin = nil
@@ -246,21 +307,45 @@ func Run(ctx context.Context, command string, timeout time.Duration, onLine func
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		sc := bufio.NewScanner(pr)
-		sc.Buffer(make([]byte, 64*1024), 1024*1024)
-		// Progress bars use \r; treat it as a line break.
-		sc.Split(scanLinesCR)
-		for sc.Scan() {
-			line := stripANSI(sc.Text())
+		// A line longer than the buffer is cut, not fatal: bufio.Scanner
+		// stops for good on one, and everything the command printed after
+		// it (and before it, in a single write) would be lost.
+		rd := bufio.NewReaderSize(pr, maxLine)
+		emit := func(raw []byte, cut bool) {
+			line := scrub(stripANSI(string(raw)))
+			if cut {
+				line += " [omega: line cut]"
+			}
 			if strings.TrimSpace(line) == "" {
-				continue
+				return
 			}
 			buf.add(line + "\n")
 			if onLine != nil {
 				onLine(line)
 			}
 		}
-		io.Copy(io.Discard, pr)
+		var line []byte
+		cut := false
+		for {
+			c, err := rd.ReadByte()
+			if err != nil {
+				if len(line) > 0 {
+					emit(line, cut)
+				}
+				break
+			}
+			// Progress bars use \r; treat it as a line break.
+			if c == '\n' || c == '\r' {
+				emit(line, cut)
+				line, cut = line[:0], false
+				continue
+			}
+			if len(line) < maxLine {
+				line = append(line, c)
+			} else {
+				cut = true
+			}
+		}
 	}()
 
 	err := cmd.Start()
@@ -327,18 +412,6 @@ func (c *capture) String() string {
 		return c.head.String() + string(tail)
 	}
 	return fmt.Sprintf("%s\n[… %d bytes omitted …]\n%s", c.head.String(), dropped, tail)
-}
-
-func scanLinesCR(data []byte, atEOF bool) (int, []byte, error) {
-	for i, b := range data {
-		if b == '\n' || b == '\r' {
-			return i + 1, data[:i], nil
-		}
-	}
-	if atEOF && len(data) > 0 {
-		return len(data), data, nil
-	}
-	return 0, nil, nil
 }
 
 func stripANSI(s string) string {

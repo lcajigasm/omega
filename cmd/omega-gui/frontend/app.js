@@ -317,7 +317,9 @@ function confirmCard(m) {
   buttons.append(button(t("gui.deny"), "danger", answer("deny", t("gui.deny"))));
   c.root.append(buttons);
   add(c.root);
-  if (view === "session") buttons.firstChild.focus();
+  // The focus goes to "Deny": a card can appear while the user is typing,
+  // and a stray Space or Enter must not approve a command.
+  if (view === "session") buttons.lastChild.focus();
 }
 
 function choiceCard(m) {
@@ -973,7 +975,25 @@ function wire() {
       toastError(err);
     });
   });
-  $("notes-clear").addEventListener("click", () => call("ClearNotes").then(showSystem).catch(toastError));
+  // Forgetting the notes cannot be undone: it takes two clicks.
+  let forgetTimer = 0;
+  const forget = $("notes-clear");
+  const calm = () => {
+    clearTimeout(forgetTimer);
+    forgetTimer = 0;
+    forget.textContent = t("gui.system.notes_clear");
+    forget.classList.remove("danger");
+  };
+  forget.addEventListener("click", () => {
+    if (!forgetTimer) {
+      forget.textContent = t("gui.confirm_again");
+      forget.classList.add("danger");
+      forgetTimer = setTimeout(calm, 4000);
+      return;
+    }
+    calm();
+    call("ClearNotes").then(showSystem).catch(toastError);
+  });
 
   $("providers").addEventListener("change", () => {
     $("setup-result").hidden = true;

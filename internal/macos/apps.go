@@ -179,6 +179,14 @@ func trashPath(name string, now time.Time) string {
 	return dest
 }
 
+// restoreCommand puts something back from the Trash. It fails when the
+// place is taken again (the app was reinstalled, or it made its folder
+// anew): mv would put the old folder inside the new one, or with -n do
+// nothing, and both end with status 0, which reads as "restored".
+func restoreCommand(from, to string) string {
+	return fmt.Sprintf("test ! -e %s && mv -n %s %s", shellQuote(to), shellQuote(from), shellQuote(to))
+}
+
 // UninstallChange removes the app: through Homebrew when a cask installed
 // it, otherwise by moving it to the Trash, where it stays until emptied.
 func (a AppInfo) UninstallChange(now time.Time) Change {
@@ -190,7 +198,7 @@ func (a AppInfo) UninstallChange(now time.Time) Change {
 	}
 	dest := trashPath(filepath.Base(a.Path), now)
 	c.Command = fmt.Sprintf("mv -n %s %s", shellQuote(a.Path), shellQuote(dest))
-	c.Undo = fmt.Sprintf("mv -n %s %s", shellQuote(dest), shellQuote(a.Path))
+	c.Undo = restoreCommand(dest, a.Path)
 	return c
 }
 
@@ -305,10 +313,10 @@ func (l Leftover) TrashChange(now time.Time) Change {
 		// with the same name.
 		to := filepath.Join(dest, filepath.Base(filepath.Dir(p))+" — "+filepath.Base(p))
 		cmd = append(cmd, fmt.Sprintf("mv -n %s %s", shellQuote(p), shellQuote(to)))
-		undo = append(undo, fmt.Sprintf("mv -n %s %s", shellQuote(to), shellQuote(p)))
+		undo = append(undo, restoreCommand(to, p))
 	}
 	return Change{ID: "leftover-trash:" + l.Bundle, Section: "apps", Title: i18n.T("mac.act.leftover_trash", l.Bundle, HumanSize(l.Size)),
-		Command: strings.Join(cmd, " && "), Undo: strings.Join(undo, "; ")}
+		Command: strings.Join(cmd, " && "), Undo: strings.Join(undo, " && ")}
 }
 
 // ReviewApps are the apps worth asking about.

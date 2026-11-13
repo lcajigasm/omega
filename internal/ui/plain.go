@@ -2,6 +2,7 @@ package ui
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -17,7 +18,7 @@ import (
 // RunPlain prints events line by line and reads approvals, choices and
 // follow-ups from stdin. Without a terminal on stdin every approval request
 // is denied and every choice is left empty.
-func RunPlain(ag *agent.Agent, in io.Reader, interactive bool) {
+func RunPlain(ctx context.Context, ag *agent.Agent, in io.Reader, interactive bool) {
 	reader := bufio.NewReader(in)
 	readLine := func() (string, bool) {
 		s, err := reader.ReadString('\n')
@@ -109,11 +110,22 @@ func RunPlain(ag *agent.Agent, in io.Reader, interactive bool) {
 			e.Picks <- ids
 		case agent.EvIdle:
 			fmt.Print("\n" + i18n.T("ui.followup"))
-			text, ok := readLine()
-			if !ok {
-				text = ""
+			// Ctrl+C while the question is open cancels the run: the agent
+			// then stops listening, and a send to it would never return.
+			line := make(chan string, 1)
+			go func() {
+				text, _ := readLine()
+				line <- text
+			}()
+			select {
+			case text := <-line:
+				select {
+				case ag.Input() <- text:
+				case <-ctx.Done():
+				}
+			case <-ctx.Done():
+				fmt.Println()
 			}
-			ag.Input() <- text
 		case agent.EvError:
 			fmt.Fprintln(os.Stderr, errStyle.Render("! "+e.Text))
 		case agent.EvDone:

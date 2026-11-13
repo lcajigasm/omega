@@ -2,6 +2,7 @@ package macos
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -353,5 +354,32 @@ func TestJournal(t *testing.T) {
 	j = Journal()
 	if !j[0].Undone || j[1].Undone {
 		t.Errorf("undone flags: %+v", j)
+	}
+}
+
+// Undoing a move to the Trash fails when the place is taken again: it must
+// not report a restore that did not happen.
+func TestRestoreCommandRefusesATakenPlace(t *testing.T) {
+	if _, err := exec.LookPath("sh"); err != nil {
+		t.Skip("needs a POSIX shell")
+	}
+	dir := t.TempDir()
+	from, to := filepath.Join(dir, "trash", "data"), filepath.Join(dir, "lib", "data")
+	os.MkdirAll(from, 0o755)
+	os.MkdirAll(filepath.Dir(to), 0o755)
+	run := func() error { return exec.Command("sh", "-c", restoreCommand(from, to)).Run() }
+	os.MkdirAll(to, 0o755)
+	if err := run(); err == nil {
+		t.Fatal("the undo reported success over an existing folder")
+	}
+	if _, err := os.Stat(filepath.Join(to, "data")); err == nil {
+		t.Error("the old folder was put inside the new one")
+	}
+	os.Remove(to)
+	if err := run(); err != nil {
+		t.Fatalf("restore to a free place: %v", err)
+	}
+	if _, err := os.Stat(to); err != nil {
+		t.Error("nothing was restored")
 	}
 }

@@ -20,6 +20,8 @@
 	<string>@VERSION@</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>13.0</string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>omega removes login items and quits menu bar apps when you approve it.</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
 </dict>

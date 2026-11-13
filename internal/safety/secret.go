@@ -136,8 +136,65 @@ func secretFile(raw string, relative bool) bool {
 			return true
 		}
 	}
-	return globReachesKeys(absForm(p))
+	return globReachesKeys(absForm(p)) || globReachesSecrets(p)
 }
+
+// knownSecrets are the credential files with a fixed place under the home
+// directory. A pattern is matched against them, since the shell expands it
+// after the policy has looked: ~/.s*/id_*, ~/.aws/credential?.
+var knownSecrets = []string{
+	"/.ssh/id_rsa", "/.ssh/id_dsa", "/.ssh/id_ecdsa", "/.ssh/id_ed25519",
+	"/.aws/credentials", "/.aws/config", "/.netrc", "/.npmrc", "/.pypirc", "/.env",
+	"/.git-credentials", "/.docker/config.json", "/.kube/config", "/.config/gh/hosts.yml",
+	"/.config/gcloud/application_default_credentials.json", "/.config/gcloud/credentials.db",
+	"/.config/gcloud/access_tokens.db", "/.gnupg/private-keys-v1.d/key", "/.local/share/keyrings/login.keyring",
+}
+
+// globReachesSecrets reports a pattern that can expand to a credential
+// file, or to any file of a folder that only holds secrets (a key in
+// ~/.ssh may have any name).
+func globReachesSecrets(p string) bool {
+	if !strings.ContainsAny(p, "*?[{") {
+		return false
+	}
+	lower := strings.ToLower(absForm(p))
+	if strings.Contains(lower, "{") {
+		// Braces are expanded by the shell, not by path.Match: read them
+		// as "anything".
+		lower = braces.ReplaceAllString(lower, "*")
+	}
+	homes := []string{strings.ToLower(homeSentinel)}
+	if h, err := os.UserHomeDir(); err == nil && h != "" {
+		homes = append(homes, strings.ToLower(path.Clean(strings.ReplaceAll(h, `\`, "/"))))
+	}
+	parts := strings.Split(lower, "/")
+	for _, home := range homes {
+		for _, k := range knownSecrets {
+			if ok, err := path.Match(lower, home+k); err == nil && ok {
+				return true
+			}
+		}
+		for _, d := range secretDirs {
+			dir := strings.Split(home+d, "/")
+			if len(parts) <= len(dir) {
+				continue
+			}
+			if ok, err := path.Match(strings.Join(parts[:len(dir)], "/"), home+d); err != nil || !ok {
+				continue
+			}
+			rest := strings.Join(parts[len(dir):], "/")
+			if strings.HasSuffix(rest, ".pub") {
+				continue // public keys, whatever the pattern before the suffix
+			}
+			if strings.ContainsAny(rest, "*?[") || secretPath(home+d+"/"+rest) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+var braces = regexp.MustCompile(`\{[^{}]*\}`)
 
 // globReachesKeys reports a pattern (*, ?, [], {}) that can expand to
 // omega's key file from outside its folder, such as ~/.config/*/keys.
@@ -178,8 +235,13 @@ func secretPath(p string) bool {
 		// The environment of a process can hold an API key.
 		return true
 	}
-	if strings.Contains(lower, "/.ssh/") {
+	if strings.Contains(lower, "/.ssh/") || strings.HasPrefix(lower, ".ssh/") {
 		return base != "config"
+	}
+	if strings.HasSuffix(lower, "/.docker/config.json") || strings.HasPrefix(lower, ".docker/config.json") ||
+		strings.Contains(lower, "/gcloud/application_default_credentials.json") ||
+		strings.HasSuffix(lower, "/gcloud/credentials.db") || strings.HasSuffix(lower, "/gcloud/access_tokens.db") {
+		return true
 	}
 	if strings.HasSuffix(lower, "/.aws/credentials") || strings.HasSuffix(lower, "/.aws/config") {
 		return true
@@ -208,7 +270,7 @@ func secretPath(p string) bool {
 func secretBasename(base string) bool {
 	switch base {
 	case "id_rsa", "id_dsa", "id_ecdsa", "id_ed25519",
-		".netrc", "_netrc", ".npmrc", ".pypirc", ".env":
+		".netrc", "_netrc", ".npmrc", ".pypirc", ".env", ".git-credentials":
 		return true
 	}
 	if strings.HasPrefix(base, ".env.") && base != ".env.example" && base != ".env.sample" && base != ".env.template" {
@@ -475,7 +537,11 @@ func securityReveals(words []string) bool {
 	}
 	reveal := false
 	for _, w := range words {
-		if w == "-w" || w == "-g" || w == "--password" {
+		if w == "--password" {
+			reveal = true
+		}
+		// -w and -g print the password, alone or in a cluster (-wa, -ga).
+		if strings.HasPrefix(w, "-") && !strings.HasPrefix(w, "--") && strings.ContainsAny(w[1:], "wg") {
 			reveal = true
 		}
 	}

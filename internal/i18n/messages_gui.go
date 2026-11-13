@@ -189,6 +189,7 @@ var guiMessages = map[string][]string{
 	"gui.system.missing":     {"not installed", "no instalado", "non installé", "nicht installiert", "não instalado"},
 	"gui.system.notes":       {"Notes", "Notas", "Notes", "Notizen", "Notas"},
 	"gui.system.notes_intro": {"What omega has learned about this computer between sessions.", "Lo que omega ha aprendido de este equipo entre sesiones.", "Ce qu'omega a appris de cet ordinateur d'une session à l'autre.", "Was omega zwischen den Sitzungen über diesen Rechner gelernt hat.", "O que o omega aprendeu sobre este computador entre sessões."},
+	"gui.confirm_again":      {"Click again to confirm", "Pulsa otra vez para confirmar", "Cliquez encore pour confirmer", "Zum Bestätigen erneut klicken", "Clique outra vez para confirmar"},
 	"gui.system.notes_clear": {"Forget the notes", "Olvidar las notas", "Oublier les notes", "Notizen vergessen", "Esquecer as notas"},
 
 	"gui.set.model":          {"Model", "Modelo", "Modèle", "Modell", "Modelo"},

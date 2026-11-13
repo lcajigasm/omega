@@ -148,3 +148,44 @@ func TestPowerShellOnWindows(t *testing.T) {
 		t.Fatalf("the key reached the command: %q", res.Output)
 	}
 }
+
+// A line longer than the buffer is cut; what came before and after it is
+// still there.
+func TestRunKeepsOutputAroundAHugeLine(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses a POSIX shell")
+	}
+	res := Run(context.Background(), `echo HEAD_MARKER; head -c 1100000 /dev/zero | tr '\0' a; echo; echo TAIL_MARKER`, 20*time.Second, nil)
+	if res.ExitCode != 0 || !strings.Contains(res.Output, "HEAD_MARKER") || !strings.Contains(res.Output, "TAIL_MARKER") {
+		t.Fatalf("exit %d, output of %d bytes lost its ends", res.ExitCode, len(res.Output))
+	}
+}
+
+// A registered secret never appears in what a command printed.
+func TestRunRedacts(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses a POSIX shell")
+	}
+	Redact("hunter2-sudo-password")
+	var lines []string
+	res := Run(context.Background(), `echo "pw=hunter2-sudo-password end"`, 10*time.Second, func(l string) { lines = append(lines, l) })
+	if strings.Contains(res.Output, "hunter2") || !strings.Contains(res.Output, "pw=[redacted] end") {
+		t.Errorf("output: %q", res.Output)
+	}
+	if strings.Contains(strings.Join(lines, ""), "hunter2") {
+		t.Errorf("the live lines show the secret: %q", lines)
+	}
+}
+
+// Credentials in omega's own environment are not shown by env.
+func TestRunRedactsEnvironmentCredentials(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses a POSIX shell")
+	}
+	t.Setenv("ZZ_FAKE_TOKEN", "tok-1234567890abcdef")
+	redactEnv()
+	res := Run(context.Background(), `printenv ZZ_FAKE_TOKEN`, 10*time.Second, nil)
+	if strings.Contains(res.Output, "tok-1234567890abcdef") {
+		t.Errorf("the token reached the output: %q", res.Output)
+	}
+}
