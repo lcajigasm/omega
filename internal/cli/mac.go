@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"runtime"
 	"strconv"
 	"strings"
@@ -350,6 +349,10 @@ func applyChanges(changes []macos.Change) error {
 		if res.ExitCode != 0 {
 			failed++
 			fmt.Println("  " + i18n.T("mac.failed", res.ExitCode))
+			// Part of it may be done: keep the way back.
+			if c.KeepsUndoOnFailure() && macos.Record(c) == nil {
+				fmt.Println("  ↳ It stopped halfway. `omega mac undo` puts back what was moved.")
+			}
 		} else {
 			fmt.Println("  ⎿ ✓")
 			if err := macos.Record(c); err != nil {
@@ -579,13 +582,7 @@ func macPolicyCmd() *cobra.Command {
 					return err
 				}
 			}
-			editor := os.Getenv("EDITOR")
-			if editor == "" {
-				editor = "nano"
-			}
-			e := exec.Command(editor, macos.PolicyPath())
-			e.Stdin, e.Stdout, e.Stderr = os.Stdin, os.Stdout, os.Stderr
-			return e.Run()
+			return editFile(macos.PolicyPath())
 		},
 	})
 	return c
@@ -616,9 +613,26 @@ func macUndoCmd() *cobra.Command {
 			}
 			done := map[time.Time]bool{}
 			failed := 0
+			// Undoing a change that needed administrator access needs it too,
+			// the same way applyChanges gets it.
+			var bridge *sudo.Bridge
+			defer func() {
+				if bridge != nil {
+					bridge.Close()
+					runner.Configure(nil, "")
+				}
+			}()
 			for _, id := range ids {
 				e := entries[id]
 				fmt.Printf("\n⏺ %s\n  %s\n", i18n.T("mac.undoing", e.Title), e.Undo)
+				if strings.Contains(e.Undo, "sudo ") && bridge == nil {
+					b, err := sudo.Start(askTerminalPassword, "")
+					if err != nil {
+						return err
+					}
+					bridge = b
+					runner.Configure(b.Env(), b.PathPrefix())
+				}
 				res := runner.Run(context.Background(), e.Undo, 2*time.Minute, func(l string) { fmt.Println("    " + l) })
 				if res.ExitCode != 0 {
 					failed++

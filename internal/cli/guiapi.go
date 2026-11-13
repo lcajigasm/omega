@@ -162,6 +162,12 @@ type StepInfo struct {
 	Dangerous bool   `json:"dangerous"`
 	Installed bool   `json:"installed"`
 	Skipped   bool   `json:"skipped"` // the user turned it off
+	// The same in words that do not change with the language, for
+	// `omega steps --json` and any program that reads it.
+	CategoryID string `json:"category_id"` // check, update, clean, backend
+	RiskID     string `json:"risk_id"`     // read-only, normal, dangerous
+	Command    string `json:"command"`
+	Available  bool   `json:"available"` // what it needs is installed
 }
 
 // StepList is what `omega steps` prints.
@@ -174,7 +180,8 @@ func StepList() ([]StepInfo, error) {
 	for _, s := range steps.Grouped(steps.All) {
 		out = append(out, StepInfo{ID: s.ID, Name: i18n.TOr("step."+s.ID, s.Name), Category: i18n.T("cat." + s.Category),
 			Risk: ui.RiskName(s.Risk), Dangerous: ui.RiskName(s.Risk) == i18n.T("risk.dangerous"),
-			Installed: s.Available(), Skipped: cfg.Skipped(s.ID)})
+			Installed: s.Available(), Skipped: cfg.Skipped(s.ID),
+			CategoryID: s.Category, RiskID: s.Risk.String(), Command: s.Command, Available: s.Available()})
 	}
 	return out, nil
 }

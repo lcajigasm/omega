@@ -416,7 +416,11 @@ func (it Item) DisableChange() Change {
 		c.Command = fmt.Sprintf("%slaunchctl bootout %s 2>/dev/null; %slaunchctl disable %s", sudo, target, sudo, target)
 		c.Undo = fmt.Sprintf("%slaunchctl enable %s", sudo, target)
 		if it.Plist != "" {
-			c.Undo += fmt.Sprintf("; %slaunchctl bootstrap %s %s 2>/dev/null; true", sudo, shellQuote(d), shellQuote(it.Plist))
+			// bootstrap fails for a job that is loaded already, so its
+			// status says nothing. launchd is asked whether the job is
+			// there, and that is the status of the undo.
+			c.Undo += fmt.Sprintf(" && { %slaunchctl bootstrap %s %s 2>/dev/null; launchctl print %s >/dev/null; }",
+				sudo, shellQuote(d), shellQuote(it.Plist), target)
 		}
 		if it.Kind == KindHelper {
 			c.Manual = i18n.T("mac.manual.background", it.Name)

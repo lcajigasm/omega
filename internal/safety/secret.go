@@ -50,8 +50,25 @@ func isOmegaDir(raw string) bool {
 	return ok && rest == ""
 }
 
+// KeptSecretVars are the credentials that stay in the environment of the
+// commands omega runs, because the tools it looks after need them: brew and
+// gh read the GitHub tokens, npm its registry token. Every other variable
+// that looks like a credential is taken out (see the runner). A command
+// that names one of these is refused: it could print the value in pieces
+// that no mask on the output would recognise.
+var KeptSecretVars = []string{"HOMEBREW_GITHUB_API_TOKEN", "HOMEBREW_DOCKER_REGISTRY_TOKEN", "HOMEBREW_DOCKER_REGISTRY_BASIC_AUTH_TOKEN",
+	"GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN", "GITHUB_API_TOKEN", "MISE_GITHUB_TOKEN",
+	"NPM_TOKEN", "NODE_AUTH_TOKEN"}
+
+var keptSecret = regexp.MustCompile(`(?i)\b(` + strings.Join(KeptSecretVars, "|") + `)\b`)
+
+// namesKeptSecret reports a command that names one of KeptSecretVars:
+// $NAME, ${NAME:0:10}, printenv NAME, $env:NAME.
+func namesKeptSecret(cmd string) bool { return keptSecret.MatchString(cmd) }
+
 // secretDirs are folders whose files are secrets, as path suffixes.
-var secretDirs = []string{"/.ssh", "/.aws", "/.gnupg", "/.local/share/keyrings", "/keychains"}
+var secretDirs = []string{"/.ssh", "/.aws", "/.gnupg", "/.local/share/keyrings", "/keychains",
+	"/.azure", "/.kube", "/.config/gcloud", "/library/cookies"}
 
 // secretDir reports a folder whose contents must not be printed.
 func secretDir(raw string) bool {
@@ -148,6 +165,10 @@ var knownSecrets = []string{
 	"/.git-credentials", "/.docker/config.json", "/.kube/config", "/.config/gh/hosts.yml",
 	"/.config/gcloud/application_default_credentials.json", "/.config/gcloud/credentials.db",
 	"/.config/gcloud/access_tokens.db", "/.gnupg/private-keys-v1.d/key", "/.local/share/keyrings/login.keyring",
+	"/.zsh_history", "/.bash_history", "/.pgpass", "/.my.cnf", "/.cargo/credentials", "/.cargo/credentials.toml",
+	"/.claude/.credentials.json", "/.claude.json", "/.codex/auth.json", "/.local/share/opencode/auth.json",
+	"/.config/rclone/rclone.conf", "/.terraform.d/credentials.tfrc.json", "/.vault-token", "/.huggingface/token",
+	"/.cache/huggingface/token", "/.gradle/gradle.properties", "/.m2/settings.xml", "/.m2/settings-security.xml",
 }
 
 // globReachesSecrets reports a pattern that can expand to a credential
@@ -238,6 +259,28 @@ func secretPath(p string) bool {
 	if strings.Contains(lower, "/.ssh/") || strings.HasPrefix(lower, ".ssh/") {
 		return base != "config"
 	}
+	switch lower {
+	case "/etc/shadow", "/etc/gshadow", "/etc/master.passwd", "/private/etc/master.passwd":
+		return true
+	}
+	// Folders where every file is a token or a cache of one.
+	for _, dir := range []string{"/.aws/", "/.azure/", "/.kube/", "/.config/gcloud/", "/library/cookies/"} {
+		if strings.Contains(lower, dir) {
+			return true
+		}
+	}
+	for _, file := range []string{"/.codex/auth.json", "/opencode/auth.json", "huggingface/token", "/.gradle/gradle.properties",
+		"/.m2/settings.xml", "/.m2/settings-security.xml", "/.cargo/credentials.toml"} {
+		if strings.HasSuffix(lower, file) {
+			return true
+		}
+	}
+	// A browser keeps its sessions and saved passwords in the profile
+	// folder. "Login Data" reaches here whole from read_file and as its
+	// first half from a command line, where the blank splits it.
+	if browserProfile.MatchString(lower) {
+		return true
+	}
 	if strings.HasSuffix(lower, "/.docker/config.json") || strings.HasPrefix(lower, ".docker/config.json") ||
 		strings.Contains(lower, "/gcloud/application_default_credentials.json") ||
 		strings.HasSuffix(lower, "/gcloud/credentials.db") || strings.HasSuffix(lower, "/gcloud/access_tokens.db") {
@@ -267,10 +310,20 @@ func secretPath(p string) bool {
 	return secretBasename(base)
 }
 
+// browserProfile matches the cookie and password stores of a browser.
+var browserProfile = regexp.MustCompile(`/(default|network|profile[^/]*)/(cookies|login data|login)$|/(cookies\.sqlite|cookies\.binarycookies|logins\.json|key4\.db|login data)$`)
+
 func secretBasename(base string) bool {
 	switch base {
 	case "id_rsa", "id_dsa", "id_ecdsa", "id_ed25519",
-		".netrc", "_netrc", ".npmrc", ".pypirc", ".env", ".git-credentials":
+		".netrc", "_netrc", ".npmrc", ".pypirc", ".env", ".git-credentials",
+		// What was typed in a shell or a database client, passwords included.
+		".histfile", "consolehost_history.txt",
+		".pgpass", ".my.cnf", ".vault-token", ".credentials.json", ".claude.json", "rclone.conf",
+		"credentials.tfrc.json", ".terraformrc":
+		return true
+	}
+	if strings.HasSuffix(base, "_history") {
 		return true
 	}
 	if strings.HasPrefix(base, ".env.") && base != ".env.example" && base != ".env.sample" && base != ".env.template" {
@@ -427,6 +480,7 @@ func leaksSecret(cmd string) bool {
 
 func leaksIn(segs [][]string) bool {
 	cdAbove, touchesOmega, xargs := false, false, false
+	dir := "" // where an earlier cd left the shell
 	for _, seg := range segs {
 		for _, w := range seg {
 			if path.Base(w) == "xargs" {
@@ -451,7 +505,6 @@ func leaksIn(segs [][]string) bool {
 				return true
 			}
 		}
-		var targets []string
 		for i, w := range seg {
 			// The program's name is looked up on PATH, not in the folder.
 			isVerb := len(run) > 0 && i == len(seg)-len(run)
@@ -465,8 +518,9 @@ func leaksIn(segs [][]string) bool {
 						return true
 					}
 				}
-				if !strings.HasPrefix(cand, "-") {
-					targets = append(targets, cand)
+				// After "cd ~/.docker", config.json is the credential file.
+				if dir != "" && !isVerb && verb != "echo" && verb != "printf" && relativeWord(cand) && secretFile(dir+"/"+cand, false) {
+					return true
 				}
 			}
 		}
@@ -479,6 +533,23 @@ func leaksIn(segs [][]string) bool {
 				if holdsSecrets(w) {
 					cdAbove = true
 				}
+			}
+			dir = cdTarget(dir, run[1:])
+		}
+		// find that prints what it finds reads every file below its roots.
+		if verb == "find" && findPrints(run[1:]) {
+			roots := 0
+			for _, w := range run[1:] {
+				if strings.HasPrefix(w, "-") {
+					break
+				}
+				roots++
+				if secretDir(w) || holdsSecrets(w) {
+					return true
+				}
+			}
+			if roots == 0 && (secretDir(".") || holdsSecrets(".")) {
+				return true
 			}
 		}
 		if recursiveReader(run) {
@@ -515,6 +586,23 @@ func leaksIn(segs [][]string) bool {
 					}
 				}
 			}
+		}
+	}
+	return false
+}
+
+// relativeWord reports a word that can be a path under the working directory.
+func relativeWord(w string) bool {
+	return w != "" && !strings.HasPrefix(w, "/") && !strings.HasPrefix(w, "~") && !strings.HasPrefix(w, "$") &&
+		!strings.HasPrefix(w, "-") && !driveLetter.MatchString(w)
+}
+
+// findPrints reports a find that hands its files to a program that prints
+// their contents.
+func findPrints(args []string) bool {
+	for i, a := range args {
+		if (a == "-exec" || a == "-execdir") && i+1 < len(args) && has("head cat tail less more grep", path.Base(args[i+1])) {
+			return true
 		}
 	}
 	return false

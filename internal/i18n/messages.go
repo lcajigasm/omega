@@ -17,6 +17,8 @@ it updates all your software, cleans up what is left over, diagnoses errors and 
 
 Tasks:
   full      complete maintenance (default)
+  quick     the short safe round: small cleanups, battery, disk, pending updates
+  health    check-up of the hardware and the security settings
   update    updates only (like topgrade)
   clean     cleanup only (like mo clean)
   analyze   report without changing anything
@@ -34,6 +36,8 @@ actualiza todo el software, limpia lo que sobra, diagnostica los errores y los c
 
 Tareas:
   full      mantenimiento completo (por defecto)
+  quick     la ronda corta y segura: limpiezas pequeñas, batería, disco, actualizaciones pendientes
+  health    revisión del hardware y de los ajustes de seguridad
   update    solo actualizar (como topgrade)
   clean     solo limpiar (como mo clean)
   analyze   informe sin cambiar nada
@@ -51,6 +55,8 @@ il met à jour tous vos logiciels, nettoie le superflu, diagnostique les erreurs
 
 Tâches :
   full      maintenance complète (par défaut)
+  quick     le tour rapide et sûr : petits nettoyages, batterie, disque, mises à jour en attente
+  health    bilan du matériel et des réglages de sécurité
   update    mises à jour uniquement (comme topgrade)
   clean     nettoyage uniquement (comme mo clean)
   analyze   rapport sans rien modifier
@@ -68,6 +74,8 @@ Es aktualisiert deine gesamte Software, räumt Überflüssiges auf, diagnostizie
 
 Aufgaben:
   full      vollständige Wartung (Standard)
+  quick     die kurze sichere Runde: kleine Bereinigungen, Akku, Festplatte, ausstehende Updates
+  health    Prüfung der Hardware und der Sicherheitseinstellungen
   update    nur aktualisieren (wie topgrade)
   clean     nur aufräumen (wie mo clean)
   analyze   Bericht, ohne etwas zu ändern
@@ -85,6 +93,8 @@ atualiza todo o software, limpa o que sobra, diagnostica os erros e corrige-os.
 
 Tarefas:
   full      manutenção completa (padrão)
+  quick     a ronda curta e segura: pequenas limpezas, bateria, disco, atualizações pendentes
+  health    verificação do hardware e das definições de segurança
   update    apenas atualizar (como o topgrade)
   clean     apenas limpar (como o mo clean)
   analyze   relatório sem alterar nada
@@ -106,11 +116,13 @@ Exemplos:
 		"fornecedor: anthropic, openai, openrouter, opencode",
 	},
 	"flag.model": {
-		"model to use (see `omega models`)",
-		"modelo a usar (ver `omega models`)",
-		"modèle à utiliser (voir `omega models`)",
-		"zu verwendendes Modell (siehe `omega models`)",
-		"modelo a usar (ver `omega models`)",
+		// No back quotes here: cobra takes a back-quoted word for the name of
+		// the flag's value and prints "--model omega models".
+		"model to use (see: omega models)",
+		"modelo a usar (ver: omega models)",
+		"modèle à utiliser (voir : omega models)",
+		"zu verwendendes Modell (siehe: omega models)",
+		"modelo a usar (ver: omega models)",
 	},
 	"flag.effort": {
 		"effort for Claude models: low, medium, high, xhigh, max",
@@ -792,4 +804,230 @@ Exemplos:
 	"step.docker-images-all":  {"Docker: all unused images", "Docker: todas las imágenes sin usar", "Docker : toutes les images inutilisées", "Docker: alle ungenutzten Images", "Docker: todas as imagens não usadas"},
 	"step.docker-build-cache": {"Docker: build cache", "Docker: caché de compilación", "Docker : cache de build", "Docker: Build-Cache", "Docker: cache de compilação"},
 	"step.docker-volumes":     {"Docker: unused volumes (deletes data)", "Docker: volúmenes sin usar (borra datos)", "Docker : volumes inutilisés (supprime des données)", "Docker: ungenutzte Volumes (löscht Daten)", "Docker: volumes não usados (apaga dados)"},
+
+	// ---- questions ----
+	"ask.yes_no": {"[y/N]", "[s/N]", "[o/N]", "[j/N]", "[s/N]"},
+
+	// ---- flags and requests omega refuses ----
+	"err.bad_format": {
+		"--format %s: omega writes json or text",
+		"--format %s: omega escribe json o text",
+		"--format %s : omega écrit json ou text",
+		"--format %s: omega schreibt json oder text",
+		"--format %s: o omega escreve json ou text",
+	},
+	"err.negative": {
+		"%s cannot be negative", "%s no puede ser negativo", "%s ne peut pas être négatif", "%s darf nicht negativ sein", "%s não pode ser negativo",
+	},
+	"err.prompt_needs_ai": {
+		"a request in your own words needs the AI: run it without --no-ai, --offline, --json and --format json (with those flags omega only runs its built-in tasks: full, quick, update, clean, analyze, health)",
+		"una petición con tus palabras necesita la IA: lánzala sin --no-ai, --offline, --json ni --format json (con esas opciones omega solo ejecuta sus tareas integradas: full, quick, update, clean, analyze, health)",
+		"une demande en langage libre a besoin de l'IA : lancez-la sans --no-ai, --offline, --json ni --format json (avec ces options omega n'exécute que ses tâches intégrées : full, quick, update, clean, analyze, health)",
+		"eine frei formulierte Anfrage braucht die KI: ohne --no-ai, --offline, --json und --format json starten (mit diesen Optionen führt omega nur seine eingebauten Aufgaben aus: full, quick, update, clean, analyze, health)",
+		"um pedido por palavras suas precisa da IA: lance-o sem --no-ai, --offline, --json nem --format json (com essas opções o omega só executa as tarefas integradas: full, quick, update, clean, analyze, health)",
+	},
+	"err.task_needs_ai": {
+		"%q needs the AI: it has no form without it, so --no-ai, --offline, --json and --format json do not apply (tasks that run without the AI: full, quick, update, clean, analyze, health)",
+		"%q necesita la IA: no tiene versión sin ella, así que --no-ai, --offline, --json y --format json no se aplican (tareas que funcionan sin IA: full, quick, update, clean, analyze, health)",
+		"%q a besoin de l'IA : il n'existe pas sans elle, donc --no-ai, --offline, --json et --format json ne s'appliquent pas (tâches possibles sans IA : full, quick, update, clean, analyze, health)",
+		"%q braucht die KI: ohne sie gibt es die Aufgabe nicht, daher gelten --no-ai, --offline, --json und --format json nicht (Aufgaben ohne KI: full, quick, update, clean, analyze, health)",
+		"%q precisa da IA: não existe sem ela, por isso --no-ai, --offline, --json e --format json não se aplicam (tarefas que funcionam sem IA: full, quick, update, clean, analyze, health)",
+	},
+	"full.no_json": {
+		"omega full has no JSON report. For one document use `omega --json` (update, clean and analyze) or a single task such as `omega analyze --json`",
+		"omega full no tiene informe JSON. Para un solo documento usa `omega --json` (update, clean y analyze) o una tarea como `omega analyze --json`",
+		"omega full n'a pas de rapport JSON. Pour un seul document, utilisez `omega --json` (update, clean et analyze) ou une tâche comme `omega analyze --json`",
+		"omega full hat keinen JSON-Bericht. Für ein einzelnes Dokument `omega --json` (update, clean und analyze) oder eine Aufgabe wie `omega analyze --json` verwenden",
+		"o omega full não tem relatório JSON. Para um só documento use `omega --json` (update, clean e analyze) ou uma tarefa como `omega analyze --json`",
+	},
+	"full.no_ai_left": {
+		"omega: left out, they need the AI: %s",
+		"omega: se dejan fuera, necesitan la IA: %s",
+		"omega : laissées de côté, elles ont besoin de l'IA : %s",
+		"omega: ausgelassen, sie brauchen die KI: %s",
+		"omega: ficam de fora, precisam da IA: %s",
+	},
+	"setup.need_tty": {
+		"omega setup asks questions and needs a terminal. In a script use `omega auth set <provider>` (it reads the key from stdin) and `omega config set provider <provider>`",
+		"omega setup hace preguntas y necesita un terminal. En un script usa `omega auth set <proveedor>` (lee la key de stdin) y `omega config set provider <proveedor>`",
+		"omega setup pose des questions et a besoin d'un terminal. Dans un script, utilisez `omega auth set <fournisseur>` (il lit la clé sur stdin) et `omega config set provider <fournisseur>`",
+		"omega setup stellt Fragen und braucht ein Terminal. In einem Skript `omega auth set <Anbieter>` (liest den Key von stdin) und `omega config set provider <Anbieter>` verwenden",
+		"o omega setup faz perguntas e precisa de um terminal. Num script use `omega auth set <fornecedor>` (lê a key de stdin) e `omega config set provider <fornecedor>`",
+	},
+
+	// ---- steps: json, dry run, steps nobody confirmed ----
+	"flag.steps_json": {
+		"print the steps as JSON", "mostrar los pasos en JSON", "afficher les étapes en JSON", "die Schritte als JSON ausgeben", "mostrar os passos em JSON",
+	},
+	"flag.steps_dry": {
+		"show the commands and run nothing", "mostrar los comandos sin ejecutar nada", "afficher les commandes sans rien exécuter",
+		"die Befehle zeigen und nichts ausführen", "mostrar os comandos sem executar nada",
+	},
+	"steps.would_run": {
+		"[dry-run] would run %s: %s", "[dry-run] se ejecutaría %s: %s", "[dry-run] exécuterait %s : %s", "[dry-run] würde %s ausführen: %s", "[dry-run] executaria %s: %s",
+	},
+	"steps.skipped": {
+		"– %s skipped: needs confirmation at a terminal",
+		"– %s omitido: necesita confirmación en un terminal",
+		"– %s ignoré : demande une confirmation dans un terminal",
+		"– %s übersprungen: braucht eine Bestätigung am Terminal",
+		"– %s ignorado: precisa de confirmação num terminal",
+	},
+	"steps.skipped_summary": {
+		"%d step(s) did not run: they need a yes at a terminal",
+		"%d paso(s) no se ejecutaron: necesitan un sí en un terminal",
+		"%d étape(s) non exécutée(s) : elles demandent un oui dans un terminal",
+		"%d Schritt(e) nicht ausgeführt: sie brauchen ein Ja am Terminal",
+		"%d passo(s) não foram executados: precisam de um sim num terminal",
+	},
+
+	// ---- doctor: json, the user's own steps ----
+	"flag.doctor_json": {
+		"print the checks as JSON", "mostrar las comprobaciones en JSON", "afficher les vérifications en JSON",
+		"die Prüfungen als JSON ausgeben", "mostrar as verificações em JSON",
+	},
+	"doctor.custom_bad": {
+		"custom steps: %s", "pasos propios: %s", "étapes personnalisées : %s", "eigene Schritte: %s", "passos próprios: %s",
+	},
+
+	// ---- steps.d: the user's own steps and hooks ----
+	"custom.parse": {
+		"%s was not read: %v", "%s no se ha leído: %v", "%s n'a pas été lu : %v", "%s wurde nicht gelesen: %v", "%s não foi lido: %v",
+	},
+	"custom.incomplete": {
+		"%s: a step without id or command was left out",
+		"%s: se deja fuera un paso sin id o sin command",
+		"%s : une étape sans id ou sans command a été laissée de côté",
+		"%s: ein Schritt ohne id oder command wurde ausgelassen",
+		"%s: fica de fora um passo sem id ou sem command",
+	},
+	"custom.bad_risk": {
+		"%s: step %q was left out: risk %q is not read-only, normal or dangerous",
+		"%s: el paso %q se deja fuera: risk %q no es read-only, normal ni dangerous",
+		"%s : l'étape %q a été laissée de côté : risk %q n'est ni read-only, ni normal, ni dangerous",
+		"%s: Schritt %q wurde ausgelassen: risk %q ist weder read-only, normal noch dangerous",
+		"%s: o passo %q fica de fora: risk %q não é read-only, normal nem dangerous",
+	},
+	"custom.bad_category": {
+		"%s: step %q was left out: category %q is not one of %s",
+		"%s: el paso %q se deja fuera: category %q no es una de %s",
+		"%s : l'étape %q a été laissée de côté : category %q n'est pas l'une de %s",
+		"%s: Schritt %q wurde ausgelassen: category %q ist keine von %s",
+		"%s: o passo %q fica de fora: category %q não é uma de %s",
+	},
+	"custom.hook_failed": {
+		"hook %s (%s) failed with exit %d",
+		"el hook %s (%s) falló con exit %d",
+		"le hook %s (%s) a échoué avec exit %d",
+		"Hook %s (%s) ist mit exit %d fehlgeschlagen",
+		"o hook %s (%s) falhou com exit %d",
+	},
+	"hook.would_run": {
+		"  [dry-run] would run hook %s: %s",
+		"  [dry-run] se ejecutaría el hook %s: %s",
+		"  [dry-run] exécuterait le hook %s : %s",
+		"  [dry-run] würde Hook %s ausführen: %s",
+		"  [dry-run] executaria o hook %s: %s",
+	},
+
+	// ---- export and bootstrap ----
+	"flag.bp_yes": {
+		"install and restore without asking", "instalar y restaurar sin preguntar", "installer et restaurer sans demander",
+		"ohne Rückfrage installieren und wiederherstellen", "instalar e restaurar sem perguntar",
+	},
+	"flag.bp_dry": {
+		"show the plan and change nothing", "mostrar el plan sin cambiar nada", "afficher le plan sans rien modifier",
+		"den Plan zeigen und nichts ändern", "mostrar o plano sem alterar nada",
+	},
+	"bp.unlisted": {
+		"Could not be listed, so the blueprint is incomplete:",
+		"No se ha podido listar, así que el blueprint está incompleto:",
+		"N'a pas pu être listé, le blueprint est donc incomplet :",
+		"Konnte nicht aufgelistet werden, der Blueprint ist daher unvollständig:",
+		"Não foi possível listar, por isso o blueprint está incompleto:",
+	},
+	"bp.plan": {
+		"Blueprint %s (exported %s on %s) would do this:",
+		"El blueprint %s (exportado el %s en %s) haría esto:",
+		"Le blueprint %s (exporté le %s sur %s) ferait ceci :",
+		"Der Blueprint %s (exportiert am %s auf %s) würde Folgendes tun:",
+		"O blueprint %s (exportado em %s em %s) faria isto:",
+	},
+	"bp.skipped": {"left out: %s", "se deja fuera: %s", "laissé de côté : %s", "ausgelassen: %s", "fica de fora: %s"},
+	"bp.config_replace": {
+		"replace omega's settings (%s); the current file is kept as %s",
+		"reemplazar los ajustes de omega (%s); el archivo actual se guarda como %s",
+		"remplacer les réglages d'omega (%s) ; le fichier actuel est conservé sous %s",
+		"die Einstellungen von omega ersetzen (%s); die aktuelle Datei bleibt als %s erhalten",
+		"substituir as definições do omega (%s); o ficheiro atual fica guardado como %s",
+	},
+	"bp.config_kept": {
+		"a blueprint never sets this: %s",
+		"un blueprint nunca cambia esto: %s",
+		"un blueprint ne modifie jamais ceci : %s",
+		"ein Blueprint setzt das nie: %s",
+		"um blueprint nunca altera isto: %s",
+	},
+	"bp.nothing": {
+		"Nothing to install or restore here.", "No hay nada que instalar ni restaurar aquí.", "Rien à installer ni à restaurer ici.",
+		"Hier gibt es nichts zu installieren oder wiederherzustellen.", "Não há nada para instalar nem restaurar aqui.",
+	},
+	"bp.dry_run": {
+		"Dry run: nothing was installed or changed.", "Simulación: no se ha instalado ni cambiado nada.", "Simulation : rien n'a été installé ni modifié.",
+		"Probelauf: nichts wurde installiert oder geändert.", "Simulação: nada foi instalado nem alterado.",
+	},
+	"bp.need_yes": {
+		"bootstrap installs software and replaces settings: answer at a terminal, or pass --yes (--dry-run shows the plan)",
+		"bootstrap instala software y reemplaza ajustes: responde en un terminal o pasa --yes (--dry-run muestra el plan)",
+		"bootstrap installe des logiciels et remplace des réglages : répondez dans un terminal ou passez --yes (--dry-run affiche le plan)",
+		"bootstrap installiert Software und ersetzt Einstellungen: am Terminal antworten oder --yes angeben (--dry-run zeigt den Plan)",
+		"o bootstrap instala software e substitui definições: responda num terminal ou passe --yes (--dry-run mostra o plano)",
+	},
+	"bp.ask_install": {
+		"Install these packages?", "¿Instalar estos paquetes?", "Installer ces paquets ?", "Diese Pakete installieren?", "Instalar estes pacotes?",
+	},
+	"bp.ask_config": {
+		"Replace omega's settings on this machine with the blueprint's?",
+		"¿Reemplazar los ajustes de omega de este equipo por los del blueprint?",
+		"Remplacer les réglages d'omega de cette machine par ceux du blueprint ?",
+		"Die Einstellungen von omega auf diesem Rechner durch die des Blueprints ersetzen?",
+		"Substituir as definições do omega desta máquina pelas do blueprint?",
+	},
+	"bp.cancelled": {"Nothing was done.", "No se ha hecho nada.", "Rien n'a été fait.", "Es wurde nichts getan.", "Nada foi feito."},
+	"bp.config_failed": {
+		"the settings were not restored: %v", "los ajustes no se han restaurado: %v", "les réglages n'ont pas été restaurés : %v",
+		"die Einstellungen wurden nicht wiederhergestellt: %v", "as definições não foram restauradas: %v",
+	},
+	"bp.config_saved": {
+		"settings restored; the previous file is %s", "ajustes restaurados; el archivo anterior es %s", "réglages restaurés ; l'ancien fichier est %s",
+		"Einstellungen wiederhergestellt; die vorherige Datei ist %s", "definições restauradas; o ficheiro anterior é %s",
+	},
+	"bp.config_new": {
+		"settings restored (%s)", "ajustes restaurados (%s)", "réglages restaurés (%s)", "Einstellungen wiederhergestellt (%s)", "definições restauradas (%s)",
+	},
+	"bp.failed": {
+		"bootstrap: %d step(s) failed", "bootstrap: %d paso(s) fallaron", "bootstrap : %d étape(s) en échec",
+		"bootstrap: %d Schritt(e) fehlgeschlagen", "bootstrap: %d passo(s) falharam",
+	},
+	"bp.done": {"Bootstrap complete.", "Bootstrap terminado.", "Bootstrap terminé.", "Bootstrap abgeschlossen.", "Bootstrap concluído."},
+
+	// ---- completion ----
+	"completion.installed": {
+		"✓ %s completion written to %s", "✓ Autocompletado de %s escrito en %s", "✓ Complétion %s écrite dans %s",
+		"✓ %s-Vervollständigung nach %s geschrieben", "✓ Autocompletar de %s escrito em %s",
+	},
+	"completion.powershell": {
+		"PowerShell loads it once this line is in your profile ($PROFILE):\n  . \"%s\"",
+		"PowerShell lo carga cuando esta línea está en tu perfil ($PROFILE):\n  . \"%s\"",
+		"PowerShell le charge dès que cette ligne est dans votre profil ($PROFILE) :\n  . \"%s\"",
+		"PowerShell lädt sie, sobald diese Zeile in deinem Profil ($PROFILE) steht:\n  . \"%s\"",
+		"O PowerShell carrega-o quando esta linha estiver no seu perfil ($PROFILE):\n  . \"%s\"",
+	},
+	"completion.unknown_shell": {
+		"cannot tell which completion to install (SHELL is %q): print one with `omega completion bash|zsh|fish|powershell` and install it by hand",
+		"no se sabe qué autocompletado instalar (SHELL es %q): genera uno con `omega completion bash|zsh|fish|powershell` e instálalo a mano",
+		"impossible de savoir quelle complétion installer (SHELL vaut %q) : générez-en une avec `omega completion bash|zsh|fish|powershell` et installez-la à la main",
+		"unklar, welche Vervollständigung zu installieren ist (SHELL ist %q): mit `omega completion bash|zsh|fish|powershell` eine ausgeben und von Hand installieren",
+		"não se sabe que autocompletar instalar (SHELL é %q): gere um com `omega completion bash|zsh|fish|powershell` e instale-o à mão",
+	},
 }

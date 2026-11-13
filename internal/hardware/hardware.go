@@ -1,5 +1,5 @@
 // Package hardware provides diagnostics for battery health, NVMe/SSD wear,
-// runaway process detection, local snapshot management, and RAM purging.
+// runaway process detection and RAM purging.
 package hardware
 
 import (
@@ -17,6 +17,14 @@ import (
 
 var goos = runtime.GOOS
 
+// run executes a shell command. Tests replace it with canned output.
+var run = func(ctx context.Context, command string, timeout time.Duration) runner.Result {
+	return runner.Run(ctx, command, timeout, nil)
+}
+
+// powerSupplyDir is where Linux describes batteries.
+var powerSupplyDir = "/sys/class/power_supply"
+
 // BatteryHealth holds parsed battery diagnostics.
 type BatteryHealth struct {
 	Supported      bool    `json:"supported"`
@@ -24,10 +32,14 @@ type BatteryHealth struct {
 	Condition      string  `json:"condition"` // e.g. "Normal", "Good", "Service Battery"
 	CycleCount     int     `json:"cycle_count"`
 	MaxCapacityPct float64 `json:"max_capacity_pct"` // % of design capacity
-	CurrentPct     int     `json:"current_pct"`
-	IsCharging     bool    `json:"is_charging"`
-	TemperatureC   float64 `json:"temperature_c,omitempty"`
-	Raw            string  `json:"raw,omitempty"`
+	// Not every system reports the two above. When these are false the
+	// numbers are zero because nothing was read, not because they are zero.
+	CyclesKnown   bool    `json:"cycles_known"`
+	CapacityKnown bool    `json:"capacity_known"`
+	CurrentPct    int     `json:"current_pct"`
+	IsCharging    bool    `json:"is_charging"`
+	TemperatureC  float64 `json:"temperature_c,omitempty"`
+	Raw           string  `json:"raw,omitempty"`
 }
 
 // DiskWear holds SMART and SSD wear metrics.
@@ -49,6 +61,50 @@ type ProcessInfo struct {
 	Command string  `json:"command"`
 }
 
+// unknown is the condition of a battery nothing could be read about.
+const unknown = "Unknown"
+
+// conditionFor is a word for the battery's state where the system gives
+// none: 80% of the design capacity is where makers call a battery worn.
+func conditionFor(h *BatteryHealth) string {
+	switch {
+	case !h.CapacityKnown:
+		return unknown
+	case h.MaxCapacityPct >= 80:
+		return "Good"
+	}
+	return "Degraded"
+}
+
+// HealthText is the battery's health in words: "Normal (91.0% max
+// capacity)", and "unknown" for what the system did not report.
+func (h *BatteryHealth) HealthText() string {
+	switch {
+	case h.CapacityKnown:
+		return fmt.Sprintf("%s (%.1f%% max capacity)", h.Condition, h.MaxCapacityPct)
+	case h.Condition != "" && h.Condition != unknown:
+		return h.Condition + " (max capacity unknown)"
+	}
+	return "unknown (this system does not report it)"
+}
+
+// Text is the battery in one line: charge, condition, cycles and health,
+// with "unknown" for what the system did not report.
+func (h *BatteryHealth) Text() string {
+	cycles, health := "cycles unknown", "health unknown"
+	if h.CyclesKnown {
+		cycles = fmt.Sprintf("%d cycles", h.CycleCount)
+	}
+	if h.CapacityKnown {
+		health = fmt.Sprintf("%.1f%% health", h.MaxCapacityPct)
+	}
+	parts := []string{cycles, health}
+	if h.Condition != "" && h.Condition != unknown {
+		parts = append([]string{h.Condition}, parts...)
+	}
+	return fmt.Sprintf("%d%% (%s)", h.CurrentPct, strings.Join(parts, ", "))
+}
+
 // GetBatteryInfo inspects the system battery status.
 func GetBatteryInfo(ctx context.Context) (*BatteryHealth, error) {
 	switch goos {
@@ -62,7 +118,7 @@ func GetBatteryInfo(ctx context.Context) (*BatteryHealth, error) {
 }
 
 func getBatteryMac(ctx context.Context) (*BatteryHealth, error) {
-	res := runner.Run(ctx, "system_profiler SPPowerDataType 2>/dev/null", 5*time.Second, nil)
+	res := run(ctx, "system_profiler SPPowerDataType 2>/dev/null", 5*time.Second)
 	if res.ExitCode != 0 || len(strings.TrimSpace(res.Output)) == 0 {
 		return &BatteryHealth{Supported: false}, nil
 	}
@@ -71,12 +127,13 @@ func getBatteryMac(ctx context.Context) (*BatteryHealth, error) {
 		return &BatteryHealth{Supported: false}, nil
 	}
 
-	h := &BatteryHealth{Supported: true, Present: true, Condition: "Normal"}
+	h := &BatteryHealth{Supported: true, Present: true, Condition: unknown}
 
 	// Extract Cycle Count
 	reCycle := regexp.MustCompile(`(?i)Cycle Count:\s*(\d+)`)
 	if m := reCycle.FindStringSubmatch(out); len(m) > 1 {
 		h.CycleCount, _ = strconv.Atoi(m[1])
+		h.CyclesKnown = true
 	}
 
 	// Extract Condition
@@ -90,6 +147,7 @@ func getBatteryMac(ctx context.Context) (*BatteryHealth, error) {
 	if m := reCap.FindStringSubmatch(out); len(m) > 1 {
 		capVal, _ := strconv.ParseFloat(m[1], 64)
 		h.MaxCapacityPct = capVal
+		h.CapacityKnown = true // Intel Macs do not print this line
 	}
 
 	// Extract State of Charge
@@ -101,6 +159,9 @@ func getBatteryMac(ctx context.Context) (*BatteryHealth, error) {
 	// Charging?
 	reCharging := regexp.MustCompile(`(?i)Charging:\s*(Yes|True)`)
 	h.IsCharging = reCharging.MatchString(out)
+	if h.Condition == unknown {
+		h.Condition = conditionFor(h)
+	}
 
 	h.Raw = out
 	return h, nil
@@ -108,7 +169,7 @@ func getBatteryMac(ctx context.Context) (*BatteryHealth, error) {
 
 func getBatteryLinux(ctx context.Context) (*BatteryHealth, error) {
 	// Check /sys/class/power_supply/BAT0 or similar
-	entries, err := os.ReadDir("/sys/class/power_supply")
+	entries, err := os.ReadDir(powerSupplyDir)
 	if err != nil || len(entries) == 0 {
 		return &BatteryHealth{Supported: false}, nil
 	}
@@ -116,7 +177,7 @@ func getBatteryLinux(ctx context.Context) (*BatteryHealth, error) {
 	var batDir string
 	for _, e := range entries {
 		if strings.HasPrefix(e.Name(), "BAT") {
-			batDir = "/sys/class/power_supply/" + e.Name()
+			batDir = powerSupplyDir + "/" + e.Name()
 			break
 		}
 	}
@@ -132,39 +193,78 @@ func getBatteryLinux(ctx context.Context) (*BatteryHealth, error) {
 		return strings.TrimSpace(string(b))
 	}
 
-	h := &BatteryHealth{Supported: true, Present: true, Condition: "Good"}
+	h := &BatteryHealth{Supported: true, Present: true}
 	status := readSys("status")
 	h.IsCharging = status == "Charging"
 
 	capStr := readSys("capacity")
 	h.CurrentPct, _ = strconv.Atoi(capStr)
 
-	energyFull, _ := strconv.ParseFloat(readSys("energy_full"), 64)
-	energyDesign, _ := strconv.ParseFloat(readSys("energy_full_design"), 64)
-	if energyDesign > 0 && energyFull > 0 {
-		h.MaxCapacityPct = (energyFull / energyDesign) * 100
-	} else {
-		h.MaxCapacityPct = 100
+	// Some batteries report energy (µWh) and others charge (µAh). With
+	// neither the capacity is unknown, not 100%.
+	for _, unit := range []string{"energy", "charge"} {
+		full, _ := strconv.ParseFloat(readSys(unit+"_full"), 64)
+		design, _ := strconv.ParseFloat(readSys(unit+"_full_design"), 64)
+		if design > 0 && full > 0 {
+			h.MaxCapacityPct = (full / design) * 100
+			h.CapacityKnown = true
+			break
+		}
 	}
+	h.Condition = conditionFor(h)
 
-	cycleStr := readSys("cycle_count")
-	h.CycleCount, _ = strconv.Atoi(cycleStr)
+	// Drivers that do not count cycles write 0 or nothing.
+	if n, err := strconv.Atoi(readSys("cycle_count")); err == nil && n > 0 {
+		h.CycleCount, h.CyclesKnown = n, true
+	}
 
 	return h, nil
 }
 
+// windowsBatteryScript prints what Windows knows about the battery, one
+// "Name : value" per line, and nothing when there is none. Charge comes
+// from Win32_Battery; capacity and cycles from the root\wmi classes, which
+// not every machine has: a value that is missing is printed empty.
+const windowsBatteryScript = `$b = Get-CimInstance Win32_Battery | Select-Object -First 1; if ($b) { ` +
+	`$wmi = { param($class, $prop) (Get-CimInstance -Namespace root\wmi -ClassName $class -ErrorAction SilentlyContinue | Select-Object -First 1).$prop }; ` +
+	`"EstimatedChargeRemaining : $($b.EstimatedChargeRemaining)"; "BatteryStatus : $($b.BatteryStatus)"; ` +
+	`"FullChargedCapacity : $(& $wmi BatteryFullChargedCapacity FullChargedCapacity)"; ` +
+	`"DesignedCapacity : $(& $wmi BatteryStaticData DesignedCapacity)"; ` +
+	`"CycleCount : $(& $wmi BatteryCycleCount CycleCount)" }`
+
 func getBatteryWindows(ctx context.Context) (*BatteryHealth, error) {
-	script := `Get-CimInstance Win32_Battery | Select-Object EstimatedChargeRemaining, BatteryStatus, DesignCapacity, FullChargeCapacity | Format-List`
-	res := runner.Run(ctx, script, 5*time.Second, nil)
+	res := run(ctx, windowsBatteryScript, 10*time.Second)
 	if res.ExitCode != 0 || len(strings.TrimSpace(res.Output)) == 0 {
 		return &BatteryHealth{Supported: false}, nil
 	}
 
-	h := &BatteryHealth{Supported: true, Present: true, Condition: "Normal"}
-	reCharge := regexp.MustCompile(`(?i)EstimatedChargeRemaining\s*:\s*(\d+)`)
-	if m := reCharge.FindStringSubmatch(res.Output); len(m) > 1 {
-		h.CurrentPct, _ = strconv.Atoi(m[1])
+	// A number after a name, or false when the value is missing.
+	number := func(name string) (float64, bool) {
+		m := regexp.MustCompile(`(?im)^\s*` + name + `\s*:\s*(\d+)\s*$`).FindStringSubmatch(res.Output)
+		if m == nil {
+			return 0, false
+		}
+		v, err := strconv.ParseFloat(m[1], 64)
+		return v, err == nil
 	}
+	h := &BatteryHealth{Supported: true, Present: true}
+	if v, ok := number("EstimatedChargeRemaining"); ok {
+		h.CurrentPct = int(v)
+	}
+	// 2 is "on AC power"; 6 to 9 are the charging states.
+	if v, ok := number("BatteryStatus"); ok {
+		h.IsCharging = v == 2 || (v >= 6 && v <= 9)
+	}
+	full, okFull := number("FullChargedCapacity")
+	design, okDesign := number("DesignedCapacity")
+	if okFull && okDesign && full > 0 && design > 0 {
+		h.MaxCapacityPct = full / design * 100
+		h.CapacityKnown = true
+	}
+	if v, ok := number("CycleCount"); ok && v > 0 {
+		h.CycleCount, h.CyclesKnown = int(v), true
+	}
+	h.Condition = conditionFor(h)
 	return h, nil
 }
 
@@ -186,7 +286,7 @@ func getTopProcessesUnix(ctx context.Context, limit int) ([]ProcessInfo, error) 
 		cmdStr = fmt.Sprintf("ps -A -o pid,%%cpu,rss,comm -r | head -%d", limit+1)
 	}
 
-	res := runner.Run(ctx, cmdStr, 5*time.Second, nil)
+	res := run(ctx, cmdStr, 5*time.Second)
 	var procs []ProcessInfo
 	lines := strings.Split(res.Output, "\n")
 	for i, l := range lines {
@@ -213,7 +313,7 @@ func getTopProcessesUnix(ctx context.Context, limit int) ([]ProcessInfo, error) 
 
 func getTopProcessesWindows(ctx context.Context, limit int) ([]ProcessInfo, error) {
 	script := fmt.Sprintf(`Get-Process | Sort-Object CPU -Descending | Select-Object -First %d Id, ProcessName, CPU, WorkingSet | ForEach-Object { '{0} {1} {2} {3}' -f $_.Id, $_.ProcessName, [math]::Round($_.CPU,1), [math]::Round($_.WorkingSet/1MB,1) }`, limit)
-	res := runner.Run(ctx, script, 5*time.Second, nil)
+	res := run(ctx, script, 5*time.Second)
 	var procs []ProcessInfo
 	for _, l := range strings.Split(res.Output, "\n") {
 		f := strings.Fields(l)
@@ -236,7 +336,7 @@ func getTopProcessesWindows(ctx context.Context, limit int) ([]ProcessInfo, erro
 func PurgeRAM(ctx context.Context) (string, error) {
 	switch goos {
 	case "darwin":
-		res := runner.Run(ctx, "sudo purge", 10*time.Second, nil)
+		res := run(ctx, "sudo purge", 10*time.Second)
 		if res.ExitCode != 0 {
 			return "", fmt.Errorf("purge failed (requires sudo): %s", res.Output)
 		}
@@ -244,42 +344,16 @@ func PurgeRAM(ctx context.Context) (string, error) {
 	case "windows":
 		// Windows clear memory cache via PowerShell working set trim
 		script := `[System.GC]::Collect(); [System.GC]::WaitForPendingFinalizers()`
-		res := runner.Run(ctx, script, 5*time.Second, nil)
+		res := run(ctx, script, 5*time.Second)
 		if res.ExitCode != 0 {
 			return "", fmt.Errorf("windows memory cleanup failed: %s", res.Output)
 		}
 		return "Windows garbage collection and memory cache released", nil
 	default: // Linux
-		res := runner.Run(ctx, "sudo sync; echo 3 | sudo tee /proc/sys/vm/drop_caches", 10*time.Second, nil)
+		res := run(ctx, "sudo sync; echo 3 | sudo tee /proc/sys/vm/drop_caches", 10*time.Second)
 		if res.ExitCode != 0 {
 			return "", fmt.Errorf("linux drop_caches failed: %s", res.Output)
 		}
 		return "Linux pagecache, dentries and inodes purged successfully", nil
-	}
-}
-
-// PruneSnapshots clears old local filesystem snapshots (e.g. Time Machine APFS snapshots).
-func PruneSnapshots(ctx context.Context) (string, error) {
-	switch goos {
-	case "darwin":
-		res := runner.Run(ctx, "sudo tmutil thinlocalsnapshots / 10000000000 4", 30*time.Second, nil)
-		if res.ExitCode != 0 {
-			return "", fmt.Errorf("failed to prune Time Machine snapshots: %s", res.Output)
-		}
-		return "Time Machine local APFS snapshots purged: " + strings.TrimSpace(res.Output), nil
-	case "windows":
-		res := runner.Run(ctx, "vssadmin delete shadows /all /quiet", 15*time.Second, nil)
-		if res.ExitCode != 0 {
-			return "", fmt.Errorf("failed to prune VSS shadow copies: %s", res.Output)
-		}
-		return "Windows VSS shadow copies purged", nil
-	default:
-		if runner.Has("snapper") {
-			res := runner.Run(ctx, "sudo snapper cleanup timeline && sudo snapper cleanup number", 15*time.Second, nil)
-			if res.ExitCode == 0 {
-				return "Btrfs snapper snapshots cleaned", nil
-			}
-		}
-		return "No snapshot manager found or needed on this Linux configuration", nil
 	}
 }

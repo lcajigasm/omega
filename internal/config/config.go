@@ -147,17 +147,40 @@ func (c *Config) Validate() error {
 	return nil
 }
 
+// savePath is the file Save replaces. When config.toml is a symbolic link
+// (a dotfiles repository, say) it is the file the link points to: renaming
+// over the link itself would turn it into an ordinary file and leave the
+// repository's copy behind.
+func savePath() string {
+	path := Path()
+	// A chain of links is followed; one that leads nowhere or in a circle
+	// stops being followed and the last name found is written.
+	for i := 0; i < 16; i++ {
+		target, err := os.Readlink(path)
+		if err != nil {
+			break
+		}
+		if !filepath.IsAbs(target) {
+			target = filepath.Join(filepath.Dir(path), target)
+		}
+		path = target
+	}
+	return path
+}
+
 // Save writes the configuration to config.toml. The previous file is left in
 // place when the new contents are invalid or the write fails.
 func (c *Config) Save() error {
 	if err := c.Validate(); err != nil {
 		return err
 	}
-	dir := Dir()
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(Dir(), 0o755); err != nil {
 		return err
 	}
-	f, err := os.CreateTemp(dir, ".config-*.toml")
+	// The temporary file is made next to the file that is really written,
+	// so the rename stays on one disk.
+	path := savePath()
+	f, err := os.CreateTemp(filepath.Dir(path), ".config-*.toml")
 	if err != nil {
 		return err
 	}
@@ -179,7 +202,7 @@ func (c *Config) Save() error {
 	if err := f.Close(); err != nil {
 		return err
 	}
-	if err := os.Rename(tmp, Path()); err != nil {
+	if err := os.Rename(tmp, path); err != nil {
 		return err
 	}
 	cleanup = false
@@ -202,6 +225,12 @@ func (c *Config) BaseURLFor(provider string) string {
 
 // Skipped reports whether a step is disabled by the user.
 func (c *Config) Skipped(id string) bool {
+	// A scheduled run (OMEGA_SCHEDULED, set by `omega schedule install` in
+	// the job it creates) never empties the Trash: what omega removes goes
+	// there so that it can be put back, and nobody is looking when it runs.
+	if id == "trash" && os.Getenv("OMEGA_SCHEDULED") == "1" {
+		return true
+	}
 	for _, s := range c.SkipSteps {
 		if s == id {
 			return true

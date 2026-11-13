@@ -5,15 +5,16 @@ package customsteps
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/BurntSushi/toml"
 
 	"github.com/lcajigasm/omega/internal/config"
+	"github.com/lcajigasm/omega/internal/i18n"
 	"github.com/lcajigasm/omega/internal/runner"
 	"github.com/lcajigasm/omega/internal/safety"
 	"github.com/lcajigasm/omega/internal/steps"
@@ -39,45 +40,53 @@ type CustomStepsFile struct {
 	Hooks map[string]string `toml:"hooks"`
 }
 
-// LoadCustomSteps loads step definitions from ~/.config/omega/steps.d/*.toml.
-func LoadCustomSteps() ([]steps.Step, error) {
-	stepsDir := filepath.Join(config.Dir(), "steps.d")
-	if _, err := os.Stat(stepsDir); os.IsNotExist(err) {
-		return nil, nil
-	}
+// files are the steps.d/*.toml files, in name order.
+func files() []string {
+	list, _ := filepath.Glob(filepath.Join(config.Dir(), "steps.d", "*.toml"))
+	return list
+}
 
-	files, err := filepath.Glob(filepath.Join(stepsDir, "*.toml"))
-	if err != nil || len(files) == 0 {
-		return nil, nil
-	}
-
-	var loaded []steps.Step
-
-	for _, file := range files {
+// Load reads the step definitions in ~/.config/omega/steps.d/*.toml. It
+// returns the steps that are usable and one line for everything that is not:
+// a file that does not parse, a step with no id or command, a category or a
+// risk omega does not know. A step left out without a word would look
+// installed to its author and never run.
+func Load() (loaded []steps.Step, problems []string) {
+	for _, file := range files() {
 		var csf CustomStepsFile
 		if _, err := toml.DecodeFile(file, &csf); err != nil {
+			problems = append(problems, i18n.T("custom.parse", file, err))
 			continue
 		}
 		for _, def := range csf.Steps {
 			if def.ID == "" || def.Command == "" {
+				problems = append(problems, i18n.T("custom.incomplete", file))
 				continue
 			}
 			if def.OS != "" && def.OS != goos {
 				continue
 			}
-			risk := safety.Normal
+			var risk safety.Risk
 			switch strings.ToLower(def.Risk) {
 			case "read-only", "safe":
 				risk = safety.Safe
+			case "", "normal":
+				risk = safety.Normal
 			case "dangerous":
 				risk = safety.Dangerous
+			default:
+				problems = append(problems, i18n.T("custom.bad_risk", file, def.ID, def.Risk))
+				continue
 			}
 			category := def.Category
 			if category == "" {
 				category = steps.Clean
 			}
-
-			s := steps.Step{
+			if !slices.Contains(steps.Categories, category) {
+				problems = append(problems, i18n.T("custom.bad_category", file, def.ID, def.Category, strings.Join(steps.Categories, ", ")))
+				continue
+			}
+			loaded = append(loaded, steps.Step{
 				ID:          def.ID,
 				Name:        def.Name,
 				Category:    category,
@@ -86,27 +95,48 @@ func LoadCustomSteps() ([]steps.Step, error) {
 				Risk:        risk,
 				Requires:    def.Requires,
 				OS:          def.OS,
-			}
-			loaded = append(loaded, s)
+			})
 		}
 	}
-
-	return loaded, nil
+	return loaded, problems
 }
 
-// RunHook executes a configured lifecycle hook command.
-func RunHook(ctx context.Context, hookName string) error {
-	stepsDir := filepath.Join(config.Dir(), "steps.d")
-	files, _ := filepath.Glob(filepath.Join(stepsDir, "*.toml"))
-	for _, file := range files {
+// Hook is one command a steps.d file asks to run around a task.
+type Hook struct {
+	File    string
+	Command string
+}
+
+// Hooks lists the commands configured for a hook (pre_update, post_clean,
+// on_error…), in file order. A file that does not parse has none; Load
+// reports it.
+func Hooks(name string) []Hook {
+	var out []Hook
+	for _, file := range files() {
 		var csf CustomStepsFile
-		if _, err := toml.DecodeFile(file, &csf); err == nil {
-			if cmd, ok := csf.Hooks[hookName]; ok && cmd != "" {
-				res := runner.Run(ctx, cmd, 60*time.Second, nil)
-				if res.ExitCode != 0 {
-					return fmt.Errorf("hook %s failed: %s", hookName, res.Output)
-				}
+		if _, err := toml.DecodeFile(file, &csf); err != nil {
+			continue
+		}
+		if cmd := csf.Hooks[name]; cmd != "" {
+			out = append(out, Hook{File: file, Command: cmd})
+		}
+	}
+	return out
+}
+
+// run is a seam the tests replace.
+var run = runner.Run
+
+// RunHook runs every command configured for a hook and stops at the first
+// one that fails.
+func RunHook(ctx context.Context, name string) error {
+	for _, h := range Hooks(name) {
+		if res := run(ctx, h.Command, 60*time.Second, nil); res.ExitCode != 0 {
+			msg := i18n.T("custom.hook_failed", name, h.File, res.ExitCode)
+			if out := strings.TrimSpace(res.Output); out != "" {
+				msg += ": " + out
 			}
+			return fmt.Errorf("%s", msg)
 		}
 	}
 	return nil

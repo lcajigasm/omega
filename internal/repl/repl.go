@@ -5,6 +5,7 @@ package repl
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -77,12 +78,26 @@ func (r *REPL) Run(ctx context.Context) error {
 		}
 
 		if err := fn(ctx, args); err != nil {
-			fmt.Fprintf(r.out, "Error: %v\n", err)
+			fmt.Fprintln(r.out, failure(err))
 		}
 		fmt.Fprintln(r.out)
 	}
 
 	return scanner.Err()
+}
+
+// failure is the line shown for a command that failed. A run that already
+// showed what went wrong returns an error with no text and an exit status:
+// "Error: " followed by nothing would say less than the status does.
+func failure(err error) string {
+	if msg := strings.TrimSpace(err.Error()); msg != "" {
+		return "Error: " + msg
+	}
+	var code interface{ ExitCode() int }
+	if errors.As(err, &code) {
+		return fmt.Sprintf("failed (exit %d)", code.ExitCode())
+	}
+	return "failed"
 }
 
 func (r *REPL) printHelp() {
@@ -93,6 +108,7 @@ func (r *REPL) printHelp() {
 	fmt.Fprintln(r.out, "  analyze    - System report without changes")
 	fmt.Fprintln(r.out, "  health     - Check disk, battery, RAM and logs")
 	fmt.Fprintln(r.out, "  doctor     - Check Omega configuration and providers")
+	fmt.Fprintln(r.out, "  status     - The same as doctor")
 	fmt.Fprintln(r.out, "  dev        - Developer setup status and tools")
 	fmt.Fprintln(r.out, "  net        - Network diagnostics and DNS flush")
 	fmt.Fprintln(r.out, "  audit      - Security and SSH key audit")

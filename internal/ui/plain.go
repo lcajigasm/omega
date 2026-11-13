@@ -15,17 +15,46 @@ import (
 	"github.com/lcajigasm/omega/internal/i18n"
 )
 
+// answer waits for one read of the terminal, and stops waiting when the run
+// is cancelled. A read of stdin cannot be interrupted, so it happens in a
+// goroutine; ctrl+c then ends the run instead of leaving it stuck on a
+// question nobody is going to answer. Once the run is cancelled no new read
+// starts, so two never race for the same input. ok is false when the run
+// was cancelled before an answer came.
+func answer[T any](ctx context.Context, read func() T) (v T, ok bool) {
+	if ctx.Err() != nil {
+		return v, false
+	}
+	got := make(chan T, 1)
+	go func() { got <- read() }()
+	select {
+	case v = <-got:
+		return v, true
+	case <-ctx.Done():
+		return v, false
+	}
+}
+
+// reply hands the agent an answer. A cancelled agent has stopped listening,
+// and a plain send to it would never return.
+func reply[T any](ctx context.Context, to chan<- T, v T) {
+	select {
+	case to <- v:
+	case <-ctx.Done():
+	}
+}
+
 // RunPlain prints events line by line and reads approvals, choices and
 // follow-ups from stdin. Without a terminal on stdin every approval request
 // is denied and every choice is left empty.
 func RunPlain(ctx context.Context, ag *agent.Agent, in io.Reader, interactive bool) {
 	reader := bufio.NewReader(in)
+	// readLine reads one line, or gives up when the run is cancelled.
 	readLine := func() (string, bool) {
-		s, err := reader.ReadString('\n')
-		if err != nil && s == "" {
-			return "", false
-		}
-		return strings.TrimSpace(s), true
+		return answer(ctx, func() string {
+			s, _ := reader.ReadString('\n')
+			return strings.TrimSpace(s)
+		})
 	}
 	var stats agent.Stats
 	for e := range ag.Events() {
@@ -71,22 +100,25 @@ func RunPlain(ctx context.Context, ag *agent.Agent, in io.Reader, interactive bo
 			}
 			if !interactive {
 				fmt.Println(errStyle.Render(i18n.T("ui.no_tty")))
-				e.Reply <- agent.Deny
+				reply(ctx, e.Reply, agent.Deny)
 				continue
 			}
 			fmt.Print(i18n.T("ui.confirm_line"))
-			ans, _ := readLine()
+			ans, ok := readLine()
 			switch {
+			case !ok:
+				fmt.Println()
+				reply(ctx, e.Reply, agent.Deny)
 			case strings.EqualFold(ans, "a") && !e.Always:
-				e.Reply <- agent.ApproveAll
+				reply(ctx, e.Reply, agent.ApproveAll)
 			case i18n.IsYes(ans):
-				e.Reply <- agent.Approve
+				reply(ctx, e.Reply, agent.Approve)
 			default:
-				e.Reply <- agent.Deny
+				reply(ctx, e.Reply, agent.Deny)
 			}
 		case agent.EvPassword:
 			if !interactive {
-				e.Secret <- ""
+				reply(ctx, e.Secret, "")
 				continue
 			}
 			if e.Failed {
@@ -94,36 +126,40 @@ func RunPlain(ctx context.Context, ag *agent.Agent, in io.Reader, interactive bo
 			}
 			fmt.Println(mutedStyle.Render(i18n.T("ui.password_hint")))
 			fmt.Print(warnStyle.Render(i18n.T("ui.password_title")) + " ")
-			pw, err := term.ReadPassword(int(os.Stdin.Fd()))
-			fmt.Println()
-			if err != nil {
-				pw = nil
+			// Reading a password turns the echo off; a cancelled read
+			// must not leave the terminal that way.
+			fd := int(os.Stdin.Fd())
+			state, _ := term.GetState(fd)
+			pw, ok := answer(ctx, func() string {
+				b, err := term.ReadPassword(fd)
+				if err != nil {
+					return ""
+				}
+				return string(b)
+			})
+			if !ok && state != nil {
+				term.Restore(fd, state)
 			}
-			e.Secret <- string(pw)
+			fmt.Println()
+			reply(ctx, e.Secret, pw)
 		case agent.EvChoice:
 			opts := make([]Option, len(e.Choices))
 			for i, c := range e.Choices {
 				opts[i] = Option{ID: c.ID, Label: c.Label, Detail: c.Detail, Badge: c.Impact, Risk: c.Risk}
 			}
 			fmt.Println()
-			ids, _ := pickPlain(NewPicker(e.Text, opts, e.Multi), reader, os.Stdout)
-			e.Picks <- ids
+			ids, _ := answer(ctx, func() []string {
+				ids, _ := pickPlain(NewPicker(e.Text, opts, e.Multi), reader, os.Stdout)
+				return ids
+			})
+			reply(ctx, e.Picks, ids)
 		case agent.EvIdle:
 			fmt.Print("\n" + i18n.T("ui.followup"))
 			// Ctrl+C while the question is open cancels the run: the agent
 			// then stops listening, and a send to it would never return.
-			line := make(chan string, 1)
-			go func() {
-				text, _ := readLine()
-				line <- text
-			}()
-			select {
-			case text := <-line:
-				select {
-				case ag.Input() <- text:
-				case <-ctx.Done():
-				}
-			case <-ctx.Done():
+			if text, ok := readLine(); ok {
+				reply(ctx, ag.Input(), text)
+			} else {
 				fmt.Println()
 			}
 		case agent.EvError:

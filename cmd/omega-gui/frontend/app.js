@@ -103,7 +103,10 @@ let started = false; // a session has been shown since the app opened
 let idle = false;    // the agent waits for a message
 let asking = 0;      // cards waiting for an answer
 let startError = "";
+let stopping = false; // Stop was pressed and the session has not ended yet
+let lastSeq = 0;      // the last message of the session that was drawn
 const tools = new Map(); // tool call id -> {root, pre, mark, lines}
+const cards = new Map(); // request id -> {finish, choices}
 
 const canStart = () => !live && (info.ready || info.demo);
 
@@ -130,12 +133,13 @@ function homeState() {
   const alert = $("home-alert");
   let text = "", action = "", target = "";
   if (live) [text, action, target] = [t("gui.home.running"), t("gui.home.view"), "session"];
-  else if (startError) [text, action, target] = [t("gui.start_failed") + "\n" + startError, t("gui.setup_open"), "settings"];
+  else if (startError) [text, action, target] = [t("gui.start_failed") + "\n" + startError, info.ready || info.demo ? "" : t("gui.setup_open"), "settings"];
   else if (!info.ready && !info.demo) [text, action, target] = [t("gui.home.need_setup"), t("gui.setup_open"), "settings"];
   alert.hidden = !text;
   alert.classList.toggle("bad", !live && !!startError);
   $("home-alert-text").textContent = text;
   $("home-alert-go").textContent = action;
+  $("home-alert-go").hidden = !action;
   $("home-alert-go").dataset.go = target;
   for (const b of document.querySelectorAll("#home [data-task], #ask input, #ask button, #dry")) b.disabled = !canStart();
 }
@@ -147,28 +151,41 @@ async function showHome() {
   homeState();
 }
 
-async function start(task, prompt) {
-  if (!canStart()) return;
+// openSession clears the session view for a session that starts, or for
+// one that is drawn again.
+function openSession(task, prompt) {
   const preset = info.tasks.find((x) => x.id === task);
   $("log").replaceChildren();
   tools.clear();
+  cards.clear();
   $("new").hidden = true;
   $("stop").hidden = $("mode").hidden = $("reply").hidden = false;
+  $("stop").disabled = false;
   $("stats").textContent = "";
   $("s-task").textContent = prompt || preset?.title || task;
   $("s-model").textContent = "";
   live = started = true;
+  stopping = false;
   asking = 0;
+  lastSeq = 0;
   startError = "";
   setMode("");
   setIdle(false);
   setState(t("gui.working"), true);
   if (prompt) add(el("div", "user", prompt));
+}
+
+function showModel(s) {
+  if (s.provider) $("s-model").textContent = s.provider + " · " + s.model;
+  setMode(s.mode);
+}
+
+async function start(task, prompt) {
+  if (!canStart()) return;
+  openSession(task, prompt);
   go("session");
   try {
-    const s = await call("Start", task, prompt, $("dry").checked);
-    $("s-model").textContent = s.provider + " · " + s.model;
-    setMode(s.mode);
+    showModel(await call("Start", task, prompt, $("dry").checked));
   } catch (err) {
     live = started = false;
     startError = message(err);
@@ -185,7 +202,7 @@ function showSession() {
   if (started) {
     const log = $("log");
     log.scrollTop = log.scrollHeight;
-    if (idle) $("reply-text").focus();
+    focusNext();
   }
 }
 
@@ -211,7 +228,14 @@ function setState(text, busy, ask) {
   badge();
 }
 
-const working = () => (asking > 0 ? setState(t("gui.session.answer"), false, true) : setState(t("gui.working"), true));
+// working shows what the session is doing: waiting for an answer, running
+// a call that has not ended, or thinking.
+function working() {
+  if (stopping) return setState(t("gui.stopping"), true);
+  if (asking > 0) return setState(t("gui.session.answer"), false, true);
+  const running = [...tools.values()].filter((e) => !e.ended).pop();
+  setState(running ? running.label : t("gui.working"), true);
+}
 
 function setIdle(on) {
   idle = on;
@@ -224,7 +248,8 @@ function setIdle(on) {
 function setMode(mode) {
   for (const b of document.querySelectorAll("#mode button")) {
     b.classList.toggle("on", b.dataset.mode === mode);
-    b.disabled = !live;
+    // Until the session has started there is no mode to change.
+    b.disabled = !live || !mode;
   }
 }
 
@@ -255,13 +280,14 @@ function toolRow(m) {
   pre.hidden = true;
   root.append(sum, pre);
   if (m.command && m.command !== m.arg) sum.title = m.command;
-  const entry = { root, pre, mark, lines: 0 };
+  const entry = { root, pre, mark, lines: 0, ended: false, label: m.tool + (m.arg ? " " + m.arg : "") };
   tools.set(m.id, entry);
   add(root);
   return entry;
 }
 
 function endTool(entry, m) {
+  entry.ended = true;
   entry.root.classList.add(m.failed ? "bad" : "ok");
   let mark = m.failed ? "✗" : "✓";
   if (m.failed && m.exitCode) mark += " exit " + m.exitCode;
@@ -274,7 +300,7 @@ function endTool(entry, m) {
 }
 
 // card builds a request card. finish(text) closes it with the answer shown.
-function card(title, risk) {
+function card(title, risk, id) {
   const root = el("div", "card");
   const h = el("h3", "", title);
   if (risk) h.append(el("span", "badge " + risk, t("gui.risk." + (risk === "dangerous" ? "danger" : risk === "normal" ? "normal" : "safe"))));
@@ -288,10 +314,26 @@ function card(title, risk) {
     root.append(el("div", "answer", text));
     asking = Math.max(0, asking - 1);
     working();
+    // The buttons that had the focus are gone: it goes to the next card
+    // that waits, or to the message box.
+    if (view === "session" && (!document.activeElement || document.activeElement === document.body)) focusNext();
   };
   asking++;
   setState(t("gui.session.answer"), false, true);
-  return { root, finish };
+  const c = { root, finish };
+  if (id !== undefined) cards.set(id, c);
+  return c;
+}
+
+// focusNext puts the focus where the user acts next. On a card it is the
+// control that changes nothing: "Don't run", an option, the password box.
+function focusNext() {
+  const open = document.querySelector("#log .card:not(.done)");
+  // In that order: a selector list would take whichever comes first in
+  // the card, and that is "Run".
+  const target = open && (open.querySelector(".buttons .danger") ?? open.querySelector("input") ?? open.querySelector(".buttons button"));
+  if (target) target.focus();
+  else if (idle) $("reply-text").focus();
 }
 
 function button(label, cls, onClick) {
@@ -302,7 +344,7 @@ function button(label, cls, onClick) {
 }
 
 function confirmCard(m) {
-  const c = card(t("ui.confirm"), m.risk);
+  const c = card(t("ui.confirm"), m.risk, m.id);
   c.root.append(el("div", "cmd", m.command ?? ""));
   if (m.reason) c.root.append(el("div", "reason", m.reason));
   if (m.always) c.root.append(el("div", "warn", "⚠ " + t("ui.always_note")));
@@ -323,7 +365,8 @@ function confirmCard(m) {
 }
 
 function choiceCard(m) {
-  const c = card(m.text ?? "");
+  const c = card(m.text ?? "", "", m.id);
+  c.choices = m.choices ?? [];
   const name = "choice-" + m.id;
   for (const ch of m.choices ?? []) {
     const row = el("label", "opt");
@@ -351,10 +394,11 @@ function choiceCard(m) {
   buttons.append(choose, button(t("gui.choose_none"), "", () => call("Choose", m.id, []).then(() => c.finish(t("gui.choose_none")), report)));
   c.root.append(buttons);
   add(c.root);
+  if (view === "session" && asking === 1) c.root.querySelector("input")?.focus();
 }
 
 function passwordCard(m) {
-  const c = card("🔒 " + t("ui.password_title"));
+  const c = card("🔒 " + t("ui.password_title"), "", m.id);
   if (m.failed) c.root.append(el("div", "warn", t("ui.password_wrong")));
   if (m.text) c.root.append(el("div", "reason", m.text));
   const input = el("input");
@@ -384,9 +428,31 @@ function report(err) {
   add(el("div", "note bad", "! " + message(err)));
 }
 
+// answered closes a card that was answered before this window was drawn.
+// One answered here is closed already, and this does nothing.
+function answered(m) {
+  const c = cards.get(m.id);
+  if (!c) return;
+  let text = m.text ?? "";
+  if (c.choices) {
+    const ids = text ? text.split("\u0000") : [];
+    text = c.choices.filter((ch) => ids.includes(ch.id)).map((ch) => ch.label).join(", ") || t("gui.choose_none");
+  } else if (c.root.querySelector("input[type=password]")) text = text ? "••••••" : t("gui.password_no");
+  else text = t(text === "approve" ? "gui.approve" : text === "all" ? "gui.approve_all" : "gui.deny");
+  c.finish(text);
+}
+
 function handle(m) {
+  if (m.kind === "quit_ask") return askQuit();
+  // A message drawn already: the window asked for the session while it
+  // was being told about it.
+  if (m.seq) {
+    if (m.seq <= lastSeq) return;
+    lastSeq = m.seq;
+  }
   if (m.stats) showStats(m.stats);
   switch (m.kind) {
+    case "answered": answered(m); break;
     case "thinking":
       working();
       break;
@@ -398,14 +464,17 @@ function handle(m) {
     }
     case "tool_start":
       toolRow(m);
-      setState(m.tool + (m.arg ? " " + m.arg : ""), true);
+      working();
       break;
     case "output": {
       const e = tools.get(m.id);
       if (!e) break;
       e.pre.hidden = false;
       e.pre.append(m.text + "\n");
-      if (++e.lines > maxLines) e.pre.firstChild?.remove();
+      if (++e.lines > maxLines) {
+        e.pre.firstChild?.remove();
+        if (!e.cut) e.pre.before((e.cut = el("div", "cut", t("gui.output_cut"))));
+      }
       if (e.root.open) e.pre.scrollTop = e.pre.scrollHeight;
       break;
     }
@@ -441,16 +510,24 @@ function handle(m) {
       if (m.text) add(el("div", "note", m.text));
       break;
     case "closed":
-      live = false;
+      live = stopping = false;
       asking = 0;
       // Calls cut short by Stop never report an end.
-      for (const e of tools.values()) e.mark.querySelector(".spinner")?.remove();
+      for (const e of tools.values()) {
+        e.ended = true;
+        e.mark.querySelector(".spinner")?.remove();
+      }
       setIdle(false);
       setState(t("gui.ended"), false);
       document.querySelectorAll(".card:not(.done)").forEach((c) => {
         c.classList.add("done");
-        c.querySelectorAll("button, input").forEach((n) => (n.disabled = true));
+        c.querySelectorAll("button, input").forEach((n) => {
+          n.disabled = true;
+          // A password typed and not sent does not stay on the screen.
+          if (n.type === "password") n.value = "";
+        });
       });
+      $("quit").hidden = true;
       // An ended session is only read: what acted on it goes away.
       $("stop").hidden = $("mode").hidden = $("reply").hidden = true;
       $("new").hidden = false;
@@ -944,7 +1021,17 @@ function wire() {
     setState(t("gui.working"), true);
     call("Send", text).catch(report);
   });
-  $("stop").addEventListener("click", () => call("Stop"));
+  $("stop").addEventListener("click", () => {
+    stopping = true;
+    $("stop").disabled = true;
+    working();
+    call("Stop").catch(toastError);
+  });
+  $("quit-no").addEventListener("click", () => ($("quit").hidden = true));
+  $("quit-yes").addEventListener("click", () => call("Quit").catch(toastError));
+  $("quit").addEventListener("keydown", (e) => {
+    if (e.key === "Escape") $("quit").hidden = true;
+  });
   $("new").addEventListener("click", () => go("home"));
 
   $("run-copy").addEventListener("click", (e) => {
@@ -1011,7 +1098,33 @@ function wire() {
   }
   $("set-catalog").addEventListener("change", (e) => setting("model_catalog", e.target.checked ? "live" : "off"));
 
-  wails.Events.On("omega", (ev) => handle(ev.data));
+  wails.Events.On("omega", (ev) => (replaying ? missed.push(ev.data) : handle(ev.data)));
+}
+
+// askQuit asks before the window closes on a running session. The focus is
+// on the answer that keeps it running.
+function askQuit() {
+  $("quit").hidden = false;
+  $("quit-no").focus();
+}
+
+// Messages that arrive while the session is being drawn again wait here.
+let replaying = true;
+const missed = [];
+
+// resume draws the session the app holds: this window may have been drawn
+// again (a reload) in the middle of one, and it goes on from where it was.
+async function resume() {
+  const s = await call("Session");
+  if (s.running || s.messages?.length) {
+    openSession(s.info.task, s.prompt);
+    showModel(s.info);
+    for (const m of s.messages ?? []) handle(m);
+    if (!s.running && live) handle({ kind: "closed" });
+  }
+  replaying = false;
+  for (const m of missed.splice(0)) handle(m);
+  return s.running;
 }
 
 async function init() {
@@ -1019,8 +1132,9 @@ async function init() {
   wire();
   applyTexts();
   $("nav").hidden = $("views").hidden = false;
+  const running = await resume().catch(() => (replaying = false));
   // Without a provider there is nothing to start: open where one is chosen.
-  go(info.ready || info.demo ? "home" : "settings");
+  go(running ? "session" : info.ready || info.demo ? "home" : "settings");
 }
 
 init().catch((err) => {

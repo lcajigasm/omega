@@ -115,7 +115,7 @@ func (c *anthropicChat) Send(ctx context.Context, text string, results []ToolRes
 	if len(results) > 0 {
 		blocks := make([]anthropic.ContentBlockParamUnion, 0, len(results)+1)
 		for _, r := range results {
-			blocks = append(blocks, anthropic.NewToolResultBlock(r.CallID, r.Content, r.IsError))
+			blocks = append(blocks, anthropic.NewToolResultBlock(r.CallID, resultText(r.Content), r.IsError))
 		}
 		if text != "" {
 			blocks = append(blocks, anthropic.NewTextBlock(text))
@@ -169,9 +169,27 @@ func (c *anthropicChat) Send(ctx context.Context, text string, results []ToolRes
 // at max_tokens loses its tool calls: they are not run, so no result will
 // ever follow them, and the API refuses every later message of a
 // conversation that holds a tool_use without its tool_result.
+//
+// A reply with nothing in it (or only empty text, or only thinking) gets a
+// placeholder: the API refuses an assistant message without content, and
+// with it every later message of the conversation.
 func historyParam(resp *anthropic.Message) anthropic.MessageParam {
 	if resp.StopReason != anthropic.StopReasonMaxTokens {
-		return resp.ToParam()
+		msg := resp.ToParam()
+		kept := make([]anthropic.ContentBlockParamUnion, 0, len(msg.Content)+1)
+		said := false
+		for _, b := range msg.Content {
+			if b.OfText != nil && strings.TrimSpace(b.OfText.Text) == "" {
+				continue
+			}
+			said = said || (b.OfThinking == nil && b.OfRedactedThinking == nil)
+			kept = append(kept, b)
+		}
+		if !said {
+			kept = append(kept, anthropic.NewTextBlock(emptyReply))
+		}
+		msg.Content = kept
+		return msg
 	}
 	var blocks []anthropic.ContentBlockParamUnion
 	for _, block := range resp.Content {
@@ -185,8 +203,44 @@ func historyParam(resp *anthropic.Message) anthropic.MessageParam {
 	return anthropic.NewAssistantMessage(blocks...)
 }
 
+// Compact shortens the tool results of all but the last few turns.
+func (c *anthropicChat) Compact() int {
+	var turns []int // user messages that carry tool results
+	for i, m := range c.params.Messages {
+		for _, b := range m.Content {
+			if b.OfToolResult != nil {
+				turns = append(turns, i)
+				break
+			}
+		}
+	}
+	n := 0
+	for k := 0; k < len(turns)-keepTurns; k++ {
+		for _, b := range c.params.Messages[turns[k]].Content {
+			r := b.OfToolResult
+			if r == nil {
+				continue
+			}
+			size := 0
+			for _, part := range r.Content {
+				if part.OfText == nil {
+					size = len(Omitted) + 1 // an image or a document: always dropped
+					break
+				}
+				size += len(part.OfText.Text)
+			}
+			if size <= len(Omitted) {
+				continue
+			}
+			r.Content = []anthropic.ToolResultBlockParamContentUnion{{OfText: &anthropic.TextBlockParam{Text: Omitted}}}
+			n++
+		}
+	}
+	return n
+}
+
 // sendRetried calls the Messages API up to four times. A network error, a 429
-// or a 5xx waits and tries again. A Retry-After header sets that wait, up to
+// or a 5xx waits and tries again; a request that timed out does not. A Retry-After header sets that wait, up to
 // 30s; otherwise the wait is 2s, then 4s, then 8s. Any other status is returned
 // at once.
 func (c *anthropicChat) sendRetried(ctx context.Context) (*anthropic.Message, error) {
@@ -236,7 +290,7 @@ func retryableAnthropic(err error) bool {
 	if errors.As(err, &apierr) {
 		return apierr.StatusCode == http.StatusTooManyRequests || apierr.StatusCode >= 500
 	}
-	return true
+	return !timedOut(err)
 }
 
 func describeAnthropicError(err error) error {

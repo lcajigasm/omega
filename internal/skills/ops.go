@@ -6,13 +6,16 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/lcajigasm/omega/internal/config"
@@ -87,8 +90,26 @@ func copyDir(src, dst string) error {
 	})
 }
 
+// rename is os.Rename. Tests replace it to stand for another volume.
+var rename = os.Rename
+
+// crossDevice reports whether a move failed because the two places are on
+// different volumes, the one failure a copy can make up for.
+func crossDevice(err error) bool {
+	var errno syscall.Errno
+	if !errors.As(err, &errno) {
+		return false
+	}
+	// 17 is ERROR_NOT_SAME_DEVICE on Windows (and "file exists" elsewhere).
+	return errno == syscall.EXDEV || (runtime.GOOS == "windows" && errno == 17)
+}
+
 // trash moves a folder out of the way without deleting it: to the Trash on
 // a Mac, to omega's state folder elsewhere. It returns where it went.
+//
+// The name there is the folder's own, or with " 2", " 3"… when it is
+// taken. Nothing already in the trash is written to or deleted: two copies
+// of one skill put away one after the other stay two folders.
 func trash(path string) (string, error) {
 	dir := filepath.Join(config.StateDir(), "removed-skills")
 	if runtime.GOOS == "darwin" {
@@ -97,23 +118,63 @@ func trash(path string) (string, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
 	}
-	dest := filepath.Join(dir, filepath.Base(path))
-	if _, err := os.Lstat(dest); err == nil {
-		dest += " " + time.Now().Format("2006-01-02 15.04.05.000")
+	fi, err := os.Lstat(path)
+	if err != nil {
+		return "", err
 	}
-	if err := os.Rename(path, dest); err != nil {
+	for n := 1; n < 100000; n++ {
+		dest := filepath.Join(dir, filepath.Base(path))
+		if n > 1 {
+			dest += " " + strconv.Itoa(n)
+		}
+		if _, err := os.Lstat(dest); err == nil {
+			continue
+		}
+		if !fi.IsDir() {
+			// A move puts a file over a file without a word. Hold the name
+			// with an empty file of this call's making and move over that.
+			hold, err := os.OpenFile(dest, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+			if errors.Is(err, fs.ErrExist) {
+				continue
+			}
+			if err != nil {
+				return "", err
+			}
+			hold.Close()
+			if err := rename(path, dest); err != nil {
+				os.Remove(dest)
+				return "", err
+			}
+			return dest, nil
+		}
+		err := rename(path, dest)
+		if err == nil {
+			return dest, nil
+		}
+		if !crossDevice(err) {
+			if _, statErr := os.Lstat(dest); statErr == nil {
+				continue // taken in the meantime: a folder is not moved over one in use
+			}
+			return "", err
+		}
 		// Another volume: copy everything, then delete. copyDir would not
 		// do: it leaves out version control and links, and what is being
-		// put away may be the only copy of them.
+		// put away may be the only copy of them. The copy goes into a
+		// folder this call creates, so a failure can take it back without
+		// touching anything else.
+		if err := os.Mkdir(dest, 0o700); err != nil {
+			if errors.Is(err, fs.ErrExist) {
+				continue
+			}
+			return "", err
+		}
 		if err := copyAll(path, dest); err != nil {
 			os.RemoveAll(dest)
 			return "", err
 		}
-		if err := os.RemoveAll(path); err != nil {
-			return "", err
-		}
+		return dest, os.RemoveAll(path)
 	}
-	return dest, nil
+	return "", fmt.Errorf("no free name for %s in %s", filepath.Base(path), dir)
 }
 
 // copyAll copies a folder as it is: every file, hidden ones and .git
@@ -508,6 +569,9 @@ type InstallOptions struct {
 type Installed struct {
 	Skill string   `json:"skill"`
 	Paths []string `json:"paths"`
+	// Skipped are installations left as they were: links to a folder
+	// outside the skills locations, which is not omega's to replace.
+	Skipped []string `json:"skipped,omitempty"`
 }
 
 // InstallFrom installs the skills of a source: a folder, a git URL, a
@@ -591,10 +655,11 @@ func InstallFrom(ctx context.Context, source string, opts InstallOptions) ([]Ins
 		dest := ""
 		if s, exists := inv.Find(f.name); exists {
 			if src, ok := s.source(); ok {
-				dest = src.Real
-				if err := replaceAll(s, src, f.dir); err != nil {
+				replaced, skipped, err := replaceAll(s, src, f.dir)
+				if err != nil {
 					return out, err
 				}
+				dest, res.Skipped = replaced[0], skipped
 			} else {
 				_, _ = Remove(f.name, s.Installs)
 			}
@@ -682,20 +747,61 @@ func replace(dest, src string) error {
 	return os.Rename(fresh, dest)
 }
 
+// inLocations reports whether a folder is inside one of the skills
+// locations.
+func inLocations(real string) bool {
+	for _, loc := range Locations {
+		dir := Expand(loc.Path)
+		if resolved, err := filepath.EvalSymlinks(dir); err == nil {
+			dir = resolved
+		}
+		if rel, err := filepath.Rel(dir, real); err == nil && rel != "." && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			return true
+		}
+	}
+	return false
+}
+
 // replaceAll does it for a skill's source and for its copies in other
-// locations, so they stay the same.
-func replaceAll(s *Skill, src Install, from string) error {
+// locations, so they stay the same. It returns the folders it replaced and
+// the installations it left alone.
+//
+// A link to a folder outside the skills locations is left alone: what it
+// points to is the user's own folder (a checkout with its .git, say), and
+// replacing it would put that in the trash and a bare copy in its place.
+// And a skill is never replaced with itself.
+func replaceAll(s *Skill, src Install, from string) (replaced, skipped []string, err error) {
+	realFrom := from
+	if r, err := filepath.EvalSymlinks(from); err == nil {
+		realFrom = r
+	}
+	var todo []string
 	done := map[string]bool{}
 	for _, in := range append([]Install{src}, s.Installs...) {
 		if in.Broken || done[in.Real] {
 			continue
 		}
 		done[in.Real] = true
-		if err := replace(in.Real, from); err != nil {
-			return err
+		switch {
+		case in.Real == realFrom:
+			return nil, nil, fmt.Errorf("%s is where %s is installed (%s): there is nothing to replace it with", Tilde(from), s.Name, Tilde(in.Path))
+		case in.Link != "" && !inLocations(in.Real):
+			skipped = append(skipped, in.Path)
+		default:
+			todo = append(todo, in.Real)
 		}
 	}
-	return nil
+	if len(todo) == 0 {
+		return nil, skipped, fmt.Errorf("%s is a link to %s, a folder outside the skills locations, and omega does not replace it; remove the link first with `omega skills remove %s`",
+			Tilde(src.Path), Tilde(src.Real), s.Name)
+	}
+	for _, dest := range todo {
+		if err := replace(dest, from); err != nil {
+			return replaced, skipped, err
+		}
+		replaced = append(replaced, dest)
+	}
+	return replaced, skipped, nil
 }
 
 // ---- updating ----
@@ -784,10 +890,8 @@ func Update(ctx context.Context, names []string, check, force bool) ([]UpdateRes
 					res.State = Current
 					break
 				}
-				if check {
-					res.State = Available
-					break
-				}
+				// A new commit in the repository is not a new version of
+				// this skill: check looks at the files too, as update does.
 				key := o.Git + "\x00" + o.Ref
 				c := clones[key]
 				if c == nil {
@@ -813,7 +917,7 @@ func Update(ctx context.Context, names []string, check, force bool) ([]UpdateRes
 			}
 			if hash == src.Hash {
 				res.State = Current
-				if origins[name] != o { // a new commit that did not touch it
+				if origins[name] != o && !check { // a new commit that did not touch it
 					o.Hash = hash
 					origins[name], changed = o, true
 				}
@@ -823,13 +927,17 @@ func Update(ctx context.Context, names []string, check, force bool) ([]UpdateRes
 				res.State = Available
 				break
 			}
-			if err := replaceAll(s, src, from); err != nil {
+			_, skipped, err := replaceAll(s, src, from)
+			if err != nil {
 				res.State, res.Detail = Failed, err.Error()
 				break
 			}
 			o.Hash, o.Time = hash, time.Now().UTC().Format(time.RFC3339)
 			origins[name], changed = o, true
 			res.State = Updated
+			for _, p := range skipped {
+				res.Detail += "; left alone: " + Tilde(p) + ", a link to a folder outside the skills locations"
+			}
 		}
 		out = append(out, res)
 	}

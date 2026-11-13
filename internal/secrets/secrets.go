@@ -136,10 +136,16 @@ func Get(provider string) (string, Source, error) {
 func Set(provider, key string) (Source, error) {
 	switch goos {
 	case "darwin":
-		cmd := exec.Command("security", "add-generic-password", "-U", "-s", service, "-a", provider, "-w", key,
-			"-l", "omega ("+provider+")")
-		if out, err := cmd.CombinedOutput(); err != nil {
-			return "", fmt.Errorf("%s", i18n.T("secrets.save", err, strings.TrimSpace(string(out))))
+		// The key goes to security on its standard input (-i reads commands
+		// there), not as an argument: the arguments of a running program
+		// can be read by any other program of this user.
+		if strings.ContainsAny(key, "\n\r\x00") {
+			return "", fmt.Errorf("%s", i18n.T("secrets.save", "the key holds a line break", ""))
+		}
+		line := "add-generic-password -U -s " + securityQuote(service) + " -a " + securityQuote(provider) +
+			" -w " + securityQuote(key) + " -l " + securityQuote("omega ("+provider+")") + "\n"
+		if out, errOut, err := runTool(15*time.Second, line, "security", "-i"); err != nil {
+			return "", fmt.Errorf("%s", i18n.T("secrets.save", err, strings.TrimSpace(out+errOut)))
 		}
 		return FromKeychain, nil
 	case "linux":
@@ -168,6 +174,12 @@ func Set(provider, key string) (Source, error) {
 		return FromCredentials, nil
 	}
 	return "", fmt.Errorf("%s", i18n.T("secrets.unsupported", goos, EnvVar[provider]))
+}
+
+// securityQuote writes a word for the command reader of `security -i`:
+// inside double quotes only the backslash and the quote need an escape.
+func securityQuote(s string) string {
+	return `"` + strings.NewReplacer(`\`, `\\`, `"`, `\"`).Replace(s) + `"`
 }
 
 // Delete removes the key from wherever Set put it.

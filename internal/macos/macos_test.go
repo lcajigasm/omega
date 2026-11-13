@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -381,5 +382,130 @@ func TestRestoreCommandRefusesATakenPlace(t *testing.T) {
 	}
 	if _, err := os.Stat(to); err != nil {
 		t.Error("nothing was restored")
+	}
+}
+
+// sh runs a command the way the changes are run.
+func sh(t *testing.T, command string) error {
+	t.Helper()
+	if _, err := exec.LookPath("sh"); err != nil {
+		t.Skip("needs a POSIX shell")
+	}
+	return exec.Command("sh", "-c", command).Run()
+}
+
+// Two things with one name moved to the Trash in the same second: the
+// second move used to do nothing and report success.
+func TestTrashPathIsFreeAndTheMoveIsChecked(t *testing.T) {
+	old := Home
+	Home = t.TempDir()
+	t.Cleanup(func() { Home = old })
+	trash := filepath.Join(Home, ".Trash")
+	now := time.Date(2026, 11, 13, 10, 20, 30, 0, time.UTC)
+	seen := map[string]bool{}
+	for i := 0; i < 3; i++ {
+		src := filepath.Join(Home, "Applications", strconv.Itoa(i), "Foo.app")
+		os.MkdirAll(src, 0o755)
+		os.WriteFile(filepath.Join(src, "id"), []byte(strconv.Itoa(i)), 0o644)
+		os.MkdirAll(trash, 0o755)
+		dest := trashPath("Foo.app", now)
+		if seen[dest] || filepath.Ext(dest) != ".app" {
+			t.Fatalf("destination %d: %s", i, dest)
+		}
+		seen[dest] = true
+		if err := sh(t, moveCommand(src, dest)); err != nil {
+			t.Fatalf("move %d: %v", i, err)
+		}
+		if data, _ := os.ReadFile(filepath.Join(dest, "id")); string(data) != strconv.Itoa(i) {
+			t.Errorf("%s holds %q", dest, data)
+		}
+	}
+	if entries, _ := os.ReadDir(trash); len(entries) != 3 {
+		t.Errorf("the Trash holds %d entries, want 3", len(entries))
+	}
+
+	// A destination taken after the plan was made: the command fails, and
+	// nothing goes inside what is there.
+	src := filepath.Join(Home, "Applications", "Bar.app")
+	os.MkdirAll(src, 0o755)
+	dest := trashPath("Bar.app", now)
+	os.MkdirAll(dest, 0o755)
+	if err := sh(t, moveCommand(src, dest)); err == nil {
+		t.Error("a move onto a taken name reported success")
+	}
+	if _, err := os.Stat(src); err != nil {
+		t.Error("the source is gone")
+	}
+	if entries, _ := os.ReadDir(dest); len(entries) != 0 {
+		t.Error("the source was moved inside the folder that was there")
+	}
+}
+
+// Leftovers moved halfway, and an undo that stopped halfway, can both be
+// undone: what never left and what is back already are passed over, and
+// what was lost is an error.
+func TestLeftoverUndoAfterAPartialRun(t *testing.T) {
+	old := Home
+	Home = t.TempDir()
+	t.Cleanup(func() { Home = old })
+	lib := filepath.Join(Home, "Library")
+	l := Leftover{Bundle: "com.gone.Editor", Paths: []string{
+		filepath.Join(lib, "Application Support", "com.gone.Editor"),
+		filepath.Join(lib, "Caches", "com.gone.Editor"),
+		filepath.Join(lib, "Preferences", "com.gone.Editor.plist"),
+	}}
+	for _, p := range l.Paths[:2] {
+		os.MkdirAll(p, 0o755)
+	}
+	os.MkdirAll(filepath.Join(Home, ".Trash"), 0o755)
+	// The third path is missing: the command stops there, with two moved.
+	c := l.TrashChange(time.Now())
+	if err := sh(t, c.Command); err == nil {
+		t.Fatal("moving a path that is not there reported success")
+	}
+	if _, err := os.Stat(l.Paths[0]); err == nil {
+		t.Fatal("the first path was not moved")
+	}
+	if !c.KeepsUndoOnFailure() {
+		t.Fatal("a trash that stopped halfway has to be journaled")
+	}
+	// The place of the second is taken again: the undo restores the first
+	// and fails on the second.
+	os.MkdirAll(filepath.Dir(l.Paths[2]), 0o755)
+	os.WriteFile(l.Paths[2], []byte("x"), 0o644)
+	os.MkdirAll(l.Paths[1], 0o755)
+	if err := sh(t, c.Undo); err == nil {
+		t.Fatal("an undo over a taken place reported success")
+	}
+	if _, err := os.Stat(l.Paths[0]); err != nil {
+		t.Fatal("the first path was not restored")
+	}
+	// The place is freed: the same undo now finishes, passing over the
+	// first (back already) and the third (never moved).
+	os.Remove(l.Paths[1])
+	if err := sh(t, c.Undo); err != nil {
+		t.Fatalf("the undo did not finish on the second run: %v", err)
+	}
+	if _, err := os.Stat(l.Paths[1]); err != nil {
+		t.Error("the second path was not restored")
+	}
+	// Nothing in the Trash and nothing in place: that is a loss, not "ok".
+	os.RemoveAll(l.Paths[0])
+	if err := sh(t, c.Undo); err == nil {
+		t.Error("an undo with nothing to restore reported success")
+	}
+}
+
+// The undo of a disabled job is as good as what launchd says afterwards.
+func TestEnableUndoIsVerified(t *testing.T) {
+	it := Item{Name: "Updater", Label: "com.vendor.updater", Kind: KindAgent, Enabled: true, Plist: "/Library/LaunchAgents/com.vendor.updater.plist"}
+	undo := it.DisableChange().Undo
+	if strings.HasSuffix(strings.TrimSpace(undo), "true") || !strings.Contains(undo, "launchctl print ") || !strings.Contains(undo, "/com.vendor.updater'") {
+		t.Errorf("undo: %s", undo)
+	}
+	it.System, it.Kind = true, KindDaemon
+	c := it.DisableChange()
+	if !strings.Contains(c.Undo, "sudo launchctl bootstrap 'system'") || !strings.Contains(c.Undo, "launchctl print 'system/com.vendor.updater'") {
+		t.Errorf("system undo: %s", c.Undo)
 	}
 }

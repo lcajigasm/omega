@@ -3,7 +3,9 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"slices"
@@ -66,16 +68,21 @@ func Init(v string) {
 	version = v
 	runner.ExtendPath()
 	withholdProviderKeys()
-	if custom, err := customsteps.LoadCustomSteps(); err == nil {
-		for _, s := range custom {
-			steps.Register(s)
-		}
-	}
 	// The language must be known before the commands' help text is built.
 	if cfg, err := config.Load(); err == nil {
 		i18n.Init(cfg.Language)
 	} else {
 		i18n.Init("")
+	}
+	// The user's own steps. One that cannot be used is said at once, on
+	// stderr: left out in silence it would look installed and never run.
+	// `omega doctor` and `omega config check` list the same lines.
+	custom, problems := customsteps.Load()
+	for _, s := range custom {
+		steps.Register(s)
+	}
+	for _, p := range problems {
+		fmt.Fprintln(os.Stderr, "omega:", p)
 	}
 }
 
@@ -116,13 +123,23 @@ func newRoot(f *runFlags) *cobra.Command {
 	bindRunFlags(root.Flags(), f)
 
 	root.AddCommand(
-		fullCmd(), quickCmd(f), fixCmd(f), setupCmd(), authCmd(), modelCmd(), modelsCmd(),
-		dockerCmd(), macCmd(), devCmd(), menuCmd(), configCmd(), stepsCmd(), notesCmd(),
-		logsCmd(), doctorCmd(), netCmd(), auditCmd(), privacyCmd(), gitCmd(), diskCmd(),
-		uninstallCmd(), skillsCmd(), scheduleCmd(), rollbackCmd(), exportCmd(), bootstrapCmd(), shellCmd(),
-		completionCmd(root), manCmd(root),
+		fullCmd(), quickCmd(f), fixCmd(f), setupCmd(), group(authCmd()), modelCmd(), modelsCmd(),
+		dockerCmd(), macCmd(), devCmd(), menuCmd(), group(configCmd()), stepsCmd(), notesCmd(),
+		logsCmd(), doctorCmd(), group(netCmd()), group(auditCmd()), privacyCmd(), group(gitCmd()), group(diskCmd()),
+		uninstallCmd(), skillsCmd(), group(scheduleCmd()), rollbackCmd(), exportCmd(), bootstrapCmd(), shellCmd(),
+		group(completionCmd(root)), manCmd(root),
 	)
 	return root
+}
+
+// group finishes a command that only holds subcommands. On its own it shows
+// its help; with a word that is not one of its subcommands it is an error.
+// Without this cobra prints the help for `omega schedule instal` too and
+// exits 0, and a script takes that for success.
+func group(c *cobra.Command) *cobra.Command {
+	c.Args = cobra.NoArgs
+	c.RunE = func(cmd *cobra.Command, args []string) error { return cmd.Help() }
+	return c
 }
 
 // taskWords are other words for the tasks, in the five interface languages:
@@ -301,14 +318,14 @@ func bindRunFlags(pf *pflag.FlagSet, f *runFlags) {
 
 	pf.BoolVar(&f.noAI, "no-ai", false, "run deterministically without calling an AI model")
 	pf.BoolVar(&f.offline, "offline", false, "alias for --no-ai")
-	pf.BoolVar(&f.json, "json", false, "output report as structured JSON")
-	pf.StringVar(&f.format, "format", "", "output format; json is the only one written for now")
-	pf.BoolVarP(&f.quiet, "quiet", "q", false, "quiet mode; suppress non-essential output")
-	pf.BoolVarP(&f.verbose, "verbose", "v", false, "verbose output showing commands and streaming output")
+	pf.BoolVar(&f.json, "json", false, "output report as structured JSON (runs without the AI, like --no-ai)")
+	pf.StringVar(&f.format, "format", "", "output format: json (the same as --json) or text (the default)")
+	pf.BoolVarP(&f.quiet, "quiet", "q", false, "with --no-ai: quiet mode; suppress non-essential output")
+	pf.BoolVarP(&f.verbose, "verbose", "v", false, "with --no-ai: show the output of every command")
 	pf.BoolVar(&f.debug, "debug", false, "reserved; prints nothing more yet")
-	pf.BoolVar(&f.failOnWarning, "fail-on-warning", false, "exit with non-zero code if any warning is found")
-	pf.BoolVar(&f.failOnOutdated, "fail-on-outdated", false, "exit with non-zero code if outdated packages are detected")
-	pf.BoolVar(&f.failOnCritical, "fail-on-critical", false, "exit with non-zero code if any step fails")
+	pf.BoolVar(&f.failOnWarning, "fail-on-warning", false, "with --no-ai: exit with non-zero code if any warning is found")
+	pf.BoolVar(&f.failOnOutdated, "fail-on-outdated", false, "with --no-ai: exit with non-zero code if outdated packages are detected")
+	pf.BoolVar(&f.failOnCritical, "fail-on-critical", false, "with --no-ai: exit with non-zero code if any step fails")
 	pf.Float64Var(&f.maxCost, "max-cost", 0.0, "maximum estimated session cost in USD before stopping")
 	pf.IntVar(&f.maxTurns, "max-turns", 0, "maximum number of agent turns")
 }
@@ -444,25 +461,85 @@ func (r *run) agent(interactive, demoInteractive bool, sudoPassword string) *age
 	return agent.New(p, opts)
 }
 
+// Seams the tests replace: how a hook runs and where notes about hooks go.
+var (
+	hookRun           = customsteps.RunHook
+	hookOut io.Writer = os.Stdout
+)
+
+// runHook runs the commands a steps.d file configured for a hook. Under
+// --dry-run it only says what they are: a hook is a command like any other.
+func runHook(w io.Writer, name string, dryRun bool) error {
+	if dryRun {
+		for _, h := range customsteps.Hooks(name) {
+			fmt.Fprintln(w, i18n.T("hook.would_run", name, h.Command))
+		}
+		return nil
+	}
+	return hookRun(context.Background(), name)
+}
+
+// withHooks runs a task between its pre_<task> and post_<task> hooks. A pre
+// hook that fails stops the task before it starts, as a guard should. The
+// post hook runs whatever happened, after on_error when the task failed; a
+// hook that fails there is shown and makes the run fail. A request in the
+// user's own words and the scripted demo are not tasks and have no hooks.
+func withHooks(task string, f runFlags, run func() error) error {
+	if task == "" || f.prompt != "" || f.demo {
+		return run()
+	}
+	// Notes about hooks stay out of a JSON answer and of a quiet run.
+	w := hookOut
+	switch {
+	case f.wantsJSON():
+		w = os.Stderr
+	case f.quiet:
+		w = io.Discard
+	}
+	if err := runHook(w, "pre_"+task, f.dryRun); err != nil {
+		return err
+	}
+	err := run()
+	after := []string{"post_" + task}
+	if err != nil {
+		after = []string{"on_error", "post_" + task}
+	}
+	for _, name := range after {
+		if hookErr := runHook(w, name, f.dryRun); hookErr != nil {
+			fmt.Fprintln(os.Stderr, "omega:", hookErr)
+			if err == nil {
+				err = exitCode(1) // already shown
+			}
+		}
+	}
+	return err
+}
+
 func runTask(task string, f runFlags) error {
-	if f.noAI || f.offline || f.wantsJSON() {
+	if err := f.validate(); err != nil {
+		return err
+	}
+	if f.deterministic() {
 		return runDeterministic(task, f)
 	}
+	return withHooks(task, f, func() error { return runAgent(task, f) })
+}
 
-	_ = customsteps.RunHook(context.Background(), "pre_"+task)
-	defer func() {
-		_ = customsteps.RunHook(context.Background(), "post_"+task)
-	}()
-
+// runAgent is a task done by the model.
+func runAgent(task string, f runFlags) error {
 	r, err := prepareRun(task, f)
 	if err != nil {
-		if f.prompt == "" && (task == agent.TaskQuick || task == agent.TaskUpdate || task == agent.TaskClean || task == agent.TaskAnalyze || task == agent.TaskHealth) {
+		// Without a key the routine tasks still have their built-in steps.
+		// Any other error (a provider that does not exist, a configuration
+		// that does not parse) is the user's to fix, not a reason to run
+		// something else.
+		if errors.Is(err, secrets.ErrNotFound) && f.prompt == "" && task != agent.TaskFull && hasDeterministic(task) {
 			// Say so: the run that follows is not the one that was asked
 			// for, and a scheduled job has no other way to show why.
 			if !f.quiet {
 				fmt.Fprintf(os.Stderr, "omega: %v\nomega: running without AI (the built-in steps only)\n", err)
 			}
-			return runDeterministic(task, f)
+			return detTask(task, f)
 		}
 		return err
 	}

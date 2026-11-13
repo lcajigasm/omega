@@ -30,9 +30,11 @@ on:
   push:
     tags: ["v*.*.*"]
 
+# The tests and the builds run the repository's code and fetch its
+# dependencies: they only read. The publish job is the one that writes, and
+# says so itself.
 permissions:
-  contents: write
-  actions: write
+  contents: read
 
 # Two releases at once would fight over the tag and over main.
 concurrency:
@@ -217,18 +219,19 @@ jobs:
 
   # The command as a container image on GitHub Packages:
   # ghcr.io/lcajigasm/omega, for linux/amd64 and linux/arm64. It waits for
-  # the same builds as the release, so a tag that cannot be released leaves
-  # no image behind. v1.2.3 is tagged 1.2.3, 1.2 and latest.
+  # the release itself, so a version that could not be released leaves no
+  # image behind (and no "latest" pointing at it). If the image fails, the
+  # release is out and "Re-run failed jobs" builds the image again.
+  # v1.2.3 is tagged 1.2.3, 1.2 and latest.
   image:
-    needs: [version, test, build, gui]
+    needs: [version, publish]
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
       contents: read
       packages: write
     steps:
-      # GITHUB_SHA, the commit being released: the tag may not exist yet,
-      # because publish creates it while this job runs.
+      # GITHUB_SHA, the commit being released, which publish has tagged.
       - uses: actions/checkout@v7
       # The arm64 half of the image installs its packages under emulation;
       # the Go build is cross-compiled and does not need it.
@@ -272,6 +275,11 @@ jobs:
     needs: [version, test, build, gui]
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # Creates the tag and the release, pushes the formula to main and
+    # starts the workflows that follow a release.
+    permissions:
+      contents: write
+      actions: write
     env:
       TAG: ${{ needs.version.outputs.tag }}
     steps:
@@ -293,10 +301,19 @@ jobs:
         # the commit that was tested and built, in the same call that
         # publishes the release. A tag created with the workflow's token
         # starts no second run. A pushed tag already exists and is used as is.
+        #
+        # This job can be run again after a later step failed (the push of
+        # the formula, the tap): the release is then there already, and its
+        # files are put again instead of failing on "already exists".
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "the release ${TAG} exists: uploading its files again"
+            gh release upload "$TAG" dist/* --clobber
+            exit 0
+          fi
           target=()
           if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
             target=(--target "$GITHUB_SHA")

@@ -60,8 +60,12 @@ var fullStages = []fullStage{
 func doctorBrief(w io.Writer) error {
 	var b strings.Builder
 	err := runDoctor(&b)
+	skipped := " (" + i18n.T("doctor.skipped") + ")"
 	for _, line := range strings.Split(strings.TrimRight(b.String(), "\n"), "\n") {
-		if t := strings.TrimSpace(line); line != t && (strings.HasPrefix(t, "✓ ") || strings.HasPrefix(t, "· ")) && !strings.Contains(t[4:], " ") {
+		// A step's line is indented and holds a mark and an id, with
+		// "(skipped)" after it when the user turned the step off.
+		t := strings.TrimSuffix(strings.TrimSpace(line), skipped)
+		if mark, id, ok := strings.Cut(t, " "); ok && strings.HasPrefix(line, "  ") && (mark == "✓" || mark == "·") && !strings.Contains(id, " ") {
 			continue
 		}
 		fmt.Fprintln(w, line)
@@ -276,10 +280,32 @@ func fullCmd() *cobra.Command {
 	c := &cobra.Command{
 		Use: "full", Aliases: []string{"all", "everything", "todo"}, Short: i18n.T("cmd.full"), Long: i18n.T("cmd.full_long"), Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := f.validate(); err != nil {
+				return err
+			}
+			// Each stage would print its own document, between the banners
+			// of the guided run: that is not something a program can read.
+			if f.wantsJSON() {
+				return fmt.Errorf("%s", i18n.T("full.no_json"))
+			}
 			here := stagesHere()
 			chosen, err := pickStages(here, only, skip)
 			if err != nil {
 				return err
+			}
+			if f.deterministic() {
+				// Without the model only some stages exist: the others are
+				// left out and named, instead of failing one by one.
+				var left []string
+				for _, s := range here {
+					if s.task != "" && !hasDeterministic(s.task) && chosen[s.id] {
+						chosen[s.id] = false
+						left = append(left, s.id)
+					}
+				}
+				if len(left) > 0 {
+					fmt.Fprintln(os.Stderr, i18n.T("full.no_ai_left", strings.Join(left, ", ")))
+				}
 			}
 			byID := map[string]fullStage{}
 			var stages []ui.GuideStage
@@ -298,15 +324,16 @@ func fullCmd() *cobra.Command {
 				return fmt.Errorf("%s", i18n.T("full.need_tty"))
 			}
 
-			if tty && !f.noTUI {
-				// The password is asked once, before the interface takes the
-				// terminal; every stage then uses it.
-				if f.sudo && goos != "windows" && !f.dryRun {
-					if sudoAsked, err = askSudo(); err != nil {
-						return err
-					}
-					defer func() { sudoAsked = "" }()
+			// The password is asked once, before the interface takes the
+			// terminal; every stage then uses it, with or without the
+			// full-screen interface.
+			if f.sudo && goos != "windows" && !f.dryRun && !f.deterministic() && stdinIsTerminal() {
+				if sudoAsked, err = askSudoOnce(); err != nil {
+					return err
 				}
+				defer func() { sudoAsked = "" }()
+			}
+			if tty && !f.noTUI {
 				info := ui.GuideInfo{Version: version}
 				for _, fl := range []struct {
 					on  bool

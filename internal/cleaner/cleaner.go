@@ -1,23 +1,26 @@
 // Package cleaner provides deep cleanup tools: multi-language build artifact
-// discovery and pruning (node_modules, target, .venv), duplicate file detection,
-// deep app uninstallation, IDE cache hygiene, and container/cloud cache clearing.
+// discovery and pruning (node_modules, target, .venv), duplicate file detection
+// and deep app uninstallation.
 package cleaner
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
+	"io/fs"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
-
-	"github.com/lcajigasm/omega/internal/runner"
 )
 
 var goos = runtime.GOOS
@@ -115,12 +118,32 @@ func tracked(path string) bool {
 	return err == nil && len(strings.TrimSpace(string(out))) > 0
 }
 
+// activityCap is how many entries of a project are read to date it. A
+// project with more is taken for active: the walk goes in name order, and
+// stopping early would miss src/ after a large assets/.
+var activityCap = 20000
+
+// gitOutput runs git in dir and returns what it printed. ok is false when
+// git is missing, dir is not in a repository or git took too long.
+func gitOutput(dir string, args ...string) (out []byte, ok bool) {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "git", append([]string{"-C", dir}, args...)...)
+	// Looking must not write: git status refreshes .git/index otherwise,
+	// and the next scan would take that for work on the project.
+	cmd.Env = append(os.Environ(), "GIT_OPTIONAL_LOCKS=0")
+	out, err := cmd.Output()
+	return out, err == nil
+}
+
 // lastActivity is when the project that owns an artifact folder was last
 // worked on. The folder's own date does not say: installing a dependency
 // months ago and editing sources today leaves node_modules old. So it is
-// the newest date among the folder, the project's files (three levels,
-// other artifact folders left out) and what git touches on every commit,
-// checkout or fetch.
+// the newest date among the folder, the project's files and folders (other
+// artifact folders left out), what git touches on every commit, checkout
+// or fetch, the last commit of the project and the files git reports as
+// changed. When that cannot be established the answer is now: the project
+// counts as active.
 func lastActivity(artifact string, info os.FileInfo) time.Time {
 	newest := info.ModTime()
 	see := func(t time.Time) {
@@ -134,26 +157,60 @@ func lastActivity(artifact string, info os.FileInfo) time.Time {
 			see(fi.ModTime())
 		}
 	}
+	if top, ok := gitOutput(project, "rev-parse", "--show-toplevel"); ok {
+		root := strings.TrimSpace(string(top))
+		if out, ok := gitOutput(project, "log", "-1", "--format=%ct", "--", "."); ok {
+			if sec, err := strconv.ParseInt(strings.TrimSpace(string(out)), 10, 64); err == nil {
+				see(time.Unix(sec, 0))
+			}
+		}
+		out, ok := gitOutput(project, "status", "--porcelain", "-z", "--", ".")
+		if !ok {
+			return time.Now()
+		}
+		// Each entry is "XY path"; a rename is followed by the old path
+		// alone. A changed file counts by its date, a deleted one by the
+		// date of the folder it was in.
+		for _, entry := range bytes.Split(out, []byte{0}) {
+			name := string(entry)
+			if len(name) > 3 && name[2] == ' ' {
+				name = name[3:]
+			}
+			if name == "" {
+				continue
+			}
+			path := filepath.Join(root, filepath.FromSlash(name))
+			if _, isArtifact := artifactRules[filepath.Base(path)]; isArtifact {
+				continue // the artifact folder itself, not ignored by git
+			}
+			if fi, err := os.Lstat(path); err == nil {
+				see(fi.ModTime())
+			} else if fi, err := os.Lstat(filepath.Dir(path)); err == nil {
+				see(fi.ModTime())
+			}
+		}
+	}
 	seen := 0
-	depth := strings.Count(project, string(filepath.Separator))
+	capped := false
 	_ = filepath.Walk(project, func(path string, fi os.FileInfo, err error) error {
 		if err != nil {
 			return nil
 		}
-		if seen++; seen > 5000 {
+		if seen++; seen > activityCap {
+			capped = true
 			return filepath.SkipAll
 		}
 		if fi.IsDir() && path != project {
 			if _, ok := artifactRules[fi.Name()]; ok || fi.Name() == ".git" {
 				return filepath.SkipDir
 			}
-			if strings.Count(path, string(filepath.Separator))-depth >= 3 {
-				return filepath.SkipDir
-			}
 		}
 		see(fi.ModTime())
 		return nil
 	})
+	if capped {
+		return time.Now()
+	}
 	return newest
 }
 
@@ -166,7 +223,13 @@ func FindArtifacts(roots []string, daysOld int) []ArtifactDir {
 	var results []ArtifactDir
 
 	for _, root := range roots {
-		_ = filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		// Walk does not follow a link, and ~/Dev is often one. What is
+		// found is still reported under the root as it was given.
+		real, err := filepath.EvalSymlinks(root)
+		if err != nil {
+			real = root
+		}
+		_ = filepath.Walk(real, func(path string, info os.FileInfo, err error) error {
 			if err != nil || !info.IsDir() {
 				return nil
 			}
@@ -175,7 +238,7 @@ func FindArtifacts(roots []string, daysOld int) []ArtifactDir {
 				return filepath.SkipDir
 			}
 			rule, ok := artifactRules[name]
-			if !ok || path == root {
+			if !ok || path == real {
 				return nil
 			}
 			if !rule.matches(path) {
@@ -187,8 +250,12 @@ func FindArtifacts(roots []string, daysOld int) []ArtifactDir {
 				return filepath.SkipDir
 			}
 			if active := lastActivity(path, info); active.Before(cutoff) {
+				shown := path
+				if rel, err := filepath.Rel(real, path); err == nil {
+					shown = filepath.Join(root, rel)
+				}
 				results = append(results, ArtifactDir{
-					Path:    path,
+					Path:    shown,
 					Type:    rule.kind + " (" + name + ")",
 					SizeMB:  dirSizeMB(path),
 					ModTime: active,
@@ -320,6 +387,9 @@ func FindLargeFiles(dir string, minSizeMB int64, limit int) ([]LargeFile, error)
 // ErrAppName is returned for a name too short to stand for one application.
 var ErrAppName = errors.New("the application name needs at least two characters")
 
+// ErrSystemApp is returned for an application that is part of macOS.
+var ErrSystemApp = errors.New("is part of macOS and cannot be uninstalled")
+
 // bundleID reads CFBundleIdentifier from an app bundle.
 var bundleID = func(bundle string) string {
 	out, err := exec.Command("/usr/bin/defaults", "read", filepath.Join(bundle, "Contents", "Info"), "CFBundleIdentifier").Output()
@@ -329,16 +399,32 @@ var bundleID = func(bundle string) string {
 	return strings.TrimSpace(string(out))
 }
 
-// appDirs are where applications are looked up on a Mac.
+// appDirs are where applications the user installed are looked up on a Mac.
 var appDirs = func(home string) []string {
 	return []string{"/Applications", filepath.Join(home, "Applications")}
 }
+
+// systemAppDirs are where the applications that come with macOS are.
+var systemAppDirs = []string{"/System/Applications", "/System/Applications/Utilities"}
+
+// appleID reports whether an identifier (or a file named after one) is
+// Apple's.
+func appleID(s string) bool { return strings.HasPrefix(strings.ToLower(s), "com.apple.") }
+
+// looksLikeID reports whether a name is written as a bundle identifier.
+func looksLikeID(s string) bool { return strings.Count(s, ".") >= 2 }
 
 // ownedBy reports whether an entry of a Library (or config) folder belongs
 // to the application. The whole name has to be the application's name or
 // its bundle identifier, optionally followed by a dot and more
 // ("com.foo.Bar.plist", "com.foo.Bar.helper"). Part of a name is not
 // enough: "Code" is not "Xcode", and "Arc" is not "Search".
+//
+// id is read from the installed bundle. Without one (the app is already
+// gone) only what the user wrote counts, a folder name or a whole
+// identifier: taking any identifier that ends in the name gave Mail the
+// data of com.apple.mail and Desktop that of com.figma.Desktop. Apple's
+// identifiers are matched only through an installed bundle.
 func ownedBy(entry, appName, id string) bool {
 	lower := strings.ToLower(entry)
 	stem := lower
@@ -346,16 +432,19 @@ func ownedBy(entry, appName, id string) bool {
 		stem = strings.TrimSuffix(stem, ext)
 	}
 	name := strings.ToLower(appName)
-	if stem == name {
-		return true
+	if id == "" && looksLikeID(name) {
+		id = name
+		if appleID(id) {
+			return false
+		}
 	}
 	if id != "" {
 		id = strings.ToLower(id)
-		return stem == id || strings.HasPrefix(lower, id+".")
+		if stem == id || strings.HasPrefix(lower, id+".") {
+			return true
+		}
 	}
-	// No bundle to read the identifier from (the app is already gone): an
-	// identifier that ends in the name, as in com.apple.dt.Xcode.
-	return strings.Count(stem, ".") >= 2 && strings.HasSuffix(stem, "."+name)
+	return stem == name && !appleID(stem)
 }
 
 // FindAppArtifacts locates one application and what it left in the user's
@@ -375,6 +464,14 @@ func FindAppArtifacts(appName string) (*AppArtifacts, error) {
 	var searchDirs []string
 	switch goos {
 	case "darwin":
+		for _, dir := range systemAppDirs {
+			entries, _ := os.ReadDir(dir)
+			for _, e := range entries {
+				if strings.EqualFold(e.Name(), appName+".app") {
+					return nil, fmt.Errorf("%s %w", strings.TrimSuffix(e.Name(), ".app"), ErrSystemApp)
+				}
+			}
+		}
 		for _, dir := range appDirs(home) {
 			entries, _ := os.ReadDir(dir)
 			for _, e := range entries {
@@ -394,6 +491,10 @@ func FindAppArtifacts(appName string) (*AppArtifacts, error) {
 		}
 		if app.AppBundle != "" {
 			id = bundleID(app.AppBundle)
+			// Safari is the one system app kept in /Applications.
+			if strings.EqualFold(id, "com.apple.Safari") {
+				return nil, fmt.Errorf("%s %w", appName, ErrSystemApp)
+			}
 			app.TotalSizeMB += float64(dirSizeMB(app.AppBundle))
 		}
 		for _, d := range []string{"Application Support", "Caches", "Preferences", "Saved Application State", "Logs", "Containers", "HTTPStorages", "WebKit"} {
@@ -426,112 +527,116 @@ func FindAppArtifacts(appName string) (*AppArtifacts, error) {
 	return app, nil
 }
 
+// trashDir is where removed things go, or "" where there is no such place.
+func trashDir() string {
+	home, _ := os.UserHomeDir()
+	switch goos {
+	case "darwin":
+		return filepath.Join(home, ".Trash")
+	case "windows":
+		return ""
+	}
+	// The trash of the desktop, where its specification puts it.
+	data := os.Getenv("XDG_DATA_HOME")
+	if !filepath.IsAbs(data) {
+		data = filepath.Join(home, ".local", "share")
+	}
+	return filepath.Join(data, "Trash", "files")
+}
+
 // Remove takes a file or a folder away without deleting it where the system
 // has a place for that: the Trash on a Mac, the trash folder of the desktop
 // on Linux. It returns where it went, or "" when it was deleted (Windows,
 // where the Recycle Bin cannot be reached from here).
 func Remove(path string) (string, error) {
-	home, _ := os.UserHomeDir()
-	var dir string
-	switch goos {
-	case "darwin":
-		dir = filepath.Join(home, ".Trash")
-	case "windows":
+	dir := trashDir()
+	if dir == "" {
 		return "", os.RemoveAll(path)
-	default:
-		dir = filepath.Join(home, ".local", "share", "Trash", "files")
 	}
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return "", err
 	}
-	dest := filepath.Join(dir, filepath.Base(path))
-	if _, err := os.Lstat(dest); err == nil {
-		ext := filepath.Ext(dest)
-		dest = strings.TrimSuffix(dest, ext) + " " + time.Now().Format("2006-01-02 15.04.05.000") + ext
-	}
 	// Never copy and delete: when the Trash is on another volume the move
 	// fails and the files stay where they are.
-	if err := os.Rename(path, dest); err != nil {
+	dest, err := moveUnique(path, dir)
+	if err != nil {
 		return "", err
 	}
 	if goos != "darwin" {
 		info := filepath.Join(filepath.Dir(dir), "info")
 		if os.MkdirAll(info, 0o700) == nil {
-			body := "[Trash Info]\nPath=" + path + "\nDeletionDate=" + time.Now().Format("2006-01-02T15:04:05") + "\n"
+			abs, err := filepath.Abs(path)
+			if err != nil {
+				abs = path
+			}
+			// The specification wants the path escaped as in a URL.
+			body := "[Trash Info]\nPath=" + (&url.URL{Path: filepath.ToSlash(abs)}).EscapedPath() +
+				"\nDeletionDate=" + time.Now().Format("2006-01-02T15:04:05") + "\n"
 			_ = os.WriteFile(filepath.Join(info, filepath.Base(dest)+".trashinfo"), []byte(body), 0o600)
 		}
 	}
 	return dest, nil
 }
 
-// CleanIDECaches cleans JetBrains and VS Code workspace caches.
-func CleanIDECaches(ctx context.Context) (int64, error) {
-	home, _ := os.UserHomeDir()
-	var paths []string
-
-	if goos == "darwin" {
-		paths = append(paths,
-			filepath.Join(home, "Library/Application Support/Code/User/workspaceStorage"),
-			filepath.Join(home, "Library/Application Support/Cursor/User/workspaceStorage"),
-			filepath.Join(home, "Library/Caches/JetBrains"),
-			filepath.Join(home, "Library/Developer/Xcode/Archives"),
-		)
-	} else if goos == "windows" {
-		paths = append(paths,
-			filepath.Join(home, "AppData/Roaming/Code/User/workspaceStorage"),
-			filepath.Join(home, "AppData/Local/JetBrains"),
-		)
-	} else {
-		paths = append(paths,
-			filepath.Join(home, ".config/Code/User/workspaceStorage"),
-			filepath.Join(home, ".cache/JetBrains"),
-		)
+// moveUnique moves path into dir under a name nothing there has: its own,
+// or with " 2", " 3"… added. It never replaces what is in dir. os.Rename
+// alone would: it puts a file over a file of the same name without a word.
+func moveUnique(path, dir string) (string, error) {
+	fi, err := os.Lstat(path)
+	if err != nil {
+		return "", err
 	}
-
-	var totalFreed int64
-	for _, p := range paths {
-		if fi, err := os.Stat(p); err == nil && fi.IsDir() {
-			sz := dirSizeMB(p)
-			if sz > 0 {
-				_ = os.RemoveAll(p)
-				_ = os.MkdirAll(p, 0755)
-				totalFreed += sz
-			}
+	base := filepath.Base(path)
+	stem, ext := base, ""
+	// The number goes before the extension of a file and of an app bundle;
+	// other folders have dots in their names that are not extensions.
+	if !fi.IsDir() || strings.HasSuffix(base, ".app") {
+		ext = filepath.Ext(base)
+		stem = strings.TrimSuffix(base, ext)
+		if stem == "" {
+			stem, ext = base, ""
 		}
 	}
-
-	return totalFreed, nil
-}
-
-// CleanContainerAndCloudCaches cleans container logs, K8s caches, and cloud CLI caches.
-func CleanContainerAndCloudCaches(ctx context.Context) (int64, error) {
-	home, _ := os.UserHomeDir()
-	var totalFreed int64
-
-	// K8s & Cloud CLI caches
-	targets := []string{
-		filepath.Join(home, ".kube/cache"),
-		filepath.Join(home, ".kube/http-cache"),
-		filepath.Join(home, ".aws/cli/cache"),
-		filepath.Join(home, ".azure/cache"),
-	}
-
-	for _, p := range targets {
-		if fi, err := os.Stat(p); err == nil && fi.IsDir() {
-			sz := dirSizeMB(p)
-			if sz > 0 {
-				_ = os.RemoveAll(p)
-				totalFreed += sz
-			}
+	for n := 1; n < 100000; n++ {
+		dest := filepath.Join(dir, base)
+		if n > 1 {
+			dest = filepath.Join(dir, fmt.Sprintf("%s %d%s", stem, n, ext))
 		}
+		if fi.IsDir() {
+			// A folder cannot be moved over a file or a folder with
+			// something in it: the move fails and the next name is tried.
+			if _, err := os.Lstat(dest); err == nil {
+				continue
+			}
+			err := os.Rename(path, dest)
+			if err == nil {
+				return dest, nil
+			}
+			if _, statErr := os.Lstat(path); statErr != nil {
+				return "", err
+			}
+			if _, statErr := os.Lstat(dest); statErr == nil {
+				continue // taken in the meantime
+			}
+			return "", err
+		}
+		// A file: hold the name with an empty file made by this call, which
+		// fails when the name is taken, and move over that.
+		hold, err := os.OpenFile(dest, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+		if errors.Is(err, fs.ErrExist) {
+			continue
+		}
+		if err != nil {
+			return "", err
+		}
+		hold.Close()
+		if err := os.Rename(path, dest); err != nil {
+			os.Remove(dest)
+			return "", err
+		}
+		return dest, nil
 	}
-
-	// Podman prune if available
-	if runner.Has("podman") {
-		_ = runner.Run(ctx, "podman system prune -a -f", 30*time.Second, nil)
-	}
-
-	return totalFreed, nil
+	return "", fmt.Errorf("no free name for %s in %s", base, dir)
 }
 
 func dirSizeMB(path string) int64 {

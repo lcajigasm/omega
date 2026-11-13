@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
+	"regexp"
 	"sort"
 	"strings"
 )
@@ -70,6 +72,93 @@ type Chat interface {
 	// SetModel switches the model used for the following turns, keeping the
 	// conversation.
 	SetModel(model string)
+}
+
+// Compactor is a Chat that can make its history smaller. Every chat of this
+// package is one; it is apart from Chat so that a stand-in (a demo, a test)
+// need not implement it.
+type Compactor interface {
+	// Compact replaces the output of the tool calls older than the last
+	// few turns with a short note. The calls and their results stay
+	// paired, so the provider still accepts the conversation. It returns
+	// how many results it shortened.
+	Compact() int
+}
+
+// ModelSwitcher is a Chat that can refuse a model: SetModel has no way to
+// say that the conversation cannot go on with it.
+type ModelSwitcher interface {
+	SwitchModel(model string) error
+}
+
+// SwitchModel changes the model of a chat and reports whether it could.
+func SwitchModel(c Chat, model string) error {
+	if s, ok := c.(ModelSwitcher); ok {
+		return s.SwitchModel(model)
+	}
+	c.SetModel(model)
+	return nil
+}
+
+const (
+	// Omitted stands in for a tool result dropped by Compact.
+	Omitted = "[output omitted; run again if needed]"
+	// keepTurns is how many of the latest turns with tool results Compact
+	// leaves whole.
+	keepTurns = 3
+	// A provider refuses an empty text; these go in its place.
+	emptyReply  = "(no reply)"
+	emptyResult = "(empty)"
+)
+
+// resultText is the output of a tool as it is sent: never empty.
+func resultText(content string) string {
+	if strings.TrimSpace(content) == "" {
+		return emptyResult
+	}
+	return content
+}
+
+var contextLength = regexp.MustCompile(`(?i)context[ _-]?(length|window|limit|size)|prompt is too long|input is too long|too many (input )?tokens|maximum context|exceeds? the (model's )?maximum|reduce the length`)
+
+// IsContextLength reports an error a provider gives when the conversation
+// no longer fits in the model's context window.
+func IsContextLength(err error) bool {
+	return err != nil && contextLength.MatchString(err.Error())
+}
+
+// LiveContext, when set, answers with the context window of a model, in
+// tokens, from the live catalogue.
+var LiveContext func(provider, model string) (int64, bool)
+
+// defaultCompactAt is where the history is compacted when the window of the
+// model is not known: under 70% of 128k tokens, the smallest window among
+// the hosted models omega suggests.
+const defaultCompactAt = 90_000
+
+// CompactAt is the number of input tokens in one request from which the
+// history should be compacted: 70% of the model's context window.
+func CompactAt(provider, model string) int64 {
+	if LiveContext != nil {
+		if w, ok := LiveContext(provider, model); ok && w > 0 {
+			return w * 7 / 10
+		}
+	}
+	id := model
+	if i := strings.LastIndex(id, "/"); i >= 0 {
+		id = id[i+1:]
+	}
+	if strings.HasPrefix(id, "claude-") {
+		return 200_000 * 7 / 10
+	}
+	return defaultCompactAt
+}
+
+// timedOut reports a request that used up its whole time limit. Trying
+// again would wait as long again.
+func timedOut(err error) bool {
+	var ne net.Error
+	return errors.Is(err, context.DeadlineExceeded) || (errors.As(err, &ne) && ne.Timeout())
 }
 
 // Provider creates chats and lists models.

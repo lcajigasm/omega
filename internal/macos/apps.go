@@ -169,22 +169,36 @@ func (a AppInfo) Source() string {
 	return ""
 }
 
-// trashPath is a free name in the Trash for something being removed.
+// trashPath is a free name in the Trash for something being removed: its
+// own, or with the time added, and a number after it when that is taken too.
 func trashPath(name string, now time.Time) string {
+	ext := filepath.Ext(name)
+	stem := strings.TrimSuffix(name, ext)
 	dest := filepath.Join(Home, ".Trash", name)
-	if pathExists(dest) {
-		ext := filepath.Ext(name)
-		dest = filepath.Join(Home, ".Trash", strings.TrimSuffix(name, ext)+" "+now.Format("15.04.05")+ext)
+	for n := 1; pathExists(dest) && n < 1000; n++ {
+		suffix := now.Format("15.04.05")
+		if n > 1 {
+			suffix += "-" + strconv.Itoa(n)
+		}
+		dest = filepath.Join(Home, ".Trash", stem+" "+suffix+ext)
 	}
 	return dest
 }
 
+// moveCommand moves from to a place that must be free, and fails when it
+// did not move. mv alone cannot be trusted with either: onto a folder it
+// moves inside it, and with -n onto a file it does nothing and ends with
+// status 0, which reads as "moved".
+func moveCommand(from, to string) string {
+	return fmt.Sprintf("{ test ! -e %s && mv -n %s %s && test ! -e %s; }", shellQuote(to), shellQuote(from), shellQuote(to), shellQuote(from))
+}
+
 // restoreCommand puts something back from the Trash. It fails when the
 // place is taken again (the app was reinstalled, or it made its folder
-// anew): mv would put the old folder inside the new one, or with -n do
-// nothing, and both end with status 0, which reads as "restored".
+// anew) and when what was in the Trash is gone, and it passes over what is
+// back in its place already: an undo that stopped halfway can be run again.
 func restoreCommand(from, to string) string {
-	return fmt.Sprintf("test ! -e %s && mv -n %s %s", shellQuote(to), shellQuote(from), shellQuote(to))
+	return fmt.Sprintf("{ { test ! -e %s && test -e %s; } || %s; }", shellQuote(from), shellQuote(to), moveCommand(from, to))
 }
 
 // UninstallChange removes the app: through Homebrew when a cask installed
@@ -197,7 +211,7 @@ func (a AppInfo) UninstallChange(now time.Time) Change {
 		return c
 	}
 	dest := trashPath(filepath.Base(a.Path), now)
-	c.Command = fmt.Sprintf("mv -n %s %s", shellQuote(a.Path), shellQuote(dest))
+	c.Command = moveCommand(a.Path, dest)
 	c.Undo = restoreCommand(dest, a.Path)
 	return c
 }
@@ -304,15 +318,19 @@ func Leftovers(p *UserPolicy, installed map[string]App) []Leftover {
 
 // TrashChange moves the leftovers to one folder in the Trash. Nothing is
 // deleted until the user empties it, and the undo puts every file back.
+// When the command stops halfway the undo still applies: it passes over
+// what never left its place (see Change.KeepsUndoOnFailure).
 func (l Leftover) TrashChange(now time.Time) Change {
 	dest := trashPath(l.Bundle+" (omega)", now)
-	cmd := []string{"mkdir -p " + shellQuote(dest)}
+	// mkdir without -p: the folder must be new, or two changes planned at
+	// once would share it.
+	cmd := []string{"mkdir " + shellQuote(dest)}
 	var undo []string
 	for _, p := range l.Paths {
 		// Keep the parent folder in the name: several folders hold an entry
 		// with the same name.
 		to := filepath.Join(dest, filepath.Base(filepath.Dir(p))+" — "+filepath.Base(p))
-		cmd = append(cmd, fmt.Sprintf("mv -n %s %s", shellQuote(p), shellQuote(to)))
+		cmd = append(cmd, moveCommand(p, to))
 		undo = append(undo, restoreCommand(to, p))
 	}
 	return Change{ID: "leftover-trash:" + l.Bundle, Section: "apps", Title: i18n.T("mac.act.leftover_trash", l.Bundle, HumanSize(l.Size)),

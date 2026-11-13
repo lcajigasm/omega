@@ -68,11 +68,20 @@ func diskCmd() *cobra.Command {
 					home, _ := os.UserHomeDir()
 					dir = home
 				}
+				// A folder that is not there and a size that is not a number
+				// are mistakes to report, not reasons to scan something else.
+				if fi, err := os.Stat(dir); err != nil {
+					return err
+				} else if !fi.IsDir() {
+					return fmt.Errorf("%s is not a directory", dir)
+				}
 				minMB := int64(100)
 				if len(args) == 2 {
-					if v, err := strconv.ParseInt(args[1], 10, 64); err == nil && v > 0 {
-						minMB = v
+					v, err := strconv.ParseInt(args[1], 10, 64)
+					if err != nil || v <= 0 {
+						return fmt.Errorf("invalid size in MB: %s", args[1])
 					}
+					minMB = v
 				}
 
 				fmt.Fprintf(cmd.OutOrStdout(), "\n🔍 Finding files larger than %d MB in '%s'...\n\n", minMB, dir)
@@ -98,9 +107,11 @@ func diskCmd() *cobra.Command {
 			RunE: func(cmd *cobra.Command, args []string) error {
 				days := 30
 				if len(args) == 1 {
-					if d, err := strconv.Atoi(args[0]); err == nil && d > 0 {
-						days = d
+					d, err := strconv.Atoi(args[0])
+					if err != nil || d <= 0 {
+						return fmt.Errorf("invalid number of days: %s", args[0])
 					}
+					days = d
 				}
 
 				roots := gitops.DefaultRoots()
@@ -124,11 +135,18 @@ func diskCmd() *cobra.Command {
 				if cmd.OutOrStdout() != os.Stdout {
 					return nil
 				}
-				ans := ask("\nDelete these stale build artifacts? [y/N]", "n")
-				if ans == "y" || ans == "Y" {
+				if askYesNo("\nDelete these stale build artifacts?") {
+					failed := 0
 					for _, a := range artifacts {
-						_ = cleaner.PruneArtifact(a.Path)
+						if err := cleaner.PruneArtifact(a.Path); err != nil {
+							failed++
+							fmt.Fprintf(cmd.OutOrStdout(), "  ⚠ Could not remove %s: %v\n", a.Path, err)
+							continue
+						}
 						fmt.Fprintf(cmd.OutOrStdout(), "  ✓ Removed %s\n", a.Path)
+					}
+					if failed > 0 {
+						return fmt.Errorf("%d of %d artifact folders could not be removed", failed, len(artifacts))
 					}
 					fmt.Fprintln(cmd.OutOrStdout(), "\n✓ All selected artifacts deleted.")
 				}

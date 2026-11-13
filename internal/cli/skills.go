@@ -238,6 +238,9 @@ func skillInstall(w io.Writer, source string, opts skills.InstallOptions) error 
 		for _, p := range d.Paths {
 			fmt.Fprintf(w, "    %s\n", skills.Tilde(p))
 		}
+		for _, p := range d.Skipped {
+			fmt.Fprintf(w, "    ⚠ %s left alone: a link to a folder outside the skills locations\n", skills.Tilde(p))
+		}
 	}
 	if err != nil {
 		return err

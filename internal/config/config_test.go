@@ -3,6 +3,8 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -87,5 +89,60 @@ func TestLoadFillsEmptyFields(t *testing.T) {
 	}
 	if err := cfg.Validate(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// A config.toml that is a symbolic link stays one: the file it points to is
+// the one that changes.
+func TestSaveKeepsSymlink(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symbolic links need a privilege on Windows")
+	}
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+	dotfiles := t.TempDir()
+	target := filepath.Join(dotfiles, "omega.toml")
+	if err := os.WriteFile(target, []byte("language = \"en\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(Dir(), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, Path()); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Language = "es"
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+	if fi, err := os.Lstat(Path()); err != nil || fi.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("config.toml is no longer a symbolic link (%v)", err)
+	}
+	b, _ := os.ReadFile(target)
+	if !strings.Contains(string(b), `language = "es"`) {
+		t.Errorf("the file the link points to was not written: %s", b)
+	}
+	if left, _ := filepath.Glob(filepath.Join(dotfiles, ".config-*")); len(left) != 0 {
+		t.Errorf("temporary files left behind: %v", left)
+	}
+}
+
+// The Trash is where omega puts what it removes. A scheduled run, which
+// nobody watches, must not empty it.
+func TestScheduledRunKeepsTheTrash(t *testing.T) {
+	c := &Config{}
+	if c.Skipped("trash") {
+		t.Fatal("trash is skipped outside a scheduled run")
+	}
+	t.Setenv("OMEGA_SCHEDULED", "1")
+	if !c.Skipped("trash") {
+		t.Error("a scheduled run would empty the Trash")
+	}
+	if c.Skipped("brew") {
+		t.Error("a scheduled run skips other steps")
 	}
 }

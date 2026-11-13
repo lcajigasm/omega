@@ -130,7 +130,7 @@ topgrade and Mole are excellent until something breaks. Then the work is yours.
 | **Everything** | `omega` | Checks the state, updates, cleans up and tells you what changed |
 | **A guided run** | `omega full` | Every stage that applies to this machine, on one screen, with a plan you can edit |
 | **Hands-off** | `omega unattended` | The same stages with no questions: the sudo password once, then every approval answered yes |
-| **Quick clean** | `omega quick` | One-click safe cleanup (trash, caches), updates check, disk & battery health report |
+| **Quick clean** | `omega quick` | One-click safe cleanup (trash, caches), pending updates, free disk space and battery |
 | **Update** | `omega update` | Homebrew, the App Store, apt, dnf, pacman, winget, Scoop, npm, pnpm, pipx, uv, rustup, cargo and more |
 | **Clean** | `omega clean` | Measures first, then frees what is worth it: package caches, Xcode, Docker, the Trash |
 | **Report** | `omega analyze` | Disk, outdated software and config problems, then a card with recommendations |
@@ -145,9 +145,9 @@ topgrade and Mole are excellent until something breaks. Then the work is yours.
 | **Security audit** | `omega audit` | Audits SSH keys and permissions (`~/.ssh`), and scans shell history for leaked secrets |
 | **Privacy** | `omega privacy` | Reviews OS telemetry and safely cleans browser caches without losing sessions |
 | **Uninstall apps** | `omega uninstall` | Finds an app by its exact name with its Application Support, Preferences and Cache files, and moves them to the Trash |
-| **Automate** | `omega schedule` | Native background scheduling (`launchd`, `systemd --user`, Windows Task Scheduler) with desktop alerts |
+| **Automate** | `omega schedule` | Native background scheduling (`launchd`, `systemd --user`, Windows Task Scheduler) |
 | **Snapshot safety** | `omega rollback` | Creates filesystem safety snapshots (APFS, Btrfs, Windows Restore Points) and restores them on demand |
-| **Blueprint & setup** | `omega export` | Exports machine state to `omega-blueprint.json` and provisions new environments with `omega bootstrap` |
+| **Blueprint & setup** | `omega export` | Exports the installed packages and omega's settings to `omega-blueprint.json`; `omega bootstrap` shows what a blueprint would install and installs it after you say yes |
 | **Docker** | `omega docker` | Shows what Docker uses and removes only what you select. It always asks |
 | **Your Mac** | `omega mac` | Login and background items, the menu bar, the Dock, shortcut conflicts, stale privacy permissions |
 | **Interactive shell** | `omega shell` | Interactive REPL maintenance console |
@@ -280,7 +280,7 @@ the same tasks, safety policy, configuration and keys as the command.
 
 ```bash
 brew install --cask lcajigasm/tap/omega-app             # macOS 13 or later
-xattr -dr com.apple.quarantine /Applications/Omega.app   # once: the app is not notarized yet
+xattr -dr com.apple.quarantine /Applications/Omega.app   # after every install or upgrade: the app is not notarized yet
 ```
 
 | System | Download | Then |
@@ -304,9 +304,9 @@ and API keys: have both, or only one. More in
 
 ## Also
 
-- **Deterministic offline mode**: run `omega --no-ai` or `omega --offline` for completely deterministic maintenance without calling external AI models or needing API keys.
-- **CI/CD & Scripting ready**: structured JSON output with `--json` (or `--format json`), quiet mode `-q`, and assertion flags `--fail-on-warning`, `--fail-on-outdated`, and `--fail-on-critical` with semantic exit codes.
-- **Custom steps & lifecycle hooks**: define custom steps in `~/.config/omega/steps.d/*.toml` and configure lifecycle hooks (`pre_full`, `post_full`, `on_error`).
+- **Deterministic offline mode**: run `omega --no-ai` or `omega --offline` for completely deterministic maintenance without calling external AI models or needing API keys. It covers `full`, `quick`, `update`, `clean`, `analyze` and `health`; a request in your own words needs the AI.
+- **CI/CD & Scripting ready**: structured JSON output with `--json` (or `--format json`), also for `omega steps --json` and `omega doctor --json`; with `--no-ai`, quiet mode `-q` and assertion flags `--fail-on-warning`, `--fail-on-outdated`, and `--fail-on-critical` with semantic exit codes.
+- **Custom steps & lifecycle hooks**: define custom steps in `~/.config/omega/steps.d/*.toml` and configure lifecycle hooks (`pre_<task>`, `post_<task>`, `on_error`). A file omega cannot use is reported at startup and by `omega doctor`.
 - **Autocompletions & man pages**: install completions automatically with `omega completion install` and generate troff man pages with `omega man`.
 - **Speaks five languages**: English, Spanish, French, German and Portuguese,
   in the command, in the app and on the [website](https://lcajigasm.github.io/omega/).

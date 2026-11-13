@@ -156,7 +156,7 @@ func (c *openAIChat) Send(ctx context.Context, text string, results []ToolResult
 		if r.IsError {
 			content = "ERROR: " + content
 		}
-		c.messages = append(c.messages, map[string]any{"role": "tool", "tool_call_id": r.CallID, "content": content})
+		c.messages = append(c.messages, map[string]any{"role": "tool", "tool_call_id": r.CallID, "content": resultText(content)})
 		added++
 	}
 	if text != "" {
@@ -212,6 +212,14 @@ func (c *openAIChat) Send(ctx context.Context, text string, results []ToolResult
 		hist["content"] = text
 	case len(msg.ToolCalls) > 0:
 		hist["tool_calls"] = msg.ToolCalls
+	case msg.Content == nil || strings.TrimSpace(*msg.Content) == "":
+		// Nothing said and nothing called: an assistant message without
+		// content is refused when it comes back in the history.
+		text := emptyReply
+		if msg.Refusal != nil && strings.TrimSpace(*msg.Refusal) != "" {
+			text = *msg.Refusal
+		}
+		hist["content"] = text
 	}
 	c.messages = append(c.messages, hist)
 
@@ -239,6 +247,34 @@ func (c *openAIChat) Send(ctx context.Context, text string, results []ToolResult
 	return reply, nil
 }
 
+// Compact shortens the tool results of all but the last few turns.
+func (c *openAIChat) Compact() int {
+	// The turns are counted back from the end by the assistant messages
+	// that called tools; what comes before the last keepTurns of them is old.
+	old, turns := 0, 0
+	for i := len(c.messages) - 1; i >= 0 && turns < keepTurns; i-- {
+		if m, ok := c.messages[i].(map[string]any); ok && m["role"] == "assistant" && m["tool_calls"] != nil {
+			turns++
+			old = i
+		}
+	}
+	if turns < keepTurns {
+		return 0
+	}
+	n := 0
+	for _, raw := range c.messages[:old] {
+		m, ok := raw.(map[string]any)
+		if !ok || m["role"] != "tool" {
+			continue
+		}
+		if text, _ := m["content"].(string); len(text) > len(Omitted) {
+			m["content"] = Omitted
+			n++
+		}
+	}
+	return n
+}
+
 func (c *openAIChat) post(ctx context.Context, body map[string]any) ([]byte, error) {
 	payload, err := json.Marshal(body)
 	if err != nil {
@@ -262,6 +298,11 @@ func (c *openAIChat) post(ctx context.Context, body map[string]any) ([]byte, err
 		if err != nil {
 			if ctx.Err() != nil {
 				return nil, ctx.Err()
+			}
+			// The client waited its whole time limit (ten minutes): four
+			// attempts would hold the run for forty.
+			if timedOut(err) {
+				return nil, err
 			}
 			lastErr = err
 			continue
