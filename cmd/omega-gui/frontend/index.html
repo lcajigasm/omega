@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <!-- The model's text is shown as Markdown, and what it writes can come from
-     a page or a command's output. An image in it would be fetched as soon
-     as it is drawn, with whatever its address carries: only the app's own
-     images load. -->
-<meta http-equiv="Content-Security-Policy" content="img-src 'self' data:; media-src 'self'; object-src 'none'; frame-src 'none'">
+     a page or a command's output. Nothing in it may be fetched or run: the
+     window loads its own scripts and styles and no image by address (the
+     icons are drawn in the page), sends no form and embeds nothing. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src data:; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>omega</title>
 <link rel="stylesheet" href="app.css">
@@ -82,10 +82,10 @@
         <button type="button" id="stop" class="danger" data-t="gui.stop"></button>
         <button type="button" id="new" class="primary" data-t="gui.new" hidden></button>
       </header>
-      <div id="log" class="log"></div>
+      <div id="log" class="log" role="log" aria-live="polite"></div>
       <div id="status" class="status">
         <span id="spinner" class="spinner" hidden></span>
-        <span id="state"></span>
+        <span id="state" role="status"></span>
         <span class="grow"></span>
         <span id="stats" class="muted"></span>
       </div>
@@ -279,7 +279,16 @@
     </div>
   </section>
 </main>
-<div id="toast" class="toast" hidden></div>
+<div id="toast" class="toast" role="status" hidden></div>
+<div id="quit" class="overlay" role="alertdialog" aria-modal="true" aria-labelledby="quit-text" hidden>
+  <div class="dialog">
+    <p id="quit-text" data-t="gui.quit_ask"></p>
+    <div class="buttons">
+      <button type="button" id="quit-no" class="primary" data-t="gui.quit_no"></button>
+      <button type="button" id="quit-yes" class="danger" data-t="gui.quit_yes"></button>
+    </div>
+  </div>
+</div>
 <script type="module" src="app.js"></script>
 </body>
 </html>

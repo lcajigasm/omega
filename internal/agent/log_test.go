@@ -88,3 +88,29 @@ func TestOpenLogRotatesAndReadRunLog(t *testing.T) {
 		t.Fatal("missing index was read")
 	}
 }
+
+// Two runs started in the same second each get their own transcript: the
+// second used to truncate the first one's file.
+func TestOpenLogNeverReusesAFile(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	var paths []string
+	for i := 0; i < 3; i++ {
+		a := &Agent{opts: Options{Model: fmt.Sprintf("model-%d", i)}}
+		a.openLog("anthropic")
+		if a.log == nil {
+			t.Fatal("no transcript")
+		}
+		paths = append(paths, a.LogPath())
+		a.closeLog()
+	}
+	seen := map[string]bool{}
+	for i, p := range paths {
+		if seen[p] {
+			t.Fatalf("two runs wrote to %s", p)
+		}
+		seen[p] = true
+		if b, _ := os.ReadFile(p); !strings.Contains(string(b), fmt.Sprintf("model-%d", i)) {
+			t.Errorf("%s was overwritten: %q", p, b)
+		}
+	}
+}

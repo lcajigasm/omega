@@ -98,9 +98,12 @@ func allToolSpecs() []llm.ToolSpec {
 				"path": str("path to analyse, e.g. ~/Library/Caches on macOS or ~/.cache on Linux"),
 				"top":  map[string]any{"type": "integer", "description": "number of entries (default 15)"},
 			}, Required: []string{"path"}},
-		{Name: "read_file", Description: "Read a text file (configs, logs). 64 KB maximum. Refuses private keys and credential files; their contents would be sent to the model.",
+		{Name: "read_file", Description: "Read a text file (configs, logs). 64 KB maximum. Refuses private keys, credential files and shell histories; " +
+			"their contents would be sent to the model. The value of a credential set in the file (export API_KEY=…) is shown as [redacted].",
 			Properties: map[string]any{"path": str("file path; ~ is supported")}, Required: []string{"path"}},
-		{Name: "write_file", Description: "Write a whole configuration file. Always needs approval and keeps an .omega-bak copy of the original.",
+		{Name: "write_file", Description: "Write a whole configuration file and keep an .omega-bak copy of the original. The user is asked first, " +
+			"unless they approved every change of this run; a file that decides what runs at login or as root (shell startup files, ~/.ssh, " +
+			"launch agents, systemd units, cron, /etc, omega's own configuration) is asked about every time.",
 			Properties: map[string]any{
 				"path":    str("file path; ~ is supported"),
 				"content": str("complete new content"),
@@ -392,10 +395,12 @@ func toolReadFile(_ context.Context, a *Agent, in map[string]any) (string, error
 		return "", explained(err)
 	}
 	a.emit(Event{Kind: EvToolEnd, Tool: "read_file", Command: path})
+	// A startup file is readable, the keys exported in it are not.
+	text := runner.Scrub(string(data))
 	if truncated {
-		return string(data) + "\n[… file truncated …]", nil
+		return text + "\n[… file truncated …]", nil
 	}
-	return string(data), nil
+	return text, nil
 }
 
 // maxReadFile is how much of a file read_file hands to the model.
@@ -446,6 +451,44 @@ func secretPath(path string) bool {
 	return false
 }
 
+// loginFiles are the files a shell reads when it starts.
+var loginFiles = map[string]bool{".zshrc": true, ".zshenv": true, ".zprofile": true, ".zlogin": true, ".zlogout": true,
+	".bashrc": true, ".bash_profile": true, ".bash_login": true, ".bash_logout": true, ".profile": true,
+	"config.fish": true, "profile.ps1": true, "microsoft.powershell_profile.ps1": true}
+
+// sensitiveWrite reports a file whose content decides what runs later
+// without anyone asking: at login, on a schedule, as root, or in omega
+// itself. Writing one is asked about every time, also under --yes. The
+// path is checked as typed, as an absolute path and as what a symbolic
+// link points at.
+func sensitiveWrite(path string) bool {
+	forms := []string{path}
+	if abs, err := filepath.Abs(path); err == nil {
+		forms = append(forms, abs)
+		if real, err := filepath.EvalSymlinks(abs); err == nil {
+			forms = append(forms, real)
+		} else if dir, err := filepath.EvalSymlinks(filepath.Dir(abs)); err == nil {
+			forms = append(forms, filepath.Join(dir, filepath.Base(abs))) // a new file in a linked folder
+		}
+	}
+	own := strings.ToLower(filepath.ToSlash(config.Dir()))
+	for _, f := range forms {
+		p := strings.ToLower(filepath.ToSlash(f))
+		if loginFiles[p[strings.LastIndex(p, "/")+1:]] {
+			return true
+		}
+		for _, dir := range []string{"/.ssh/", "/launchagents/", "/launchdaemons/", "/systemd/", "/cron", "/.config/fish/", "/.config/autostart/", "/sudoers"} {
+			if strings.Contains(p, dir) {
+				return true
+			}
+		}
+		if strings.HasPrefix(p, "/etc/") || strings.HasPrefix(p, "/private/etc/") || p == own || strings.HasPrefix(p, own+"/") {
+			return true
+		}
+	}
+	return false
+}
+
 func toolWriteFile(ctx context.Context, a *Agent, in map[string]any) (string, error) {
 	path := expand(getString(in, "path"))
 	content, _ := in["content"].(string)
@@ -453,40 +496,80 @@ func toolWriteFile(ctx context.Context, a *Agent, in map[string]any) (string, er
 	if path == "" {
 		return "", fmt.Errorf("empty path")
 	}
-	old, readErr := os.ReadFile(path)
-	summary := fmt.Sprintf("%s (%d → %d bytes)", path, len(old), len(content))
-	if ok, why := a.authorize(ctx, "write_file", summary, reason+"\n\n"+diffPreview(string(old), content), safety.Dangerous, false); !ok {
+	// The old version is only read to show what changes: a regular file,
+	// and no more of it than read_file would take. A device or a pipe in
+	// that place would never finish reading.
+	fi, statErr := os.Stat(path)
+	exists := statErr == nil
+	if exists && !fi.Mode().IsRegular() {
+		return "", fmt.Errorf("%s is not a regular file", path)
+	}
+	var oldSize int64
+	preview := "(new file)"
+	if exists {
+		oldSize = fi.Size()
+		old, truncated, err := readHead(path, maxReadFile)
+		switch {
+		case err != nil:
+			preview = "(the current file could not be read: " + err.Error() + ")"
+		case truncated:
+			preview = fmt.Sprintf("(the current file is %d bytes: too large to compare)", oldSize)
+		default:
+			preview = diffPreview(string(old), content)
+		}
+	}
+	summary := fmt.Sprintf("%s (%d → %d bytes)", path, oldSize, len(content))
+	if ok, why := a.authorize(ctx, "write_file", summary, reason+"\n\n"+preview, safety.Dangerous, sensitiveWrite(path)); !ok {
 		return "", explained(errors.New(why))
 	}
 	a.emit(Event{Kind: EvToolStart, Tool: "write_file", Command: summary, Risk: safety.Dangerous})
+	fail := func(err error) (string, error) {
+		a.emit(Event{Kind: EvToolEnd, Tool: "write_file", Command: summary, Failed: true, Reason: err.Error()})
+		return "", explained(err)
+	}
 	backup := ""
-	if readErr == nil {
+	if exists {
 		backup = fmt.Sprintf("%s.omega-bak-%s", path, time.Now().Format("20060102-150405"))
-		// The copy is as private as the original was.
-		mode := os.FileMode(0o600)
-		if fi, err := os.Stat(path); err == nil {
-			mode = fi.Mode().Perm()
+		// The copy is as private as the original was. A second write in
+		// the same second gets its own copy: the first one is the original.
+		err := copyFile(path, backup, fi.Mode().Perm())
+		for n := 2; errors.Is(err, os.ErrExist) && n < 100; n++ {
+			backup = fmt.Sprintf("%s.omega-bak-%s-%d", path, time.Now().Format("20060102-150405"), n)
+			err = copyFile(path, backup, fi.Mode().Perm())
 		}
-		if err := os.WriteFile(backup, old, mode); err != nil {
-			msg := fmt.Errorf("could not create the backup: %w", err)
-			a.emit(Event{Kind: EvToolEnd, Tool: "write_file", Command: summary, Failed: true, Reason: msg.Error()})
-			return "", explained(msg)
+		if err != nil {
+			return fail(fmt.Errorf("could not create the backup: %w", err))
 		}
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		a.emit(Event{Kind: EvToolEnd, Tool: "write_file", Command: summary, Failed: true, Reason: err.Error()})
-		return "", explained(err)
+		return fail(err)
 	}
-	err := os.WriteFile(path, []byte(content), 0o644)
-	if err != nil {
-		a.emit(Event{Kind: EvToolEnd, Tool: "write_file", Command: summary, Failed: true, Reason: err.Error()})
-		return "", explained(err)
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		return fail(err)
 	}
 	a.emit(Event{Kind: EvToolEnd, Tool: "write_file", Command: summary})
 	if backup != "" {
 		return "written. backup at " + backup, nil
 	}
 	return "written (new file)", nil
+}
+
+// copyFile copies a file whole, whatever its size.
+func copyFile(from, to string, mode os.FileMode) error {
+	src, err := os.Open(from)
+	if err != nil {
+		return err
+	}
+	defer src.Close()
+	dst, err := os.OpenFile(to, os.O_CREATE|os.O_WRONLY|os.O_EXCL, mode)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(dst, src); err != nil {
+		dst.Close()
+		return err
+	}
+	return dst.Close()
 }
 
 func toolRemember(_ context.Context, a *Agent, in map[string]any) (string, error) {
@@ -507,7 +590,16 @@ func toolRemember(_ context.Context, a *Agent, in map[string]any) (string, error
 	return "saved", nil
 }
 
-// diffPreview shows changed lines between two versions, capped for display.
+// Lines of a diff shown on the approval card: the first and the last ones.
+const (
+	diffHead = 25
+	diffTail = 15
+)
+
+// diffPreview shows the lines that change between two versions: removed
+// ones, then added ones. A long change shows its start and its end and
+// says how much is in between, so what the user approves is not silently
+// cut short.
 func diffPreview(old, new string) string {
 	ol := strings.Split(old, "\n")
 	nl := strings.Split(new, "\n")
@@ -519,24 +611,27 @@ func diffPreview(old, new string) string {
 	for _, l := range nl {
 		inNew[l]++
 	}
-	var b strings.Builder
-	n := 0
+	var changed []string
 	for _, l := range ol {
-		if inNew[l] == 0 && n < 40 {
-			b.WriteString("- " + l + "\n")
-			n++
+		if inNew[l] == 0 {
+			changed = append(changed, "- "+l)
 		}
 	}
 	for _, l := range nl {
-		if inOld[l] == 0 && n < 40 {
-			b.WriteString("+ " + l + "\n")
-			n++
+		if inOld[l] == 0 {
+			changed = append(changed, "+ "+l)
 		}
 	}
-	if n == 0 {
+	if len(changed) == 0 {
 		return "(no line changes)"
 	}
-	return strings.TrimRight(b.String(), "\n")
+	if len(changed) > diffHead+diffTail {
+		hidden := len(changed) - diffHead - diffTail
+		shown := append([]string(nil), changed[:diffHead]...)
+		shown = append(shown, fmt.Sprintf("… %d more changed lines not shown …", hidden))
+		changed = append(shown, changed[len(changed)-diffTail:]...)
+	}
+	return strings.Join(changed, "\n")
 }
 
 func toolProposeActions(ctx context.Context, a *Agent, in map[string]any) (string, error) {

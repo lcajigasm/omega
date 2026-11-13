@@ -17,6 +17,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/lcajigasm/omega/internal/safety"
 )
 
 func shellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'" }
@@ -118,6 +120,13 @@ func unsetWithheld(shell string) string {
 			names = append(names, n)
 		}
 	}
+	redactMu.RLock()
+	for n := range stripped {
+		if envName.MatchString(n) && !withheld[n] {
+			names = append(names, n)
+		}
+	}
+	redactMu.RUnlock()
 	if len(names) == 0 {
 		return ""
 	}
@@ -193,14 +202,43 @@ func Withhold(names ...string) {
 	}
 }
 
-// secretName matches environment variables that hold a credential.
-var secretName = regexp.MustCompile(`(?i)(token|secret|passw(or)?d|api_?key|credential|private_?key)`)
+// secretName matches the names of environment variables that hold a
+// credential: GITHUB_TOKEN, DB_PASSWORD, AWS_ACCESS_KEY_ID, PGPASS, SMTP_AUTH,
+// SENTRY_DSN.
+var secretName = regexp.MustCompile(`(?i)(token|secret|passw(or)?d|api_?key|credential|private_?key|(^|_)(key|pass|pwd|auth|dsn)(_|$))`)
+
+// strongName are the words of secretName that mean a credential in any
+// text, not only in the name of a variable.
+var strongName = regexp.MustCompile(`(?i)(token|secret|passw(or)?d|api_?key|credential|private_?key)`)
+
+var (
+	// urlPassword is the password in scheme://user:password@host.
+	urlPassword = regexp.MustCompile(`([A-Za-z][A-Za-z0-9+.-]*://[^/\s:@]*:)([^/\s@]+)(@)`)
+	// assignment is NAME=value as env prints it and as a startup file
+	// writes it (export NAME="value").
+	assignment = regexp.MustCompile(`\b([A-Za-z_][A-Za-z0-9_]*)=("[^"]*"|'[^']*'|[^\s"']+)`)
+)
 
 var (
 	redactMu sync.RWMutex
 	redacted []string
+	// stripped are the variables commands do not get because their name
+	// says they hold a credential. Guarded by redactMu.
+	stripped = map[string]bool{}
 	envOnce  sync.Once
 )
+
+// kept reports a credential that stays in the commands' environment
+// because the tools omega runs need it. The safety policy refuses any
+// command that names one.
+func kept(name string) bool {
+	for _, k := range safety.KeptSecretVars {
+		if strings.EqualFold(k, name) {
+			return true
+		}
+	}
+	return false
+}
 
 // Redact makes every later command's output show "[redacted]" in place of
 // the value: what a command prints goes to the model and to the run log.
@@ -224,38 +262,125 @@ func Redact(values ...string) {
 	sort.Slice(redacted, func(i, j int) bool { return len(redacted[i]) > len(redacted[j]) })
 }
 
-// redactEnv registers the credentials of omega's own environment
-// (GITHUB_TOKEN, AWS_SECRET_ACCESS_KEY, the provider keys…). They stay in
-// the commands' environment, because tools such as gh and brew use them;
-// "env" just no longer shows them to the model.
-func redactEnv() {
-	for _, kv := range os.Environ() {
+// location reports a value that says where something is kept (a path),
+// not what it is: SSH_AUTH_SOCK, PWD, AWS_SHARED_CREDENTIALS_FILE.
+func location(value string) bool {
+	return value == "" || strings.HasPrefix(value, "/") || strings.HasPrefix(value, "~") ||
+		(len(value) > 2 && value[1] == ':' && (value[2] == '\\' || value[2] == '/'))
+}
+
+// scanEnv reads NAME=value pairs. A value whose name says it is a
+// credential is masked in every command's output, and the variable is taken
+// out of the commands' environment: a command that prints it in pieces
+// (${NAME:0:10}) would get past the mask. The few that tools need stay (see
+// kept). The password of a URL is masked whatever the variable is called.
+func scanEnv(vars []string) {
+	for _, kv := range vars {
 		name, value, _ := strings.Cut(kv, "=")
-		// A path is where a secret is kept, not the secret.
-		if len(value) >= 8 && secretName.MatchString(name) && !strings.HasPrefix(value, "/") && !strings.HasPrefix(value, "~") {
+		if m := urlPassword.FindStringSubmatch(value); m != nil {
+			Redact(m[2])
+		}
+		if !secretName.MatchString(name) || location(value) {
+			continue
+		}
+		if len(value) >= 8 {
 			Redact(value)
+		}
+		if !kept(name) {
+			redactMu.Lock()
+			stripped[name] = true
+			redactMu.Unlock()
 		}
 	}
 }
 
-// scrub replaces the registered values in a line of output.
+// redactEnv registers the credentials of omega's own environment.
+func redactEnv() { scanEnv(os.Environ()) }
+
+// loginEnvTimeout bounds the one look at the login shell's environment.
+const loginEnvTimeout = 5 * time.Second
+
+// loginEnv is the environment a login shell builds from the user's startup
+// files. Commands run in such a shell, so a key exported in ~/.zshenv
+// reaches them even when omega itself was started without it, as the
+// desktop app is. It is nil when the shell cannot be asked: the run goes
+// on without it.
+func loginEnv() []string {
+	sh := Shell()
+	switch strings.ToLower(filepath.Base(sh)) {
+	case "pwsh", "pwsh.exe", "powershell", "powershell.exe", "cmd", "cmd.exe":
+		return nil // started without a profile: nothing is added to omega's environment
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), loginEnvTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, sh, "-lc", "env -0 2>/dev/null || env")
+	detach(cmd)
+	cmd.Env = os.Environ()
+	cmd.WaitDelay = time.Second
+	out, err := cmd.Output()
+	if err != nil && len(out) == 0 {
+		return nil
+	}
+	sep := "\n"
+	if strings.Contains(string(out), "\x00") {
+		sep = "\x00"
+	}
+	return strings.Split(string(out), sep)
+}
+
+// scrub replaces the registered values in a line of output, the value of
+// any NAME=value whose name says it is a credential, and the password of a
+// URL. The last two catch what omega never saw in an environment: a key
+// written in a file the command prints.
 func scrub(line string) string {
 	redactMu.RLock()
-	defer redactMu.RUnlock()
 	for _, v := range redacted {
 		if strings.Contains(line, v) {
 			line = strings.ReplaceAll(line, v, "[redacted]")
 		}
 	}
-	return line
+	redactMu.RUnlock()
+	if strings.Contains(line, "://") {
+		line = urlPassword.ReplaceAllString(line, "${1}[redacted]${3}")
+	}
+	if !strings.Contains(line, "=") {
+		return line
+	}
+	return assignment.ReplaceAllStringFunc(line, func(m string) string {
+		name, value, _ := strings.Cut(m, "=")
+		// In running text the short words (key=, auth=) are everywhere:
+		// they only count in a name written like a variable, DB_PASS.
+		if !strongName.MatchString(name) && !(secretName.MatchString(name) && strings.ToUpper(name) == name) {
+			return m
+		}
+		// A path, a value already masked, or one too short to be a secret
+		// (an empty "[]", a flag such as 1).
+		if v := strings.Trim(value, `"'`); location(v) || len(v) < 4 || strings.Contains(v, "[redacted]") {
+			return m
+		}
+		return name + "=[redacted]"
+	})
 }
 
-// childEnv is omega's environment without the withheld variables.
+// Scrub is the masking applied to command output, for text that reaches
+// the model another way (a file read by the agent).
+func Scrub(text string) string {
+	lines := strings.Split(text, "\n")
+	for i, l := range lines {
+		lines[i] = scrub(l)
+	}
+	return strings.Join(lines, "\n")
+}
+
+// childEnv is omega's environment without the withheld variables and
+// without the ones that look like credentials.
 func childEnv() []string {
+	redactMu.RLock()
+	defer redactMu.RUnlock()
 	var out []string
 	for _, kv := range os.Environ() {
 		name, _, _ := strings.Cut(kv, "=")
-		if !withheld[name] {
+		if !withheld[name] && !stripped[name] {
 			out = append(out, kv)
 		}
 	}
@@ -279,7 +404,10 @@ func Run(ctx context.Context, command string, timeout time.Duration, onLine func
 		ctx, cancel = context.WithTimeout(ctx, timeout)
 		defer cancel()
 	}
-	envOnce.Do(redactEnv)
+	envOnce.Do(func() {
+		redactEnv()
+		scanEnv(loginEnv())
+	})
 	name, args := shellInvocation(command)
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Stdin = nil
@@ -365,6 +493,13 @@ func Run(ctx context.Context, command string, timeout time.Duration, onLine func
 	var ee *exec.ExitError
 	switch {
 	case err == nil:
+	case errors.Is(err, exec.ErrWaitDelay):
+		// The command itself ended. Something it left in the background
+		// still holds its output open: that is not a failure.
+		if cmd.ProcessState != nil {
+			res.ExitCode = cmd.ProcessState.ExitCode()
+		}
+		res.Output += "\n[omega: the command finished; a process it started in the background is still running]"
 	case errors.As(err, &ee):
 		res.ExitCode = ee.ExitCode()
 	default:

@@ -6,7 +6,9 @@ package secscan
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -14,6 +16,15 @@ import (
 )
 
 var goos = runtime.GOOS
+
+// output runs a read-only command and returns what it printed. Tests
+// replace it.
+var output = func(name string, args ...string) ([]byte, error) {
+	return exec.Command(name, args...).Output()
+}
+
+// popconFile is where Debian and Ubuntu keep the popularity-contest answer.
+var popconFile = "/etc/popularity-contest.conf"
 
 // SSHFinding describes an issue detected in SSH configuration or keys.
 type SSHFinding struct {
@@ -89,7 +100,10 @@ func AuditSSH() ([]SSHFinding, error) {
 
 	for _, e := range entries {
 		path := filepath.Join(sshDir, e.Name())
-		info, err := e.Info()
+		// Stat, not the entry's own information: for a key that is a link
+		// (to a dotfiles folder, say) ssh looks at the file it points to,
+		// and the link itself always reads as open to everyone.
+		info, err := os.Stat(path)
 		if err != nil || info.IsDir() {
 			continue
 		}
@@ -129,6 +143,34 @@ func isPrivateKey(name string) bool {
 	return false
 }
 
+// identityFile reads an IdentityFile line of an ssh config and returns the
+// path it names. ok is false for any other line, and for a value whose file
+// cannot be known from here: "none", or one with %h, %u or ${VAR} in it.
+func identityFile(line string) (path string, ok bool) {
+	line = strings.TrimSpace(line)
+	i := strings.IndexAny(line, " \t=")
+	if i < 0 || !strings.EqualFold(line[:i], "IdentityFile") {
+		return "", false
+	}
+	value := strings.TrimSpace(strings.TrimLeft(line[i:], " \t="))
+	// ssh takes the value in double quotes too, as it must be with spaces.
+	if len(value) >= 2 && value[0] == '"' {
+		if end := strings.Index(value[1:], `"`); end >= 0 {
+			value = value[1 : 1+end]
+		}
+	} else if fields := strings.Fields(value); len(fields) > 0 {
+		value = fields[0]
+	}
+	if value == "" || strings.EqualFold(value, "none") || strings.ContainsAny(value, "%$") {
+		return "", false
+	}
+	if value == "~" || strings.HasPrefix(value, "~/") {
+		home, _ := os.UserHomeDir()
+		value = filepath.Join(home, strings.TrimPrefix(value, "~"))
+	}
+	return value, true
+}
+
 func auditSSHConfigFile(path string, findings *[]SSHFinding) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -144,20 +186,16 @@ func auditSSHConfigFile(path string, findings *[]SSHFinding) {
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
-		parts := strings.Fields(line)
-		if len(parts) >= 2 && strings.EqualFold(parts[0], "IdentityFile") {
-			keyPath := parts[1]
-			if strings.HasPrefix(keyPath, "~/") {
-				home, _ := os.UserHomeDir()
-				keyPath = filepath.Join(home, strings.TrimPrefix(keyPath, "~/"))
-			}
-			if _, err := os.Stat(keyPath); os.IsNotExist(err) {
-				*findings = append(*findings, SSHFinding{
-					Path:     path,
-					Issue:    fmt.Sprintf("IdentityFile line %d refers to non-existent key '%s'", lineNum, parts[1]),
-					Severity: "medium",
-				})
-			}
+		keyPath, ok := identityFile(line)
+		if !ok {
+			continue
+		}
+		if _, err := os.Stat(keyPath); os.IsNotExist(err) {
+			*findings = append(*findings, SSHFinding{
+				Path:     path,
+				Issue:    fmt.Sprintf("IdentityFile line %d refers to non-existent key '%s'", lineNum, keyPath),
+				Severity: "medium",
+			})
 		}
 	}
 }
@@ -167,7 +205,9 @@ var secretPatterns = []struct {
 	name string
 	re   *regexp.Regexp
 }{
-	{"OpenAI API Key", regexp.MustCompile(`(?i)\b(sk-[a-zA-Z0-9]{32,64})\b`)},
+	// Project, service-account and admin keys have a prefix and may hold
+	// "-" and "_"; the older ones are letters and digits only.
+	{"OpenAI API Key", regexp.MustCompile(`(?i)\b(sk-(?:proj|svcacct|admin)-[a-zA-Z0-9_\-]{20,}|sk-[a-zA-Z0-9]{32,64}\b)`)},
 	{"Anthropic API Key", regexp.MustCompile(`(?i)\b(sk-ant-[a-zA-Z0-9_\-]{32,100})\b`)},
 	{"GitHub Personal Token", regexp.MustCompile(`\b(ghp_[a-zA-Z0-9]{36}|github_pat_[a-zA-Z0-9_]{82})\b`)},
 	{"AWS Access Key", regexp.MustCompile(`\b(AKIA[0-9A-Z]{16})\b`)},
@@ -176,6 +216,8 @@ var secretPatterns = []struct {
 }
 
 // ScanSecrets scans shell history files and dotfiles for leaked credentials.
+// A file that could not be read to its end is an error: "no secrets found"
+// would not be true of it.
 func ScanSecrets() ([]SecretFinding, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -191,19 +233,31 @@ func ScanSecrets() ([]SecretFinding, error) {
 	}
 
 	var findings []SecretFinding
-
 	for _, file := range targets {
-		f, err := os.Open(file)
+		found, err := scanFile(file)
+		findings = append(findings, found...)
 		if err != nil {
-			continue
+			return findings, fmt.Errorf("%s was not read to the end: %w", file, err)
 		}
-		defer f.Close()
+	}
+	return findings, nil
+}
 
-		scanner := bufio.NewScanner(f)
-		lineNum := 0
-		for scanner.Scan() {
-			lineNum++
-			line := scanner.Text()
+// scanFile looks for secrets in one file. A file that is not there has none.
+func scanFile(file string) ([]SecretFinding, error) {
+	f, err := os.Open(file)
+	if err != nil {
+		return nil, nil
+	}
+	defer f.Close()
+
+	var findings []SecretFinding
+	// Not a Scanner: it gives up on a line over 64 KB (a pasted file, a
+	// here-document), and everything after it would go unread.
+	r := bufio.NewReader(f)
+	for lineNum := 1; ; lineNum++ {
+		line, err := r.ReadString('\n')
+		if line != "" {
 			for _, sp := range secretPatterns {
 				if sp.re.MatchString(line) {
 					findings = append(findings, SecretFinding{
@@ -216,18 +270,25 @@ func ScanSecrets() ([]SecretFinding, error) {
 				}
 			}
 		}
+		if err == io.EOF {
+			return findings, nil
+		}
+		if err != nil {
+			return findings, err
+		}
 	}
-
-	return findings, nil
 }
 
+// maskSnippet is a line made safe to show: the secrets are taken out first
+// and the line is shortened after. The other way round a key cut by the
+// shortening no longer matches its pattern and is shown.
 func maskSnippet(line string) string {
 	line = strings.TrimSpace(line)
-	if len(line) > 80 {
-		line = line[:77] + "..."
-	}
 	for _, sp := range secretPatterns {
 		line = sp.re.ReplaceAllString(line, "[REDACTED-SECRET]")
+	}
+	if r := []rune(line); len(r) > 80 {
+		line = string(r[:77]) + "..."
 	}
 	return line
 }
@@ -264,18 +325,44 @@ func AuditPrivacy() (*PrivacyAudit, error) {
 		}
 	}
 
-	// Telemetry findings
-	if goos == "darwin" {
-		audit.TelemetryFindings = append(audit.TelemetryFindings, "Apple Diagnostics & CrashReporter telemetry active (default on macOS)")
-	} else if goos == "windows" {
-		audit.TelemetryFindings = append(audit.TelemetryFindings, "Windows Telemetry & Customer Experience Improvement Program active")
-	} else {
-		if _, err := os.Stat("/etc/popularity-contest.conf"); err == nil {
-			audit.TelemetryFindings = append(audit.TelemetryFindings, "Debian/Ubuntu popularity-contest package is present")
-		}
-	}
+	audit.TelemetryFindings = telemetry()
 
 	return audit, nil
+}
+
+// telemetry says what the system's diagnostics setting is where one read
+// gives it, and says so where it is not looked at. It never states a
+// setting it did not read.
+func telemetry() []string {
+	switch goos {
+	case "darwin":
+		const where = "System Settings › Privacy & Security › Analytics & Improvements"
+		out, err := output("/usr/bin/defaults", "read", "/Library/Application Support/CrashReporter/DiagnosticMessagesHistory.plist", "AutoSubmit")
+		switch strings.TrimSpace(string(out)) {
+		case "1":
+			return []string{"Share Mac Analytics is on: diagnostics and usage data are sent to Apple (" + where + ")"}
+		case "0":
+			if err == nil {
+				return []string{"Share Mac Analytics is off (" + where + ")"}
+			}
+		}
+		return []string{"The Mac Analytics setting could not be read; see " + where}
+	case "windows":
+		return []string{"Windows diagnostic data is not checked by omega; see Settings › Privacy & security › Diagnostics & feedback"}
+	}
+	data, err := os.ReadFile(popconFile)
+	if err != nil {
+		return nil
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		if key, value, ok := strings.Cut(strings.TrimSpace(line), "="); ok && key == "PARTICIPATE" {
+			if strings.EqualFold(strings.Trim(value, `"' `), "yes") {
+				return []string{"popularity-contest is on: the list of installed packages is sent to the distribution"}
+			}
+			return []string{"popularity-contest is installed and switched off"}
+		}
+	}
+	return []string{"popularity-contest is installed; its setting could not be read from " + popconFile}
 }
 
 func dirSizeMB(path string) int64 {

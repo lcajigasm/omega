@@ -12,7 +12,10 @@ import (
 	"sync"
 
 	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/extension"
+	"github.com/yuin/goldmark/renderer"
+	"github.com/yuin/goldmark/util"
 
 	"github.com/lcajigasm/omega/internal/agent"
 	"github.com/lcajigasm/omega/internal/ui"
@@ -50,7 +53,10 @@ type Stats struct {
 // ID identifies a tool call (tool_start, output, tool_end) or a request the
 // user has to answer (confirm, choice, password). Answers name that ID.
 type Message struct {
-	Kind     string   `json:"kind"`
+	Kind string `json:"kind"`
+	// Seq orders the messages of a session, from 1. A window that is drawn
+	// again asks for the ones it missed and uses it to drop a repeat.
+	Seq      int      `json:"seq,omitempty"`
 	ID       int      `json:"id,omitempty"`
 	Text     string   `json:"text,omitempty"`
 	HTML     string   `json:"html,omitempty"` // Text rendered from Markdown (assistant)
@@ -100,8 +106,9 @@ type Bridge struct {
 	idle    bool
 }
 
-// New creates the bridge. emit is called from Run's goroutine, in order, once
-// per message.
+// New creates the bridge. emit is called once per message: from Run's
+// goroutine, in order, for what the agent does, and from the caller's for
+// the "answered" that follows an answer. It must be safe to call from both.
 func New(ctx context.Context, ag Agent, emit func(Message)) *Bridge {
 	return &Bridge{ag: ag, ctx: ctx, emit: emit, pending: map[int]agent.Event{}, running: map[string][]int{}}
 }
@@ -223,6 +230,7 @@ func (b *Bridge) Confirm(id int, decision string) error {
 		d = agent.ApproveAll
 	}
 	e.Reply <- d // buffered by the agent
+	b.emit(Message{Kind: "answered", ID: id, Text: decision})
 	return nil
 }
 
@@ -248,6 +256,7 @@ func (b *Bridge) Choose(id int, picks []string) error {
 		ids = ids[:1]
 	}
 	e.Picks <- ids
+	b.emit(Message{Kind: "answered", ID: id, Text: strings.Join(ids, "\x00")})
 	return nil
 }
 
@@ -259,6 +268,12 @@ func (b *Bridge) Password(id int, secret string) error {
 		return err
 	}
 	e.Secret <- secret
+	// Whether one was given, never the password.
+	given := ""
+	if secret != "" {
+		given = "given"
+	}
+	b.emit(Message{Kind: "answered", ID: id, Text: given})
 	return nil
 }
 
@@ -301,10 +316,36 @@ func (b *Bridge) SetMode(name string) error {
 // Mode is the current approval mode.
 func (b *Bridge) Mode() string { return ModeName(b.ag.Mode()) }
 
-var md = goldmark.New(goldmark.WithExtensions(extension.GFM))
+var md = goldmark.New(
+	// GFM, with the alignment of a table cell as an attribute: the window
+	// allows no inline style.
+	goldmark.WithExtensions(extension.Linkify, extension.Strikethrough, extension.TaskList,
+		extension.NewTable(extension.WithTableCellAlignMethod(extension.TableCellAlignAttribute))),
+	goldmark.WithRendererOptions(renderer.WithNodeRenderers(util.Prioritized(noImages{}, 100))))
+
+// noImages draws an image as its text. The window fetches an image as soon
+// as it is drawn, with no click, and the address is the model's: it could
+// carry what the model has read to another machine, or name one of the
+// app's own addresses and act as the user.
+type noImages struct{}
+
+func (noImages) RegisterFuncs(reg renderer.NodeRendererFuncRegisterer) {
+	reg.Register(ast.KindImage, func(w util.BufWriter, source []byte, n ast.Node, entering bool) (ast.WalkStatus, error) {
+		if entering {
+			img := n.(*ast.Image)
+			text := string(img.Text(source)) //nolint:staticcheck // the alt text, as the default renderer reads it
+			if text == "" {
+				text = string(img.Destination)
+			}
+			_, _ = w.Write(util.EscapeHTML([]byte(text)))
+		}
+		return ast.WalkSkipChildren, nil
+	})
+}
 
 // Markdown renders model text as HTML. Raw HTML in the text is not passed
-// through: the model's words are shown, never run.
+// through, and an image is shown as its text: the model's words are shown,
+// never run and never fetched.
 func Markdown(s string) string {
 	var out bytes.Buffer
 	if err := md.Convert([]byte(s), &out); err != nil {

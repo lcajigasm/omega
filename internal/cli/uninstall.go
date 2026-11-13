@@ -42,12 +42,11 @@ func uninstallCmd() *cobra.Command {
 			}
 			fmt.Printf("\nTotal size: %.1f MB\n", app.TotalSizeMB)
 
-			question := "\nMove these files to the Trash? [y/N]"
+			question := "\nMove these files to the Trash?"
 			if runtime.GOOS == "windows" {
-				question = "\nPermanently remove these files? [y/N]"
+				question = "\nPermanently remove these files?"
 			}
-			ans := ask(question, "n")
-			if ans != "y" && ans != "Y" {
+			if !askYesNo(question) {
 				fmt.Println("Uninstall cancelled.")
 				return nil
 			}

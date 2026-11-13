@@ -47,6 +47,14 @@ type Change struct {
 // Sudo reports whether the change needs administrator access.
 func (c Change) Sudo() bool { return strings.Contains(c.Command, "sudo ") }
 
+// KeepsUndoOnFailure reports whether the change is recorded even when its
+// command failed. Moving leftovers to the Trash is several moves in a row:
+// when one fails the ones before it are done, and without an entry in the
+// journal nothing would put them back. Its undo is safe to run then.
+func (c Change) KeepsUndoOnFailure() bool {
+	return c.Undo != "" && strings.HasPrefix(c.ID, "leftover-trash:")
+}
+
 // Entry is a change that was applied, as stored in the journal.
 type Entry struct {
 	Time time.Time `json:"time"`

@@ -8,12 +8,48 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/lcajigasm/omega/internal/runner"
 )
+
+// gitTimeout is how long one git command may take. A large repository on a
+// cold disk needs more than a few seconds for `git status`.
+var gitTimeout = 30 * time.Second
+
+// ErrGitTimeout is returned when git did not answer in time.
+var ErrGitTimeout = errors.New("git took too long")
+
+// git runs git in a repository and returns what it printed. It is run as
+// it is, not through the user's shell: starting a login shell for every
+// command took longer than git itself. Tests replace it.
+var git = func(ctx context.Context, repo string, args ...string) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, gitTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "git", append([]string{"-C", repo}, args...)...)
+	// Looking must not write, and git must never stop to ask.
+	cmd.Env = append(os.Environ(), "GIT_OPTIONAL_LOCKS=0", "GIT_TERMINAL_PROMPT=0")
+	out, err := cmd.CombinedOutput()
+	if ctx.Err() == context.DeadlineExceeded {
+		return "", fmt.Errorf("git %s: %w (over %s)", args[0], ErrGitTimeout, gitTimeout)
+	}
+	if err != nil {
+		return "", fmt.Errorf("git %s: %s", args[0], firstLine(string(out), err))
+	}
+	return string(out), nil
+}
+
+// firstLine is the first line git printed, or the error when it printed
+// nothing.
+func firstLine(out string, err error) string {
+	if line, _, _ := strings.Cut(strings.TrimSpace(out), "\n"); line != "" {
+		return line
+	}
+	return err.Error()
+}
 
 // RepoStatus holds hygiene metrics for a single git repository.
 type RepoStatus struct {
@@ -66,7 +102,10 @@ func FindRepos(roots []string) []string {
 	return repos
 }
 
-// CheckRepo inspects a single repository for hygiene metrics.
+// CheckRepo inspects a single repository for hygiene metrics. When git
+// cannot say whether there is uncommitted work (it failed, or took too
+// long), that is an error: a repository that could not be checked is not a
+// clean one, and the caller has to show it.
 func CheckRepo(ctx context.Context, repoPath string) (*RepoStatus, error) {
 	st := &RepoStatus{
 		Path: repoPath,
@@ -77,49 +116,77 @@ func CheckRepo(ctx context.Context, repoPath string) (*RepoStatus, error) {
 	gitDir := filepath.Join(repoPath, ".git")
 	st.GitSizeMB = dirSizeMB(gitDir)
 
-	// Current branch
-	res := runner.Run(ctx, fmt.Sprintf("git -C %s rev-parse --abbrev-ref HEAD 2>/dev/null", shellQuote(repoPath)), 3*time.Second, nil)
-	if res.ExitCode == 0 {
-		st.Branch = strings.TrimSpace(res.Output)
-	}
-
 	// Uncommitted changes
-	res = runner.Run(ctx, fmt.Sprintf("git -C %s status --porcelain 2>/dev/null", shellQuote(repoPath)), 3*time.Second, nil)
-	if res.ExitCode == 0 && len(strings.TrimSpace(res.Output)) > 0 {
-		st.HasUncommitted = true
+	out, err := git(ctx, repoPath, "status", "--porcelain")
+	if err != nil {
+		return st, fmt.Errorf("could not check: %w", err)
+	}
+	st.HasUncommitted = strings.TrimSpace(out) != ""
+
+	// Current branch. A repository with no commit yet has none: only a
+	// timeout is an error from here on.
+	out, err = git(ctx, repoPath, "rev-parse", "--abbrev-ref", "HEAD")
+	if errors.Is(err, ErrGitTimeout) {
+		return st, fmt.Errorf("could not check: %w", err)
+	}
+	if err == nil {
+		st.Branch = strings.TrimSpace(out)
 	}
 
-	// Unpushed commits
-	res = runner.Run(ctx, fmt.Sprintf("git -C %s log @{u}..HEAD --oneline 2>/dev/null", shellQuote(repoPath)), 3*time.Second, nil)
-	if res.ExitCode == 0 && len(strings.TrimSpace(res.Output)) > 0 {
-		lines := strings.Split(strings.TrimSpace(res.Output), "\n")
-		st.UnpushedCount = len(lines)
+	// Unpushed commits. A branch with no upstream has nothing to compare.
+	out, err = git(ctx, repoPath, "log", "@{u}..HEAD", "--oneline")
+	if errors.Is(err, ErrGitTimeout) {
+		return st, fmt.Errorf("could not check: %w", err)
+	}
+	if err == nil && strings.TrimSpace(out) != "" {
+		st.UnpushedCount = len(strings.Split(strings.TrimSpace(out), "\n"))
 	}
 
-	// Merged branches (excluding current branch, master, main)
-	res = runner.Run(ctx, fmt.Sprintf("git -C %s branch --merged 2>/dev/null", shellQuote(repoPath)), 3*time.Second, nil)
-	if res.ExitCode == 0 {
-		for _, b := range strings.Split(res.Output, "\n") {
+	// Merged branches. Left out: the current one ("*"), the ones checked
+	// out in another worktree ("+", which git refuses to delete) and the
+	// main ones.
+	out, err = git(ctx, repoPath, "branch", "--merged")
+	if errors.Is(err, ErrGitTimeout) {
+		return st, fmt.Errorf("could not check: %w", err)
+	}
+	if err == nil {
+		for _, b := range strings.Split(out, "\n") {
 			b = strings.TrimSpace(b)
-			if b == "" || strings.HasPrefix(b, "*") || b == "main" || b == "master" || b == "develop" {
+			if b == "" || strings.HasPrefix(b, "*") || strings.HasPrefix(b, "+") || b == "main" || b == "master" || b == "develop" {
 				continue
 			}
 			st.MergedBranches = append(st.MergedBranches, b)
 		}
 	}
 
-	// Find large files (>50MB) in repo
-	res = runner.Run(ctx, fmt.Sprintf("find %s -maxdepth 4 -type f -size +50M ! -path '*/.git/*' 2>/dev/null", shellQuote(repoPath)), 3*time.Second, nil)
-	if res.ExitCode == 0 && len(strings.TrimSpace(res.Output)) > 0 {
-		for _, f := range strings.Split(strings.TrimSpace(res.Output), "\n") {
-			if f != "" {
-				rel, _ := filepath.Rel(repoPath, f)
-				st.LargeFiles = append(st.LargeFiles, rel)
-			}
-		}
-	}
-
+	st.LargeFiles = largeFiles(repoPath)
 	return st, nil
+}
+
+// largeFiles lists the files over 50 MB in a repository, four folders deep
+// at most, .git left out. Paths are relative to the repository.
+func largeFiles(repoPath string) []string {
+	var out []string
+	_ = filepath.Walk(repoPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		rel, relErr := filepath.Rel(repoPath, path)
+		if relErr != nil {
+			return nil
+		}
+		if info.IsDir() {
+			if info.Name() == ".git" || strings.Count(rel, string(filepath.Separator)) >= 3 {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if info.Mode().IsRegular() && info.Size() > 50<<20 {
+			out = append(out, rel)
+		}
+		return nil
+	})
+	return out
 }
 
 // ErrRepoBusy is returned for a repository another git process is using.
@@ -152,20 +219,24 @@ func OptimizeRepo(ctx context.Context, repoPath string) (int64, error) {
 	return freed, nil
 }
 
-// DeleteMergedBranches removes the local merged branches.
+// DeleteMergedBranches removes the local merged branches. It returns the
+// ones it deleted, and an error that names every one git refused to
+// delete and why.
 func DeleteMergedBranches(ctx context.Context, repoPath string, branches []string) ([]string, error) {
 	var deleted []string
+	var failed []error
 	for _, b := range branches {
 		if b == "main" || b == "master" || b == "develop" {
 			continue
 		}
-		cmd := fmt.Sprintf("git -C %s branch -d %s 2>/dev/null", shellQuote(repoPath), shellQuote(b))
-		res := runner.Run(ctx, cmd, 3*time.Second, nil)
-		if res.ExitCode == 0 {
-			deleted = append(deleted, b)
+		// -d, never -D: git itself refuses a branch that is not merged.
+		if _, err := git(ctx, repoPath, "branch", "-d", "--", b); err != nil {
+			failed = append(failed, fmt.Errorf("%s: %w", b, err))
+			continue
 		}
+		deleted = append(deleted, b)
 	}
-	return deleted, nil
+	return deleted, errors.Join(failed...)
 }
 
 func dirSizeMB(path string) int64 {

@@ -124,3 +124,26 @@ func TestOneShotEndsWithoutFollowUp(t *testing.T) {
 		t.Fatalf("exit %d", a.ExitCode())
 	}
 }
+
+// costlyChat answers with a reply that costs more than the budget.
+type costlyChat struct{ failChat }
+
+func (c *costlyChat) Send(context.Context, string, []llm.ToolResult) (*llm.Reply, error) {
+	return &llm.Reply{Text: "half done", Calls: []llm.ToolCall{{ID: "1", Name: "system_info", Input: []byte("{}")}},
+		Usage: llm.Usage{OutputTokens: 1_000_000}}, nil
+}
+
+// A run stopped by the cost limit did not finish its task: its status says so.
+func TestCostLimitExitsNonZero(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	opts := exitOpts(false)
+	opts.Provider, opts.Model, opts.MaxCost = "anthropic", "claude-haiku-4-5", 0.50
+	chat := &costlyChat{}
+	a := New(failProvider{chat: &chat.failChat}, opts)
+	a.chat = chat
+	a.Run(context.Background(), "test")
+	if a.ExitCode() != ExitError {
+		t.Fatalf("exit %d, want %d", a.ExitCode(), ExitError)
+	}
+}

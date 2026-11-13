@@ -316,3 +316,35 @@ func TestWindowsUsesTheCredentialManager(t *testing.T) {
 		t.Fatal("the key should be gone")
 	}
 }
+
+// On macOS the key is handed to security on its standard input: as an
+// argument, any program of the user could read it from the process list.
+func TestMacKeyIsNotAnArgument(t *testing.T) {
+	i18n.Init("en")
+	oldOS, oldRun := goos, runTool
+	t.Cleanup(func() { goos, runTool = oldOS, oldRun })
+	goos = "darwin"
+	var gotArgs []string
+	var gotStdin string
+	runTool = func(_ time.Duration, stdin string, name string, args ...string) (string, string, error) {
+		gotArgs, gotStdin = append([]string{name}, args...), stdin
+		return "", "", nil
+	}
+	const key = `sk-ant "quoted" \back $HOME 'single'`
+	src, err := Set("anthropic", key)
+	if err != nil || src != FromKeychain {
+		t.Fatalf("Set = %s %v", src, err)
+	}
+	if strings.Join(gotArgs, " ") != "security -i" {
+		t.Fatalf("arguments %q: the key must not be among them", gotArgs)
+	}
+	want := `add-generic-password -U -s "omega-cli" -a "anthropic" -w "sk-ant \"quoted\" \\back $HOME 'single'" -l "omega (anthropic)"` + "\n"
+	if gotStdin != want {
+		t.Fatalf("standard input:\n got %q\nwant %q", gotStdin, want)
+	}
+	// A line break would start a second command.
+	gotArgs = nil
+	if _, err := Set("anthropic", "sk-ant\ndelete-keychain"); err == nil || gotArgs != nil {
+		t.Fatalf("a key with a line break must be refused before security runs: %v %q", err, gotArgs)
+	}
+}

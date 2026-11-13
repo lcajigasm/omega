@@ -23,8 +23,22 @@ func (f *fakeAgent) Mode() agent.Mode           { return f.mode }
 func (f *fakeAgent) SetMode(m agent.Mode)       { f.mode = m }
 
 // start runs a bridge over a fake agent and returns a way to read the next
-// message.
+// message. The "answered" that follows an answer is left out; startAll
+// keeps it.
 func start(t *testing.T) (*fakeAgent, *Bridge, func() Message) {
+	t.Helper()
+	f, b, all := startAll(t)
+	return f, b, func() Message {
+		t.Helper()
+		for {
+			if m := all(); m.Kind != "answered" {
+				return m
+			}
+		}
+	}
+}
+
+func startAll(t *testing.T) (*fakeAgent, *Bridge, func() Message) {
 	t.Helper()
 	f := &fakeAgent{events: make(chan agent.Event, 16), input: make(chan string)}
 	out := make(chan Message, 16)
@@ -204,5 +218,49 @@ func TestMarkdownDoesNotPassHTMLThrough(t *testing.T) {
 	}
 	if strings.Contains(out, "<script>") {
 		t.Errorf("raw HTML passed through: %s", out)
+	}
+}
+
+// An image is fetched as soon as it is drawn, with no click, and its
+// address is the model's: it must never reach the window as an image.
+func TestMarkdownShowsImagesAsText(t *testing.T) {
+	for _, in := range []string{
+		"![ok](/wails/runtime?object=0&method=0&args=%7B%7D)",
+		"![status](https://example.com/p.png?d=secret)",
+		"text ![a](x.png \"title\") more",
+		"[![badge](https://example.com/b.svg)](https://example.com)",
+		"![][ref]\n\n[ref]: https://example.com/i.png",
+	} {
+		out := Markdown(in)
+		if strings.Contains(out, "<img") || strings.Contains(out, "src=") {
+			t.Errorf("Markdown(%q) = %s: an image was drawn", in, out)
+		}
+	}
+	if out := Markdown("![the alt](x.png)"); !strings.Contains(out, "the alt") {
+		t.Errorf("the text of the image is lost: %s", out)
+	}
+}
+
+// A window drawn again shows the session from its messages: an answer has
+// to be one of them, and a password must not be.
+func TestAnswersAreMessages(t *testing.T) {
+	f, b, next := startAll(t)
+	reply := make(chan agent.Decision, 1)
+	f.events <- agent.Event{Kind: agent.EvConfirm, Tool: "run_command", Command: "rm x", Risk: safety.Dangerous, Reply: reply}
+	m := next()
+	if err := b.Confirm(m.ID, "deny"); err != nil {
+		t.Fatal(err)
+	}
+	if a := next(); a.Kind != "answered" || a.ID != m.ID || a.Text != "deny" {
+		t.Errorf("confirm: %+v", a)
+	}
+	secret := make(chan string, 1)
+	f.events <- agent.Event{Kind: agent.EvPassword, Secret: secret}
+	m = next()
+	if err := b.Password(m.ID, "hunter2"); err != nil {
+		t.Fatal(err)
+	}
+	if a := next(); a.Kind != "answered" || a.ID != m.ID || strings.Contains(a.Text, "hunter2") {
+		t.Errorf("password: %+v", a)
 	}
 }

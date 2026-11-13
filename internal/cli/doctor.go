@@ -14,6 +14,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/lcajigasm/omega/internal/config"
+	"github.com/lcajigasm/omega/internal/customsteps"
 	"github.com/lcajigasm/omega/internal/i18n"
 	"github.com/lcajigasm/omega/internal/llm"
 	"github.com/lcajigasm/omega/internal/secrets"
@@ -21,14 +22,74 @@ import (
 )
 
 func doctorCmd() *cobra.Command {
-	return &cobra.Command{
+	var asJSON bool
+	c := &cobra.Command{
 		Use:   "doctor",
 		Short: i18n.T("cmd.doctor"),
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runDoctor(cmd.OutOrStdout())
+			if !asJSON {
+				return runDoctor(cmd.OutOrStdout())
+			}
+			info := doctorInfo()
+			if err := writeJSON(cmd.OutOrStdout(), info); err != nil {
+				return err
+			}
+			if !info.OK {
+				return exitCode(1) // the document says what failed
+			}
+			return nil
 		},
 	}
+	c.Flags().BoolVar(&asJSON, "json", false, i18n.T("flag.doctor_json"))
+	return c
+}
+
+// DoctorInfo is what `omega doctor --json` prints: the lines of the report,
+// the facts a program would otherwise have to read out of them, and the
+// steps of this machine.
+type DoctorInfo struct {
+	OK      bool     `json:"ok"`
+	Lines   []string `json:"lines"`
+	Version string   `json:"version"`
+	Config  struct {
+		Path  string `json:"path"`
+		OK    bool   `json:"ok"`
+		Error string `json:"error,omitempty"`
+	} `json:"config"`
+	Provider struct {
+		Name string `json:"name"`
+		OK   bool   `json:"ok"`
+	} `json:"provider"`
+	CustomStepProblems []string   `json:"custom_step_problems"`
+	Steps              []StepInfo `json:"steps"`
+}
+
+// doctorInfo runs the doctor's checks and returns them as values.
+func doctorInfo() DoctorInfo {
+	var b strings.Builder
+	facts, err := doctorCheck(&b, false)
+	info := DoctorInfo{OK: err == nil, Lines: []string{}, Version: version, CustomStepProblems: []string{}, Steps: []StepInfo{}}
+	for _, l := range strings.Split(b.String(), "\n") {
+		if strings.TrimSpace(l) != "" {
+			info.Lines = append(info.Lines, l)
+		}
+	}
+	info.Config.Path, info.Config.OK, info.Config.Error = config.Path(), facts.configErr == "", facts.configErr
+	info.Provider.Name, info.Provider.OK = facts.provider, facts.providerOK
+	info.CustomStepProblems = append(info.CustomStepProblems, facts.custom...)
+	if list, err := StepList(); err == nil {
+		info.Steps = list
+	}
+	return info
+}
+
+// doctorFacts is what the doctor found, beside the lines it wrote.
+type doctorFacts struct {
+	configErr  string // why the configuration is not usable, or ""
+	provider   string
+	providerOK bool
+	custom     []string // steps.d files and steps that were left out
 }
 
 // runDoctor checks the config, the key's shape, whether the provider answers
@@ -107,30 +168,48 @@ func runDoctor(w io.Writer) error { return doctorReport(w, true) }
 // doctorReport writes the checks; withSteps adds the list of steps, which a
 // frontend that draws its own leaves out.
 func doctorReport(w io.Writer, withSteps bool) error {
+	_, err := doctorCheck(w, withSteps)
+	return err
+}
+
+// doctorCheck writes the report and returns what it found.
+func doctorCheck(w io.Writer, withSteps bool) (doctorFacts, error) {
+	var facts doctorFacts
 	problems := 0
 	doctorVersion(w)
 	cfg, err := config.Load()
 	if err != nil {
+		facts.configErr = err.Error()
 		fmt.Fprintln(w, i18n.T("doctor.config_bad", err.Error()))
 		if withSteps {
 			fmt.Fprint(w, doctorSteps(config.Default()))
 		}
-		return fmt.Errorf("%s", i18n.T("doctor.failed", 1))
+		return facts, fmt.Errorf("%s", i18n.T("doctor.failed", 1))
 	}
 	if err := cfg.Validate(); err != nil {
+		facts.configErr = err.Error()
 		fmt.Fprintln(w, i18n.T("doctor.config_bad", err.Error()))
 		problems++
 	} else {
 		fmt.Fprintln(w, i18n.T("doctor.config_ok", config.Path()))
 	}
-	problems += doctorProvider(w, cfg)
+	facts.provider = cfg.Provider
+	providerProblems := doctorProvider(w, cfg)
+	facts.providerOK = providerProblems == 0
+	problems += providerProblems
+	// A step of the user's own that omega left out never runs: say which.
+	_, facts.custom = customsteps.Load()
+	for _, p := range facts.custom {
+		fmt.Fprintln(w, i18n.T("doctor.custom_bad", p))
+		problems++
+	}
 	if withSteps {
 		fmt.Fprint(w, doctorSteps(cfg))
 	}
 	if problems > 0 {
-		return fmt.Errorf("%s", i18n.T("doctor.failed", problems))
+		return facts, fmt.Errorf("%s", i18n.T("doctor.failed", problems))
 	}
-	return nil
+	return facts, nil
 }
 
 // keyStore is where omega would save a key here. Tests replace it.

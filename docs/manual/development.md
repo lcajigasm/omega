@@ -155,7 +155,8 @@ A release publishes
 `omega-gui_<version>_windows_{amd64,arm64}.zip`, and on macOS it installs with
 `brew install --cask lcajigasm/tap/omega-app`. The app is ad-hoc signed and
 not notarized, so macOS quarantines it: run
-`xattr -dr com.apple.quarantine /Applications/Omega.app` after installing.
+`xattr -dr com.apple.quarantine /Applications/Omega.app` after installing
+and after each upgrade.
 The Windows build is not signed either, and SmartScreen warns on first run.
 The command stays its own formula; the two share configuration and keys.
 

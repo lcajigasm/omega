@@ -196,17 +196,21 @@ omega [task] [flags]
 | `--once` | exit when the agent finishes instead of asking for more |
 | `-U, --unattended` | `omega full` only: every stage with no questions, the sudo password asked once ([more](tasks.md#unattended-runs)) |
 | `-v, --version` | version |
-| `--no-ai`, `--offline` | run deterministically without calling an AI model |
-| `--json` | output report as structured JSON |
-| `--format json` | the same as `--json`; no other format is written yet |
-| `-q, --quiet` | quiet mode; suppress non-essential output |
-| `-v, --verbose` | verbose output showing commands and streaming output |
+| `--no-ai`, `--offline` | run deterministically without calling an AI model. Only `full`, `quick`, `update`, `clean`, `analyze` and `health` exist without it: any other task, and a request in your own words, is an error |
+| `--json` | one JSON report on stdout; implies `--no-ai`. `omega full` has none |
+| `--format json\|text` | `json` is the same as `--json`, `text` the default; anything else is an error |
+| `-q, --quiet` | with `--no-ai`: suppress the progress lines |
+| `-v, --verbose` | with `--no-ai`: show the output of every command |
 | `--debug` | accepted, and reserved: it prints nothing more yet |
-| `--fail-on-warning` | exit with non-zero code if any warning is found |
-| `--fail-on-outdated` | exit with non-zero code if outdated packages are detected |
-| `--fail-on-critical` | exit with non-zero code if any step fails |
+| `--fail-on-warning` | with `--no-ai`: exit with non-zero code if any warning is found |
+| `--fail-on-outdated` | with `--no-ai`: exit with non-zero code if outdated packages are detected |
+| `--fail-on-critical` | with `--no-ai`: exit with non-zero code if any step fails |
 | `--max-cost` | maximum estimated session cost in USD before stopping |
 | `--max-turns` | maximum number of agent turns |
+
+A run with `--no-ai` follows the same confirmation rules as the agent: a dangerous step asks at the terminal unless `--yes` was given, `approval = "all"` asks before every step that is not read-only, and the Docker cleanups always ask. With nobody at a terminal such a step is skipped and named. The configuration must load and be valid: a `config.toml` that cannot be read stops the run instead of running with the defaults.
+
+The JSON report has `task`, `timestamp`, `dry_run`, `steps_run` (always a list; each step with `id`, `name`, `category`, `command`, `success`, `exit_code`, `duration` in nanoseconds, `duration_ms` and `output`), `would_run` (under `--dry-run`: the steps that would have run), `skipped` (the steps nobody could confirm, with a `reason`), `outdated_count`, `warning_count`, `total_duration` (nanoseconds), `total_duration_ms` and `summary`.
 
 | Subcommand | Description |
 |---|---|
@@ -225,14 +229,14 @@ omega [task] [flags]
 | `omega mac undo` | revert changes made by `omega mac` |
 | `omega auth set\|remove\|status` | manage API keys (validated before saving) |
 | `omega config show\|path\|edit\|check\|set <key> <value>` | configuration (`check` validates it) |
-| `omega steps` | step catalogue and availability |
-| `omega steps run <id>… [-y]` | run steps without AI |
+| `omega steps [--json]` | step catalogue and availability |
+| `omega steps run <id>… [-y] [-n]` | run steps without AI; `-n` shows the commands only. `-y` does not answer for a step that always asks, and a step nobody could confirm makes the command fail |
 | `omega notes [clear]` | the agent's memory |
 | `omega logs` | list run transcripts, newest first |
 | `omega logs view [n\|file]` | print one transcript (the latest if omitted) |
-| `omega doctor` | check config, key shape, provider, the configured model and installed steps; no chat, no tokens |
-| `omega completion zsh\|bash\|fish\|powershell\|install` | completion script and automatic installer |
-| `omega quick` | one-click safe maintenance for everyday users |
+| `omega doctor [--json]` | check config, key shape, provider, the configured model, your own steps and installed steps; no chat, no tokens |
+| `omega completion zsh\|bash\|fish\|powershell\|install` | completion script and automatic installer (`install` reads `$SHELL`; on Windows it writes the PowerShell script and prints the line for your profile) |
+| `omega quick` | the short safe round: with `--no-ai` or no API key it empties the Trash and two caches (asking first), shows the battery and the free disk space and counts pending updates |
 | `omega net flush\|ping\|ports\|kill\|audit` | network, DNS cache flush, registry ping, port conflict hunter and hosts audit |
 | `omega git status\|clean\|gc` | git repository hygiene across dev folders: merged branches, unpushed work, .git optimization |
 | `omega skills [list\|audit]` | the skills of your AI coding agents, who sees each one and what is wrong with them; `--json` for the inventory |
@@ -242,16 +246,26 @@ omega [task] [flags]
 | `omega audit ssh\|secrets` | SSH directory & key permissions audit, and shell history secret leak scanner |
 | `omega privacy [--clean]` | review OS telemetry and safely clean browser caches |
 | `omega uninstall <app>` | finds one app by its exact name and what it left behind (preferences, caches, app support), and moves it all to the Trash after asking |
-| `omega schedule install\|status\|uninstall` | automated background maintenance with native daemons (launchd, systemd, Windows Task Scheduler) and desktop alerts; `--interval daily\|weekly\|monthly`, `--task quick\|update\|clean\|full\|analyze\|health` |
+| `omega schedule install\|status\|uninstall` | automated background maintenance with native daemons (launchd, systemd, Windows Task Scheduler); `--interval daily\|weekly\|monthly`, `--task quick\|update\|clean\|full\|analyze\|health` |
 | `omega rollback` | inspect and restore safety filesystem snapshots (APFS, Btrfs, Windows System Restore) |
-| `omega export [file]` | export machine blueprint (packages, dev tools, config) to omega-blueprint.json |
-| `omega bootstrap <file>` | restore and provision a system from an Omega blueprint |
+| `omega export [file]` | write the machine's blueprint to omega-blueprint.json (mode `0600`): Homebrew formulae and casks, global npm packages, pipx packages, the developer tools found (for reference) and omega's settings. What could not be listed is named |
+| `omega bootstrap <file> [-n] [-y]` | show what a blueprint would install and restore, then do it after a yes at the terminal (or with `-y`); `-n` shows the plan only |
 | `omega shell` | interactive maintenance REPL console |
 | `omega man [dir]` | generate troff man pages for Omega commands |
 | `omega fix [--log <file>] [error...]` | diagnose and fix failing commands, configuration or external build logs |
 
 `omega logs view` prints the newest transcript, `omega logs view 2` prints the second row of `omega logs`, and `omega logs view <file>` prints that file. A new run deletes older transcripts until 30 remain.
 
-`omega doctor` prints the version and, after asking GitHub for the latest release, whether a newer one exists (an old version is reported, not counted as a failure). It then loads the config, checks that a cloud key is present and shaped like a key (no spaces, not a URL, long enough), and asks the provider whether it is reachable. A cloud provider is asked for its model list. A local one is probed at `<base_url>/models`. Neither call sends a chat message. When `model`, `fast_model` or `smart_model` is set to a name other than `auto`, and the provider returned at least one model id, doctor fails if that name is not in the list. The command then lists catalogue steps that are installed on this machine. It exits with status 1 when the config, the key, the provider or a configured model check fails. A missing optional tool does not.
+`omega doctor` prints the version and, after asking GitHub for the latest release, whether a newer one exists (an old version is reported, not counted as a failure). It then loads the config, checks that a cloud key is present and shaped like a key (no spaces, not a URL, long enough), and asks the provider whether it is reachable. A cloud provider is asked for its model list. A local one is probed at `<base_url>/models`. Neither call sends a chat message. When `model`, `fast_model` or `smart_model` is set to a name other than `auto`, and the provider returned at least one model id, doctor fails if that name is not in the list. A file in `steps.d` that does not parse, or a step in one that omega leaves out, counts as a failed check. The command then lists catalogue steps that are installed on this machine. It exits with status 1 when the config, the key, the provider or a configured model check fails. A missing optional tool does not.
+
+`omega steps --json` prints the catalogue as a JSON list. Each step has `id`, `name`, `command`, `category_id` (`check`, `update`, `clean` or `backend`), `risk_id` (`read-only`, `normal` or `dangerous`), `available` (what it needs is installed) and `skipped` (turned off in `skip_steps`). `category`, `risk`, `dangerous` and `installed` are there too; `category` and `risk` are in your language, so a program should read the `_id` fields.
+
+`omega doctor --json` prints one JSON document and nothing else: `ok`, `lines` (the report as text), `version`, `config` (`path`, `ok`, and `error` when it is not), `provider` (`name`, `ok`), `custom_step_problems` and `steps` (the same list as `omega steps --json`). It exits with status 1 when `ok` is false.
+
+`omega bootstrap` refuses a blueprint in which a package name is anything but a name (letters, digits and `@ / . _ + -`, not starting with `-`), and never runs anything without showing it first. It restores omega's settings except `approval` and a provider's `base_url`, which keep the value this machine has, and keeps the previous file as `config.toml.bak`. The developer tools listed in a blueprint are not installed; `omega dev install` does that. It exits with an error when an installation fails.
+
+Your own steps live in `~/.config/omega/steps.d/*.toml`. A step needs an `id` and a `command`; `category` is `check`, `update`, `clean` (the default) or `backend`, and `risk` is `read-only`, `normal` (the default) or `dangerous`. A file that does not parse, or a step with another category or risk, is reported on stderr when omega starts and by `omega doctor` and `omega config check`. The same files may hold `[hooks]`: `pre_<task>` runs before a task and stops it when it fails, `post_<task>` runs after it, and `on_error` runs when the task failed. Hooks run with and without `--no-ai`; under `--dry-run` they are named, not run. A request in your own words has no hooks.
+
+`omega config edit` and `omega mac policy edit` open `$VISUAL`, then `$EDITOR` (either may hold arguments, as in `code -w`), then `nano`, or `notepad` on Windows.
 
 A 429, a 5xx or a dropped connection on Anthropic or an OpenAI-compatible provider is retried three times. The wait is the `Retry-After` value when the server sends one (a number of seconds or an HTTP date), and never more than 30 seconds. Otherwise the wait is 2s, then 4s, then 8s. Any other 4xx is reported immediately.

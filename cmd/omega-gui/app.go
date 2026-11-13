@@ -28,6 +28,70 @@ type App struct {
 	starting bool
 	cancel   context.CancelFunc
 	done     chan struct{}
+	prompt   string
+	// The session on show, kept so that a window drawn again (a reload)
+	// can show it and go on: its messages in order, and what it was asked.
+	seq   int
+	log   []gui.Message
+	title SessionInfo
+	// quitting is set once the user has agreed to end the session by
+	// closing the window.
+	quitting bool
+	quit     func()
+}
+
+// maxLog is how many messages of a session are kept for a window drawn
+// again. Past it, lines of output are no longer kept; the rest is.
+const maxLog = 20000
+
+// send numbers a message, keeps it and hands it to the window.
+func (a *App) send(m gui.Message) {
+	a.mu.Lock()
+	a.seq++
+	m.Seq = a.seq
+	if len(a.log) < maxLog || m.Kind != "output" {
+		a.log = append(a.log, m)
+	}
+	// Emitted under the lock: the window must hear them in order.
+	a.emit(m)
+	a.mu.Unlock()
+}
+
+// SessionState is the session the app holds, for a window that has just
+// been drawn.
+type SessionState struct {
+	Running  bool          `json:"running"`
+	Info     SessionInfo   `json:"info"`
+	Prompt   string        `json:"prompt"`
+	Messages []gui.Message `json:"messages"`
+}
+
+// Session returns the session on show: the running one, or the last one
+// that ended. A window that was reloaded draws it again from here.
+func (a *App) Session() SessionState {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return SessionState{Running: a.bridge != nil || a.starting, Info: a.title, Prompt: a.prompt,
+		Messages: append([]gui.Message{}, a.log...)}
+}
+
+// local puts an error of the session in the user's language.
+func local(err error) error {
+	switch {
+	case err == nil:
+		return nil
+	case errors.Is(err, errRunning):
+		return errors.New(i18n.T("gui.err.running"))
+	case errors.Is(err, errNoSession):
+		return errors.New(i18n.T("gui.err.no_session"))
+	case errors.Is(err, gui.ErrNoRequest):
+		return errors.New(i18n.T("gui.err.no_request"))
+	case errors.Is(err, gui.ErrBusy):
+		return errors.New(i18n.T("gui.err.busy"))
+	case errors.Is(err, context.Canceled):
+		return errors.New(i18n.T("gui.err.stopped"))
+	}
+	return err
 }
 
 // Task is a preset the home screen offers.
@@ -168,7 +232,10 @@ func (a *App) SaveSetup(provider, key, baseURL string) (cli.SetupResult, error) 
 	return cli.SaveSetup(provider, key, baseURL)
 }
 
-var errRunning = errors.New("a session is already running")
+var (
+	errRunning   = errors.New("a session is already running")
+	errNoSession = errors.New("no session is running")
+)
 
 // Start begins a session: a preset task, or prompt as free text.
 func (a *App) Start(task, prompt string, dryRun bool) (SessionInfo, error) {
@@ -178,10 +245,12 @@ func (a *App) Start(task, prompt string, dryRun bool) (SessionInfo, error) {
 	a.mu.Lock()
 	if a.bridge != nil || a.starting {
 		a.mu.Unlock()
-		return SessionInfo{}, errRunning
+		return SessionInfo{}, local(errRunning)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	a.starting, a.cancel = true, cancel
+	a.seq, a.log, a.prompt = 0, nil, prompt
+	a.title = SessionInfo{Task: task}
 	a.mu.Unlock()
 
 	s, err := cli.StartSession(ctx, cli.SessionRequest{Task: task, Prompt: prompt, DryRun: dryRun, Demo: a.demo})
@@ -192,9 +261,9 @@ func (a *App) Start(task, prompt string, dryRun bool) (SessionInfo, error) {
 	if err != nil {
 		cancel()
 		a.cancel = nil
-		return SessionInfo{}, err
+		return SessionInfo{}, local(err)
 	}
-	b := gui.New(ctx, s.Agent, a.emit)
+	b := gui.New(ctx, s.Agent, a.send)
 	done := make(chan struct{})
 	a.bridge, a.cancel, a.done = b, cancel, done
 	go func() {
@@ -207,14 +276,15 @@ func (a *App) Start(task, prompt string, dryRun bool) (SessionInfo, error) {
 		a.mu.Unlock()
 		close(done)
 	}()
-	return SessionInfo{Provider: s.Provider, Model: s.Model, Task: s.Task, Mode: b.Mode()}, nil
+	a.title = SessionInfo{Provider: s.Provider, Model: s.Model, Task: s.Task, Mode: b.Mode()}
+	return a.title, nil
 }
 
 func (a *App) session() (*gui.Bridge, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.bridge == nil {
-		return nil, errors.New("no session is running")
+		return nil, local(errNoSession)
 	}
 	return a.bridge, nil
 }
@@ -225,7 +295,7 @@ func (a *App) Send(text string) error {
 	if err != nil {
 		return err
 	}
-	return b.Send(text)
+	return local(b.Send(text))
 }
 
 // Confirm answers an approval card: "approve", "all" or "deny".
@@ -234,7 +304,7 @@ func (a *App) Confirm(id int, decision string) error {
 	if err != nil {
 		return err
 	}
-	return b.Confirm(id, decision)
+	return local(b.Confirm(id, decision))
 }
 
 // Choose answers a selection card with the picked IDs.
@@ -243,7 +313,7 @@ func (a *App) Choose(id int, picks []string) error {
 	if err != nil {
 		return err
 	}
-	return b.Choose(id, picks)
+	return local(b.Choose(id, picks))
 }
 
 // Password answers a sudo prompt; "" skips what needs administrator access.
@@ -252,7 +322,7 @@ func (a *App) Password(id int, secret string) error {
 	if err != nil {
 		return err
 	}
-	return b.Password(id, secret)
+	return local(b.Password(id, secret))
 }
 
 // SetMode changes the approval mode and returns the one now in force.
@@ -264,6 +334,9 @@ func (a *App) SetMode(mode string) (string, error) {
 	if err := b.SetMode(mode); err != nil {
 		return "", err
 	}
+	a.mu.Lock()
+	a.title.Mode = b.Mode()
+	a.mu.Unlock()
 	return b.Mode(), nil
 }
 
@@ -275,6 +348,37 @@ func (a *App) Stop() {
 	a.mu.Unlock()
 	if cancel != nil {
 		cancel()
+	}
+}
+
+// Busy reports whether a session is running or starting.
+func (a *App) Busy() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.bridge != nil || a.starting
+}
+
+// closing is asked when the window is about to close. It answers whether
+// it may: with a session running the window stays and asks the user, since
+// closing stops the command in flight.
+func (a *App) closing() bool {
+	a.mu.Lock()
+	busy := (a.bridge != nil || a.starting) && !a.quitting
+	a.mu.Unlock()
+	if busy {
+		a.emit(gui.Message{Kind: "quit_ask"})
+	}
+	return !busy
+}
+
+// Quit ends the session and closes the app: the answer to "quit_ask".
+func (a *App) Quit() {
+	a.mu.Lock()
+	a.quitting = true
+	quit := a.quit
+	a.mu.Unlock()
+	if quit != nil {
+		go quit()
 	}
 }
 

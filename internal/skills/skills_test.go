@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 )
 
@@ -461,6 +462,14 @@ func TestInstallFromGit(t *testing.T) {
 	if res, _ := Update(ctx, nil, false, false); res[0].State != Current {
 		t.Errorf("a second update: %+v", res)
 	}
+	// A commit that does not touch the skill is not a new version of it:
+	// check says what update would do.
+	os.WriteFile(filepath.Join(repo, "README.md"), []byte("hello\n"), 0o644)
+	run("add", "-A")
+	run("commit", "-q", "-m", "three")
+	if res, _ := Update(ctx, nil, true, false); res[0].State != Current {
+		t.Errorf("check after a commit elsewhere in the repository: %+v", res)
+	}
 }
 
 // Replacing a folder never deletes what was there: a copy may hold a file
@@ -510,4 +519,152 @@ func TestCopyAllKeepsGitAndLinks(t *testing.T) {
 			t.Errorf("the link was not copied as a link: %q, %v", to, err)
 		}
 	}
+}
+
+// Three real copies of one skill, removed together, are three folders in
+// the trash: the second and third used to land in one, and overwrite.
+func TestRemoveKeepsEveryCopyApart(t *testing.T) {
+	home := machine(t, "claude", "codex", "cursor")
+	for _, loc := range []string{".agents", ".claude", ".cursor"} {
+		dir := write(t, filepath.Join(home, loc, "skills"), "foo", "x")
+		os.WriteFile(filepath.Join(dir, "only-in"+loc), []byte(loc), 0o644)
+		os.WriteFile(filepath.Join(dir, "shared.md"), []byte(loc), 0o644)
+	}
+	plan, err := PlanRemove(scan(t), "foo", "")
+	if err != nil || len(plan) != 3 {
+		t.Fatalf("plan: %+v, %v", plan, err)
+	}
+	kept, err := Remove("foo", plan)
+	if err != nil || len(kept) != 3 {
+		t.Fatalf("remove: %v, %v", kept, err)
+	}
+	seen := map[string]bool{}
+	for _, dir := range kept {
+		seen[dir] = true
+		entries, _ := os.ReadDir(dir)
+		var own string
+		for _, e := range entries {
+			if strings.HasPrefix(e.Name(), "only-in") {
+				own += strings.TrimPrefix(e.Name(), "only-in")
+			}
+		}
+		data, _ := os.ReadFile(filepath.Join(dir, "shared.md"))
+		if own == "" || string(data) != own {
+			t.Errorf("%s holds the files of %q and shared.md of %q", dir, own, data)
+		}
+	}
+	if entries, _ := os.ReadDir(filepath.Dir(kept[0])); len(seen) != 3 || len(entries) != 3 {
+		t.Errorf("the trash holds %d folders (%d distinct paths returned), want 3", len(entries), len(seen))
+	}
+}
+
+// Only a move to another volume is made up for with a copy, and the copy
+// goes to a folder of its own: what is in the trash already is not touched.
+func TestTrashCopiesOnlyAcrossVolumes(t *testing.T) {
+	home := machine(t, "claude")
+	oldRename := rename
+	defer func() { rename = oldRename }()
+
+	first := write(t, filepath.Join(home, "a"), "foo", "first")
+	os.WriteFile(filepath.Join(first, "first.md"), []byte("1"), 0o644)
+	inTrash, err := trash(first)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	second := write(t, filepath.Join(home, "b"), "foo", "second")
+	os.MkdirAll(filepath.Join(second, ".git"), 0o755)
+	os.WriteFile(filepath.Join(second, ".git", "HEAD"), []byte("ref\n"), 0o644)
+	_ = os.Symlink("SKILL.md", filepath.Join(second, "link"))
+
+	// Any other failure: nothing is copied and nothing is deleted.
+	rename = func(from, to string) error {
+		return &os.LinkError{Op: "rename", Old: from, New: to, Err: syscall.EACCES}
+	}
+	if _, err := trash(second); err == nil {
+		t.Fatal("a move that was refused gave no error")
+	}
+	if _, err := os.Stat(filepath.Join(second, ".git", "HEAD")); err != nil {
+		t.Errorf("the folder that could not be moved was touched: %v", err)
+	}
+	if entries, _ := os.ReadDir(filepath.Dir(inTrash)); len(entries) != 1 {
+		t.Errorf("the trash changed after a failed move: %d entries", len(entries))
+	}
+
+	// Another volume: a whole copy beside the first, then the source goes.
+	rename = func(from, to string) error {
+		return &os.LinkError{Op: "rename", Old: from, New: to, Err: syscall.EXDEV}
+	}
+	dest, err := trash(second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dest == inTrash {
+		t.Fatal("the second folder went into the first")
+	}
+	if _, err := os.Stat(filepath.Join(dest, ".git", "HEAD")); err != nil {
+		t.Errorf("the copy lost .git: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(inTrash, "first.md")); err != nil {
+		t.Errorf("the folder already in the trash lost a file: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(inTrash, ".git")); err == nil {
+		t.Error("the second folder was copied into the first")
+	}
+	if _, err := os.Stat(second); err == nil {
+		t.Error("the source is still there after the copy")
+	}
+}
+
+// A skill that is a link to the user's own folder is not replaced through
+// the link: that folder would go to the trash and come back without .git.
+func TestInstallLeavesLinkedFoldersOutsideAlone(t *testing.T) {
+	home := machine(t, "claude", "codex")
+	ctx := context.Background()
+	dev := write(t, filepath.Join(home, "dev"), "foo", "mine")
+	os.MkdirAll(filepath.Join(dev, ".git"), 0o755)
+	os.WriteFile(filepath.Join(dev, ".git", "HEAD"), []byte("ref\n"), 0o644)
+	os.MkdirAll(filepath.Join(home, ".claude", "skills"), 0o755)
+	if err := os.Symlink(dev, filepath.Join(home, ".claude", "skills", "foo")); err != nil {
+		t.Skip("links are not available here: " + err.Error())
+	}
+	intact := func(when string) {
+		t.Helper()
+		if _, err := os.Stat(filepath.Join(dev, ".git", "HEAD")); err != nil {
+			t.Fatalf("%s: the linked folder lost its .git: %v", when, err)
+		}
+	}
+
+	// From the folder itself: refused.
+	if _, err := InstallFrom(ctx, dev, InstallOptions{Force: true}); err == nil {
+		t.Error("a skill was replaced with itself")
+	}
+	intact("installing a folder over itself")
+
+	// From elsewhere, when the link is all there is: refused, with the way out.
+	other := write(t, filepath.Join(home, "other"), "foo", "theirs")
+	if _, err := InstallFrom(ctx, other, InstallOptions{Force: true}); err == nil || !strings.Contains(err.Error(), "skills remove foo") {
+		t.Errorf("replacing through the link: %v", err)
+	}
+	intact("installing over the link")
+
+	// With a real copy in a skills folder too: that one is replaced, the
+	// link is reported and left.
+	shared := write(t, filepath.Join(home, ".agents", "skills"), "foo", "mine")
+	done, err := InstallFrom(ctx, other, InstallOptions{Force: true})
+	if err != nil || len(done) != 1 || len(done[0].Skipped) != 1 || done[0].Skipped[0] != filepath.Join(home, ".claude", "skills", "foo") {
+		t.Fatalf("install: %+v, %v", done, err)
+	}
+	intact("installing beside the link")
+	if data, _ := os.ReadFile(filepath.Join(shared, "SKILL.md")); !strings.Contains(string(data), "theirs") {
+		t.Errorf("the copy in the shared folder was not replaced: %s", data)
+	}
+
+	// update follows the same rule.
+	os.WriteFile(filepath.Join(other, "references", "notes.md"), []byte("v2\n"), 0o644)
+	res, err := Update(ctx, []string{"foo"}, false, true)
+	if err != nil || res[0].State != Updated || !strings.Contains(res[0].Detail, "left alone") {
+		t.Errorf("update: %+v, %v", res, err)
+	}
+	intact("updating")
 }

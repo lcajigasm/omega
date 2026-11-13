@@ -11,10 +11,13 @@ import (
 	"embed"
 	"io/fs"
 	"log"
+	"net/http"
 	"os"
+	"runtime"
 	"slices"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/events"
 
 	"github.com/lcajigasm/omega/internal/cli"
 	"github.com/lcajigasm/omega/internal/gui"
@@ -50,13 +53,17 @@ func main() {
 		Description: "AI-driven maintenance",
 		Icon:        icon,
 		Services:    []application.Service{application.NewService(svc)},
-		Assets:      application.AssetOptions{Handler: application.BundledAssetFileServer(assets)},
-		Mac:         application.MacOptions{ApplicationShouldTerminateAfterLastWindowClosed: true},
-		OnShutdown:  svc.shutdown,
+		Assets: application.AssetOptions{Handler: application.BundledAssetFileServer(assets),
+			Middleware: postOnly},
+		Mac:        application.MacOptions{ApplicationShouldTerminateAfterLastWindowClosed: true},
+		ShouldQuit: svc.closing,
+		OnShutdown: svc.shutdown,
 	})
 	svc.emit = func(m gui.Message) { app.Event.Emit("omega", m) }
+	svc.quit = app.Quit
+	app.Menu.SetApplicationMenu(menu())
 
-	app.Window.NewWithOptions(application.WebviewWindowOptions{
+	win := app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title:            "omega",
 		Width:            1040,
 		Height:           760,
@@ -66,7 +73,46 @@ func main() {
 		BackgroundColour: application.NewRGB(18, 18, 20),
 	})
 
+	win.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) {
+		if !svc.closing() {
+			e.Cancel()
+		}
+	})
+
 	if err := app.Run(); err != nil {
 		log.Fatal(err)
 	}
+}
+
+// postOnly refuses a call to the app's functions that is not a POST. The
+// window's own code posts; an address written in the text the window shows
+// (a link, an image) can only be fetched with a GET, and must not be able
+// to act as the user.
+func postOnly(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/wails/runtime" && r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// menu is the default menu without "Reload": the window is the session, and
+// drawing it again in the middle of one only gets in the way.
+func menu() *application.Menu {
+	m := application.NewMenu()
+	if runtime.GOOS == "darwin" {
+		m.AddRole(application.AppMenu)
+	}
+	m.AddRole(application.FileMenu)
+	m.AddRole(application.EditMenu)
+	view := m.AddSubmenu("View")
+	view.AddRole(application.ResetZoom)
+	view.AddRole(application.ZoomIn)
+	view.AddRole(application.ZoomOut)
+	view.AddSeparator()
+	view.AddRole(application.ToggleFullscreen)
+	m.AddRole(application.WindowMenu)
+	return m
 }

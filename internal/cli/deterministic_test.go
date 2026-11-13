@@ -25,6 +25,7 @@ func newDet(f runFlags, tty bool, answer bool) (*detRun, *[]string, *int, *bytes
 		cfg:    config.Default(),
 		report: &DeterministicReport{},
 		su:     &sudoSession{},
+		sudo:   func(string) error { return nil },
 		out:    out,
 		tty:    tty,
 		confirm: func(string) bool {

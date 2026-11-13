@@ -108,8 +108,9 @@ xattr -dr com.apple.quarantine /Applications/Omega.app
 or download
 [`omega-macos-universal.dmg`](https://github.com/lcajigasm/omega/releases/latest/download/omega-macos-universal.dmg),
 open it and drag Omega to Applications. The app is ad-hoc signed and not
-notarized yet, so macOS quarantines it: the `xattr` line clears that, once.
-`brew upgrade --cask omega-app` updates it.
+notarized yet, so macOS quarantines it: the `xattr` line clears that.
+`brew upgrade --cask omega-app` updates it, and brew quarantines the new
+download, so run the `xattr` line again after each upgrade.
 
 On Windows, take `omega-gui_<version>_windows_amd64.zip` (or `arm64`) from the
 [latest release](https://github.com/lcajigasm/omega/releases/latest), extract

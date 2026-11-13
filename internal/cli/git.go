@@ -33,11 +33,14 @@ func gitCmd() *cobra.Command {
 				fmt.Fprintf(cmd.OutOrStdout(), "Found %d repositories.\n\n", len(repos))
 				ctx := context.Background()
 
-				var dirtyCount, unpushedCount, mergedCount int
+				var dirtyCount, unpushedCount, mergedCount, uncheckedCount int
 
 				for _, r := range repos {
 					st, err := gitops.CheckRepo(ctx, r)
 					if err != nil {
+						// Not checked is not clean: say so.
+						uncheckedCount++
+						fmt.Fprintf(cmd.OutOrStdout(), "📁 %s  (%s)\n   ⚠ %v\n\n", st.Name, st.Path, err)
 						continue
 					}
 					hasIssues := st.HasUncommitted || st.UnpushedCount > 0 || len(st.MergedBranches) > 0 || len(st.LargeFiles) > 0
@@ -65,7 +68,10 @@ func gitCmd() *cobra.Command {
 				}
 
 				fmt.Fprintf(cmd.OutOrStdout(), "Summary: %d repos checked. %d with uncommitted work, %d with unpushed commits, %d merged branches.\n",
-					len(repos), dirtyCount, unpushedCount, mergedCount)
+					len(repos)-uncheckedCount, dirtyCount, unpushedCount, mergedCount)
+				if uncheckedCount > 0 {
+					return fmt.Errorf("%d of %d repositories could not be checked", uncheckedCount, len(repos))
+				}
 				return nil
 			},
 		},
@@ -77,22 +83,34 @@ func gitCmd() *cobra.Command {
 				roots := gitops.DefaultRoots()
 				repos := gitops.FindRepos(roots)
 				ctx := context.Background()
-				cleanedTotal := 0
+				cleanedTotal, failedTotal := 0, 0
 
 				for _, r := range repos {
 					st, err := gitops.CheckRepo(ctx, r)
-					if err != nil || len(st.MergedBranches) == 0 {
+					if err != nil {
+						fmt.Fprintf(cmd.OutOrStdout(), "  ⚠ %s: %v\n", r, err)
+						continue
+					}
+					if len(st.MergedBranches) == 0 {
 						continue
 					}
 					fmt.Fprintf(cmd.OutOrStdout(), "Repository %s has merged branches: %s\n", st.Name, strings.Join(st.MergedBranches, ", "))
-					ans := ask("Delete these merged local branches? [y/N]", "n")
-					if ans == "y" || ans == "Y" {
-						deleted, _ := gitops.DeleteMergedBranches(ctx, r, st.MergedBranches)
-						fmt.Fprintf(cmd.OutOrStdout(), "  ✓ Deleted: %s\n", strings.Join(deleted, ", "))
+					if askYesNo("Delete these merged local branches?") {
+						deleted, err := gitops.DeleteMergedBranches(ctx, r, st.MergedBranches)
+						if len(deleted) > 0 {
+							fmt.Fprintf(cmd.OutOrStdout(), "  ✓ Deleted: %s\n", strings.Join(deleted, ", "))
+						}
+						if err != nil {
+							failedTotal += len(st.MergedBranches) - len(deleted)
+							fmt.Fprintf(cmd.OutOrStdout(), "  ⚠ Not deleted:\n    %s\n", strings.ReplaceAll(err.Error(), "\n", "\n    "))
+						}
 						cleanedTotal += len(deleted)
 					}
 				}
 				fmt.Fprintf(cmd.OutOrStdout(), "\nDone! Cleaned %d merged branches.\n", cleanedTotal)
+				if failedTotal > 0 {
+					return fmt.Errorf("%d merged branches could not be deleted", failedTotal)
+				}
 				return nil
 			},
 		},

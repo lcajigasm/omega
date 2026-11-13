@@ -71,24 +71,24 @@ type Options struct {
 
 // Agent drives one maintenance session.
 type Agent struct {
-	opts      Options
-	chat      llm.Chat
-	model     string
-	escalated bool
-	events    chan Event
-	input     chan string
-	log       *os.File
-	usage     llm.Usage
-	cost      float64
-	costKnown bool
-	started   time.Time
-	real      bool // commands run on this machine (not a test or demo)
-	ctx       context.Context
+	opts    Options
+	chat    llm.Chat
+	events  chan Event
+	input   chan string
+	log     *os.File
+	usage   llm.Usage
+	cost    float64
+	started time.Time
+	real    bool // commands run on this machine (not a test or demo)
+	ctx     context.Context
 
-	// Changed by the UI while the run goes on.
+	// Changed by the UI, or by a tool that fails, while the run goes on.
 	mu        sync.Mutex
 	mode      Mode
 	exitCode  int
+	model     string
+	escalated bool
+	costKnown bool
 	nextModel string   // model the user picked, applied before the next turn
 	notes     []string // messages for the model about what the user changed
 
@@ -151,7 +151,32 @@ func (a *Agent) emit(e Event) {
 }
 
 func (a *Agent) stats() Stats {
-	return Stats{Usage: a.usage, Cost: a.cost, CostKnown: a.costKnown, Model: a.model, Elapsed: time.Since(a.started)}
+	a.mu.Lock()
+	model, known := a.model, a.costKnown
+	a.mu.Unlock()
+	return Stats{Usage: a.usage, Cost: a.cost, CostKnown: known, Model: model, Elapsed: time.Since(a.started)}
+}
+
+// currentModel is the model of the next request. A failed step changes it
+// from another goroutine, so it is read under the lock.
+func (a *Agent) currentModel() string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.model
+}
+
+// compact drops the old tool outputs from the conversation and returns how
+// many it dropped.
+func (a *Agent) compact() int {
+	c, ok := a.chat.(llm.Compactor)
+	if !ok {
+		return 0
+	}
+	n := c.Compact()
+	if n > 0 {
+		a.writeLog(Event{Kind: EvAssistant, Text: fmt.Sprintf("[history compacted: %d old tool outputs omitted]", n)})
+	}
+	return n
 }
 
 // ExitCode is the status of a finished run: 0, ExitError or ExitCancelled.
@@ -194,6 +219,7 @@ func (a *Agent) Run(ctx context.Context, task string) {
 
 	text := task
 	var results []llm.ToolResult
+	compacted := false // the history was already compacted for the message being sent
 	for turn := 0; ; turn++ {
 		if ctx.Err() != nil {
 			a.setExit(ExitCancelled)
@@ -228,6 +254,12 @@ func (a *Agent) Run(ctx context.Context, task string) {
 				a.emit(Event{Kind: EvDone, Text: i18n.T("agent.cancelled"), Stats: a.stats()})
 				return
 			}
+			// The conversation no longer fits in the model's window: drop
+			// the old tool outputs and send the same message again, once.
+			if !compacted && llm.IsContextLength(err) && a.compact() > 0 {
+				compacted = true
+				continue
+			}
 			a.setExit(ExitError)
 			a.emit(Event{Kind: EvError, Text: i18n.T("agent.model_error", err.Error())})
 			// The failed message was rolled back; let the user retry or quit.
@@ -245,22 +277,32 @@ func (a *Agent) Run(ctx context.Context, task string) {
 			continue
 		}
 		a.clearExit()
+		compacted = false
 		if reply.Truncated {
 			// The model was cut before it finished: a run that ends here
 			// did not do its task.
 			a.setExit(ExitError)
 		}
 		a.usage = a.usage.Add(reply.Usage)
-		if price, ok := llm.PriceFor(a.opts.Provider, a.model); ok {
+		model := a.currentModel()
+		if price, ok := llm.PriceFor(a.opts.Provider, model); ok {
 			a.cost += price.Cost(reply.Usage)
 		} else {
+			a.mu.Lock()
 			a.costKnown = false
+			a.mu.Unlock()
 		}
 		a.emit(Event{Kind: EvUsage, Stats: a.stats()})
 		if a.opts.MaxCost > 0 && a.cost >= a.opts.MaxCost {
-			a.setExit(ExitOK)
+			// The run was cut short: whatever was left to do was not done.
+			a.setExit(ExitError)
 			a.emit(Event{Kind: EvDone, Text: fmt.Sprintf("Reached cost budget limit of $%.2f", a.opts.MaxCost), Stats: a.stats()})
 			return
+		}
+		// Every turn resends the whole history. Before it outgrows the
+		// model's window, the old tool outputs go.
+		if reply.Usage.Input() >= llm.CompactAt(a.opts.Provider, model) {
+			a.compact()
 		}
 		if t := strings.TrimSpace(reply.Text); t != "" {
 			a.emit(Event{Kind: EvAssistant, Text: t})
@@ -368,14 +410,8 @@ func (a *Agent) applyChanges(text string) string {
 	next, notes := a.nextModel, a.notes
 	a.nextModel, a.notes = "", nil
 	a.mu.Unlock()
-	if next != "" && next != a.model {
-		a.escalated = true
-		a.model = next
-		a.chat.SetModel(next)
-		if _, ok := llm.PriceFor(a.opts.Provider, next); !ok {
-			a.costKnown = false
-		}
-		a.writeLog(Event{Kind: EvAssistant, Text: "[model " + next + "]"})
+	if next != "" && next != a.currentModel() {
+		a.switchModel(next)
 	}
 	if len(notes) == 0 {
 		return text
@@ -388,30 +424,51 @@ func (a *Agent) applyChanges(text string) string {
 	return text + "\n\n" + note
 }
 
+// switchModel moves the conversation to another model. A provider can
+// refuse (OpenCode Zen cannot carry a conversation from Claude to a model
+// of its other endpoint): the run then goes on with the model it had, and
+// says so.
+func (a *Agent) switchModel(model string) bool {
+	a.mu.Lock()
+	a.escalated = true // picked or tried once: no automatic switch after this
+	a.mu.Unlock()
+	if err := llm.SwitchModel(a.chat, model); err != nil {
+		a.emit(Event{Kind: EvError, Text: err.Error()})
+		return false
+	}
+	_, known := llm.PriceFor(a.opts.Provider, model)
+	a.mu.Lock()
+	a.model = model
+	if !known {
+		a.costKnown = false
+	}
+	a.mu.Unlock()
+	a.writeLog(Event{Kind: EvAssistant, Text: "[model " + model + "]"})
+	return true
+}
+
 // escalate switches to the stronger model once, the first time something
 // fails, so routine work stays on the cheap model. A model the user picked
 // in the meantime wins.
 func (a *Agent) escalate() {
 	a.mu.Lock()
 	picked := a.nextModel != ""
-	if picked || a.escalated || a.opts.Escalate == "" || a.opts.Escalate == a.model {
+	model := a.opts.Escalate
+	if picked || a.escalated || model == "" || model == a.model {
 		a.mu.Unlock()
 		return
 	}
 	a.escalated = true
-	a.model = a.opts.Escalate
-	model := a.model
-	if _, ok := llm.PriceFor(a.opts.Provider, model); !ok {
-		a.costKnown = false
-	}
 	a.mu.Unlock()
-	a.chat.SetModel(model)
-	a.emit(Event{Kind: EvModel, Text: model, Stats: a.stats()})
+	if a.switchModel(model) {
+		a.emit(Event{Kind: EvModel, Text: model, Stats: a.stats()})
+	}
 }
 
 // authorize applies the approval policy and asks the user when needed.
 // always forces a question even under --yes or "approve all", for actions
-// such as Docker cleanups that delete data the user may want to keep.
+// such as Docker cleanups that delete data the user may want to keep, and
+// for writes to the files that decide what runs at login.
 func (a *Agent) authorize(ctx context.Context, tool, command, reason string, risk safety.Risk, always bool) (bool, string) {
 	deny := func(why string) (bool, string) {
 		a.emit(Event{Kind: EvDenied, Tool: tool, Command: command, Reason: why})
@@ -432,8 +489,8 @@ func (a *Agent) authorize(ctx context.Context, tool, command, reason string, ris
 		}
 	}
 	if always && a.opts.Unattended {
-		return deny("Unattended run: this action deletes data the user may want to keep, so it always needs a person and was skipped. " +
-			"Do not retry it; list it in your summary as something to do by hand.")
+		return deny("Unattended run: this action always needs a person (it deletes data the user may want to keep, or changes " +
+			"what the machine runs at login), so it was skipped. Do not retry it; list it in your summary as something to do by hand.")
 	}
 	if !always {
 		if risk == safety.Safe || mode == ModeAuto || a.opts.Approval == config.ApproveNever {

@@ -47,19 +47,73 @@ var psWipeTarget = regexp.MustCompile(`(?i)^(` +
 	`|%(systemroot|windir|systemdrive|userprofile|programfiles|programdata|appdata|localappdata)%[\\/]*` +
 	`)(\*|\*\.\*)?$`)
 
-// windowsWipes reports a delete aimed at one of those roots.
+var (
+	psShell = regexp.MustCompile(`(?i)^(cmd|powershell|pwsh)(\.exe)?$`)
+	psBrace = regexp.MustCompile(`\$\{([^}]+)\}`)
+	psLists = regexp.MustCompile(`(?i)^(get-childitem|gci|ls|dir|get-item|gi)$`)
+)
+
+// windowsWipes reports a delete aimed at one of those roots. The delete may
+// be handed to another shell, with or without quotes: cmd /c "rd /s /q C:\".
 func windowsWipes(part string) bool {
-	words := psWords(part)
-	if len(words) < 2 || !psRemove.MatchString(words[0]) {
+	return psWipes(psWords(part)) || psWipes(psWords(strings.NewReplacer(`"`, "", `'`, "").Replace(part)))
+}
+
+func psWipes(words []string) bool {
+	if len(words) < 2 {
 		return false
 	}
-	for _, w := range words[1:] {
-		if strings.HasPrefix(w, "-") || (strings.HasPrefix(w, "/") && len(w) <= 3) {
-			continue // a parameter name, or a cmd switch such as /s /q
+	for i, w := range words {
+		if !psRemove.MatchString(w) || (i > 0 && !psShell.MatchString(words[0])) {
+			continue
 		}
-		for _, target := range strings.Split(w, ",") {
-			if psWipeTarget.MatchString(strings.Trim(target, `"'`)) {
+		for _, a := range words[i+1:] {
+			if psTargetsRoot(a) {
 				return true
+			}
+		}
+	}
+	return false
+}
+
+// psTargetsRoot reports a word that names one of the roots: alone, in a
+// list (x, C:\), or as the value of a parameter (-Path:C:\).
+func psTargetsRoot(w string) bool {
+	if strings.HasPrefix(w, "-") {
+		_, value, ok := strings.Cut(w, ":")
+		if !ok {
+			return false // a parameter name
+		}
+		w = value
+	} else if strings.HasPrefix(w, "/") && len(w) <= 3 {
+		return false // a cmd switch such as /s /q
+	}
+	for _, target := range strings.Split(w, ",") {
+		target = psBrace.ReplaceAllString(strings.Trim(target, `"'`), "$$$1") // ${env:X} is $env:X
+		if psWipeTarget.MatchString(target) {
+			return true
+		}
+	}
+	return false
+}
+
+// windowsPipeWipes reports a root listed into a delete:
+// Get-ChildItem C:\ | Remove-Item -Recurse names no path after Remove-Item.
+func windowsPipeWipes(cmd string) bool {
+	for _, pipeline := range splitUnquoted(cmd, false, true) {
+		listsRoot := false
+		for _, stage := range splitUnquoted(pipeline, true, false) {
+			words := psWords(stage)
+			if len(words) == 0 {
+				continue
+			}
+			if listsRoot && psRemove.MatchString(words[0]) {
+				return true
+			}
+			if psLists.MatchString(words[0]) {
+				for _, a := range words[1:] {
+					listsRoot = listsRoot || psTargetsRoot(a)
+				}
 			}
 		}
 	}
@@ -100,7 +154,14 @@ func psWords(part string) []string {
 // psReadOnly are cmdlets that only look: the verbs PowerShell reserves for
 // reading and shaping output. Out-File and the Set/New/Remove families are
 // not here, so they stay dangerous.
-var psReadOnly = regexp.MustCompile(`(?i)^((get|test|measure|select|where|sort|format|group|compare|resolve|convertto|convertfrom|find|show|read|search)-[a-z]+|out-(string|null|host|default)|write-(output|host)|foreach-object|%|\?)$`)
+var psReadOnly = regexp.MustCompile(`(?i)^((get|test|measure|select|where|sort|format|group|compare|resolve|convertto|convertfrom|find|show|read|search)-[a-z]+|out-(string|null|host|default)|write-(output|host)|foreach-object|%|\?|where|sort|select|group|measure)$`)
+
+// psForEach runs its argument once per object. A block that only reads a
+// property is a filter; a bare word is a method to call (% Delete, % Kill).
+var (
+	psForEach  = regexp.MustCompile(`(?i)^(foreach-object|%)$`)
+	psOneBlock = regexp.MustCompile(`^\S+\s*\{([^{}]*)\}\s*$`)
+)
 
 // psSimpleBlock is a script block that only compares or picks a property
 // of the current object: { $_.Length -gt 1MB }, { $_.Name }.
@@ -126,8 +187,9 @@ func psRunsCode(p string) bool {
 	return false
 }
 
-// psWrites are parameters that turn a reading cmdlet into a writing one.
-var psWrites = regexp.MustCompile(`(?i)\s-(outfile|outvariable|filepath|literalpath\s+\S+\s+-value|passthru\s+\|\s*set-)\b`)
+// psWrites are parameters that turn a reading cmdlet into a writing one,
+// or into one that never ends (Get-Content -Wait follows the file).
+var psWrites = regexp.MustCompile(`(?i)\s-(outfile|outvariable|filepath|wait|literalpath\s+\S+\s+-value|passthru\s+\|\s*set-)\b`)
 
 // Read-only Windows commands that are not cmdlets.
 var windowsSafePrefixes = []string{
@@ -153,6 +215,13 @@ func classifyWindows(p string) (Risk, bool) {
 	words := psWords(p)
 	if len(words) == 0 {
 		return Safe, false
+	}
+	if psForEach.MatchString(words[0]) {
+		m := psOneBlock.FindStringSubmatch(strings.TrimSpace(p))
+		if m == nil || !psSimpleBlock.MatchString(m[1]) {
+			return Dangerous, true
+		}
+		return Safe, true
 	}
 	if psReadOnly.MatchString(words[0]) {
 		if psWrites.MatchString(p) || psRunsCode(p) {

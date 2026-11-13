@@ -107,7 +107,7 @@ func dockerCmd() *cobra.Command {
 			}
 			tty := term.IsTerminal(int(os.Stdin.Fd()))
 			if !dockerRunning() {
-				if !tty || !i18n.IsYes(ask(i18n.T("docker.not_running"), "n")) {
+				if !tty || !askYesNo(i18n.T("docker.not_running")) {
 					return nil
 				}
 				fmt.Println(i18n.T("docker.starting"))
@@ -162,7 +162,7 @@ func dockerCmd() *cobra.Command {
 				return err
 			}
 			// Docker cleanups are always confirmed, whatever the approval settings.
-			if !i18n.IsYes(ask(i18n.T("docker.confirm", len(ids)), "n")) {
+			if !askYesNo(i18n.T("docker.confirm", len(ids))) {
 				fmt.Println(i18n.T("docker.nothing"))
 				return nil
 			}

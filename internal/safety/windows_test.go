@@ -87,3 +87,34 @@ func TestWindowsRulesLeaveUnixAlone(t *testing.T) {
 		}
 	}
 }
+
+// Found by the second review.
+func TestWindowsSecondReview(t *testing.T) {
+	for cmd, want := range map[string]Risk{
+		// A bare word after ForEach-Object is a method to call.
+		`Get-ChildItem *.txt | ForEach-Object Delete`:     Dangerous,
+		`Get-ChildItem | % Delete`:                        Dangerous,
+		`Get-Process notepad | % Kill`:                    Dangerous,
+		`Get-ChildItem | ForEach-Object -MemberName Kill`: Dangerous,
+		// A script block after an alias is still code.
+		`Get-ChildItem | where { Remove-Item $_ }`:    Dangerous,
+		`dir | where { del $_ }`:                      Dangerous,
+		`ls | sort { del $_ }`:                        Dangerous,
+		`Get-ChildItem | select { Remove-Item $_ }`:   Dangerous,
+		`Get-Content C:\logs\app.log -Wait`:           Dangerous,
+		`Get-ChildItem | % { $_.Name }`:               Safe,
+		`Get-ChildItem | where { $_.Length -gt 1MB }`: Safe,
+		`Get-Content C:\logs\app.log -Tail 20`:        Safe,
+		// Roots named in ways the first rule did not read.
+		`Remove-Item -Path:C:\ -Recurse`:                              Blocked,
+		`Remove-Item ${env:USERPROFILE} -Recurse`:                     Blocked,
+		`cmd /c rd /s /q C:\`:                                         Blocked,
+		`cmd /c "rd /s /q C:\"`:                                       Blocked,
+		`Get-ChildItem C:\ | Remove-Item -Recurse -Force`:             Blocked,
+		`Get-ChildItem C:\Users\me\tmp | Remove-Item -Recurse -Force`: Dangerous,
+	} {
+		if got := Classify(cmd); got != want {
+			t.Errorf("%s: %v, want %v", cmd, got, want)
+		}
+	}
+}

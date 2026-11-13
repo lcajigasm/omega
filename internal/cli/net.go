@@ -57,7 +57,12 @@ func netCmd() *cobra.Command {
 			RunE: func(cmd *cobra.Command, args []string) error {
 				targetPort := 0
 				if len(args) == 1 {
-					targetPort, _ = strconv.Atoi(args[0])
+					// A word that is not a port used to list every port.
+					port, err := strconv.Atoi(args[0])
+					if err != nil || port < 1 || port > 65535 {
+						return fmt.Errorf("invalid port number: %s", args[0])
+					}
+					targetPort = port
 				}
 				ports, err := netdiag.FindPorts(context.Background(), targetPort)
 				if err != nil {
@@ -86,7 +91,7 @@ func netCmd() *cobra.Command {
 			Args:  cobra.ExactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
 				port, err := strconv.Atoi(args[0])
-				if err != nil || port <= 0 {
+				if err != nil || port < 1 || port > 65535 {
 					return fmt.Errorf("invalid port number: %s", args[0])
 				}
 				if err := netdiag.KillPortProcess(context.Background(), port); err != nil {

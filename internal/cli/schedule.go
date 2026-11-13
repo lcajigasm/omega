@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"runtime"
 
 	"github.com/spf13/cobra"
 
@@ -28,6 +29,11 @@ func scheduleCmd() *cobra.Command {
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "✓ Background maintenance installed successfully (%s, task: %s, at %02d:%02d).\n",
 				interval, task, hour, minute)
+			// Say what will run unattended, and where its output goes.
+			fmt.Fprintf(cmd.OutOrStdout(), "  It runs `omega %s --yes --no-tui`. %s\n", task, scheduler.Describe(task))
+			if runtime.GOOS == "darwin" {
+				fmt.Fprintf(cmd.OutOrStdout(), "  Its output is kept in %s.\n", scheduler.LogDir())
+			}
 			return nil
 		},
 	}
@@ -50,6 +56,9 @@ func scheduleCmd() *cobra.Command {
 				fmt.Fprintf(cmd.OutOrStdout(), "\nBackground Maintenance Status (%s):\n", st.Platform)
 				if !st.Installed {
 					fmt.Fprintln(cmd.OutOrStdout(), "  Status: Not installed.")
+					if st.Details != "" {
+						fmt.Fprintf(cmd.OutOrStdout(), "  Details: %s\n", st.Details)
+					}
 					fmt.Fprintln(cmd.OutOrStdout(), "  Run 'omega schedule install' to set up automatic maintenance.")
 					return nil
 				}

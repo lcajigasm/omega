@@ -109,7 +109,8 @@ func TestWithheldVariablesSetByStartupFilesDoNotReachCommands(t *testing.T) {
 	if os.Getenv("OMEGA_TEST_PROVIDER_KEY") != "sk-from-environment-0001" {
 		t.Error("omega's own process must keep the variable: only its commands lose it")
 	}
-	if got := unsetWithheld("fish"); got != "set -e OMEGA_TEST_PROVIDER_KEY; " {
+	// Other names may be in the list: the credentials of this machine's own environment.
+	if got := unsetWithheld("fish"); !strings.Contains(got, "set -e OMEGA_TEST_PROVIDER_KEY; ") || strings.Contains(got, "unset") {
 		t.Errorf("fish: %q", got)
 	}
 }
@@ -187,5 +188,136 @@ func TestRunRedactsEnvironmentCredentials(t *testing.T) {
 	res := Run(context.Background(), `printenv ZZ_FAKE_TOKEN`, 10*time.Second, nil)
 	if strings.Contains(res.Output, "tok-1234567890abcdef") {
 		t.Errorf("the token reached the output: %q", res.Output)
+	}
+}
+
+// forget undoes what a test registered, so one test's credentials do not
+// change what the next one's commands receive.
+func forget(t *testing.T, names ...string) {
+	t.Helper()
+	t.Cleanup(func() {
+		redactMu.Lock()
+		defer redactMu.Unlock()
+		for _, n := range names {
+			delete(stripped, n)
+		}
+	})
+}
+
+// A variable whose name says it is a credential does not reach commands:
+// printed in pieces, its value would get past the mask on the output. The
+// few that tools need stay, masked.
+func TestCredentialVariablesAreNotInherited(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses a POSIX shell")
+	}
+	const secret = "s3cr3t-value-0123456789"
+	for _, name := range []string{"OMEGA_T_DB_PASSWORD", "OMEGA_T_SIGNING_KEY", "OMEGA_T_PASS", "OMEGA_T_PWD", "OMEGA_T_AUTH", "OMEGA_T_DSN", "OMEGA_T_API_TOKEN"} {
+		t.Setenv(name, secret)
+		forget(t, name)
+	}
+	t.Setenv("GITHUB_TOKEN", "ghp_keptforbrewandgh0123456789")
+	t.Setenv("OMEGA_T_AUTH_SOCK", "/tmp/agent.sock") // a path: where the secret is, not the secret
+	t.Setenv("OMEGA_T_DATABASE_URL", "postgres://ana:hunter2pw@db.example.com/app")
+	redactEnv()
+
+	res := Run(context.Background(), `echo "a=[${OMEGA_T_DB_PASSWORD:0:6}] b=[$OMEGA_T_SIGNING_KEY] c=[$OMEGA_T_PASS$OMEGA_T_PWD$OMEGA_T_AUTH$OMEGA_T_DSN$OMEGA_T_API_TOKEN]"; `+
+		`echo "sock=[$OMEGA_T_AUTH_SOCK]"; echo "url=$OMEGA_T_DATABASE_URL"; echo "gh=$GITHUB_TOKEN"; env | grep -c '^GITHUB_TOKEN='`, 15*time.Second, nil)
+	for _, want := range []string{"a=[] b=[] c=[]", "sock=[/tmp/agent.sock]", "url=postgres://ana:[redacted]@db.example.com/app", "gh=[redacted]"} {
+		if !strings.Contains(res.Output, want) {
+			t.Errorf("want %q in %q", want, res.Output)
+		}
+	}
+	for _, leak := range []string{"s3cr3t", "hunter2pw", "ghp_kept"} {
+		if strings.Contains(res.Output, leak) {
+			t.Errorf("%q reached the output: %q", leak, res.Output)
+		}
+	}
+	if os.Getenv("OMEGA_T_DB_PASSWORD") != secret {
+		t.Error("omega's own process must keep the variable")
+	}
+}
+
+// What a command prints from a file omega never saw in an environment is
+// masked by the shape of the line.
+func TestScrubMasksAssignmentsAndURLs(t *testing.T) {
+	for in, want := range map[string]string{
+		`export OPENAI_API_KEY=sk-abc123`:                  `export OPENAI_API_KEY=[redacted]`,
+		`export DB_PASS="p w d"`:                           `export DB_PASS=[redacted]`,
+		`MYSQL_PWD=abcd1234`:                               `MYSQL_PWD=[redacted]`,
+		`echo "OPENAI_API_KEY=[]" TOKEN_COUNT=5`:           `echo "OPENAI_API_KEY=[]" TOKEN_COUNT=5`,
+		`SENTRY_DSN='https://k@sentry.io/1' # dsn`:         `SENTRY_DSN=[redacted] # dsn`,
+		`remote = https://ana:ghp_abc@github.com/a/b.git`:  `remote = https://ana:[redacted]@github.com/a/b.git`,
+		`psql postgres://u:pw@host/db --password=hunter22`: `psql postgres://u:[redacted]@host/db --password=[redacted]`,
+		// Not credentials.
+		`export PATH=/usr/bin:$PATH`:              `export PATH=/usr/bin:$PATH`,
+		`SSH_AUTH_SOCK=/private/tmp/agent.sock`:   `SSH_AUTH_SOCK=/private/tmp/agent.sock`,
+		`PWD=/Users/ana`:                          `PWD=/Users/ana`,
+		`export EDITOR=vim LANG=en_US.UTF-8`:      `export EDITOR=vim LANG=en_US.UTF-8`,
+		`https://example.com/a:b@c`:               `https://example.com/a:b@c`,
+		`total 8 files, 10:30 ana@host`:           `total 8 files, 10:30 ana@host`,
+		`KEYTIMEOUT=1`:                            `KEYTIMEOUT=1`,
+		`user.signingkey=ABCDEF0123`:              `user.signingkey=ABCDEF0123`,
+		`export AWS_SHARED_CREDENTIALS_FILE=~/.x`: `export AWS_SHARED_CREDENTIALS_FILE=~/.x`,
+	} {
+		if got := Scrub(in); got != want {
+			t.Errorf("Scrub(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+// A key exported only by the login shell's startup files (the desktop app
+// is started without them) is found, masked and taken out all the same.
+func TestCredentialsFromStartupFilesAreFound(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("startup files of POSIX shells")
+	}
+	home := t.TempDir()
+	rc := "export OMEGA_T_RC_SECRET=rc-only-secret-0123456789\nexport OMEGA_T_RC_PLAIN=rc-was-read\n"
+	for _, name := range []string{".zshenv", ".zprofile", ".bash_profile", ".profile"} {
+		if err := os.WriteFile(filepath.Join(home, name), []byte(rc), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("HOME", home)
+	t.Setenv("ZDOTDIR", home)
+	forget(t, "OMEGA_T_RC_SECRET")
+	for _, sh := range []string{"/bin/zsh", "/bin/bash"} {
+		if _, err := os.Stat(sh); err != nil {
+			continue
+		}
+		t.Setenv("SHELL", sh)
+		vars := loginEnv()
+		if !strings.Contains(strings.Join(vars, "\n"), "OMEGA_T_RC_PLAIN=rc-was-read") {
+			t.Fatalf("%s: the login environment was not read: %d variables", sh, len(vars))
+		}
+		scanEnv(vars)
+		res := Run(context.Background(), `echo "v=[$OMEGA_T_RC_SECRET] plain=[$OMEGA_T_RC_PLAIN]"; cat "$HOME/.profile"; echo "tail=${OMEGA_T_RC_SECRET:10}"`, 15*time.Second, nil)
+		if strings.Contains(res.Output, "rc-only-secret") || !strings.Contains(res.Output, "v=[] plain=[rc-was-read]") ||
+			!strings.Contains(res.Output, "export OMEGA_T_RC_SECRET=[redacted]") {
+			t.Errorf("%s: %q", sh, res.Output)
+		}
+	}
+}
+
+// A command that leaves something running in the background has not failed.
+func TestBackgroundChildIsNotAFailure(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses a POSIX shell")
+	}
+	start := time.Now()
+	res := Run(context.Background(), `(sleep 20 &); echo started`, 30*time.Second, nil)
+	if res.ExitCode != 0 || res.TimedOut || !strings.Contains(res.Output, "started") {
+		t.Fatalf("exit %d timed out %v: %q", res.ExitCode, res.TimedOut, res.Output)
+	}
+	if !strings.Contains(res.Output, "still running") || strings.Contains(res.Output, "WaitDelay") {
+		t.Errorf("the note about the background process is missing: %q", res.Output)
+	}
+	if time.Since(start) > 15*time.Second {
+		t.Errorf("waited %s for the background process", time.Since(start))
+	}
+	// A command that fails keeps its own status.
+	if res := Run(context.Background(), `(sleep 20 &); exit 3`, 30*time.Second, nil); res.ExitCode != 3 {
+		t.Errorf("exit %d, want 3: %q", res.ExitCode, res.Output)
 	}
 }

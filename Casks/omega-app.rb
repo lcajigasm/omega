@@ -36,7 +36,8 @@ cask "omega-app" do
 
   caveats <<~EOS
     Omega.app is ad-hoc signed and is not notarized, so Gatekeeper
-    quarantines it. Clear the quarantine attribute after install:
+    quarantines it. Clear the quarantine attribute after every install or
+    upgrade (brew quarantines each new download):
 
       xattr -dr com.apple.quarantine /Applications/Omega.app
 

@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -135,8 +136,16 @@ func (a *Agent) openLog(provider string) {
 		return
 	}
 	_ = os.Chmod(dir, 0o700) // a folder made by an earlier version
-	path := filepath.Join(dir, time.Now().Format("2006-01-02_150405")+".log")
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+	// Two runs can start in the same second (the desktop app and a
+	// scheduled one): the second takes the next free name, never the
+	// first one's file.
+	stamp := time.Now().Format("2006-01-02_150405")
+	path := filepath.Join(dir, stamp+".log")
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_EXCL, 0o600)
+	for n := 2; errors.Is(err, os.ErrExist) && n < 100; n++ {
+		path = filepath.Join(dir, fmt.Sprintf("%s_%d.log", stamp, n))
+		f, err = os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_EXCL, 0o600)
+	}
 	if err != nil {
 		return
 	}

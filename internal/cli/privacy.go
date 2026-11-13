@@ -43,12 +43,24 @@ func privacyCmd() *cobra.Command {
 				fmt.Fprintf(cmd.OutOrStdout(), "\n  Total browser cache space: %d MB\n", totalMB)
 
 				if clean {
-					ans := ask("\nClear all detected browser caches? (cookies and logins are kept) [y/N]", "n")
-					if ans == "y" || ans == "Y" {
+					if askYesNo("\nClear all detected browser caches? (cookies and logins are kept)") {
+						failed := 0
 						for _, b := range audit.BrowserCaches {
-							_ = os.RemoveAll(b.Path)
-							_ = os.MkdirAll(b.Path, 0755)
+							// A browser that is open keeps files in use: say what
+							// was not cleared instead of a tick.
+							err := os.RemoveAll(b.Path)
+							if err == nil {
+								err = os.MkdirAll(b.Path, 0755)
+							}
+							if err != nil {
+								failed++
+								fmt.Fprintf(cmd.OutOrStdout(), "  ⚠ %s cache not fully cleared: %v\n", b.Browser, err)
+								continue
+							}
 							fmt.Fprintf(cmd.OutOrStdout(), "  ✓ Cleaned %s cache\n", b.Browser)
+						}
+						if failed > 0 {
+							return fmt.Errorf("%d of %d browser caches could not be cleared; close the browser and try again", failed, len(audit.BrowserCaches))
 						}
 					}
 				} else {

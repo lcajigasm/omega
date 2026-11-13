@@ -321,7 +321,7 @@ func TestLeftoversAndApps(t *testing.T) {
 		t.Errorf("a cask app is removed through Homebrew: %+v", u)
 	}
 	manual := AppInfo{App: installed["com.here.App"]}
-	if u := manual.UninstallChange(now); !strings.HasPrefix(u.Command, "mv -n '/Applications/App.app' ") || !strings.Contains(u.Undo, "'/Applications/App.app'") {
+	if u := manual.UninstallChange(now); !strings.Contains(u.Command, "mv -n '/Applications/App.app' ") || !strings.Contains(u.Undo, "'/Applications/App.app'") {
 		t.Errorf("other apps go to the Trash and can come back: %+v", u)
 	}
 	keep := &UserPolicy{}
