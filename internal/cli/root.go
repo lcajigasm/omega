@@ -445,7 +445,7 @@ func (r *run) agent(interactive, demoInteractive bool, sudoPassword string) *age
 }
 
 func runTask(task string, f runFlags) error {
-	if f.noAI || f.offline || f.json || f.format == "json" {
+	if f.noAI || f.offline || f.wantsJSON() {
 		return runDeterministic(task, f)
 	}
 
@@ -457,6 +457,11 @@ func runTask(task string, f runFlags) error {
 	r, err := prepareRun(task, f)
 	if err != nil {
 		if f.prompt == "" && (task == agent.TaskQuick || task == agent.TaskUpdate || task == agent.TaskClean || task == agent.TaskAnalyze || task == agent.TaskHealth) {
+			// Say so: the run that follows is not the one that was asked
+			// for, and a scheduled job has no other way to show why.
+			if !f.quiet {
+				fmt.Fprintf(os.Stderr, "omega: %v\nomega: running without AI (the built-in steps only)\n", err)
+			}
 			return runDeterministic(task, f)
 		}
 		return err
@@ -483,7 +488,7 @@ func runTask(task string, f runFlags) error {
 	if f.noTUI || !stdinTTY || !stdoutTTY {
 		// An unattended run answers nothing at the terminal, although the
 		// user who started it may still be sitting there.
-		ui.RunPlain(ag, os.Stdin, stdinTTY && !f.unattended)
+		ui.RunPlain(ctx, ag, os.Stdin, stdinTTY && !f.unattended)
 	} else {
 		err = ui.RunTUI(ctx, cancel, ag, ui.Header{Version: version, Provider: r.p.Name(), Model: r.plan.Model,
 			Escalate: r.plan.Escalate, Models: r.plan.Choices, Task: r.task})

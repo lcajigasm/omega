@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -63,6 +64,36 @@ func escapeAppleScript(s string) string {
 	return strings.ReplaceAll(s, `"`, `\"`)
 }
 
+// Validate checks a schedule before anything is written: a task omega does
+// not have, or 25:00, would install a job that fails every time it runs.
+func Validate(interval, task string, hour, minute int) error {
+	switch interval {
+	case "daily", "weekly", "monthly":
+	default:
+		return fmt.Errorf("interval %q: use daily, weekly or monthly", interval)
+	}
+	switch task {
+	case "quick", "update", "clean", "full", "analyze", "health":
+	default:
+		return fmt.Errorf("task %q: use quick, update, clean, full, analyze or health", task)
+	}
+	if hour < 0 || hour > 23 {
+		return fmt.Errorf("hour %d: use 0 to 23", hour)
+	}
+	if minute < 0 || minute > 59 {
+		return fmt.Errorf("minute %d: use 0 to 59", minute)
+	}
+	return nil
+}
+
+// xmlEscape makes a path safe inside a property list.
+func xmlEscape(s string) string {
+	return strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;").Replace(s)
+}
+
+// sq quotes a path for sh.
+func sq(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'" }
+
 // Install registers background maintenance with the operating system.
 func Install(interval, task string, hour, minute int) error {
 	if interval == "" {
@@ -70,6 +101,9 @@ func Install(interval, task string, hour, minute int) error {
 	}
 	if task == "" {
 		task = "quick"
+	}
+	if err := Validate(interval, task, hour, minute); err != nil {
+		return err
 	}
 	omegaPath, err := os.Executable()
 	if err != nil {
@@ -86,32 +120,59 @@ func Install(interval, task string, hour, minute int) error {
 	}
 }
 
+// macCalendar is the StartCalendarInterval of the schedule: every day,
+// Saturdays, or the first of the month.
+func macCalendar(interval string, hour, minute int) string {
+	day := ""
+	switch interval {
+	case "weekly":
+		day = "\n            <key>Weekday</key>\n            <integer>6</integer>"
+	case "monthly":
+		day = "\n            <key>Day</key>\n            <integer>1</integer>"
+	}
+	return fmt.Sprintf(`
+        <dict>%s
+            <key>Hour</key>
+            <integer>%d</integer>
+            <key>Minute</key>
+            <integer>%d</integer>
+        </dict>`, day, hour, minute)
+}
+
+// systemdCalendar is the same schedule as an OnCalendar expression.
+func systemdCalendar(interval string, hour, minute int) string {
+	switch interval {
+	case "daily":
+		return fmt.Sprintf("*-*-* %02d:%02d:00", hour, minute)
+	case "monthly":
+		return fmt.Sprintf("*-*-01 %02d:%02d:00", hour, minute)
+	}
+	return fmt.Sprintf("Sat *-*-* %02d:%02d:00", hour, minute)
+}
+
+// windowsTaskArgs are the arguments of schtasks. They are passed as they
+// are, not through PowerShell: its quoting turned the quoted path of /TR
+// into a program name that does not exist, and the task never started.
+func windowsTaskArgs(omegaPath, interval, task string, hour, minute int) []string {
+	sc := []string{"/SC", "WEEKLY", "/D", "SAT"}
+	switch interval {
+	case "daily":
+		sc = []string{"/SC", "DAILY"}
+	case "monthly":
+		sc = []string{"/SC", "MONTHLY", "/D", "1"}
+	}
+	args := []string{"/Create", "/TN", windowsTaskName, "/TR", fmt.Sprintf(`"%s" %s --yes --no-tui`, omegaPath, task)}
+	args = append(args, sc...)
+	return append(args, "/ST", fmt.Sprintf("%02d:%02d", hour, minute), "/F")
+}
+
 func installMacLaunchAgent(omegaPath, interval, task string, hour, minute int) error {
 	home, _ := os.UserHomeDir()
 	agentsDir := filepath.Join(home, "Library/LaunchAgents")
 	_ = os.MkdirAll(agentsDir, 0755)
 	plistPath := filepath.Join(agentsDir, macLaunchAgentLabel+".plist")
 
-	var calendarInterval string
-	if interval == "daily" {
-		calendarInterval = fmt.Sprintf(`
-        <dict>
-            <key>Hour</key>
-            <integer>%d</integer>
-            <key>Minute</key>
-            <integer>%d</integer>
-        </dict>`, hour, minute)
-	} else { // weekly on Saturday
-		calendarInterval = fmt.Sprintf(`
-        <dict>
-            <key>Weekday</key>
-            <integer>6</integer>
-            <key>Hour</key>
-            <integer>%d</integer>
-            <key>Minute</key>
-            <integer>%d</integer>
-        </dict>`, hour, minute)
-	}
+	calendarInterval := macCalendar(interval, hour, minute)
 
 	content := fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -132,15 +193,15 @@ func installMacLaunchAgent(omegaPath, interval, task string, hour, minute int) e
     <key>StandardErrorPath</key>
     <string>/tmp/omega-schedule.err</string>
 </dict>
-</plist>`, macLaunchAgentLabel, omegaPath, task, calendarInterval)
+</plist>`, macLaunchAgentLabel, xmlEscape(omegaPath), task, calendarInterval)
 
 	if err := os.WriteFile(plistPath, []byte(content), 0644); err != nil {
 		return err
 	}
 
 	// Load with launchctl
-	_ = runner.Run(context.Background(), fmt.Sprintf("launchctl unload %s 2>/dev/null", plistPath), 3*time.Second, nil)
-	res := runner.Run(context.Background(), fmt.Sprintf("launchctl load %s", plistPath), 3*time.Second, nil)
+	_ = runner.Run(context.Background(), fmt.Sprintf("launchctl unload %s 2>/dev/null", sq(plistPath)), 3*time.Second, nil)
+	res := runner.Run(context.Background(), fmt.Sprintf("launchctl load %s", sq(plistPath)), 3*time.Second, nil)
 	if res.ExitCode != 0 {
 		return fmt.Errorf("launchctl load failed: %s", res.Output)
 	}
@@ -160,13 +221,10 @@ Description=Omega Scheduled Maintenance
 
 [Service]
 Type=oneshot
-ExecStart=%s %s --yes --no-tui
-`, omegaPath, task)
+ExecStart="%s" %s --yes --no-tui
+`, strings.ReplaceAll(omegaPath, `"`, `\"`), task)
 
-	onCalendar := fmt.Sprintf("Sat *-*-* %02d:%02d:00", hour, minute)
-	if interval == "daily" {
-		onCalendar = fmt.Sprintf("*-*-* %02d:%02d:00", hour, minute)
-	}
+	onCalendar := systemdCalendar(interval, hour, minute)
 
 	timerContent := fmt.Sprintf(`[Unit]
 Description=Omega Scheduled Maintenance Timer
@@ -194,15 +252,9 @@ WantedBy=timers.target
 }
 
 func installWindowsTask(omegaPath, interval, task string, hour, minute int) error {
-	scInterval := "WEEKLY /D SAT"
-	if interval == "daily" {
-		scInterval = "DAILY"
-	}
-	cmd := fmt.Sprintf(`schtasks /Create /TN "%s" /TR "\"%s\" %s --yes --no-tui" /SC %s /ST %02d:%02d /F`,
-		windowsTaskName, omegaPath, task, scInterval, hour, minute)
-	res := runner.Run(context.Background(), cmd, 5*time.Second, nil)
-	if res.ExitCode != 0 {
-		return fmt.Errorf("schtasks failed: %s", res.Output)
+	out, err := exec.Command("schtasks", windowsTaskArgs(omegaPath, interval, task, hour, minute)...).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("schtasks failed: %s", strings.TrimSpace(string(out)))
 	}
 	return nil
 }

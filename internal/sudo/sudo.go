@@ -15,6 +15,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/lcajigasm/omega/internal/runner"
 )
 
 // AskFunc asks the user for the password. retry is true when the previous
@@ -56,6 +58,9 @@ func Start(ask AskFunc, password string) (*Bridge, error) {
 		return nil, err
 	}
 	b := &Bridge{dir: dir, ask: ask, password: password}
+	// A command can ask the helper for the password like sudo does and
+	// print it. Whatever a command prints, the password is not shown.
+	runner.Redact(password)
 	sock := filepath.Join(dir, "askpass.sock")
 	if b.ln, err = net.Listen("unix", sock); err != nil {
 		os.RemoveAll(dir)
@@ -124,6 +129,7 @@ func (b *Bridge) handle(conn net.Conn) {
 			}
 			if Validate(pw) {
 				b.password = pw
+				runner.Redact(pw)
 				break
 			}
 		}

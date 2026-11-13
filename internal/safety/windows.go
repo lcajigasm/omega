@@ -102,6 +102,30 @@ func psWords(part string) []string {
 // not here, so they stay dangerous.
 var psReadOnly = regexp.MustCompile(`(?i)^((get|test|measure|select|where|sort|format|group|compare|resolve|convertto|convertfrom|find|show|read|search)-[a-z]+|out-(string|null|host|default)|write-(output|host)|foreach-object|%|\?)$`)
 
+// psSimpleBlock is a script block that only compares or picks a property
+// of the current object: { $_.Length -gt 1MB }, { $_.Name }.
+var psSimpleBlock = regexp.MustCompile(`^\s*\$_(\.\w+)*(\s+-[a-z]+\s+("[^"$]*"|'[^']*'|[\w.]+))?\s*$`)
+
+var psBlock = regexp.MustCompile(`\{([^{}]*)\}`)
+
+// psRunsCode reports a reading cmdlet that is handed code to run: only its
+// first word says "read". ForEach-Object { Remove-Item $_ } deletes, and
+// so does a method call such as $_.Delete() or [IO.File]::Delete(...).
+func psRunsCode(p string) bool {
+	if strings.Contains(p, "::") || strings.Contains(p, "(") {
+		return true
+	}
+	if strings.Count(p, "{") != len(psBlock.FindAllString(p, -1)) {
+		return true // nested or unbalanced blocks
+	}
+	for _, m := range psBlock.FindAllStringSubmatch(p, -1) {
+		if !psSimpleBlock.MatchString(m[1]) {
+			return true
+		}
+	}
+	return false
+}
+
 // psWrites are parameters that turn a reading cmdlet into a writing one.
 var psWrites = regexp.MustCompile(`(?i)\s-(outfile|outvariable|filepath|literalpath\s+\S+\s+-value|passthru\s+\|\s*set-)\b`)
 
@@ -131,7 +155,7 @@ func classifyWindows(p string) (Risk, bool) {
 		return Safe, false
 	}
 	if psReadOnly.MatchString(words[0]) {
-		if psWrites.MatchString(p) {
+		if psWrites.MatchString(p) || psRunsCode(p) {
 			return Dangerous, true
 		}
 		return Safe, true

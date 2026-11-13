@@ -1,10 +1,12 @@
 package agent
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -437,5 +439,82 @@ func TestUnattendedTakesEveryOptionAndSkipsAlwaysAsk(t *testing.T) {
 	}
 	if strings.Join(ran, ";") != "brew cleanup" {
 		t.Fatalf("ran %q", ran)
+	}
+}
+
+func TestFetchRefusesPrivateAddresses(t *testing.T) {
+	for _, addr := range []string{"127.0.0.1:80", "[::1]:80", "10.0.0.5:80", "192.168.1.1:80", "172.16.3.4:443",
+		"169.254.169.254:80", "100.100.100.100:80", "[fe80::1]:80", "[fd00::1]:80", "0.0.0.0:80", "[::ffff:127.0.0.1]:80"} {
+		if err := publicOnly("tcp", addr, nil); err == nil {
+			t.Errorf("%s was allowed", addr)
+		}
+	}
+	for _, addr := range []string{"1.1.1.1:443", "140.82.112.3:443", "[2606:4700:4700::1111]:443"} {
+		if err := publicOnly("tcp", addr, nil); err != nil {
+			t.Errorf("%s was refused: %v", addr, err)
+		}
+	}
+	if _, _, err := get(context.Background(), "http://127.0.0.1:9/"); err == nil || !strings.Contains(err.Error(), "public internet") {
+		t.Errorf("a fetch from localhost: %v", err)
+	}
+}
+
+func TestReadHead(t *testing.T) {
+	dir := t.TempDir()
+	big := filepath.Join(dir, "big")
+	os.WriteFile(big, bytes.Repeat([]byte("a"), 100), 0o644)
+	data, cut, err := readHead(big, 10)
+	if err != nil || !cut || len(data) != 10 {
+		t.Errorf("big file: %d bytes, cut %v, %v", len(data), cut, err)
+	}
+	if _, _, err := readHead(dir, 10); err == nil {
+		t.Error("a folder was read")
+	}
+	if runtime.GOOS != "windows" {
+		if _, _, err := readHead("/dev/zero", 10); err == nil {
+			t.Error("/dev/zero was read")
+		}
+	}
+}
+
+// At the turn limit the results of the last tools are not dropped: they go
+// to the model with the user's next message, so every tool call it made
+// has its answer.
+func TestTurnLimitKeepsToolResults(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	p := &scriptedProvider{replies: []*llm.Reply{
+		{Calls: []llm.ToolCall{call("1", "run_command", map[string]any{"command": "echo uno", "reason": "r"})}},
+		{Text: "listo"},
+	}}
+	a := New(p, Options{Config: config.Default(), Timeout: 10 * time.Second, Approval: config.ApproveDangerous, Interactive: true, MaxTurns: 1})
+	go a.Run(context.Background(), "test")
+	idles := 0
+	for e := range a.Events() {
+		if e.Kind != EvIdle {
+			continue
+		}
+		if idles++; idles == 1 {
+			a.Input() <- "sigue"
+		} else {
+			a.Input() <- ""
+		}
+	}
+	if len(p.results) != 2 || len(p.results[1]) != 1 || p.results[1][0].CallID != "1" {
+		t.Fatalf("the second message carried %+v", p.results)
+	}
+}
+
+// A run that ends on a reply cut at the output limit did not finish.
+func TestTruncatedReplyIsNotSuccess(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	p := &scriptedProvider{replies: []*llm.Reply{{Text: "a medias", Truncated: true}}}
+	a := New(p, Options{Config: config.Default(), Timeout: 10 * time.Second, Approval: config.ApproveDangerous})
+	go a.Run(context.Background(), "test")
+	for range a.Events() {
+	}
+	if a.ExitCode() == 0 {
+		t.Error("exit status 0 after a truncated reply")
 	}
 }

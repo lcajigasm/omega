@@ -130,11 +130,13 @@ func rotateRunLogs(dir, protect string, keep int) {
 
 func (a *Agent) openLog(provider string) {
 	dir := RunsDir()
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	// The transcripts hold every command's output: for this user only.
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return
 	}
+	_ = os.Chmod(dir, 0o700) // a folder made by an earlier version
 	path := filepath.Join(dir, time.Now().Format("2006-01-02_150405")+".log")
-	f, err := os.Create(path)
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
 	if err != nil {
 		return
 	}

@@ -5,6 +5,7 @@ package gitops
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -121,18 +122,27 @@ func CheckRepo(ctx context.Context, repoPath string) (*RepoStatus, error) {
 	return st, nil
 }
 
+// ErrRepoBusy is returned for a repository another git process is using.
+var ErrRepoBusy = errors.New("another git process is using the repository")
+
 // OptimizeRepo runs git gc and repacks loose objects to reclaim space.
+//
+// It is the gc git runs by itself: objects nothing points to are kept for
+// two weeks. --prune=now would delete at once what can still be recovered
+// (a dropped stash, the commits of a deleted branch, a file that was staged
+// and never committed), and git documents it as unsafe while anything else
+// writes to the repository. A repository with a lock is left alone.
 func OptimizeRepo(ctx context.Context, repoPath string) (int64, error) {
-	before := dirSizeMB(filepath.Join(repoPath, ".git"))
-	cmd := fmt.Sprintf("git -C %s gc --prune=now --aggressive 2>/dev/null", shellQuote(repoPath))
-	res := runner.Run(ctx, cmd, 60*time.Second, nil)
-	if res.ExitCode != 0 {
-		// Fall back to quick prune
-		cmd = fmt.Sprintf("git -C %s gc --prune=now 2>/dev/null", shellQuote(repoPath))
-		res = runner.Run(ctx, cmd, 30*time.Second, nil)
-		if res.ExitCode != 0 {
-			return 0, fmt.Errorf("git gc failed: %s", res.Output)
+	for _, lock := range []string{"index.lock", "gc.pid", "shallow.lock", "packed-refs.lock"} {
+		if _, err := os.Lstat(filepath.Join(repoPath, ".git", lock)); err == nil {
+			return 0, ErrRepoBusy
 		}
+	}
+	before := dirSizeMB(filepath.Join(repoPath, ".git"))
+	cmd := fmt.Sprintf("git -C %s gc --quiet 2>&1", shellQuote(repoPath))
+	res := runner.Run(ctx, cmd, 120*time.Second, nil)
+	if res.ExitCode != 0 {
+		return 0, fmt.Errorf("git gc failed: %s", strings.TrimSpace(res.Output))
 	}
 	after := dirSizeMB(filepath.Join(repoPath, ".git"))
 	freed := before - after

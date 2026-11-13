@@ -56,7 +56,10 @@ type Reply struct {
 	Text    string
 	Calls   []ToolCall
 	Refused bool
-	Usage   Usage
+	// Truncated is set when the reply was cut at the output limit. Its
+	// tool calls are dropped, here and in the conversation.
+	Truncated bool
+	Usage     Usage
 }
 
 // Chat is a running conversation with one model.

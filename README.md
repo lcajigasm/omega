@@ -144,7 +144,7 @@ topgrade and Mole are excellent until something breaks. Then the work is yours.
 | **Network & DNS** | `omega net` | Universal DNS flush, package registry latency test, port conflict hunter and hosts/proxy auditor |
 | **Security audit** | `omega audit` | Audits SSH keys and permissions (`~/.ssh`), and scans shell history for leaked secrets |
 | **Privacy** | `omega privacy` | Reviews OS telemetry and safely cleans browser caches without losing sessions |
-| **Uninstall apps** | `omega uninstall` | Deep software uninstallation finding residual Application Support, Preferences and Cache files |
+| **Uninstall apps** | `omega uninstall` | Finds an app by its exact name with its Application Support, Preferences and Cache files, and moves them to the Trash |
 | **Automate** | `omega schedule` | Native background scheduling (`launchd`, `systemd --user`, Windows Task Scheduler) with desktop alerts |
 | **Snapshot safety** | `omega rollback` | Creates filesystem safety snapshots (APFS, Btrfs, Windows Restore Points) and restores them on demand |
 | **Blueprint & setup** | `omega export` | Exports machine state to `omega-blueprint.json` and provisions new environments with `omega bootstrap` |

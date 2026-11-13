@@ -98,7 +98,7 @@ func gitCmd() *cobra.Command {
 		},
 		&cobra.Command{
 			Use:   "gc",
-			Short: "Run git gc and aggressive repacking to shrink .git directories",
+			Short: "Run git gc to pack loose objects and shrink .git directories",
 			Args:  cobra.NoArgs,
 			RunE: func(cmd *cobra.Command, args []string) error {
 				roots := gitops.DefaultRoots()
@@ -109,7 +109,11 @@ func gitCmd() *cobra.Command {
 				fmt.Fprintf(cmd.OutOrStdout(), "Optimizing %d git repositories...\n", len(repos))
 				for _, r := range repos {
 					freed, err := gitops.OptimizeRepo(ctx, r)
-					if err == nil && freed > 0 {
+					if err != nil {
+						fmt.Fprintf(cmd.OutOrStdout(), "  ⚠ %s: skipped (%v)\n", r, err)
+						continue
+					}
+					if freed > 0 {
 						fmt.Fprintf(cmd.OutOrStdout(), "  ✓ %s: freed %d MB\n", r, freed)
 						totalFreed += freed
 					}

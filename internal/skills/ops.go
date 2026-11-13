@@ -102,8 +102,11 @@ func trash(path string) (string, error) {
 		dest += " " + time.Now().Format("2006-01-02 15.04.05.000")
 	}
 	if err := os.Rename(path, dest); err != nil {
-		// Another volume: copy, then delete.
-		if err := copyDir(path, dest); err != nil {
+		// Another volume: copy everything, then delete. copyDir would not
+		// do: it leaves out version control and links, and what is being
+		// put away may be the only copy of them.
+		if err := copyAll(path, dest); err != nil {
+			os.RemoveAll(dest)
 			return "", err
 		}
 		if err := os.RemoveAll(path); err != nil {
@@ -111,6 +114,47 @@ func trash(path string) (string, error) {
 		}
 	}
 	return dest, nil
+}
+
+// copyAll copies a folder as it is: every file, hidden ones and .git
+// included, and links as links.
+func copyAll(src, dst string) error {
+	return filepath.Walk(src, func(path string, fi os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+		target := filepath.Join(dst, rel)
+		switch {
+		case fi.Mode()&os.ModeSymlink != 0:
+			to, err := os.Readlink(path)
+			if err != nil {
+				return err
+			}
+			return os.Symlink(to, target)
+		case fi.IsDir():
+			return os.MkdirAll(target, fi.Mode().Perm()|0o700)
+		case !fi.Mode().IsRegular():
+			return nil
+		}
+		in, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer in.Close()
+		out, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, fi.Mode().Perm())
+		if err != nil {
+			return err
+		}
+		if _, err := io.Copy(out, in); err != nil {
+			out.Close()
+			return err
+		}
+		return out.Close()
+	})
 }
 
 // ---- sharing ----
@@ -548,7 +592,7 @@ func InstallFrom(ctx context.Context, source string, opts InstallOptions) ([]Ins
 		if s, exists := inv.Find(f.name); exists {
 			if src, ok := s.source(); ok {
 				dest = src.Real
-				if err := replaceAll(s, src, f.dir, true); err != nil {
+				if err := replaceAll(s, src, f.dir); err != nil {
 					return out, err
 				}
 			} else {
@@ -558,7 +602,7 @@ func InstallFrom(ctx context.Context, source string, opts InstallOptions) ([]Ins
 		if dest == "" {
 			l, _ := LocationByID(locs[0])
 			dest = filepath.Join(Expand(l.Path), f.name)
-			if err := replace(dest, f.dir, true); err != nil {
+			if err := replace(dest, f.dir); err != nil {
 				return out, err
 			}
 		}
@@ -618,9 +662,11 @@ func agentIDs() string {
 }
 
 // replace puts the files of src at dest, and only once they are complete
-// beside it. What was at dest goes to the trash when keep is set: it may
-// hold something written on this machine.
-func replace(dest, src string, keep bool) error {
+// beside it. What was at dest always goes to the trash, never away: a copy
+// in one location may hold notes or a .git that the others do not, and
+// comparing hashes does not show it (HashDir leaves out version control and
+// links).
+func replace(dest, src string) error {
 	fresh := dest + ".omega-new"
 	_ = os.RemoveAll(fresh)
 	if err := copyDir(src, fresh); err != nil {
@@ -628,13 +674,7 @@ func replace(dest, src string, keep bool) error {
 		return err
 	}
 	if _, err := os.Lstat(dest); err == nil {
-		var err error
-		if keep {
-			_, err = trash(dest)
-		} else {
-			err = os.RemoveAll(dest)
-		}
-		if err != nil {
+		if _, err := trash(dest); err != nil {
 			os.RemoveAll(fresh)
 			return err
 		}
@@ -644,14 +684,14 @@ func replace(dest, src string, keep bool) error {
 
 // replaceAll does it for a skill's source and for its copies in other
 // locations, so they stay the same.
-func replaceAll(s *Skill, src Install, from string, keep bool) error {
+func replaceAll(s *Skill, src Install, from string) error {
 	done := map[string]bool{}
 	for _, in := range append([]Install{src}, s.Installs...) {
 		if in.Broken || done[in.Real] {
 			continue
 		}
 		done[in.Real] = true
-		if err := replace(in.Real, from, keep); err != nil {
+		if err := replace(in.Real, from); err != nil {
 			return err
 		}
 	}
@@ -783,7 +823,7 @@ func Update(ctx context.Context, names []string, check, force bool) ([]UpdateRes
 				res.State = Available
 				break
 			}
-			if err := replaceAll(s, src, from, src.Hash != o.Hash); err != nil {
+			if err := replaceAll(s, src, from); err != nil {
 				res.State, res.Detail = Failed, err.Error()
 				break
 			}

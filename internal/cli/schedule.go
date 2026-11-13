@@ -31,8 +31,8 @@ func scheduleCmd() *cobra.Command {
 			return nil
 		},
 	}
-	install.Flags().StringVar(&interval, "interval", "weekly", "Schedule interval: 'daily' or 'weekly'")
-	install.Flags().StringVar(&task, "task", "quick", "Omega task to run: 'quick', 'clean', 'update', 'full'")
+	install.Flags().StringVar(&interval, "interval", "weekly", "Schedule interval: 'daily', 'weekly' (Saturdays) or 'monthly' (the 1st)")
+	install.Flags().StringVar(&task, "task", "quick", "Omega task to run: 'quick', 'clean', 'update', 'full', 'analyze', 'health'")
 	install.Flags().IntVar(&hour, "hour", 3, "Hour of day (0-23)")
 	install.Flags().IntVar(&minute, "minute", 0, "Minute of hour (0-59)")
 

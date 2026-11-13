@@ -279,6 +279,7 @@ Exemplos:
 	"auth.saved":  {"Saved to %s.", "Guardada en %s.", "Enregistrée dans %s.", "Gespeichert: %s.", "Guardada em %s."},
 
 	// ---- models ----
+	"cmd.fix":    {"Diagnose a problem you describe, and fix it", "Diagnosticar un problema que describes y arreglarlo", "Diagnostiquer un problème que vous décrivez et le corriger", "Ein beschriebenes Problem untersuchen und beheben", "Diagnosticar um problema que descreve e corrigi-lo"},
 	"cmd.models": {"List a provider's models", "Listar los modelos de un proveedor", "Lister les modèles d'un fournisseur", "Modelle eines Anbieters auflisten", "Listar os modelos de um fornecedor"},
 
 	// ---- config ----
