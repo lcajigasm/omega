@@ -417,6 +417,12 @@ func (a *Agent) authorize(ctx context.Context, tool, command, reason string, ris
 		return deny("Read-only mode: this action would change the system and was rejected. " +
 			"Offer it to the user with propose_actions instead.")
 	}
+	if a.opts.Unattended && risk > safety.Safe {
+		if what := safety.PersonalSetup(command); what != "" {
+			return deny("Unattended run: " + what + " is how the user arranged this machine, not maintenance, so it was left as it is. " +
+				"Do not retry it or an equivalent; mention it in your summary as a suggestion for the user.")
+		}
+	}
 	if always && a.opts.Unattended {
 		return deny("Unattended run: this action deletes data the user may want to keep, so it always needs a person and was skipped. " +
 			"Do not retry it; list it in your summary as something to do by hand.")

@@ -17,7 +17,7 @@
    ┌───────────────┼───────────────────────────────────────────────┐
    │ system_info  list_steps  run_step  run_command  disk_usage   │
    │ read_file  write_file  remember  propose_actions             │
-   │ config_hints  web_search  fetch_url                          │
+   │ config_hints  official_docs  web_search  fetch_url           │
    │ mac_inventory  mac_change  mac_policy                        │
    └───────────────┬───────────────────────────────────────────────┘
                    │ risk classifier (safety)

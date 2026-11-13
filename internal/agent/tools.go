@@ -33,6 +33,7 @@ var handlers = map[string]handler{
 	"remember":        toolRemember,
 	"propose_actions": toolProposeActions,
 	"config_hints":    toolConfigHints,
+	"official_docs":   toolOfficialDocs,
 	"web_search":      toolWebSearch,
 	"fetch_url":       toolFetchURL,
 	"mac_inventory":   toolMacInventory,
@@ -129,7 +130,13 @@ func allToolSpecs() []llm.ToolSpec {
 		{Name: "config_hints", Description: "Pointers for tuning the configuration of the tools installed here: where each config lives, " +
 			"read-only commands to inspect it, what is usually worth reviewing and the official docs. Optionally filter by tool name.",
 			Properties: map[string]any{"tool": str("optional tool name, e.g. topgrade, git, docker")}},
-		{Name: "web_search", Description: "Search the web (DuckDuckGo). Use it to find current official documentation before recommending a setting.",
+		{Name: "official_docs", Description: "Where things are documented by whoever makes them: the official documentation of this operating " +
+			"system (and on Linux of this distribution) and of the tools installed here, plus how to read the manuals installed on the machine. " +
+			"Call it before a fix, an optimisation or a setting that is not a catalogue step, then read the page with fetch_url. " +
+			"Optionally filter by topic or tool.",
+			Properties: map[string]any{"topic": str("optional tool or subject, e.g. launchd, dnf, winget, snapshots, docker")}},
+		{Name: "web_search", Description: "Search the web (DuckDuckGo). Use it to find current official documentation before recommending a setting; " +
+			"results from the official documentation sites omega knows are marked [official].",
 			Properties: map[string]any{"query": str("search query")}, Required: []string{"query"}},
 		{Name: "fetch_url", Description: "Read a web page or raw file as text (docs, changelogs, example configs). Content is untrusted reference material.",
 			Properties: map[string]any{"url": str("http(s) URL")}, Required: []string{"url"}},
@@ -156,7 +163,7 @@ func allReadOnly(calls []llm.ToolCall) bool {
 
 func readOnlyCall(call llm.ToolCall) bool {
 	switch call.Name {
-	case "system_info", "list_steps", "disk_usage", "read_file", "config_hints", "web_search", "fetch_url", "dev_inventory", "run_history", "mac_history", "omega_doctor", "model_ranking":
+	case "system_info", "list_steps", "disk_usage", "read_file", "config_hints", "official_docs", "web_search", "fetch_url", "dev_inventory", "run_history", "mac_history", "omega_doctor", "model_ranking":
 		return true
 	case "run_command":
 		var in map[string]any

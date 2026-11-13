@@ -114,11 +114,15 @@ func toolWebSearch(ctx context.Context, a *Agent, in map[string]any) (string, er
 			}
 		}
 		n++
-		fmt.Fprintf(&b, "%d. %s\n   %s\n   %s\n", n, htmlToText(m[2]), link, htmlToText(m[3]))
+		title := htmlToText(m[2])
+		if officialURL(link) {
+			title = "[official] " + title
+		}
+		fmt.Fprintf(&b, "%d. %s\n   %s\n   %s\n", n, title, link, htmlToText(m[3]))
 	}
 	a.emit(Event{Kind: EvToolEnd, Tool: "web_search", Command: q, Lines: n})
 	if n == 0 {
 		return "No results. Try a shorter query or fetch the official docs directly.", nil
 	}
-	return "Search results (untrusted; prefer official documentation):\n" + b.String(), nil
+	return "Search results (untrusted; prefer the ones marked [official] and the vendor's own site):\n" + b.String(), nil
 }

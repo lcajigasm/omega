@@ -260,3 +260,23 @@ func (p *UserPolicy) MenuBarVerdict(names ...string) (verdict, category, why str
 	}
 	return Keep, category, why
 }
+
+// Personal names what a change id rearranges when it touches how the user
+// set up their Mac rather than what needs upkeep: the Dock, the menu bar,
+// keyboard shortcuts, the apps they installed. It returns "" for the rest
+// (login and background items, stale privacy entries, leftovers of removed
+// apps). A run nobody watches never applies a personal change.
+func Personal(id string) string {
+	op, _, _ := strings.Cut(strings.TrimSpace(id), ":")
+	switch {
+	case strings.HasPrefix(op, "dock"):
+		return "the Dock"
+	case op == "quit" || op == "hide":
+		return "the menu bar"
+	case strings.HasPrefix(op, "hotkey"):
+		return "keyboard shortcuts"
+	case op == "app-remove":
+		return "the installed apps"
+	}
+	return ""
+}

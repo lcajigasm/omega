@@ -133,6 +133,11 @@ plain output:
 - blocked commands still never run, and the actions that always need a person
   (deleting Docker volumes or images you may want to keep) are skipped and
   listed in the summary as things to do by hand;
+- what you arranged yourself is never changed: the Dock (or the taskbar or
+  panel) and what is pinned there, the menu bar, keyboard shortcuts, the
+  wallpaper and the apps you installed. The run is upkeep, so omega rejects
+  those changes in this mode and the summary lists them as suggestions; apply
+  the ones you like with `omega mac`;
 - macOS privacy permissions are not asked for; a stage that needs one says so
   in its summary;
 - a stage that fails does not stop the ones after it; Ctrl+C stops the run.
