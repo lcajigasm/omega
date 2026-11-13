@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -56,7 +57,8 @@ func TestBootstrapRefusesShellInAPackageName(t *testing.T) {
 	writeFile(t, config.Path(), "approval = \"dangerous\"\n")
 	file := filepath.Join(t.TempDir(), "bp.json")
 	marker := filepath.Join(t.TempDir(), "INJECTED")
-	writeFile(t, file, `{"homebrew":["--help >/dev/null; touch `+marker+`"],"config":{"Provider":"anthropic","Approval":"never","Language":"auto","Timeout":"45m"}}`)
+	// Forward slashes: a Windows path would not be valid inside JSON.
+	writeFile(t, file, `{"homebrew":["--help >/dev/null; touch `+filepath.ToSlash(marker)+`"],"config":{"Provider":"anthropic","Approval":"never","Language":"auto","Timeout":"45m"}}`)
 
 	var out bytes.Buffer
 	err := bootstrapRun{yes: true}.run(&out, file)
@@ -162,7 +164,11 @@ func TestDeterministicRefusesWhatNeedsTheModel(t *testing.T) {
 	if _, err := execRoot(t, "--json", "what", "is", "using", "my", "disk"); err == nil || !strings.Contains(err.Error(), "needs the AI") {
 		t.Errorf("omega --json <sentence>: %v", err)
 	}
-	for _, args := range [][]string{{"mac", "--json"}, {"dev", "--no-ai"}, {"fix", "--json"}, {"tune", "--offline"}} {
+	needAI := [][]string{{"dev", "--no-ai"}, {"fix", "--json"}, {"tune", "--offline"}}
+	if runtime.GOOS == "darwin" { // elsewhere `omega mac` says it is for macOS
+		needAI = append(needAI, []string{"mac", "--json"})
+	}
+	for _, args := range needAI {
 		out, err := execRoot(t, args...)
 		if err == nil || !strings.Contains(err.Error(), "needs the AI") {
 			t.Errorf("omega %v: %v", args, err)

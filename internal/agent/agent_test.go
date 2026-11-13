@@ -526,6 +526,7 @@ func TestTruncatedReplyIsNotSuccess(t *testing.T) {
 func TestWriteFileAsksForLoginFilesEvenWithYes(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // the home directory on Windows
 	rc := filepath.Join(home, ".zshrc")
 	if err := os.WriteFile(rc, []byte("export PATH=/usr/bin\n"), 0o600); err != nil {
 		t.Fatal(err)
@@ -637,6 +638,7 @@ func TestDiffPreviewMarksWhatItHides(t *testing.T) {
 func TestReadFileMasksExportedKeysAndRefusesHistory(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // the home directory on Windows
 	os.WriteFile(filepath.Join(home, ".zshrc"), []byte("export EDITOR=vim\nexport OPENAI_API_KEY=sk-live-0123456789\nexport DB_URL=postgres://ana:hunter2pw@db/app\n"), 0o600)
 	os.WriteFile(filepath.Join(home, ".zsh_history"), []byte("mysql -pS3cret\n"), 0o600)
 	p := &scriptedProvider{replies: []*llm.Reply{

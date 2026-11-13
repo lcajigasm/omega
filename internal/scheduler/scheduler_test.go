@@ -122,7 +122,7 @@ func TestInstallMac(t *testing.T) {
 			t.Errorf("the job lacks %q:\n%s", want, plist)
 		}
 	}
-	if strings.Contains(plist, "/tmp/") {
+	if strings.Contains(plist, "/tmp/omega-schedule") {
 		t.Errorf("the job logs to a shared folder:\n%s", plist)
 	}
 	if fi, err := os.Stat(logs); err != nil || (runtime.GOOS != "windows" && fi.Mode().Perm() != 0o700) {

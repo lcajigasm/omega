@@ -327,7 +327,14 @@ func TestFindArtifactsAsksGit(t *testing.T) {
 			}
 			return nil
 		})
-		age(t, all...)
+		// Not age(): git may be tidying the repository in the background,
+		// and a lock file it removes meanwhile is not there to be dated.
+		old := time.Now().AddDate(0, 0, -40)
+		for _, p := range all {
+			if err := os.Chtimes(p, old, old); err != nil && !os.IsNotExist(err) {
+				t.Fatal(err)
+			}
+		}
 	}
 	long := time.Now().AddDate(0, 0, -60)
 	git(long, "init", "-q")
