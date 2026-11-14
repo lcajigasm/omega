@@ -127,7 +127,7 @@ func newRoot(f *runFlags) *cobra.Command {
 		dockerCmd(), macCmd(), devCmd(), menuCmd(), group(configCmd()), stepsCmd(), notesCmd(),
 		logsCmd(), doctorCmd(), group(netCmd()), group(auditCmd()), privacyCmd(), group(gitCmd()), group(diskCmd()),
 		uninstallCmd(), skillsCmd(), group(scheduleCmd()), rollbackCmd(), exportCmd(), bootstrapCmd(), shellCmd(),
-		group(completionCmd(root)), manCmd(root),
+		completionGroup(completionCmd(root)), manCmd(root),
 	)
 	return root
 }
@@ -136,6 +136,32 @@ func newRoot(f *runFlags) *cobra.Command {
 // its help; with a word that is not one of its subcommands it is an error.
 // Without this cobra prints the help for `omega schedule instal` too and
 // exits 0, and a script takes that for success.
+// completionGroup is group() for `omega completion`, which also answers
+// `omega completion completion <shell>`. That is how the Homebrew formula
+// asks for the scripts (generate_completions_from_executable with "completion"
+// and the cobra format adds "completion <shell>" again). v0.25.0 printed the
+// help there, which brew installed as the completion scripts; v0.26.0 made it
+// an error, and `brew upgrade omega` failed. The formula in
+// lcajigasm/homebrew-tap is written by that tap, so omega takes both forms.
+func completionGroup(c *cobra.Command) *cobra.Command {
+	group(c)
+	c.Args = cobra.ArbitraryArgs
+	c.RunE = func(cmd *cobra.Command, args []string) error {
+		switch {
+		case len(args) == 0:
+			return cmd.Help()
+		case len(args) == 2 && args[0] == "completion":
+			for _, sub := range cmd.Commands() {
+				if sub.Name() == args[1] && sub.Name() != "install" {
+					return sub.RunE(sub, nil)
+				}
+			}
+		}
+		return fmt.Errorf("unknown command %q for %q", strings.Join(args, " "), cmd.CommandPath())
+	}
+	return c
+}
+
 func group(c *cobra.Command) *cobra.Command {
 	c.Args = cobra.NoArgs
 	c.RunE = func(cmd *cobra.Command, args []string) error { return cmd.Help() }

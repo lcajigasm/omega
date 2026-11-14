@@ -819,3 +819,40 @@ func TestStepsAndDoctorJSON(t *testing.T) {
 		t.Errorf("doctor --json facts: %+v %+v", doc.Config, doc.Provider)
 	}
 }
+
+// The Homebrew formula asks for the completion scripts as
+// `omega completion completion <shell>`. v0.26.0 refused that and
+// `brew upgrade omega` failed; v0.25.0 printed the help instead of a script.
+func TestCompletionAsHomebrewAsksForIt(t *testing.T) {
+	for _, shell := range []string{"bash", "zsh", "fish", "powershell"} {
+		r, w, err := os.Pipe()
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Read while the script is written: a pipe holds little (on Windows
+		// less than the bash script), and the writer would wait for ever.
+		read := make(chan []byte)
+		go func() {
+			b, _ := io.ReadAll(r)
+			read <- b
+		}()
+		stdout := os.Stdout
+		os.Stdout = w
+		_, runErr := execRoot(t, "completion", "completion", shell)
+		os.Stdout = stdout
+		w.Close()
+		script := <-read
+		r.Close()
+		if runErr != nil {
+			t.Errorf("%s: %v", shell, runErr)
+		}
+		if len(script) < 200 || strings.Contains(string(script), "Usage:") {
+			t.Errorf("%s: not a completion script:\n%.200s", shell, script)
+		}
+	}
+	for _, args := range [][]string{{"completion", "bogus"}, {"completion", "completion", "install"}, {"completion", "completion", "nope"}} {
+		if _, err := execRoot(t, args...); err == nil {
+			t.Errorf("omega %v: accepted", args)
+		}
+	}
+}
