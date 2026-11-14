@@ -43,7 +43,7 @@ func TestInstallCommandPerPlatform(t *testing.T) {
 		{"rust", ubuntu, "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y"},
 		{"uv", fedora, "curl -LsSf https://astral.sh/uv/install.sh | sh"},
 		{"uv", arch, "sudo pacman -S --needed --noconfirm uv"},
-		{"mise", bare, "curl https://mise.run | sh"},
+		{"mise", bare, "curl --proto '=https' --tlsv1.2 -fsSL https://mise.run | sh"},
 		// Nothing that works: omega only detects it.
 		{"jq", bare, ""},
 		{"orbstack", linuxbrew, ""},
@@ -222,7 +222,7 @@ func TestDebianNamesAndLinuxReport(t *testing.T) {
 	mise, _ := Find("mise")
 	inv := &Inventory{Platform: Current(), Missing: []Tool{rg, mise}, Installed: []Installed{{Tool: bat, Path: "/usr/bin/batcat", Inactive: false}}}
 	r := inv.Report()
-	for _, want := range []string{"Linux without Homebrew", "installed with apt", "`sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold ripgrep`", "`curl https://mise.run | sh`",
+	for _, want := range []string{"Linux without Homebrew", "installed with apt", "`sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold ripgrep`", "`curl --proto '=https' --tlsv1.2 -fsSL https://mise.run | sh`",
 		"then add `eval \"$(mise activate bash)\"` to ~/.bashrc"} {
 		if !strings.Contains(r, want) {
 			t.Errorf("report lacks %q:\n%s", want, r)

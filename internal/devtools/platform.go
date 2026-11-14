@@ -101,7 +101,7 @@ var linuxTools = map[string]linuxTool{
 	"swift":  {MacOnly: true, About: "Swift toolchain"},
 
 	// Version managers.
-	"mise":  {Pacman: "mise", Script: "curl https://mise.run | sh"},
+	"mise":  {Pacman: "mise", Script: "curl --proto '=https' --tlsv1.2 -fsSL https://mise.run | sh"},
 	"fnm":   {Script: "curl -fsSL https://fnm.vercel.app/install | bash"},
 	"pyenv": {Pacman: "pyenv", Script: "curl -fsSL https://pyenv.run | bash"},
 	"uv":    {Pacman: "uv", Script: "curl -LsSf https://astral.sh/uv/install.sh | sh"},
@@ -121,7 +121,7 @@ var linuxTools = map[string]linuxTool{
 	"just":      same("just"),
 
 	// Shell and terminal.
-	"starship":   {Pacman: "starship", Script: "curl -sS https://starship.rs/install.sh | sh -s -- -y"},
+	"starship":   {Pacman: "starship", Script: "curl --proto '=https' --tlsv1.2 -fsSL https://starship.rs/install.sh | sh -s -- -y"},
 	"fzf":        same("fzf"),
 	"zoxide":     same("zoxide"),
 	"direnv":     same("direnv"),
@@ -157,7 +157,7 @@ var linuxTools = map[string]linuxTool{
 	"k9s":      {Pacman: "k9s"},
 	"tofu":     {Pacman: "opentofu"},
 	"gcloud":   {NoBrew: true},
-	"fly":      {Script: "curl -L https://fly.io/install.sh | sh"},
+	"fly":      {Script: "curl --proto '=https' --tlsv1.2 -fsSL https://fly.io/install.sh | sh"},
 	"act":      {Pacman: "act"},
 
 	// AI coding assistants.

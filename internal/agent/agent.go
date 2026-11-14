@@ -92,6 +92,14 @@ type Agent struct {
 	nextModel string   // model the user picked, applied before the next turn
 	notes     []string // messages for the model about what the user changed
 
+	// What the web brought into this session. webSeen are the addresses
+	// web_search returned and userHosts the sites the user named: fetch_url
+	// reads those without asking. tainted is set once any page or search
+	// result has been read: from then on a note for future runs needs a yes.
+	webSeen   map[string]bool
+	userHosts map[string]bool
+	tainted   bool
+
 	macInv *macos.Inventory // read once per run; dropped after a change
 
 	accessMu    sync.Mutex      // one permission card at a time
@@ -146,6 +154,11 @@ func (a *Agent) LogPath() string {
 }
 
 func (a *Agent) emit(e Event) {
+	// What the interface shows of a tool call is written with printable
+	// characters only: a path or a reason with an escape sequence or a
+	// mark that reorders text would read as something else on the card and
+	// in the transcript.
+	e.Command, e.Reason = visible(e.Command), visible(e.Reason)
 	a.writeLog(e)
 	a.events <- e
 }
@@ -245,6 +258,8 @@ func (a *Agent) Run(ctx context.Context, task string) {
 			continue
 		}
 
+		// The task's own text or what the user typed, never a tool result.
+		a.noteUserText(text)
 		text = a.applyChanges(text)
 		a.emit(Event{Kind: EvThinking, Stats: a.stats()})
 		reply, err := a.chat.Send(ctx, text, results)
@@ -367,6 +382,19 @@ func (a *Agent) waitInput(ctx context.Context, text *string) bool {
 		a.writeLog(Event{Kind: EvAssistant, Text: "> " + msg})
 		return true
 	}
+}
+
+// markTainted records that text from the web is now in the conversation.
+func (a *Agent) markTainted() {
+	a.mu.Lock()
+	a.tainted = true
+	a.mu.Unlock()
+}
+
+func (a *Agent) isTainted() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.tainted
 }
 
 // Mode returns the current approval mode.

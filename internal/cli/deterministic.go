@@ -17,6 +17,7 @@ import (
 	"github.com/lcajigasm/omega/internal/i18n"
 	"github.com/lcajigasm/omega/internal/runner"
 	"github.com/lcajigasm/omega/internal/safety"
+	"github.com/lcajigasm/omega/internal/scheduler"
 	"github.com/lcajigasm/omega/internal/steps"
 )
 
@@ -83,8 +84,14 @@ type detRun struct {
 // wantsJSON reports whether stdout has to hold one JSON document only.
 func (f runFlags) wantsJSON() bool { return f.json || strings.EqualFold(f.format, "json") }
 
-// deterministic reports whether the run was asked to do without the model.
-func (f runFlags) deterministic() bool { return f.noAI || f.offline || f.wantsJSON() }
+// deterministic reports whether the run does without the model: when it was
+// asked to, and always in the job `omega schedule install` creates. That job
+// runs with --yes and nobody watching; with a model it would be an agent
+// that approves its own commands every week, on whatever a page or a file
+// told it. A scheduled run is the built-in steps and nothing else.
+func (f runFlags) deterministic() bool {
+	return f.noAI || f.offline || f.wantsJSON() || os.Getenv(scheduler.EnvScheduled) == "1"
+}
 
 // validate refuses a flag value omega would otherwise ignore or misread.
 func (f runFlags) validate() error {

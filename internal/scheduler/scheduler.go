@@ -43,8 +43,10 @@ var (
 // empty the Trash, which is where omega puts what it removes.
 const EnvScheduled = "OMEGA_SCHEDULED"
 
-// taskFlags are the flags of the scheduled command.
-const taskFlags = "--yes --no-tui"
+// taskFlags are the flags of the scheduled command. --no-ai: nobody is
+// looking when it runs, so it is the built-in steps, never the model with
+// its approvals answered yes.
+const taskFlags = "--yes --no-tui --no-ai"
 
 // Describe says what the scheduled task does, for the message shown when
 // it is installed.
@@ -60,7 +62,7 @@ func Describe(task string) string {
 	if what == "" {
 		return ""
 	}
-	return "Each run " + what + ". A scheduled run never empties the Trash."
+	return "Each run " + what + ", with omega's built-in steps and no AI model. A scheduled run never empties the Trash."
 }
 
 // stablePath is the path the schedule should call omega by. Homebrew
@@ -282,6 +284,7 @@ func installMacLaunchAgent(omegaPath, interval, task string, hour, minute int) e
         <string>%s</string>
         <string>--yes</string>
         <string>--no-tui</string>
+        <string>--no-ai</string>
     </array>
     <key>EnvironmentVariables</key>
     <dict>

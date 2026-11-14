@@ -220,6 +220,25 @@ var (
 )
 
 var (
+	// tokenShape are credentials that say what they are by how they start:
+	// GitHub, GitLab, npm, Hugging Face, Slack, Google, AWS, Stripe, age,
+	// and the provider keys (sk-…, sk-ant-…).
+	tokenShape = regexp.MustCompile(`\b(gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|glpat-[A-Za-z0-9_-]{16,}|npm_[A-Za-z0-9]{30,}|` +
+		`hf_[A-Za-z0-9]{30,}|xox[abeprs]-[A-Za-z0-9-]{10,}|ya29\.[A-Za-z0-9_-]{20,}|AKIA[0-9A-Z]{16}|` +
+		`[sr]k_live_[A-Za-z0-9]{16,}|sk-[A-Za-z0-9_-]{20,}|AGE-SECRET-KEY-1[A-Z0-9]{20,})`)
+	// keyValue is a credential written as configuration files write it:
+	// password = "x", oauth_token: x, "access_token": "x", and the value
+	// of an Authorization header.
+	keyValue = regexp.MustCompile(`(?i)(["']?[A-Za-z0-9_.-]*(token|secret|passw(or)?d|api_?key|credential|private_?key|_pat)[A-Za-z0-9_.-]*["']?\s*[:=]\s*)("[^"]{4,}"|'[^']{4,}'|[^\s"',;]{4,})`)
+	bearer   = regexp.MustCompile(`(?i)\b(bearer|basic)\s+[A-Za-z0-9._~+/=-]{12,}`)
+	// privateKey is a line of a PEM block. The body lines are base64 with
+	// nothing to tell them apart, so the block is masked from its first
+	// line to its last (see Scrub).
+	privateKey = regexp.MustCompile(`-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----`)
+	privateEnd = regexp.MustCompile(`-----END [A-Z0-9 ]*PRIVATE KEY-----`)
+)
+
+var (
 	redactMu sync.RWMutex
 	redacted []string
 	// stripped are the variables commands do not get because their name
@@ -343,6 +362,20 @@ func scrub(line string) string {
 	if strings.Contains(line, "://") {
 		line = urlPassword.ReplaceAllString(line, "${1}[redacted]${3}")
 	}
+	line = tokenShape.ReplaceAllString(line, "[redacted]")
+	line = bearer.ReplaceAllString(line, "${1} [redacted]")
+	if strings.ContainsAny(line, ":=") {
+		line = keyValue.ReplaceAllStringFunc(line, func(m string) string {
+			sub := keyValue.FindStringSubmatch(m)
+			value := strings.Trim(sub[len(sub)-1], `"'`)
+			// A path, a variable, something already masked, or a word that
+			// is no secret (true, null, a number).
+			if location(value) || strings.HasPrefix(value, "$") || strings.Contains(value, "[redacted]") || plainValue.MatchString(value) {
+				return m
+			}
+			return sub[1] + "[redacted]"
+		})
+	}
 	if !strings.Contains(line, "=") {
 		return line
 	}
@@ -362,14 +395,42 @@ func scrub(line string) string {
 	})
 }
 
+// pemMask hides a private key printed as a PEM block, from its BEGIN line
+// to its END line, across the lines of an output.
+type pemMask struct{ inside bool }
+
+func (m *pemMask) line(l string) string {
+	switch {
+	case m.inside:
+		m.inside = !privateEnd.MatchString(l)
+		return "[redacted]"
+	case privateKey.MatchString(l):
+		m.inside = !privateEnd.MatchString(l)
+		return "[redacted private key]"
+	}
+	return l
+}
+
+// plainValue is a value that is not a secret whatever its name is.
+var plainValue = regexp.MustCompile(`(?i)^(true|false|null|none|yes|no|on|off|auto|never|always|dangerous|required|optional|[0-9.]+|\[.*|\{.*|<.*)$`)
+
 // Scrub is the masking applied to command output, for text that reaches
 // the model another way (a file read by the agent).
 func Scrub(text string) string {
 	lines := strings.Split(text, "\n")
+	var keys pemMask
 	for i, l := range lines {
-		lines[i] = scrub(l)
+		lines[i] = keys.line(scrub(l))
 	}
 	return strings.Join(lines, "\n")
+}
+
+// GitEnv switches off the settings of a repository that make git run a
+// program while it only looks: core.fsmonitor is run by "git status", and
+// a folder copied or unpacked from somewhere else brings its own
+// .git/config. Given this way the values win over the repository's.
+func GitEnv() []string {
+	return []string{"GIT_CONFIG_COUNT=1", "GIT_CONFIG_KEY_0=core.fsmonitor", "GIT_CONFIG_VALUE_0=false"}
 }
 
 // childEnv is omega's environment without the withheld variables and
@@ -423,6 +484,7 @@ func Run(ctx context.Context, command string, timeout time.Duration, onLine func
 		"PAGER=cat",
 		"GIT_TERMINAL_PROMPT=0",
 	)
+	cmd.Env = append(cmd.Env, GitEnv()...)
 	cmd.Env = append(cmd.Env, extraEnv...)
 	cmd.WaitDelay = 5 * time.Second
 
@@ -439,8 +501,9 @@ func Run(ctx context.Context, command string, timeout time.Duration, onLine func
 		// stops for good on one, and everything the command printed after
 		// it (and before it, in a single write) would be lost.
 		rd := bufio.NewReaderSize(pr, maxLine)
+		var keys pemMask
 		emit := func(raw []byte, cut bool) {
-			line := scrub(stripANSI(string(raw)))
+			line := keys.line(scrub(stripANSI(string(raw))))
 			if cut {
 				line += " [omega: line cut]"
 			}
@@ -555,6 +618,20 @@ func stripANSI(s string) string {
 	}
 	var b strings.Builder
 	for i := 0; i < len(s); i++ {
+		// An operating system command (ESC ] … BEL or ESC \): it sets the
+		// window title, writes the clipboard or draws a link over other
+		// text. Output is shown as text, so these are dropped whole.
+		if s[i] == 0x1b && i+1 < len(s) && s[i+1] == ']' {
+			j := i + 2
+			for j < len(s) && s[j] != 0x07 && !(s[j] == 0x1b && j+1 < len(s) && s[j+1] == '\\') {
+				j++
+			}
+			if j < len(s) && s[j] == 0x1b {
+				j++
+			}
+			i = j
+			continue
+		}
 		if s[i] == 0x1b && i+1 < len(s) && s[i+1] == '[' {
 			j := i + 2
 			for j < len(s) && (s[j] < 0x40 || s[j] > 0x7e) {

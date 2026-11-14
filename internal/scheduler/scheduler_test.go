@@ -179,7 +179,7 @@ func TestInstallLinux(t *testing.T) {
 		t.Fatal(err)
 	}
 	data, _ := os.ReadFile(service)
-	if !strings.Contains(string(data), "Environment="+EnvScheduled+"=1") || !strings.Contains(string(data), " quick --yes --no-tui") {
+	if !strings.Contains(string(data), "Environment="+EnvScheduled+"=1") || !strings.Contains(string(data), " quick --yes --no-tui --no-ai") {
 		t.Errorf("service:\n%s", data)
 	}
 	if st, _ := Status(); !st.Installed {
@@ -253,7 +253,7 @@ func TestMonthlySchedule(t *testing.T) {
 		t.Errorf("systemd: %s", c)
 	}
 	args := strings.Join(windowsTaskArgs(`C:\Program Files\omega\omega.exe`, "monthly", "quick", 4, 5), "|")
-	if !strings.Contains(args, "/SC|MONTHLY|/D|1") || !strings.Contains(args, `/TR|"C:\Program Files\omega\omega.exe" quick --yes --no-tui|`) {
+	if !strings.Contains(args, "/SC|MONTHLY|/D|1") || !strings.Contains(args, `/TR|"C:\Program Files\omega\omega.exe" quick --yes --no-tui --no-ai|`) {
 		t.Errorf("schtasks: %s", args)
 	}
 }

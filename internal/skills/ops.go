@@ -458,6 +458,8 @@ func parseSource(src string) (Origin, error) {
 	case githubTree.MatchString(src):
 		m := githubTree.FindStringSubmatch(src)
 		o.Git, o.Ref, o.Subdir = "https://github.com/"+m[1], m[2], strings.Trim(m[3], "/")
+	case strings.Contains(src, "::"):
+		return o, fmt.Errorf("%q is not a folder or a repository", src)
 	case strings.Contains(src, "://") || strings.HasPrefix(src, "git@"):
 		o.Git = src
 	default:
@@ -532,7 +534,9 @@ func fetch(ctx context.Context, o Origin) (root, commit string, done func(), err
 		return "", "", nil, err
 	}
 	done = func() { os.RemoveAll(tmp) }
-	args := []string{"clone", "--quiet", "--depth", "1"}
+	// ext:: and its relatives run a command as the "transport"; git refuses
+	// them unless the user's configuration allows it. Here it never does.
+	args := []string{"-c", "protocol.ext.allow=never", "-c", "protocol.fd.allow=never", "clone", "--quiet", "--depth", "1"}
 	if o.Ref != "" {
 		args = append(args, "--branch", o.Ref)
 	}

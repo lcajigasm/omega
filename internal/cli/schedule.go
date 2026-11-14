@@ -30,7 +30,7 @@ func scheduleCmd() *cobra.Command {
 			fmt.Fprintf(cmd.OutOrStdout(), "✓ Background maintenance installed successfully (%s, task: %s, at %02d:%02d).\n",
 				interval, task, hour, minute)
 			// Say what will run unattended, and where its output goes.
-			fmt.Fprintf(cmd.OutOrStdout(), "  It runs `omega %s --yes --no-tui`. %s\n", task, scheduler.Describe(task))
+			fmt.Fprintf(cmd.OutOrStdout(), "  It runs `omega %s --yes --no-tui --no-ai`. %s\n", task, scheduler.Describe(task))
 			if runtime.GOOS == "darwin" {
 				fmt.Fprintf(cmd.OutOrStdout(), "  Its output is kept in %s.\n", scheduler.LogDir())
 			}

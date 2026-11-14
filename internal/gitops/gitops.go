@@ -31,7 +31,10 @@ var git = func(ctx context.Context, repo string, args ...string) (string, error)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "git", append([]string{"-C", repo}, args...)...)
 	// Looking must not write, and git must never stop to ask.
-	cmd.Env = append(os.Environ(), "GIT_OPTIONAL_LOCKS=0", "GIT_TERMINAL_PROMPT=0")
+	// Nor run a program a repository's own .git/config names for it
+	// (core.fsmonitor): every repository under the project folders is
+	// looked at, also one that was only unpacked there.
+	cmd.Env = append(append(os.Environ(), "GIT_OPTIONAL_LOCKS=0", "GIT_TERMINAL_PROMPT=0"), runner.GitEnv()...)
 	out, err := cmd.CombinedOutput()
 	if ctx.Err() == context.DeadlineExceeded {
 		return "", fmt.Errorf("git %s: %w (over %s)", args[0], ErrGitTimeout, gitTimeout)

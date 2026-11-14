@@ -5,6 +5,7 @@ package customsteps
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -53,10 +54,19 @@ func files() []string {
 // installed to its author and never run.
 func Load() (loaded []steps.Step, problems []string) {
 	for _, file := range files() {
+		if why := untrusted(file); why != "" {
+			problems = append(problems, i18n.T("custom.untrusted", file, why))
+			continue
+		}
 		var csf CustomStepsFile
 		if _, err := toml.DecodeFile(file, &csf); err != nil {
 			problems = append(problems, i18n.T("custom.parse", file, err))
 			continue
+		}
+		for name, cmd := range csf.Hooks {
+			if safety.Classify(cmd) == safety.Blocked {
+				problems = append(problems, i18n.T("custom.hook_blocked", file, name))
+			}
 		}
 		for _, def := range csf.Steps {
 			if def.ID == "" || def.Command == "" {
@@ -64,6 +74,17 @@ func Load() (loaded []steps.Step, problems []string) {
 				continue
 			}
 			if def.OS != "" && def.OS != goos {
+				continue
+			}
+			// The safety policy has no exception for a file in steps.d:
+			// what omega never runs for the model it does not run from
+			// here, and a step of its own keeps its command and its risk.
+			if safety.Classify(def.Command) == safety.Blocked {
+				problems = append(problems, i18n.T("custom.blocked", file, def.ID))
+				continue
+			}
+			if steps.Builtin(def.ID) {
+				problems = append(problems, i18n.T("custom.builtin", file, def.ID))
 				continue
 			}
 			var risk safety.Risk
@@ -101,6 +122,29 @@ func Load() (loaded []steps.Step, problems []string) {
 	return loaded, problems
 }
 
+// untrusted says why a steps.d file is not read: the file or its folder can
+// be written by any user of this machine, or belongs to another one. Its
+// commands run as you, some with sudo and some with nobody watching, so it
+// has to be yours alone. "" means the file is fine.
+func untrusted(file string) string {
+	for _, path := range []string{file, filepath.Dir(file)} {
+		info, err := os.Stat(path)
+		if err != nil {
+			return err.Error()
+		}
+		if goos == "windows" {
+			continue
+		}
+		if info.Mode().Perm()&0o002 != 0 {
+			return i18n.T("custom.world_writable", path)
+		}
+		if uid, ok := owner(info); ok && uid != 0 && int(uid) != os.Getuid() {
+			return i18n.T("custom.not_yours", path)
+		}
+	}
+	return ""
+}
+
 // Hook is one command a steps.d file asks to run around a task.
 type Hook struct {
 	File    string
@@ -113,11 +157,15 @@ type Hook struct {
 func Hooks(name string) []Hook {
 	var out []Hook
 	for _, file := range files() {
+		if untrusted(file) != "" {
+			continue
+		}
 		var csf CustomStepsFile
 		if _, err := toml.DecodeFile(file, &csf); err != nil {
 			continue
 		}
-		if cmd := csf.Hooks[name]; cmd != "" {
+		// A hook the safety policy blocks is reported by Load, not run.
+		if cmd := csf.Hooks[name]; cmd != "" && safety.Classify(cmd) != safety.Blocked {
 			out = append(out, Hook{File: file, Command: cmd})
 		}
 	}

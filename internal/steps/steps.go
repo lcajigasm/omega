@@ -97,7 +97,13 @@ const (
 		"'== Drive encryption (needs an elevated terminal)'; Get-BitLockerVolume -ErrorAction SilentlyContinue | " +
 		"Select-Object MountPoint, VolumeStatus, ProtectionStatus | Format-Table -AutoSize | Out-String -Width 120; " +
 		"'== User Account Control'; (Get-ItemProperty 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System' -ErrorAction SilentlyContinue).EnableLUA"
-	winTemp = "Get-ChildItem $env:TEMP -Force -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue"
+	// Only when TEMP names a folder: with the variable unset Get-ChildItem
+	// would list the folder the command runs in, and that would be emptied.
+	// Links to other folders are removed as links, not followed.
+	winTemp = "if ($env:TEMP -and (Test-Path -LiteralPath $env:TEMP -PathType Container)) { " +
+		"Get-ChildItem -LiteralPath $env:TEMP -Force -ErrorAction SilentlyContinue | ForEach-Object { " +
+		"if ($_.Attributes -band [IO.FileAttributes]::ReparsePoint) { $_.Delete() } " +
+		"else { Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue } } }"
 )
 
 // Seams the tests replace.
@@ -515,6 +521,18 @@ var catalog = []Step{
 		Description: "Removes superseded Windows components. Needs a terminal opened as administrator"},
 	{OS: windows, ID: "recycle-bin", Name: "Recycle Bin", Category: Clean, Command: "Clear-RecycleBin -Force -ErrorAction SilentlyContinue", Risk: safety.Dangerous},
 }
+
+// builtin are the IDs of omega's own steps, on every system.
+var builtin = func() map[string]bool {
+	ids := map[string]bool{}
+	for _, s := range catalog {
+		ids[s.ID] = true
+	}
+	return ids
+}()
+
+// Builtin reports whether an ID belongs to one of omega's own steps.
+func Builtin(id string) bool { return builtin[id] }
 
 // Register adds a step to the catalogue.
 func Register(s Step) {

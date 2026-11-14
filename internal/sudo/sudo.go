@@ -115,8 +115,29 @@ func (b *Bridge) serve() {
 	}
 }
 
+// fromSudo reports whether a connection comes from the askpass helper as
+// sudo started it. The helper's path is in every command's environment, so
+// any command can run it; without this check it would print the password to
+// whoever asked (`find "$TMPDIR" -name 'askp*' -exec {} x \; | rev`), or put
+// omega's own password card in front of the user for a command that never
+// called sudo. It is a variable so that the tests can stand in for sudo.
+var fromSudo = func(conn net.Conn) bool {
+	uc, ok := conn.(*net.UnixConn)
+	if !ok {
+		return false
+	}
+	pid, ok := peerPID(uc)
+	if !ok {
+		return startedBySudo(0)
+	}
+	return startedBySudo(pid)
+}
+
 func (b *Bridge) handle(conn net.Conn) {
 	defer conn.Close()
+	if !fromSudo(conn) {
+		return
+	}
 	prompt, _ := bufio.NewReader(conn).ReadString('\n')
 	prompt = strings.TrimSpace(prompt)
 	b.mu.Lock()

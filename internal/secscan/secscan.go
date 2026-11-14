@@ -6,6 +6,7 @@ package secscan
 import (
 	"bufio"
 	"fmt"
+	"github.com/lcajigasm/omega/internal/runner"
 	"io"
 	"os"
 	"os/exec"
@@ -211,7 +212,7 @@ var secretPatterns = []struct {
 	{"Anthropic API Key", regexp.MustCompile(`(?i)\b(sk-ant-[a-zA-Z0-9_\-]{32,100})\b`)},
 	{"GitHub Personal Token", regexp.MustCompile(`\b(ghp_[a-zA-Z0-9]{36}|github_pat_[a-zA-Z0-9_]{82})\b`)},
 	{"AWS Access Key", regexp.MustCompile(`\b(AKIA[0-9A-Z]{16})\b`)},
-	{"Slack Token", regexp.MustCompile(`\b(xox[baprs]-[0-9a-zA-Z]{10,48})\b`)},
+	{"Slack Token", regexp.MustCompile(`\b(xox[abeprs]-[0-9a-zA-Z-]{10,})`)},
 	{"Private Key Block", regexp.MustCompile(`-----BEGIN (RSA|EC|OPENSSH|DSA) PRIVATE KEY-----`)},
 }
 
@@ -279,6 +280,8 @@ func scanFile(file string) ([]SecretFinding, error) {
 	}
 }
 
+var userPass = regexp.MustCompile(`((?:^|\s)(?:-u|--user)[ =]?[^\s:]+:)\S+`)
+
 // maskSnippet is a line made safe to show: the secrets are taken out first
 // and the line is shortened after. The other way round a key cut by the
 // shortening no longer matches its pattern and is shown.
@@ -287,6 +290,9 @@ func maskSnippet(line string) string {
 	for _, sp := range secretPatterns {
 		line = sp.re.ReplaceAllString(line, "[REDACTED-SECRET]")
 	}
+	// And whatever else on the line is a credential: the password of
+	// "curl -u user:password", of a URL, a NAME=value next to the key found.
+	line = userPass.ReplaceAllString(runner.Scrub(line), "${1}[REDACTED-SECRET]")
 	if r := []rune(line); len(r) > 80 {
 		line = string(r[:77]) + "..."
 	}

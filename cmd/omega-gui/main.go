@@ -12,9 +12,11 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"runtime"
 	"slices"
+	"strings"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
@@ -84,18 +86,53 @@ func main() {
 	}
 }
 
-// postOnly refuses a call to the app's functions that is not a POST. The
-// window's own code posts; an address written in the text the window shows
-// (a link, an image) can only be fetched with a GET, and must not be able
-// to act as the user.
+// postOnly refuses a call to the app's functions that does not come from
+// the window's own code. That code posts, from the app's own page. An
+// address written in the text the window shows (a link, an image) can only
+// be fetched with a GET; and a page from somewhere else, should the window
+// ever be taken to one (a link opened from the system's own menu, a file
+// dropped on it), says where it is from when it posts. Neither may act as
+// the user: approve a command, change the provider, switch approvals off.
 func postOnly(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/wails/runtime" && r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-			return
+		if r.URL.Path == "/wails/runtime" {
+			if r.Method != http.MethodPost {
+				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+				return
+			}
+			if !ownPage(r) {
+				http.Error(w, "forbidden", http.StatusForbidden)
+				return
+			}
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// ownPage reports a request the app's own page can have made. A page from
+// the web says so in two ways, and either is enough to refuse it: the
+// webview marks the request as coming from another site, or its Origin is
+// a web address that is not the app's (the app's page is wails://… on
+// macOS and Linux, http://wails.localhost on Windows, localhost in the
+// capture build). A request with no Origin, or with the origin of a custom
+// scheme, is the app's own.
+func ownPage(r *http.Request) bool {
+	switch r.Header.Get("Sec-Fetch-Site") {
+	case "cross-site", "same-site":
+		return false
+	}
+	u, err := url.Parse(r.Header.Get("Origin"))
+	if err != nil {
+		return false
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return true
+	}
+	switch strings.ToLower(u.Hostname()) {
+	case "localhost", "wails.localhost", "127.0.0.1", "::1":
+		return true
+	}
+	return strings.EqualFold(u.Host, r.Host)
 }
 
 // menu is the default menu without "Reload": the window is the session, and

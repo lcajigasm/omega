@@ -179,7 +179,8 @@ i[data-icon] { display: contents; }
 .md pre code { background: none; padding: 0; }
 .md table { border-collapse: collapse; display: block; overflow-x: auto; }
 .md th, .md td { border: 1px solid var(--line); padding: 4px 10px; text-align: left; }
-.md a { color: var(--accent); }
+.md a { color: var(--accent); --default-contextmenu: hide; -webkit-user-drag: none; }
+.md .link-host { color: var(--muted, #8a8a93); font-size: 0.9em; }
 .user { align-self: flex-end; background: var(--accent-soft); border-radius: 12px; padding: 8px 12px; width: auto !important; max-width: 70% !important; margin: 0 max(0px, calc((100% - 860px) / 2)) 0 auto !important; white-space: pre-wrap; }
 .note { color: var(--muted); font-size: 13px; white-space: pre-wrap; }
 .note.bad { color: var(--bad); }

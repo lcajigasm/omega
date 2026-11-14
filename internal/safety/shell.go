@@ -18,16 +18,36 @@ import (
 func stripComments(cmd string) string {
 	var out strings.Builder
 	var quote byte
+	// escaped: the previous character was written after a backslash, so it
+	// is part of a word. In `ls \ #; rm x` the # follows an escaped blank:
+	// it is in the middle of a word and the shell runs what comes after.
+	escaped := false
 	for i := 0; i < len(cmd); i++ {
 		c := cmd[i]
+		wasEscaped := escaped
+		escaped = false
 		switch {
-		case quote != 0:
+		case quote == '\'':
 			if c == quote {
 				quote = 0
 			}
+		case quote == '"':
+			if c == '\\' && i+1 < len(cmd) {
+				out.WriteByte(c)
+				i++
+				c = cmd[i]
+			} else if c == quote {
+				quote = 0
+			}
+		case c == '\\' && i+1 < len(cmd):
+			out.WriteByte(c)
+			i++
+			c = cmd[i]
+			escaped = true
 		case c == '\'' || c == '"':
 			quote = c
-		case c == '#' && (i == 0 || strings.IndexByte(" \t\r\n;|&(", cmd[i-1]) >= 0):
+		// A carriage return is not a blank for the shell: "x\r#" is one word.
+		case c == '#' && !wasEscaped && (i == 0 || strings.IndexByte(" \t\n;|&(", cmd[i-1]) >= 0):
 			for i < len(cmd) && cmd[i] != '\n' {
 				i++
 			}

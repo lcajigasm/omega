@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -484,5 +485,49 @@ func TestFindAppArtifactsLeavesSystemAndOtherVendorsAlone(t *testing.T) {
 	bundleID = func(string) string { return "com.apple.Safari" }
 	if _, err := FindAppArtifacts("Safari"); !errors.Is(err, ErrSystemApp) {
 		t.Errorf("Safari: %v, want ErrSystemApp", err)
+	}
+}
+
+// Uninstalling an app leaves the data of its relatives alone: Chrome's
+// identifier is the start of Chrome Canary's.
+func TestUninstallLeavesAnotherAppsData(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // the home directory on Windows
+	oldOS, oldDirs, oldID := goos, appDirs, bundleID
+	goos = "darwin"
+	apps := filepath.Join(home, "Applications")
+	appDirs = func(string) []string { return []string{apps} }
+	ids := map[string]string{"Google Chrome.app": "com.google.Chrome", "Google Chrome Canary.app": "com.google.Chrome.canary", "Bad.app": "com"}
+	bundleID = func(bundle string) string { return ids[filepath.Base(bundle)] }
+	defer func() { goos, appDirs, bundleID = oldOS, oldDirs, oldID }()
+	for name := range ids {
+		os.MkdirAll(filepath.Join(apps, name), 0o755)
+	}
+	for _, p := range []string{
+		"Library/Caches/com.google.Chrome", "Library/Caches/com.google.Chrome.canary",
+		"Library/Preferences/com.google.Chrome.plist", "Library/Preferences/com.google.Chrome.canary.plist",
+		"Library/Application Support/com.google.Chrome.helper", "Library/Preferences/com.apple.finder.plist",
+	} {
+		os.MkdirAll(filepath.Join(home, p), 0o755)
+	}
+	names := func(app string) []string {
+		a, err := FindAppArtifacts(app)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out []string
+		for _, p := range a.DataPaths {
+			out = append(out, filepath.Base(p))
+		}
+		sort.Strings(out)
+		return out
+	}
+	got := strings.Join(names("Google Chrome"), " ")
+	if got != "com.google.Chrome com.google.Chrome.helper com.google.Chrome.plist" {
+		t.Errorf("Chrome: %s", got)
+	}
+	if got := names("Bad"); len(got) != 0 {
+		t.Errorf("an app whose identifier is \"com\" selected %v", got)
 	}
 }
