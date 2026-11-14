@@ -68,6 +68,7 @@ func Init(v string) {
 	version = v
 	runner.ExtendPath()
 	withholdProviderKeys()
+	secrets.OnKey = func(key string) { runner.Redact(key) }
 	// The language must be known before the commands' help text is built.
 	if cfg, err := config.Load(); err == nil {
 		i18n.Init(cfg.Language)

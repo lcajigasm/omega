@@ -23,10 +23,19 @@ var gitTimeout = 30 * time.Second
 // ErrGitTimeout is returned when git did not answer in time.
 var ErrGitTimeout = errors.New("git took too long")
 
+// ErrRepoRunsPrograms is returned for a repository whose own .git/config
+// names programs for git to run (a filter, a text converter, an alias).
+// omega looks at every repository under the project folders, also one that
+// was only unpacked there, so it does not run git in such a one.
+var ErrRepoRunsPrograms = errors.New("this repository's .git/config names programs for git to run; omega does not run git in it")
+
 // git runs git in a repository and returns what it printed. It is run as
 // it is, not through the user's shell: starting a login shell for every
 // command took longer than git itself. Tests replace it.
 var git = func(ctx context.Context, repo string, args ...string) (string, error) {
+	if runner.GitConfigRuns(repo) {
+		return "", fmt.Errorf("git %s: %w", args[0], ErrRepoRunsPrograms)
+	}
 	ctx, cancel := context.WithTimeout(ctx, gitTimeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "git", append([]string{"-C", repo}, args...)...)

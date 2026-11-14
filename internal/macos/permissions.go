@@ -364,7 +364,7 @@ func tccBackup(db string) (string, error) {
 	if pathExists(dest) {
 		return dest, nil
 	}
-	if err := os.MkdirAll(config.StateDir(), 0o755); err != nil {
+	if err := os.MkdirAll(config.StateDir(), 0o700); err != nil {
 		return "", err
 	}
 	// sqlite's own backup gives a consistent copy of a database in use.

@@ -328,10 +328,16 @@
       d.dataset.loaded = "1";
       const base = "https://cdn.jsdelivr.net/npm/asciinema-player@3.8.2/dist/bundle/asciinema-player";
       const css = document.createElement("link");
+      // Both files are fixed to their content: a changed file on the CDN
+      // is not loaded.
       css.rel = "stylesheet"; css.href = `${base}.css`;
+      css.integrity = "sha384-wruPiIlJl5dqdCj6KyIvrFetsqpS/yjdpHZlLUeRQJ1fboGXTveBDR1fIEidEHFH";
+      css.crossOrigin = "anonymous";
       document.head.appendChild(css);
       const s = document.createElement("script");
       s.src = `${base}.min.js`;
+      s.integrity = "sha384-w0IcgUS+zaHBq3GEUGVViBPPw+hF6xhnP17Hs/xaW1CJds9RVPi8hsRHPc10YhIY";
+      s.crossOrigin = "anonymous";
       s.onload = () => window.AsciinemaPlayer.create(d.dataset.cast, $(".cast-body", d), { cols: 100, rows: 32, autoPlay: true, fit: "width", idleTimeLimit: 2 });
       document.head.appendChild(s);
     });

@@ -125,6 +125,11 @@ func toolMacChange(ctx context.Context, a *Agent, in map[string]any) (string, er
 	if c.Sudo() || strings.HasPrefix(id, "app-remove:") || strings.HasPrefix(id, "perm-reset-all:") {
 		risk = safety.Dangerous
 	}
+	// After a web page has been read, switching something off may be the
+	// page's idea (the login item of a security tool): it waits for a yes.
+	if a.isTainted() {
+		risk = safety.Dangerous
+	}
 	reason := c.Title
 	if r := getString(in, "reason"); r != "" {
 		reason += " · " + r
@@ -147,11 +152,19 @@ func toolMacChange(ctx context.Context, a *Agent, in map[string]any) (string, er
 	return out, nil
 }
 
-func toolMacPolicy(_ context.Context, a *Agent, in map[string]any) (string, error) {
+func toolMacPolicy(ctx context.Context, a *Agent, in map[string]any) (string, error) {
 	kind, value := getString(in, "kind"), getString(in, "value")
 	if a.opts.Unattended {
 		// Rules record what the user decided, and nobody decided anything.
 		return "", a.personalDenied("mac_policy", kind+" "+value, "a rule in mac.toml")
+	}
+	// A rule changes the verdicts of every later run. It is not written
+	// in read-only mode, and once a web page is in the conversation it
+	// needs a yes: the rule may be the page's.
+	if a.Mode() == ModeReadOnly || a.isTainted() {
+		if ok, why := a.authorize(ctx, "mac_policy", kind+" "+value, i18n.T("agent.mac_rule", kind, value), safety.Dangerous, false); !ok {
+			return "", explained(errors.New(why))
+		}
 	}
 	p, err := macos.LoadPolicy()
 	if err != nil {

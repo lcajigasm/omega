@@ -252,7 +252,7 @@ func CachedBTM() (string, bool) {
 	}
 	out, ok := DumpBTM()
 	if ok && out != "" {
-		if os.MkdirAll(config.StateDir(), 0o755) == nil {
+		if os.MkdirAll(config.StateDir(), 0o700) == nil {
 			os.WriteFile(btmCache(), []byte(out), 0o600)
 		}
 	}

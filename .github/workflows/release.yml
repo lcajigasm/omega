@@ -233,19 +233,21 @@ jobs:
     steps:
       # GITHUB_SHA, the commit being released, which publish has tagged.
       - uses: actions/checkout@v7
+      # The docker/* actions are not GitHub's own: each is fixed to a commit,
+      # so a tag moved by someone else cannot change what builds the image.
       # The arm64 half of the image installs its packages under emulation;
       # the Go build is cross-compiled and does not need it.
-      - uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
         with:
           platforms: arm64
-      - uses: docker/setup-buildx-action@v4
-      - uses: docker/login-action@v4
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ github.token }}
       - id: meta
-        uses: docker/metadata-action@v6
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         env:
           # On the image index too, where GitHub reads the description.
           DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
@@ -257,7 +259,7 @@ jobs:
           labels: |
             org.opencontainers.image.title=omega
             org.opencontainers.image.licenses=MIT
-      - uses: docker/build-push-action@v7
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           platforms: linux/amd64,linux/arm64
@@ -277,9 +279,12 @@ jobs:
     timeout-minutes: 20
     # Creates the tag and the release, pushes the formula to main and
     # starts the workflows that follow a release.
+    # id-token and attestations are for the provenance of the archives.
     permissions:
       contents: write
       actions: write
+      id-token: write
+      attestations: write
     env:
       TAG: ${{ needs.version.outputs.tag }}
     steps:
@@ -321,6 +326,16 @@ jobs:
           gh release create "$TAG" dist/* "${target[@]}" \
             --title "omega ${TAG#v}" \
             --generate-notes
+      - name: provenance
+        # A signed statement, kept by GitHub, that each archive was built by
+        # this workflow from this commit: `gh attestation verify <file>
+        # --repo lcajigasm/omega` checks a download against it. SHA256SUMS
+        # alone only says the file is the one that was uploaded. A failure
+        # here does not undo a release that is already out.
+        continue-on-error: true
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-checksums: dist/SHA256SUMS
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod

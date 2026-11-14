@@ -182,7 +182,7 @@ func readOnlyCall(call llm.ToolCall) bool {
 			return false
 		}
 		cmd := getString(in, "command")
-		return cmd != "" && safety.Classify(cmd) == safety.Safe && !safety.AlwaysConfirm(cmd)
+		return cmd != "" && safety.Classify(cmd) == safety.Safe && !safety.AlwaysConfirm(cmd) && !gitInRepoThatRuns(cmd)
 	case "run_step":
 		var in map[string]any
 		if json.Unmarshal(call.Input, &in) != nil {
@@ -369,8 +369,40 @@ func toolRunCommand(ctx context.Context, a *Agent, in map[string]any) (string, e
 		return "", explained(errors.New(msg))
 	}
 	risk := safety.Classify(cmd)
-	always := safety.AlwaysConfirm(cmd) || (risk > safety.Safe && sensitiveCommand(cmd))
+	// git that only looks is read-only, unless the repository tells git
+	// to run programs of its own while it looks.
+	if risk < safety.Dangerous && gitInRepoThatRuns(cmd) {
+		risk = safety.Dangerous
+	}
+	always := safety.AlwaysConfirm(cmd) || (risk > safety.Safe && (sensitiveCommand(cmd) || safety.Opaque(cmd)))
 	return a.runShell(ctx, "run_command", cmd, visible(getString(in, "reason")), risk, always)
+}
+
+// gitInRepoThatRuns reports a git command aimed at a repository whose own
+// configuration names programs for git to run (see runner.GitConfigRuns):
+// in the folder omega runs in, one the command changes to, or one given
+// with -C.
+func gitInRepoThatRuns(cmd string) bool {
+	words := strings.FieldsFunc(cmd, func(r rune) bool { return unicode.IsSpace(r) || strings.ContainsRune(`;|&()'"`, r) })
+	git := false
+	dirs := []string{"."}
+	for i, w := range words {
+		switch {
+		case filepath.Base(w) == "git" || filepath.Base(w) == "git.exe":
+			git = true
+		case (w == "cd" || w == "pushd" || w == "-C" || w == "--git-dir" || w == "--work-tree") && i+1 < len(words):
+			dirs = append(dirs, expand(strings.NewReplacer("${HOME}", "~", "$HOME", "~").Replace(words[i+1])))
+		}
+	}
+	if !git {
+		return false
+	}
+	for _, d := range dirs {
+		if runner.GitConfigRuns(d) {
+			return true
+		}
+	}
+	return false
 }
 
 // hiddenRune finds a character a person cannot see for what it is: a
@@ -609,7 +641,9 @@ func toolWriteFile(ctx context.Context, a *Agent, in map[string]any) (string, er
 		return "", fmt.Errorf("%s is not a regular file", path)
 	}
 	var oldSize int64
-	preview := "(new file)"
+	// A new file has nothing to compare with: the card shows what it will
+	// hold, so that a script or a login item is not approved by its name.
+	preview := "(new file)\n" + contentPreview(content)
 	if exists {
 		oldSize = fi.Size()
 		old, truncated, err := readHead(path, maxReadFile)
@@ -617,13 +651,17 @@ func toolWriteFile(ctx context.Context, a *Agent, in map[string]any) (string, er
 		case err != nil:
 			preview = "(the current file could not be read: " + err.Error() + ")"
 		case truncated:
-			preview = fmt.Sprintf("(the current file is %d bytes: too large to compare)", oldSize)
+			preview = fmt.Sprintf("(the current file is %d bytes: too large to compare; the new content follows)\n", oldSize) + contentPreview(content)
 		default:
 			preview = diffPreview(string(old), content)
 		}
 	}
 	summary := fmt.Sprintf("%s (%d → %d bytes)", path, oldSize, len(content))
-	if ok, why := a.authorize(ctx, "write_file", summary, reason+"\n\n"+preview, safety.Dangerous, sensitiveWrite(path)); !ok {
+	// Asked every time: a file that decides what runs later, a credential
+	// file (its old content would be left in the backup copy), and a
+	// program that is already there to be run.
+	always := sensitiveWrite(path) || secretPath(path) || (exists && fi.Mode().Perm()&0o111 != 0 && goos != "windows")
+	if ok, why := a.authorize(ctx, "write_file", summary, reason+"\n\n"+preview, safety.Dangerous, always); !ok {
 		return "", explained(errors.New(why))
 	}
 	a.emit(Event{Kind: EvToolStart, Tool: "write_file", Command: summary, Risk: safety.Dangerous})
@@ -718,7 +756,7 @@ func toolRemember(ctx context.Context, a *Agent, in map[string]any) (string, err
 			return "", explained(errors.New(why))
 		}
 	}
-	if err := os.MkdirAll(config.Dir(), 0o755); err != nil {
+	if err := os.MkdirAll(config.Dir(), 0o700); err != nil {
 		return "", err
 	}
 	f, err := os.OpenFile(config.NotesPath(), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
@@ -736,6 +774,25 @@ const (
 	diffHead = 25
 	diffTail = 15
 )
+
+// contentPreview is the start and the end of a text, as the card shows a
+// long change, with its control characters written out.
+func contentPreview(content string) string {
+	lines := strings.Split(strings.TrimRight(content, "\n"), "\n")
+	if len(lines) > diffHead+diffTail {
+		hidden := len(lines) - diffHead - diffTail
+		shown := append([]string(nil), lines[:diffHead]...)
+		shown = append(shown, fmt.Sprintf("… %d more lines not shown …", hidden))
+		lines = append(shown, lines[len(lines)-diffTail:]...)
+	}
+	for i, l := range lines {
+		if len(l) > 200 {
+			l = l[:200] + " …"
+		}
+		lines[i] = "+ " + l
+	}
+	return strings.Join(lines, "\n")
+}
 
 // diffPreview shows the lines that change between two versions: removed
 // ones, then added ones. A long change shows its start and its end and

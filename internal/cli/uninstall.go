@@ -33,6 +33,18 @@ func uninstallCmd() *cobra.Command {
 				return nil
 			}
 
+			// No application of that name, and installed ones whose name
+			// holds it: the folders found are most likely theirs ("Code"
+			// is where Visual Studio Code keeps its data). Nothing is
+			// offered; the exact name is asked for.
+			if app.AppBundle == "" && len(app.Similar) > 0 {
+				return fmt.Errorf("no application is called %q, and the files with that name may belong to: %s. Give the exact name of the application",
+					appName, strings.Join(app.Similar, ", "))
+			}
+			if app.AppBundle == "" {
+				fmt.Printf("\nNo application called '%s' is installed. These folders carry its name and may be what it left behind,\nor the data of a program that is still in use: look at them before saying yes.\n", appName)
+			}
+
 			fmt.Println("\nIdentified application files:")
 			if app.AppBundle != "" {
 				fmt.Printf("  • Application: %s\n", app.AppBundle)

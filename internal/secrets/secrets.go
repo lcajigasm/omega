@@ -91,8 +91,22 @@ var (
 // FilePath is the fallback key file on Linux (~/.config/omega/keys).
 func FilePath() string { return filepath.Join(config.Dir(), "keys") }
 
+// OnKey, when set, is told every key that is read. The command line
+// registers the value with the mask on command output: the key is kept out
+// of the commands' environment by name, and this covers the same value
+// reaching the output another way (a file the user also keeps it in).
+var OnKey func(key string)
+
 // Get returns the API key for a provider and where it was found.
 func Get(provider string) (string, Source, error) {
+	key, src, err := get(provider)
+	if err == nil && key != "" && OnKey != nil {
+		OnKey(key)
+	}
+	return key, src, err
+}
+
+func get(provider string) (string, Source, error) {
 	if v := os.Getenv(EnvVar[provider]); v != "" {
 		return v, FromEnv, nil
 	}

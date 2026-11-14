@@ -103,3 +103,45 @@ func TestGitDoesNotRunARepositorysMonitor(t *testing.T) {
 		t.Errorf("git status no longer works: %q", res.Output)
 	}
 }
+
+// A repository that names programs in its own configuration is recognised,
+// from anywhere inside it; an ordinary one is not.
+func TestGitConfigRuns(t *testing.T) {
+	plain := t.TempDir()
+	os.MkdirAll(filepath.Join(plain, ".git"), 0o755)
+	os.WriteFile(filepath.Join(plain, ".git", "config"), []byte("[core]\n\trepositoryformatversion = 0\n\tbare = false\n"+
+		"[remote \"origin\"]\n\turl = https://github.com/a/b.git\n\tfetch = +refs/heads/*:refs/remotes/origin/*\n"+
+		"[branch \"main\"]\n\tremote = origin\n\tmerge = refs/heads/main\n[user]\n\tname = Ana\n"), 0o644)
+	os.MkdirAll(filepath.Join(plain, "src", "deep"), 0o755)
+	if GitConfigRuns(filepath.Join(plain, "src", "deep")) {
+		t.Error("an ordinary repository was taken for one that runs programs")
+	}
+	if GitConfigRuns(t.TempDir()) {
+		t.Error("a folder that is no repository")
+	}
+	for _, extra := range []string{
+		"[filter \"x\"]\n\tclean = touch /tmp/pwned; cat\n",
+		"[diff \"y\"]\n\ttextconv = sh -c x\n",
+		"[core]\n\tfsmonitor = touch x\n",
+		"[core]\n\tpager = sh -c x\n",
+		"[alias]\n\tstatus = !sh -c x\n",
+		"[include]\n\tpath = /tmp/evil.config\n",
+		"[core]\n\thooksPath = /tmp/hooks\n",
+	} {
+		repo := t.TempDir()
+		os.MkdirAll(filepath.Join(repo, ".git"), 0o755)
+		os.MkdirAll(filepath.Join(repo, "a"), 0o755)
+		os.WriteFile(filepath.Join(repo, ".git", "config"), []byte("[core]\n\tbare = false\n"+extra), 0o644)
+		if !GitConfigRuns(filepath.Join(repo, "a")) {
+			t.Errorf("not recognised: %q", extra)
+		}
+	}
+	// A work tree: .git is a file that points at the real folder.
+	real := t.TempDir()
+	os.WriteFile(filepath.Join(real, "config"), []byte("[filter \"x\"]\n\tclean = cat\n"), 0o644)
+	tree := t.TempDir()
+	os.WriteFile(filepath.Join(tree, ".git"), []byte("gitdir: "+real+"\n"), 0o644)
+	if !GitConfigRuns(tree) {
+		t.Error("a work tree whose repository runs programs was not recognised")
+	}
+}

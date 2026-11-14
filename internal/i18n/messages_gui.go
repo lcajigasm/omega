@@ -16,6 +16,13 @@ var guiMessages = map[string][]string{
 	"gui.tools.terminal": {"On a terminal", "En un terminal", "Dans un terminal", "Im Terminal", "Num terminal"},
 	"gui.tools.unknown":  {"omega has no tool %q", "omega no tiene ninguna herramienta %q", "omega n'a pas d'outil %q", "omega hat kein Werkzeug %q", "o omega não tem nenhuma ferramenta %q"},
 	"gui.tools.bad_arg":  {"%q is not a value this tool takes", "%q no es un valor que acepte esta herramienta", "%q n'est pas une valeur acceptée par cet outil", "%q ist kein Wert, den dieses Werkzeug annimmt", "%q não é um valor que esta ferramenta aceite"},
+	"gui.tools.busy": {
+		"Another tool is still running. Wait for it to finish.",
+		"Otra herramienta sigue en marcha. Espera a que termine.",
+		"Un autre outil est encore en cours. Attendez qu'il se termine.",
+		"Ein anderes Werkzeug läuft noch. Warten Sie, bis es fertig ist.",
+		"Outra ferramenta ainda está em execução. Aguarde que termine.",
+	},
 	"gui.tools.exists": {
 		"%s already exists and is not an omega export: it was left as it is. Choose another name.",
 		"%s ya existe y no es una exportación de omega: se ha dejado como estaba. Elige otro nombre.",

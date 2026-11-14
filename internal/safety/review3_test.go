@@ -203,3 +203,131 @@ func TestReview3OrdinaryCommandsUnchanged(t *testing.T) {
 		}
 	}
 }
+
+// Under --yes these still wait for a person: the policy cannot read what
+// they do.
+func TestReview3OpaqueCodeAlwaysAsks(t *testing.T) {
+	for _, cmd := range []string{
+		`printf '%s' cm0gLXJmIH4K | base64 -d | sh`,
+		`echo nvram -c | $SHELL`,
+		`cat x | bash -s`,
+		`brew list | python3`,
+		`sh /tmp/x.sh`,
+		`bash ./install.sh --yes`,
+		`source /tmp/env.sh`,
+		`. /tmp/env.sh`,
+		`sudo zsh /tmp/x`,
+		`python3 -c "import shutil,os;shutil.rmtree(os.path.expanduser('~'))"`,
+		`perl -e 'unlink glob "*"'`,
+		`node -e "require('fs').rmSync('x')"`,
+		`osascript -e 'tell app "Finder" to delete'`,
+		`powershell -enc ZQBjAGgAbwA=`,
+		`docker run --rm -v ~:/h alpine sh -c 'rm -rf /h/*'`,
+		`docker run --rm -v /:/host alpine true`,
+		`docker run --mount type=bind,source=/Users/ana,target=/h alpine true`,
+		`bash <<EOF`,
+		`podman system reset -f`,
+		`podman machine reset`,
+		`docker compose down --volumes=true`,
+		`docker.exe system prune -af`,
+		`docker service rm x`,
+		`docker secret rm x`,
+		`docker swarm leave --force`,
+	} {
+		if !AlwaysConfirm(cmd) && !Opaque(cmd) {
+			t.Errorf("%q is not asked every time", cmd)
+		}
+	}
+	for _, cmd := range []string{
+		`sh -c 'ls -la'`, `bash -c "brew outdated"`, `brew upgrade | tail -5`, `python3 --version`, `node -v`,
+		`python3 -m pip list --outdated`, `bash --version`, `docker run --rm alpine ls`, `docker run -v ~/proj:/src alpine ls`,
+		`docker ps`, `docker compose up -d`, `brew upgrade`, `npm update -g`, `echo sh`, `ls | sort`, `pipx upgrade-all`,
+		`softwareupdate -l`, `mas upgrade`, `rustup update`, `git pull`, `grep -c sh file`,
+	} {
+		if AlwaysConfirm(cmd) || Opaque(cmd) {
+			t.Errorf("%q is asked every time", cmd)
+		}
+	}
+}
+
+func TestReview3MoreBlocked(t *testing.T) {
+	t.Setenv("HOME", "/Users/ana")
+	oldWD, oldHome := getwd, userHome
+	getwd = func() (string, error) { return "/Users/ana", nil }
+	userHome = func() string { return "/Users/ana" }
+	defer func() { getwd, userHome = oldWD, oldHome }()
+	for _, cmd := range []string{
+		// The home directory and the roots, by other names and other verbs.
+		`rm -rf ~ana`, `find ~ana -delete`, `rm -rf *`, `rm -rf .`, `rm -rf ./*`, `rm -rf $PWD`, `rm -rf $PWD/*`,
+		`rm -rf /Users/an?`, `rm -rf /Users/a*`, `rm -rf /U*`, `rm -rf /?*`, `rm -rf /*/`, `rm -rf ~/[A-Za-z]*`,
+		`rm -rf /System/Volumes/Data/Users/ana`, `rm -rf /System/Volumes/Data`,
+		`cd ~ && rm -rf $PWD`, `ls -A | xargs rm -rf`, `mv ~ /tmp/gone`, `rsync -a --delete /var/empty/ ~/`,
+		`git -C ~ clean -fdx`, `git clean -fdx`, `chmod -R 000 ~`, `chown -R nobody /usr`,
+		// Disks.
+		`mke2fs /dev/sda1`, `mkswap /dev/sda2`, `sgdisk --zap-all /dev/sda`, `parted /dev/sda mklabel gpt`, `shred -n 1 /dev/sda`,
+		`gpt destroy disk2`, `asr restore --source x.dmg --target /dev/disk2 --erase`, `cryptsetup luksFormat /dev/sda2`,
+		`wmic shadowcopy delete`, `spctl --global-disable`,
+		// Programs that print a credential.
+		`gh auth token`, `gh auth status --show-token`, `gcloud auth print-access-token`, `aws configure export-credentials`,
+		`az account get-access-token`, `kubectl config view --raw`, `echo 'find-generic-password -s omega -w' | security -i`,
+		`osascript -e 'the clipboard'`, `xsel -b`, `xclip -selection clipboard -out`,
+		// Windows.
+		`Get-ChildItem $HOME\.ssh | Get-Content`, `Get-ChildItem $HOME\.aws | Get-Content`, `dir ~\.ssh | Select-String KEY`,
+	} {
+		if r := Classify(cmd); r != Blocked {
+			t.Errorf("%q is %s, want blocked", cmd, r)
+		}
+	}
+	userHome = func() string { return `C:\Users\ana` }
+	for _, cmd := range []string{`Remove-Item -Recurse -Force C:\Users\ana`, `rd /s /q C:\Users\ana\*`} {
+		if r := Classify(cmd); r != Blocked {
+			t.Errorf("%q is %s, want blocked", cmd, r)
+		}
+	}
+	if r := Classify(`Remove-Item -Recurse C:\Users\ana\AppData\Local\Temp\x`); r == Blocked {
+		t.Error("a folder inside the profile is blocked")
+	}
+	userHome = func() string { return "/Users/ana" }
+	// Not read-only any more: they change the machine, never end, or sign
+	// in to another host.
+	for _, cmd := range []string{
+		`ipconfig /release`, `ipconfig /flushdns`, `net use * /delete /y`, `net use Z: \\evil.example\share`, `net start Spooler`,
+		`powercfg /list /setactive x`, `dir \\evil.example\share`, `Get-ChildItem \\evil.example\share`,
+		`Get-Secret -Name x -AsPlainText`, `Get-AzAccessToken`, `Test-ComputerSecureChannel -Repair`, `Get-WindowsUpdateLog`,
+		`Get-BitLockerVolume | Select-Object -ExpandProperty KeyProtector`, `Get-Content x -Wai`, `Get-Counter -Continuous`,
+		`mdfind -live foo`, `pmset -g pslog`, `pmset -g thermlog`, `top -l 1000000`, `tail --foll /var/log/system.log`,
+		`journalctl --follo`, `docker logs --foll x`, `log stream`,
+	} {
+		if r := Classify(cmd); r == Safe || r == Normal {
+			t.Errorf("%q is %s", cmd, r)
+		}
+	}
+	// And what must stay as it was.
+	for cmd, want := range map[string]Risk{
+		`ipconfig`: Safe, `ipconfig /all`: Safe, `net use`: Safe, `powercfg /list`: Safe, `dir C:\Users`: Safe,
+		`Get-BitLockerVolume | Select-Object MountPoint, VolumeStatus`: Safe, `Get-ChildItem $HOME\Documents`: Safe,
+		`top -l 1`: Safe, `pmset -g batt`: Safe, `mdfind foo`: Safe, `tail -n 20 /var/log/system.log`: Safe,
+		`rm -rf ~/Library/Caches/*`: Dangerous, `rm -rf ./node_modules`: Dangerous, `rm -rf build`: Dangerous,
+		`mv ~/Downloads/a.zip /tmp/`: Dangerous, `rsync -a --delete src/ ~/backup/`: Dangerous, `chmod -R u+w ~/.npm`: Dangerous,
+		`git status`: Safe, `git clean -n`: Dangerous, `gh auth status`: Dangerous, `docker ps`: Safe,
+	} {
+		if r := Classify(cmd); r != want {
+			t.Errorf("%q is %s, want %s", cmd, r, want)
+		}
+	}
+}
+
+// sudo told to use a helper of the command's choosing gets the password
+// omega holds to that helper.
+func TestReview3SudoWithItsOwnHelperIsBlocked(t *testing.T) {
+	for _, cmd := range []string{`sudo -A true`, `sudo -EA id`, `sudo --askpass id`, `X_ASKPASS=/tmp/x sudo id`, `export $(echo U1VE | base64 -d)ASKPASS=/tmp/x`} {
+		if r := Classify(cmd); r != Blocked {
+			t.Errorf("%q is %s, want blocked", cmd, r)
+		}
+	}
+	for _, cmd := range []string{`sudo softwareupdate -i -a`, `sudo -E brew services list`, `sudo -u ana id`, `sudo -n true`} {
+		if r := Classify(cmd); r != Dangerous {
+			t.Errorf("%q is %s, want dangerous", cmd, r)
+		}
+	}
+}

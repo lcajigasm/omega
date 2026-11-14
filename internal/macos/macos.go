@@ -67,10 +67,10 @@ func JournalPath() string { return filepath.Join(config.StateDir(), "mac-journal
 
 // Record appends an applied change to the journal.
 func Record(c Change) error {
-	if err := os.MkdirAll(config.StateDir(), 0o755); err != nil {
+	if err := os.MkdirAll(config.StateDir(), 0o700); err != nil {
 		return err
 	}
-	f, err := os.OpenFile(JournalPath(), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	f, err := os.OpenFile(JournalPath(), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
 		return err
 	}
@@ -115,7 +115,7 @@ func MarkUndone(times map[time.Time]bool) error {
 		b.Write(line)
 		b.WriteByte('\n')
 	}
-	return os.WriteFile(JournalPath(), []byte(b.String()), 0o644)
+	return os.WriteFile(JournalPath(), []byte(b.String()), 0o600)
 }
 
 // readPlist decodes a plist file (XML or binary) into a generic map.

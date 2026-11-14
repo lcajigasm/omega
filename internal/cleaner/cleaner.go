@@ -113,6 +113,9 @@ func tracked(path string) bool {
 	if _, err := exec.LookPath("git"); err != nil {
 		return false
 	}
+	if runner.GitConfigRuns(filepath.Dir(path)) {
+		return true // not asked: taken for part of the project, which keeps it
+	}
 	cmd := exec.Command("git", "-C", filepath.Dir(path), "ls-files", "--", filepath.Base(path))
 	cmd.Env = append(os.Environ(), runner.GitEnv()...)
 	cmd.Stderr = nil
@@ -128,6 +131,9 @@ var activityCap = 20000
 // gitOutput runs git in dir and returns what it printed. ok is false when
 // git is missing, dir is not in a repository or git took too long.
 func gitOutput(dir string, args ...string) (out []byte, ok bool) {
+	if runner.GitConfigRuns(dir) {
+		return nil, false
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "git", append([]string{"-C", dir}, args...)...)

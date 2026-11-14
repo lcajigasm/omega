@@ -51,7 +51,24 @@ func publicOnly(_, address string, _ syscall.RawConn) error {
 	if !ip.IsGlobalUnicast() || ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast() || cgnat.Contains(ip) {
 		return errPrivateAddress
 	}
+	for _, p := range notPublic {
+		if p.Contains(ip) {
+			return errPrivateAddress
+		}
+	}
 	return nil
+}
+
+// notPublic are ranges that are global unicast by the book and still lead
+// inwards or nowhere: an IPv4 address wrapped in IPv6 (NAT64, 6to4,
+// Teredo, the old IPv4-compatible form) could be a private one; the rest
+// are reserved for tests, protocols and the future.
+var notPublic = []netip.Prefix{
+	netip.MustParsePrefix("64:ff9b::/96"), netip.MustParsePrefix("64:ff9b:1::/48"), netip.MustParsePrefix("2002::/16"),
+	netip.MustParsePrefix("2001::/32"), netip.MustParsePrefix("::/96"), netip.MustParsePrefix("fec0::/10"),
+	netip.MustParsePrefix("2001:db8::/32"), netip.MustParsePrefix("192.0.0.0/24"), netip.MustParsePrefix("192.0.2.0/24"),
+	netip.MustParsePrefix("198.18.0.0/15"), netip.MustParsePrefix("198.51.100.0/24"), netip.MustParsePrefix("203.0.113.0/24"),
+	netip.MustParsePrefix("240.0.0.0/4"),
 }
 
 // cgnat is the shared address space of carrier NAT and of Tailscale.
@@ -69,8 +86,14 @@ func checkHost(ctx context.Context, u *url.URL) error {
 	}
 	ips, err := net.DefaultResolver.LookupNetIP(ctx, "ip", host)
 	if err != nil {
+		// Behind a proxy the name may only resolve there. A name that
+		// cannot be checked is let through only when it looks like a
+		// public one: with a dot, and not one of the names of this network.
+		if dialControl() == nil && strings.Contains(host, ".") && !localName.MatchString(host) {
+			return nil
+		}
 		if dialControl() == nil {
-			return nil // behind a proxy only the proxy may be able to resolve names
+			return errPrivateAddress
 		}
 		return err
 	}
@@ -81,6 +104,8 @@ func checkHost(ctx context.Context, u *url.URL) error {
 	}
 	return nil
 }
+
+var localName = regexp.MustCompile(`(?i)(^|\.)(localhost|local|lan|home|internal|intranet|corp|localdomain|home\.arpa)\.?$`)
 
 // dialControl is publicOnly, unless a proxy is configured.
 func dialControl() func(string, string, syscall.RawConn) error {
