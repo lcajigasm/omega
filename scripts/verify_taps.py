@@ -10,6 +10,7 @@ then the command fails. --deadline 0 checks once and fails immediately.
 import argparse
 import base64
 import json
+import os
 import re
 import sys
 import time
@@ -60,15 +61,24 @@ def versions_in(text):
     return found.pop()
 
 
+def api_headers(env=os.environ):
+    """The headers of a request to the GitHub API. With a token when there
+    is one: without it the API allows 60 requests an hour per address, and a
+    hosted runner shares its address with other jobs (the release of 0.26.1
+    got 403 on every attempt, with the tap already up to date)."""
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "omega-verify-taps",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+    token = env.get("GH_TOKEN") or env.get("GITHUB_TOKEN")
+    if token:
+        headers["Authorization"] = "Bearer " + token
+    return headers
+
+
 def fetch_formula(repo, path=FILES[0]):
-    req = urllib.request.Request(
-        API.format(repo=repo, path=path),
-        headers={
-            "Accept": "application/vnd.github+json",
-            "User-Agent": "omega-verify-taps",
-            "X-GitHub-Api-Version": "2022-11-28",
-        },
-    )
+    req = urllib.request.Request(API.format(repo=repo, path=path), headers=api_headers())
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
             payload = json.load(resp)

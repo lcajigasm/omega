@@ -3,10 +3,15 @@
 
 import unittest
 
-from verify_taps import FILES, TAP, TapError, check_once, normalize, versions_in
+from verify_taps import FILES, TAP, TapError, api_headers, check_once, normalize, versions_in
 
 
 class VersionsTest(unittest.TestCase):
+    def test_api_headers_carry_a_token_when_there_is_one(self):
+        self.assertNotIn("Authorization", api_headers({}))
+        self.assertEqual(api_headers({"GH_TOKEN": "t1"})["Authorization"], "Bearer t1")
+        self.assertEqual(api_headers({"GITHUB_TOKEN": "t2"})["Authorization"], "Bearer t2")
+
     def test_url_versions_agree(self):
         text = """
         url "https://github.com/lcajigasm/omega.git", branch: "main"
