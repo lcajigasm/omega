@@ -34,6 +34,9 @@ jobs:
           # release: published carries the tag. workflow_dispatch passes it in.
           VERIFY_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.tag }}
           FAIL_FAST: ${{ inputs.fail_fast == true }}
+          # The tap is public; the token only lifts the API's limit for
+          # requests without one, which a shared runner address runs out of.
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           if [ "$FAIL_FAST" = "true" ]; then
