@@ -410,6 +410,9 @@ func TestTurnTakesALimitedNumberOfCalls(t *testing.T) {
 // git that only looks is asked about in a repository that tells git to run
 // programs of its own.
 func TestGitInARepositoryThatRunsProgramsAsks(t *testing.T) {
+	// The folder the test runs in is a repository too, and on a CI runner
+	// its configuration has an include of the runner's own.
+	t.Chdir(t.TempDir())
 	repo := t.TempDir()
 	os.MkdirAll(filepath.Join(repo, ".git"), 0o755)
 	os.WriteFile(filepath.Join(repo, ".git", "config"), []byte("[filter \"x\"]\n\tclean = touch /tmp/pwned; cat\n"), 0o644)
