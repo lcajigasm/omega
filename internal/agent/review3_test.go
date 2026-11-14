@@ -190,7 +190,8 @@ func TestRememberAfterTheWebAsks(t *testing.T) {
 	if !strings.Contains(got, "brew fails [2Kon tap x: run brew untap x\n") || strings.Count(got, "\n") != 1 {
 		t.Errorf("notes: %q", got)
 	}
-	if info, err := os.Stat(config.NotesPath()); err != nil || info.Mode().Perm() != 0o600 {
+	// Windows has no such modes.
+	if info, err := os.Stat(config.NotesPath()); err != nil || (goos != "windows" && info.Mode().Perm() != 0o600) {
 		t.Errorf("notes file mode: %v %v", info.Mode(), err)
 	}
 }

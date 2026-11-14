@@ -493,6 +493,7 @@ func TestFindAppArtifactsLeavesSystemAndOtherVendorsAlone(t *testing.T) {
 func TestUninstallLeavesAnotherAppsData(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // the home directory on Windows
 	oldOS, oldDirs, oldID := goos, appDirs, bundleID
 	goos = "darwin"
 	apps := filepath.Join(home, "Applications")
