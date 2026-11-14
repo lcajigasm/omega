@@ -32,7 +32,9 @@ needs it, on every platform:
   OpenSSH, Docker, zsh, Oh My Zsh, bash, fish, Time Machine and Spotlight,
   apt, dnf, pacman, zypper, Flatpak, snap, systemd, winget, Scoop, Chocolatey,
   the PowerShell profile and WSL.
-- `fetch_url`: reads a documentation page or raw file as text.
+- `fetch_url`: reads a documentation page or raw file as text. Official
+  documentation, the results of `web_search` and sites you name are read
+  without asking; any other address needs your approval.
 - `web_search`: searches the web when the page is not listed; results from the
   official documentation sites omega knows are marked `[official]`.
 

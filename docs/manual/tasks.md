@@ -149,6 +149,11 @@ steps that need sudo fail and are listed.
 
 ### One task, from a schedule
 
+`omega schedule install` sets this up for you and runs the built-in steps
+without the model. A job you write yourself, like the one below, runs the
+agent with every approval answered yes and nobody watching; add `--no-ai` to
+keep it to the built-in steps.
+
 ```bash
 omega update --yes --no-tui --once
 ```

@@ -211,7 +211,7 @@ command. The highest risk found decides.
 | 🟡 **normal** | `brew upgrade`, `npm update -g`, `rustup update` | runs |
 | 🟠 **dangerous** | `rm`, `sudo`, editing a config, **any unknown command** | asks you |
 | 🔴 **always ask** | `docker … prune`, `docker volume rm` | asks every time, even with `--yes` |
-| ⛔ **blocked** | `rm -rf ~`, `curl … \| sh`, `dd of=/dev/…`, reading a private key | never runs |
+| ⛔ **blocked** | `rm -rf ~`, `curl … \| sh`, `dd of=/dev/…`, reading a private key or a credential file | never runs |
 
 ```mermaid
 flowchart LR
@@ -228,7 +228,24 @@ flowchart LR
 ```
 
 API keys never reach the commands omega runs, and the agent cannot read them.
-The full policy is in
+The same goes for what it could send out or leave behind:
+
+- **The web.** The agent reads official documentation, the results of its own
+  search and the sites you name. Any other address waits for your yes, because
+  an address can carry what the agent has just read.
+- **Notes for later runs.** A note written after reading the web is shown to
+  you first, and notes are given to the model as records, not as orders.
+- **omega's own settings.** A command that touches omega's configuration, a
+  shell startup file, a login item or a scheduled job is asked every time,
+  also with `--yes`.
+- **What you approve is what runs.** A command with invisible or control
+  characters is refused, and the card writes them out.
+- **Scheduled runs** (`omega schedule install`) use omega's built-in steps and
+  never the model.
+- **The sudo password** is handed to sudo and to nothing else that asks.
+
+Each security review and what it changed is in [TODO.md](TODO.md). The full
+policy is in
 [Safety, approvals and memory](docs/manual/safety.md), and how the loop works
 in [How it works](docs/manual/development.md).
 

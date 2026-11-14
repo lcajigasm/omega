@@ -35,7 +35,7 @@ var blocked = []*regexp.Regexp{
 	regexp.MustCompile(`\bcsrutil\s+(disable|clear|authenticated-root)`),
 	regexp.MustCompile(`\bspctl\s+--master-disable`),
 	regexp.MustCompile(`:\(\)\s*\{`),
-	regexp.MustCompile(`\b(curl|wget)\b[^|]*\|\s*(sudo\s+)?(ba|z|)sh\b`),
+	regexp.MustCompile(`\b(curl|wget)\b[^|]*\|\s*(sudo\s+(-\S+\s+)*)?(env\s+)?(\S*/)?(ba|z|da|k|fi|)sh\b`),
 	regexp.MustCompile(`\bchmod\s+(-R\s+)?[0-7]*777\s+/(\s|$)`),
 	// Deleting backups and switching Time Machine off. Thinning the local
 	// snapshots (deletelocalsnapshots) frees space and only needs approval.
@@ -286,12 +286,19 @@ func Classify(command string) Risk {
 	if cmd == "" {
 		return Safe
 	}
+	// The never-list is read twice: as typed, and as the shell hands it to
+	// the program, without quotes or backslashes (dd of="/dev/disk0",
+	// csrutil 'disable', curl … | /bin/sh).
+	plain := dequote(cmd)
 	for _, re := range blocked {
-		if re.MatchString(cmd) {
+		if re.MatchString(cmd) || re.MatchString(plain) {
 			return Blocked
 		}
 	}
 	if runsBlockedTool(cmd) {
+		return Blocked
+	}
+	if namesKeptSecret(plain) || namesSecretFileVar(plain) {
 		return Blocked
 	}
 	// Secrets and wipes are looked for in the whole command, through
@@ -333,10 +340,27 @@ func Classify(command string) Risk {
 			max = r
 		}
 	}
-	if max == Safe && envDumpReshaped(code) {
+	if max == Safe && (envDumpReshaped(code) || startupFileReshaped(code)) {
 		return Dangerous
 	}
 	return max
+}
+
+// dequote is a command without its quotes, backticks and backslashes, and
+// with repeated slashes as one: close to the words the programs receive.
+func dequote(cmd string) string {
+	s := strings.NewReplacer("'", "", `"`, "", "`", "", `\`, "").Replace(cmd)
+	for strings.Contains(s, "//") && !strings.Contains(s, "://") {
+		s = strings.ReplaceAll(s, "//", "/")
+	}
+	return s
+}
+
+// abbrev reports a long option written in full or shortened: getopt_long
+// takes any unambiguous start, so --out is --output for sort.
+func abbrev(arg, full string) bool {
+	name, _, _ := strings.Cut(arg, "=")
+	return name == full || (len(name) > 2 && strings.HasPrefix(name, "--") && strings.HasPrefix(full, name))
 }
 
 // wipesAnywhere looks for a wipe in every simple command of the line. A cd
@@ -425,13 +449,13 @@ func envDumpReshaped(code string) bool {
 			case "sort", "uniq", "wc":
 			case "grep", "egrep", "fgrep":
 				for _, a := range f[1:] {
-					if a == "--only-matching" || (shortFlags.MatchString(a) && strings.Contains(a, "o")) {
+					if abbrev(a, "--only-matching") || (shortFlags.MatchString(a) && strings.Contains(a, "o")) {
 						return true
 					}
 				}
 			case "head", "tail":
 				for _, a := range f[1:] {
-					if strings.HasPrefix(a, "--bytes") || (strings.HasPrefix(a, "-") && strings.Contains(a, "c")) {
+					if abbrev(a, "--bytes") || (strings.HasPrefix(a, "-") && !strings.HasPrefix(a, "--") && strings.Contains(a, "c")) {
 						return true
 					}
 				}
@@ -443,10 +467,11 @@ func envDumpReshaped(code string) bool {
 	return false
 }
 
-// dumpsEnv reports env or printenv with no variable named and no command.
+// dumpsEnv reports printenv, or env with no command: what they print is
+// the value of variables, one of which may be a credential.
 func dumpsEnv(f []string) bool {
 	if f[0] == "printenv" {
-		return len(f) == 1
+		return true
 	}
 	if f[0] != "env" {
 		return false
@@ -515,9 +540,8 @@ func writesByOption(p string) bool {
 	args := f[1:]
 	opt := func(names ...string) bool {
 		for _, a := range args {
-			name, _, _ := strings.Cut(a, "=")
 			for _, n := range names {
-				if name == n {
+				if abbrev(a, n) {
 					return true
 				}
 			}
@@ -549,6 +573,11 @@ func writesByOption(p string) bool {
 	switch f[0] {
 	case "rg":
 		return opt("--pre", "--pre-glob", "--hostname-bin")
+	case "jq":
+		// env and $ENV are the whole environment, to cut up as it likes.
+		return jqEnv.MatchString(p)
+	case "pip", "pip3":
+		return opt("--log", "--python", "--cache-dir")
 	case "sort":
 		return short("o") || opt("--output", "--compress-program", "--files0-from")
 	case "uniq":
@@ -591,6 +620,8 @@ func writesByOption(p string) bool {
 	return false
 }
 
+var jqEnv = regexp.MustCompile(`\benv\b|\$ENV\b|\$__loc__|input_filename`)
+
 // setsClock reports a date command that is not only printing. On macOS a
 // date given without -j is the new time, and so is "-f format date"; on
 // Linux -s and --set are. Everything else (-I, -r seconds, -v, -u, +format,
@@ -606,7 +637,7 @@ func setsClock(args []string) bool {
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		switch {
-		case a == "--set" || strings.HasPrefix(a, "--set="):
+		case abbrev(a, "--set"):
 			return true
 		case a == "--date" || a == "--reference" || a == "-d" || a == "-r" || a == "-v" || a == "-z":
 			i++ // its value

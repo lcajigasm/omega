@@ -33,7 +33,10 @@ var (
 	xattrReads  = regexp.MustCompile(`^-[lprsvx]+$`)
 	// What makes an awk program more than a filter: it runs a command,
 	// reads from one, or prints into a file or a pipe.
-	awkActs = regexp.MustCompile(`system|getline|close|fflush|printf?[^;}]*[>|]`)
+	// So is one that calls a function by a name it builds (gawk's @f()),
+	// loads another file (@include, @load), or picks its own input: ENVIRON
+	// is every variable of the environment and ARGV names the files to read.
+	awkActs = regexp.MustCompile(`system|getline|close|fflush|printf?[^;}]*[>|]|@|ENVIRON|ARGV|PROCINFO`)
 )
 
 const (

@@ -66,6 +66,206 @@ var keptSecret = regexp.MustCompile(`(?i)\b(` + strings.Join(KeptSecretVars, "|"
 // $NAME, ${NAME:0:10}, printenv NAME, $env:NAME.
 func namesKeptSecret(cmd string) bool { return keptSecret.MatchString(cmd) }
 
+// secretFileVar are the variables whose value is the path of a credential
+// file or of a folder of them. They stay in the commands' environment, so
+// "cat $KUBECONFIG" reads the file without ever naming it.
+var secretFileVar = regexp.MustCompile(`(?i)\$(env:)?\{?(GOOGLE_APPLICATION_CREDENTIALS|KUBECONFIG|AWS_SHARED_CREDENTIALS_FILE|AWS_CONFIG_FILE|` +
+	`DOCKER_CONFIG|NETRC|HISTFILE|PGPASSFILE|PGSERVICEFILE|NPM_CONFIG_USERCONFIG|BOTO_CONFIG|CLOUDSDK_CONFIG|AZURE_CONFIG_DIR|` +
+	`VAULT_TOKEN_FILE|SOPS_AGE_KEY_FILE|GNUPGHOME|RCLONE_CONFIG)\b`)
+
+func namesSecretFileVar(cmd string) bool { return secretFileVar.MatchString(cmd) }
+
+// homes are the home directory as the policy writes it and as it is.
+func homes() []string {
+	out := []string{strings.ToLower(homeSentinel)}
+	if h, err := os.UserHomeDir(); err == nil && h != "" {
+		out = append(out, strings.ToLower(path.Clean(strings.ReplaceAll(h, `\`, "/"))))
+	}
+	return out
+}
+
+// containsSecret reports a folder with a known credential file somewhere
+// below it (~/.config/gh, ~/.docker, ~/.claude): reading every file under
+// it reads that one.
+func containsSecret(raw string) bool {
+	lower := strings.ToLower(absForm(normalizeSecretPath(raw)))
+	for _, home := range homes() {
+		for _, k := range knownSecrets {
+			if strings.HasPrefix(home+k, strings.TrimSuffix(lower, "/")+"/") {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// emptyVar is a variable written inside a word. One that is not set expands
+// to nothing: ~/.ss${Z}h/id_r${Z}sa is ~/.ssh/id_rsa.
+var emptyVar = regexp.MustCompile(`\$\{[^}]*\}|\$[A-Za-z_][A-Za-z0-9_]*`)
+
+// looseRegexp reads a shell pattern generously, as the shells do and
+// path.Match does not: [!x] and [[:alpha:]] are any character, **/ is any
+// number of folders, {a,b} anything at all.
+func looseRegexp(pattern string) *regexp.Regexp {
+	var b strings.Builder
+	b.WriteString("^")
+	for i := 0; i < len(pattern); i++ {
+		c := pattern[i]
+		switch c {
+		case '*':
+			if strings.HasPrefix(pattern[i:], "**/") {
+				b.WriteString("(.*/)?")
+				i += 2
+			} else if strings.HasPrefix(pattern[i:], "**") {
+				b.WriteString(".*")
+				i++
+			} else {
+				b.WriteString("[^/]*")
+			}
+		case '?':
+			b.WriteString("[^/]")
+		case '[':
+			end := strings.IndexByte(pattern[min(i+2, len(pattern)):], ']')
+			if end < 0 {
+				b.WriteString(regexp.QuoteMeta("["))
+				continue
+			}
+			i = min(i+2, len(pattern)) + end
+			for i+1 < len(pattern) && pattern[i+1] == ']' {
+				i++ // the end of [[:alpha:]]
+			}
+			b.WriteString("[^/]+")
+		case '{':
+			end := strings.IndexByte(pattern[i:], '}')
+			if end < 0 {
+				b.WriteString(regexp.QuoteMeta("{"))
+				continue
+			}
+			i += end
+			b.WriteString(".*")
+		default:
+			b.WriteString(regexp.QuoteMeta(string(c)))
+		}
+	}
+	b.WriteString("/?$")
+	re, err := regexp.Compile(b.String())
+	if err != nil {
+		return nil
+	}
+	return re
+}
+
+// looselyReaches reports a word that the shell can turn into a credential
+// file, a folder of them or one of extra (paths under the home directory),
+// through a pattern or a variable that is not set.
+func looselyReaches(p string, extra ...string) bool {
+	if !strings.ContainsAny(p, "*?[{$") {
+		return false
+	}
+	lower := strings.ToLower(absForm(emptyVar.ReplaceAllString(p, "")))
+	if lower == "" || strings.HasSuffix(lower, ".pub") {
+		return false
+	}
+	re := looseRegexp(lower)
+	if re == nil {
+		return false
+	}
+	var targets []string
+	for _, home := range homes() {
+		for _, e := range extra {
+			targets = append(targets, home+e)
+		}
+		if len(extra) > 0 {
+			continue
+		}
+		for _, k := range knownSecrets {
+			targets = append(targets, home+k)
+		}
+		for _, d := range secretDirs {
+			targets = append(targets, home+d, home+d+"/id_key")
+		}
+		targets = append(targets, home+"/.config/omega", home+"/.config/omega/keys")
+	}
+	if len(extra) == 0 {
+		targets = append(targets, xdgSentinel+"/omega", xdgSentinel+"/omega/keys", xdgSentinel+"/gh/hosts.yml")
+		if x := configHome(); x != "" {
+			x = strings.ToLower(path.Clean(strings.ReplaceAll(x, `\`, "/")))
+			targets = append(targets, x+"/omega", x+"/omega/keys", x+"/gh/hosts.yml")
+		}
+	}
+	for _, t := range targets {
+		if re.MatchString(t) {
+			return true
+		}
+	}
+	return false
+}
+
+// startupFiles are the files a shell reads when it starts. Most people
+// export their API keys there.
+var startupFiles = []string{".zshrc", ".zshenv", ".zprofile", ".zlogin", ".bashrc", ".bash_profile", ".bash_login", ".profile",
+	".zshrc.local", ".bash_aliases", ".envrc", ".config/fish/config.fish"}
+
+var startupName = regexp.MustCompile(`(?i)(^|[/\s<=:])(\.(zshrc|zshenv|zprofile|zlogin|bashrc|bash_profile|bash_login|profile|bash_aliases|envrc)(\.local)?|config\.fish|\S*profile\.ps1)($|[\s;|&<>)])`)
+
+// wholeLines are the programs that print the lines of a file as they are,
+// or nothing of them: the mask on the output recognises NAME=value there.
+var wholeLines = map[string]bool{"cat": true, "grep": true, "egrep": true, "fgrep": true, "wc": true, "ls": true, "stat": true,
+	"head": true, "tail": true, "sort": true, "uniq": true, "less": true, "more": true, "file": true, "test": true, "[": true,
+	"echo": true, "printf": true, "nl": true, "cd": true, "true": true, "du": true, "eza": true, "bat": true}
+
+// startupFileReshaped reports a command that reads a shell startup file
+// with something that can print its lines in pieces: cut -c, awk substr,
+// grep -o, tail -c. The keys exported there are masked in the output as
+// whole NAME=value words; cut up, no mask recognises them.
+func startupFileReshaped(code string) bool {
+	for _, pipeline := range splitUnquoted(code, false, true) {
+		plain := dequote(pipeline)
+		named := startupName.MatchString(plain)
+		if !named {
+			for _, w := range strings.Fields(plain) {
+				if looselyReaches(normalizeSecretPath(w), prefixed(startupFiles)...) {
+					named = true
+					break
+				}
+			}
+		}
+		if !named {
+			continue
+		}
+		for _, stage := range splitUnquoted(pipeline, true, false) {
+			f := strings.Fields(joinText(shellWords(stage)))
+			if len(f) == 0 {
+				continue
+			}
+			if !wholeLines[path.Base(f[0])] {
+				return true
+			}
+			for _, a := range f[1:] {
+				switch path.Base(f[0]) {
+				case "grep", "egrep", "fgrep":
+					if abbrev(a, "--only-matching") || (shortFlags.MatchString(a) && strings.Contains(a, "o")) {
+						return true
+					}
+				case "head", "tail":
+					if abbrev(a, "--bytes") || (strings.HasPrefix(a, "-") && !strings.HasPrefix(a, "--") && strings.Contains(a, "c")) {
+						return true
+					}
+				}
+			}
+		}
+	}
+	return false
+}
+
+func prefixed(names []string) []string {
+	out := make([]string, len(names))
+	for i, n := range names {
+		out[i] = "/" + n
+	}
+	return out
+}
+
 // secretDirs are folders whose files are secrets, as path suffixes.
 var secretDirs = []string{"/.ssh", "/.aws", "/.gnupg", "/.local/share/keyrings", "/keychains",
 	"/.azure", "/.kube", "/.config/gcloud", "/library/cookies"}
@@ -81,7 +281,7 @@ func secretDir(raw string) bool {
 			return true
 		}
 	}
-	return false
+	return looselyReaches(normalizeSecretPath(raw))
 }
 
 // holdsSecrets reports a folder above the secret ones: the home directory,
@@ -147,6 +347,13 @@ func secretFile(raw string, relative bool) bool {
 	if secretPath(p) {
 		return true
 	}
+	// A variable that is not set vanishes from the word.
+	if bare := emptyVar.ReplaceAllString(p, ""); bare != p && bare != "" && bare != "/" && secretPath(path.Clean(bare)) {
+		return true
+	}
+	if looselyReaches(p) {
+		return true
+	}
 	// Inside omega's own folder a bare name ("keys", "./keys") is the key file.
 	if abs := absForm(p); abs != p && relative && !number.MatchString(p) {
 		if rest, ok := underOmega(strings.ToLower(abs)); ok && rest != "" && !omegaReadable[rest] {
@@ -169,7 +376,22 @@ var knownSecrets = []string{
 	"/.claude/.credentials.json", "/.claude.json", "/.codex/auth.json", "/.local/share/opencode/auth.json",
 	"/.config/rclone/rclone.conf", "/.terraform.d/credentials.tfrc.json", "/.vault-token", "/.huggingface/token",
 	"/.cache/huggingface/token", "/.gradle/gradle.properties", "/.m2/settings.xml", "/.m2/settings-security.xml",
+	"/.config/sops/age/keys.txt", "/.age/key.txt", "/.s3cfg", "/.boto", "/.config/doctl/config.yaml", "/.vercel/auth.json",
+	"/.fly/config.yml", "/.config/configstore/firebase-tools.json", "/.composer/auth.json", "/.wrangler/config/default.toml",
+	"/.yarnrc.yml", "/.config/hub", "/.wakatime.cfg", "/.cursor/mcp.json", "/.gnupg/secring.gpg",
+	"/library/application support/claude/claude_desktop_config.json", "/.zsh_sessions/session.history", "/.bash_sessions/session.history",
 }
+
+// moreSecrets are those of knownSecrets that secretPath does not already
+// know by a rule of its own, as path suffixes.
+var moreSecrets = []string{"/.config/sops/age/keys.txt", "/.age/key.txt", "/.s3cfg", "/.boto", "/doctl/config.yaml", "/.vercel/auth.json",
+	"/.fly/config.yml", "/configstore/firebase-tools.json", "/.composer/auth.json", "/.wrangler/config/default.toml",
+	"/.yarnrc.yml", "/.config/hub", "/.wakatime.cfg", "/.cursor/mcp.json", "/.gnupg/secring.gpg", "/claude_desktop_config.json",
+	"/gh/hosts.yml"}
+
+// omegaBackup is the suffix of the copy write_file keeps of the file it
+// replaces: the copy of a secret is as secret.
+var omegaBackup = regexp.MustCompile(`\.omega-bak-[0-9-]+$`)
 
 // globReachesSecrets reports a pattern that can expand to a credential
 // file, or to any file of a folder that only holds secrets (a key in
@@ -247,11 +469,20 @@ func globReachesKeys(p string) bool {
 }
 
 func secretPath(p string) bool {
+	p = omegaBackup.ReplaceAllString(p, "")
 	base := strings.ToLower(path.Base(p))
 	if strings.HasSuffix(base, ".pub") || base == "known_hosts" || base == "authorized_keys" || base == "environment" {
 		return false
 	}
 	lower := strings.ToLower(p)
+	for _, f := range moreSecrets {
+		if strings.HasSuffix(lower, f) || lower == f[1:] {
+			return true
+		}
+	}
+	if strings.Contains(lower, "/.zsh_sessions/") || strings.Contains(lower, "/.bash_sessions/") {
+		return true
+	}
 	if procEnviron.MatchString(lower) {
 		// The environment of a process can hold an API key.
 		return true
@@ -345,6 +576,11 @@ func normalizeSecretPath(raw string) string {
 		}
 	}
 	p = strings.ReplaceAll(p, `\`, "/")
+	for _, v := range []string{"$env:USERPROFILE", "$env:HOME", "${env:USERPROFILE}", "%USERPROFILE%"} {
+		if i := strings.Index(strings.ToLower(p), strings.ToLower(v)); i >= 0 {
+			p = p[:i] + homeSentinel + p[i+len(v):]
+		}
+	}
 	p = strings.ReplaceAll(p, "${HOME}", homeSentinel)
 	p = strings.ReplaceAll(p, "$HOME", homeSentinel)
 	p = strings.ReplaceAll(p, "${XDG_CONFIG_HOME}", xdgSentinel)
@@ -544,11 +780,11 @@ func leaksIn(segs [][]string) bool {
 					break
 				}
 				roots++
-				if secretDir(w) || holdsSecrets(w) {
+				if secretDir(w) || holdsSecrets(w) || containsSecret(w) || (dir != "" && relativeWord(w) && unsafeRoot(dir+"/"+w)) {
 					return true
 				}
 			}
-			if roots == 0 && (secretDir(".") || holdsSecrets(".")) {
+			if roots == 0 && (unsafeRoot(".") || (dir != "" && unsafeRoot(dir))) {
 				return true
 			}
 		}
@@ -564,7 +800,7 @@ func leaksIn(segs [][]string) bool {
 				roots = append(roots, ".")
 			}
 			for _, root := range roots {
-				if secretDir(root) || holdsSecrets(root) {
+				if unsafeRoot(root) || (dir != "" && relativeWord(root) && unsafeRoot(dir+"/"+root)) {
 					return true
 				}
 			}
@@ -589,6 +825,12 @@ func leaksIn(segs [][]string) bool {
 		}
 	}
 	return false
+}
+
+// unsafeRoot reports a folder whose files must not all be printed: one that
+// only holds secrets, one above those, or one with a credential file in it.
+func unsafeRoot(root string) bool {
+	return secretDir(root) || holdsSecrets(root) || containsSecret(root)
 }
 
 // relativeWord reports a word that can be a path under the working directory.

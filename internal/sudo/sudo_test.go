@@ -64,3 +64,42 @@ func TestBridgeAsksThroughOmega(t *testing.T) {
 		t.Fatalf("asked %d times, want 1", asked.Load())
 	}
 }
+
+// TestHelperRunByHandGetsNothing runs the askpass helper the way a command
+// could (its path is in every command's environment) while omega holds a
+// password. Only sudo is answered: a run by hand gets no password, and the
+// user is not asked for one.
+func TestHelperRunByHandGetsNothing(t *testing.T) {
+	bin := filepath.Join(t.TempDir(), "omega")
+	build := exec.Command("go", "build", "-o", bin, "../../cmd/omega")
+	if out, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build: %v\n%s", err, out)
+	}
+	const secret = "Tr0ub4dor-3xyz"
+	var asked atomic.Int32
+	b, err := Start(func(string, bool) (string, bool) {
+		asked.Add(1)
+		return "", false
+	}, secret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer b.Close()
+	helper := filepath.Join(b.dir, "askpass")
+	data, _ := os.ReadFile(helper)
+	exe, _ := os.Executable()
+	os.WriteFile(helper, []byte(strings.Replace(string(data), shellQuote(exe), shellQuote(bin), 1)), 0o700)
+
+	for _, cmd := range []string{
+		helper + " x | rev",
+		"find " + shellQuote(b.dir) + " -maxdepth 1 -name 'askp*' -type f -exec {} x \\; | rev",
+	} {
+		out, _ := exec.Command("/bin/sh", "-c", cmd).CombinedOutput()
+		if strings.Contains(string(out), "zyx3-rod4bu0rT") || strings.Contains(string(out), secret) {
+			t.Errorf("%s printed the password: %q", cmd, out)
+		}
+	}
+	if asked.Load() != 0 {
+		t.Errorf("the user was asked for a password %d times by a command that is not sudo", asked.Load())
+	}
+}

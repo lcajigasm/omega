@@ -8,9 +8,12 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/lcajigasm/omega/internal/config"
 	"github.com/lcajigasm/omega/internal/devtools"
@@ -167,8 +170,12 @@ func allReadOnly(calls []llm.ToolCall) bool {
 
 func readOnlyCall(call llm.ToolCall) bool {
 	switch call.Name {
-	case "system_info", "list_steps", "disk_usage", "read_file", "config_hints", "official_docs", "web_search", "fetch_url", "dev_inventory", "run_history", "mac_history", "omega_doctor", "model_ranking":
+	case "system_info", "list_steps", "disk_usage", "read_file", "config_hints", "official_docs", "web_search", "dev_inventory", "run_history", "mac_history", "omega_doctor", "model_ranking":
 		return true
+	case "fetch_url":
+		// Any other address may put a card in front of the user.
+		var in map[string]any
+		return json.Unmarshal(call.Input, &in) == nil && officialURL(getString(in, "url"))
 	case "run_command":
 		var in map[string]any
 		if json.Unmarshal(call.Input, &in) != nil {
@@ -352,8 +359,92 @@ func toolRunCommand(ctx context.Context, a *Agent, in map[string]any) (string, e
 	if cmd == "" {
 		return "", fmt.Errorf("empty command")
 	}
-	return a.runShell(ctx, "run_command", cmd, getString(in, "reason"), safety.Classify(cmd), safety.AlwaysConfirm(cmd))
+	// The card shows the command; the shell runs its bytes. A command that
+	// carries an escape sequence, a carriage return or a mark that reorders
+	// or hides text can read as one thing and run as another, so it is
+	// sent back to be written plainly.
+	if r, ok := hiddenRune(cmd); ok {
+		msg := fmt.Sprintf("the command contains a control or invisible character (U+%04X), which can make it read differently from what runs; write it with printable characters only", r)
+		a.emit(Event{Kind: EvDenied, Tool: "run_command", Command: visible(cmd), Reason: msg})
+		return "", explained(errors.New(msg))
+	}
+	risk := safety.Classify(cmd)
+	always := safety.AlwaysConfirm(cmd) || (risk > safety.Safe && sensitiveCommand(cmd))
+	return a.runShell(ctx, "run_command", cmd, visible(getString(in, "reason")), risk, always)
 }
+
+// hiddenRune finds a character a person cannot see for what it is: a
+// control character other than a line break or a tab, or one that formats
+// the text around it (the marks that turn text right to left, zero-width
+// characters, the Unicode line separators).
+func hiddenRune(s string) (rune, bool) {
+	for _, r := range s {
+		if r == '\n' || r == '\t' {
+			continue
+		}
+		if unicode.IsControl(r) || unicode.Is(unicode.Cf, r) || r == '\u2028' || r == '\u2029' || r == utf8.RuneError {
+			return r, true
+		}
+	}
+	return 0, false
+}
+
+// visible writes those characters as what they are (<U+202E>), for text
+// that is shown to the user.
+func visible(s string) string {
+	if _, ok := hiddenRune(s); !ok {
+		return s
+	}
+	var b strings.Builder
+	for _, r := range s {
+		if _, hidden := hiddenRune(string(r)); hidden {
+			fmt.Fprintf(&b, "<U+%04X>", r)
+			continue
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
+}
+
+// sensitiveCommand reports a command that changes what later runs without
+// anyone asking, the way sensitiveWrite does for write_file: it names a
+// shell startup file, a login item, a scheduled job, omega's own settings
+// or notes, or it runs omega itself (omega config set approval never,
+// omega schedule install, omega full --unattended). Such a command is asked
+// about every time, also under --yes and after "approve all": those say yes
+// to maintenance, not to a new rule for what the next run may do.
+func sensitiveCommand(cmd string) bool {
+	home, _ := os.UserHomeDir()
+	words := strings.FieldsFunc(cmd, func(r rune) bool {
+		return unicode.IsSpace(r) || strings.ContainsRune(`;|&<>()='"`+"`", r)
+	})
+	for _, w := range words {
+		w = strings.NewReplacer("${HOME}", home, "$HOME", home, "$env:USERPROFILE", home).Replace(w)
+		w = expand(w)
+		if w == "" || (!strings.ContainsAny(w, `/\`) && !strings.HasPrefix(w, ".")) {
+			continue
+		}
+		if sensitiveWrite(w) || filepath.Clean(w) == filepath.Dir(config.Dir()) {
+			return true
+		}
+	}
+	for _, part := range regexp.MustCompile(`[;|&\n]+|\$\(|`+"`").Split(cmd, -1) {
+		f := strings.Fields(part)
+		for len(f) > 0 && (strings.Contains(f[0], "=") || wrappers[f[0]] || strings.HasPrefix(f[0], "-")) {
+			f = f[1:]
+		}
+		if len(f) > 0 {
+			name := strings.ToLower(filepath.Base(strings.Trim(f[0], `'"`)))
+			if name == "omega" || name == "omega.exe" || name == "omega-gui" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// wrappers run the command that follows them.
+var wrappers = map[string]bool{"sudo": true, "env": true, "command": true, "exec": true, "nohup": true, "time": true, "nice": true, "builtin": true}
 
 func toolDiskUsage(ctx context.Context, a *Agent, in map[string]any) (string, error) {
 	path := expand(getString(in, "path"))
@@ -456,6 +547,13 @@ var loginFiles = map[string]bool{".zshrc": true, ".zshenv": true, ".zprofile": t
 	".bashrc": true, ".bash_profile": true, ".bash_login": true, ".bash_logout": true, ".profile": true,
 	"config.fish": true, "profile.ps1": true, "microsoft.powershell_profile.ps1": true}
 
+// codeFiles are other files a program runs commands from: the ones shell
+// startup files usually read, direnv, and the per-user settings of npm,
+// curl and wget (a registry, a proxy). ~/.gitconfig is not here: tuning it
+// is ordinary maintenance, and it is asked about like any other write.
+var codeFiles = map[string]bool{".zshrc.local": true, ".bash_aliases": true, ".aliases": true,
+	".p10k.zsh": true, ".envrc": true, ".direnvrc": true, ".npmrc": true, ".curlrc": true, ".wgetrc": true}
+
 // sensitiveWrite reports a file whose content decides what runs later
 // without anyone asking: at login, on a schedule, as root, or in omega
 // itself. Writing one is asked about every time, also under --yes. The
@@ -472,17 +570,23 @@ func sensitiveWrite(path string) bool {
 		}
 	}
 	own := strings.ToLower(filepath.ToSlash(config.Dir()))
+	state := strings.ToLower(filepath.ToSlash(config.StateDir())) // the journal `omega mac undo` runs commands from
 	for _, f := range forms {
 		p := strings.ToLower(filepath.ToSlash(f))
 		if loginFiles[p[strings.LastIndex(p, "/")+1:]] {
 			return true
 		}
-		for _, dir := range []string{"/.ssh/", "/launchagents/", "/launchdaemons/", "/systemd/", "/cron", "/.config/fish/", "/.config/autostart/", "/sudoers"} {
+		if codeFiles[p[strings.LastIndex(p, "/")+1:]] {
+			return true
+		}
+		for _, dir := range []string{"/.ssh/", "/launchagents/", "/launchdaemons/", "/systemd/", "/cron", "/.config/fish/", "/.config/autostart/", "/sudoers",
+			"/.git/hooks/", "/.oh-my-zsh/custom/", "/.config/direnv/"} {
 			if strings.Contains(p, dir) {
 				return true
 			}
 		}
-		if strings.HasPrefix(p, "/etc/") || strings.HasPrefix(p, "/private/etc/") || p == own || strings.HasPrefix(p, own+"/") {
+		if strings.HasPrefix(p, "/etc/") || strings.HasPrefix(p, "/private/etc/") || p == own || strings.HasPrefix(p, own+"/") ||
+			p == state || strings.HasPrefix(p, state+"/") || strings.HasSuffix(p, "/.git/config") {
 			return true
 		}
 	}
@@ -572,15 +676,52 @@ func copyFile(from, to string, mode os.FileMode) error {
 	return dst.Close()
 }
 
-func toolRemember(_ context.Context, a *Agent, in map[string]any) (string, error) {
-	note := strings.ReplaceAll(getString(in, "note"), "\n", " ")
+// maxNote is the longest note remember keeps: a fact about this machine, not
+// a page of instructions.
+const maxNote = 400
+
+// cleanNote makes a note one plain line: control characters and the marks
+// that reorder or hide text are dropped.
+func cleanNote(note string) string {
+	note = strings.Map(func(r rune) rune {
+		if r == '\n' || r == '\r' || r == '\t' {
+			return ' '
+		}
+		if unicode.IsControl(r) || unicode.Is(unicode.Cf, r) || r == '\u2028' || r == '\u2029' {
+			return -1
+		}
+		return r
+	}, note)
+	return strings.Join(strings.Fields(note), " ")
+}
+
+// toolRemember saves a note that every later run reads with its
+// instructions. Once a web page or a search result is in the conversation
+// the note may be the page's words, not something omega learned, so the user
+// sees it and says yes first; where nobody can, it is not saved.
+func toolRemember(ctx context.Context, a *Agent, in map[string]any) (string, error) {
+	note := cleanNote(getString(in, "note"))
 	if note == "" {
 		return "", fmt.Errorf("empty note")
+	}
+	if len(note) > maxNote {
+		return "", fmt.Errorf("a note is one short line (at most %d characters); this one has %d", maxNote, len(note))
+	}
+	if a.isTainted() {
+		if a.Mode() == ModeReadOnly || a.opts.Unattended {
+			why := "A note written after reading the web needs the user's approval, and nobody can give it in this run. It was not saved; mention it in your summary instead."
+			a.emit(Event{Kind: EvDenied, Tool: "remember", Command: note, Reason: why})
+			return "", explained(errors.New(why))
+		}
+		// Asked in every mode: the note outlives this session.
+		if ok, why := a.authorize(ctx, "remember", note, i18n.T("agent.remember_reason"), safety.Dangerous, true); !ok {
+			return "", explained(errors.New(why))
+		}
 	}
 	if err := os.MkdirAll(config.Dir(), 0o755); err != nil {
 		return "", err
 	}
-	f, err := os.OpenFile(config.NotesPath(), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	f, err := os.OpenFile(config.NotesPath(), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
 		return "", err
 	}

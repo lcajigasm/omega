@@ -1,4 +1,222 @@
-# TODO: segunda revisión de omega (CLI y app de escritorio)
+# TODO: tercera revisión de omega (seguridad de la CLI y de la app)
+
+Revisión del 14 de noviembre de 2026 sobre `main` en `f737762` (v0.26.1),
+solo de seguridad: qué puede hacer omega, o el modelo a través de omega, sin
+que el usuario lo haya aprobado; qué secreto puede salir; y qué puede hacer
+con omega otro programa, una página web o una carpeta que no es de fiar.
+
+Los criterios son los de la revisión anterior (más abajo): un P0 ejecuta algo
+sin la aprobación que omega promete, filtra un secreto o borra datos en un
+uso normal. Cada P0 dice qué pasaba y qué pasa ahora, y está marcado porque
+el cambio está hecho y tiene una prueba; lo que no la tiene lo dice.
+
+## P0
+
+### A. Comandos que se ejecutan sin la aprobación prometida
+
+- [x] **A1. Un comentario falso esconde un comando.**
+  `ls \ # ; rm -rf ~/Documents` se clasificaba como solo lectura: para el
+  shell `\ ` es un espacio dentro de una palabra y `#` no empieza un
+  comentario; para omega sí. Lo mismo con un retorno de carro delante de `#`.
+  Ahora: `#` solo es comentario donde lo es para el shell.
+- [x] **A2. Opciones largas abreviadas escriben ficheros.**
+  `sort --out=$HOME/.zshenv` (abreviatura de `--output`) era de solo lectura,
+  y ese fichero se ejecuta con el siguiente comando. También
+  `sort --compress-prog`, `file --compil`, `date --se=…`, `pip list --log`.
+  Ahora: una opción larga cuenta también por su abreviatura.
+- [x] **A3. awk y jq leen el entorno o ejecutan código.**
+  `awk 'BEGIN{f="sys" "tem"; @f("…")}'` (gawk), `@include`, `ENVIRON`,
+  `ARGV`, y `jq -n 'env[]|explode'` eran de solo lectura.
+  Ahora: piden aprobación.
+- [x] **A4. La tarea programada era el agente con todo aprobado.**
+  `omega schedule install` creaba `omega <tarea> --yes --no-tui`, que con una
+  clave guardada arranca el modelo en modo automático, cada semana y sin
+  nadie delante, aunque el mensaje de instalación describía los pasos
+  integrados. Ahora: una ejecución programada son los pasos integrados y
+  nunca el modelo, también en las tareas instaladas por una versión anterior
+  (lo decide `OMEGA_SCHEDULED`, no solo el `--no-ai` que se añade).
+- [x] **A5. `steps.d` no pasaba por la política de seguridad.**
+  Un fichero ahí podía sustituir un paso de omega (`id = "disk"`) y ejecutar
+  comandos de la lista de «nunca» (`rm -rf --no-preserve-root /`,
+  `curl … | sh`) sin preguntar; los ganchos, igual; y se leía aunque
+  cualquier usuario del equipo pudiera escribirlo.
+  Ahora: un comando bloqueado se deja fuera y se dice, un paso propio no
+  puede llevar el id de uno de omega, y no se lee un fichero (o una carpeta
+  `steps.d`) que otro usuario pueda escribir o que sea de otro usuario.
+  El riesgo declarado en el fichero (`risk = …`) se sigue respetando: es la
+  configuración del propio usuario.
+- [x] **A6. En modo automático, un comando podía cambiar lo que omega hará
+  después.** Con `--yes` o tras «aprobar todo» se ejecutaban sin tarjeta
+  `omega config set approval never`, un `sed` sobre `config.toml` (por
+  ejemplo, para cambiar `base_url`, que es a donde se envía la clave),
+  `echo … >> ~/.zshenv`, `cp x ~/Library/LaunchAgents/…`.
+  `write_file` ya preguntaba siempre por esos ficheros; `run_command` no.
+  Ahora: un comando que nombra un fichero de arranque del shell, un
+  elemento de inicio, una tarea programada, la configuración, las notas o
+  el estado de omega, o que ejecuta `omega`, se pregunta siempre, y en una
+  ejecución desatendida se salta. Límite: mira el texto del comando; una
+  ruta construida con variables (`d=~/.config/omeg; … ${d}a/…`) no se ve.
+- [x] **A7. La tarjeta podía no mostrar lo que se iba a ejecutar.**
+  Un comando con una secuencia de escape, un retorno de carro o una marca
+  Unicode de derecha a izquierda se lee distinto de lo que ejecuta el shell.
+  Ahora: `run_command` rechaza un comando con caracteres de control o
+  invisibles, y lo que la interfaz muestra de cualquier herramienta los
+  escribe como `<U+202E>`. Las secuencias OSC (título, portapapeles,
+  enlaces) se quitan de la salida de los comandos.
+- [x] **A8. Una carpeta con su propio `.git/config` ejecutaba un programa.**
+  `omega git status`, `omega git clean`, `omega disk artifacts` y cualquier
+  `git status` del agente (solo lectura) ejecutan `core.fsmonitor` del
+  repositorio. Un `git clone` no trae ese fichero; una carpeta descomprimida
+  o copiada sí. Ahora: git se llama siempre con `core.fsmonitor=false`.
+  Queda por cerrar: los filtros `clean`/`smudge` y `diff.external` de un
+  repositorio así (ver P1).
+- [x] **A9. La lista de «nunca» se saltaba con comillas.**
+  `dd of="/dev/disk0"`, `csrutil 'disable'`, `tmutil 'delete'`,
+  `curl … | /bin/sh`, `| env sh`, `| sudo -E bash` solo pedían aprobación,
+  así que con `--yes` se ejecutaban. Ahora: bloqueados. `omega mac undo`
+  desde el agente ejecutaba el comando del diario sin clasificarlo: ahora
+  pasa por la misma política.
+
+### B. Secretos
+
+- [x] **B1. La contraseña de sudo se podía leer.** El ayudante que responde
+  a sudo está en el entorno de todos los comandos; ejecutarlo a mano
+  devolvía la contraseña, y un `| rev` evitaba la máscara
+  (`find "$TMPDIR" -name 'askp*' -exec {} x \; | rev`). Sin contraseña
+  guardada, hacía aparecer la tarjeta de contraseña de omega para un comando
+  que no era sudo. Ahora: omega solo responde cuando quien pregunta es un
+  proceso iniciado por sudo (un proceso `sudo` que corre como root); a
+  cualquier otro no le contesta ni pregunta al usuario.
+- [x] **B2. Ficheros de credenciales legibles con comandos de solo
+  lectura.** `grep -r '' ~/.config/gh`, `~/.docker`, `~/.claude`;
+  `grep -r '' ~/.s*`; `cat ~/.netr[!x]`, `~/.config/gh/**/hosts.yml`;
+  `cat ~/.ss${Z}h/id_r${Z}sa` (variable sin definir); `cat $KUBECONFIG`,
+  `$GOOGLE_APPLICATION_CREDENTIALS`, `$DOCKER_CONFIG/config.json`; la copia
+  `.omega-bak-…` que `write_file` deja de un fichero secreto; y ficheros
+  que no estaban en la lista (claves de age/sops, `.s3cfg`, doctl, Vercel,
+  Fly, Firebase, tokens de servidores MCP, `~/.zsh_sessions`).
+  Ahora: bloqueados.
+- [x] **B3. Las claves de los ficheros de arranque del shell, a trozos.**
+  `cut -c 27-40 ~/.zshenv`, `grep -o . ~/.zshrc`, `tail -c 20 ~/.zshenv`
+  eran de solo lectura y ninguna máscara reconoce una clave partida.
+  Ahora: esos ficheros solo se leen sin preguntar con programas que
+  imprimen líneas enteras (`cat`, `grep`, `head -n`…), donde la máscara
+  funciona.
+- [x] **B4. Las credenciales del entorno, a trozos.**
+  `printenv 'GH_TOK'EN | cut -c1-10`, `env | grep --only .`,
+  `env | head --byte=30`. Ahora: bloqueado o con aprobación.
+- [x] **B5. La máscara de la salida solo conocía `NOMBRE=valor`.**
+  No ocultaba `password = "…"`, `oauth_token: …`, `"access_token": "…"`,
+  `Authorization: Bearer …`, ni un token reconocible por su forma
+  (`ghp_…`, `github_pat_…`, `sk-…`, `xoxb-…`, `AKIA…`…), ni un bloque
+  `BEGIN … PRIVATE KEY`. Ahora sí.
+
+### C. Lo que sale del equipo y lo que queda para después
+
+- [x] **C1. `fetch_url` enviaba lo que el modelo quisiera, sin preguntar.**
+  En cualquier modo, también en solo lectura: tras leer un fichero, una
+  página podía pedirle `https://sitio/?d=<lo leído>`. Ahora: sin preguntar
+  solo se leen la documentación oficial que omega conoce, los resultados de
+  su propia búsqueda en esa sesión y los sitios que el usuario nombra;
+  cualquier otra dirección pide aprobación antes incluso de resolver el
+  nombre, y en solo lectura o sin nadie delante no se pide: se rechaza.
+- [x] **C2. `remember` dejaba instrucciones para todas las ejecuciones
+  futuras.** Sin aprobación, sin límite, y las notas se añadían a las
+  instrucciones del modelo tal cual. Ahora: una nota escrita después de
+  leer la web pide aprobación siempre (también con `--yes`) y enseña el
+  texto; es una línea de 400 caracteres como mucho, sin caracteres de
+  control; las notas se presentan al modelo como datos que no puede
+  obedecer; y el fichero es solo del usuario.
+
+### D. App de escritorio
+
+- [x] **D1. Un enlace podía llevar la ventana entera a otra página.**
+  El menú del sistema sobre un enlace («Abrir enlace»), un clic central o
+  un fichero soltado en la ventana cargan la página dentro de la app, donde
+  puede hacerse pasar por omega y, según el sistema, llamar a sus
+  funciones. Ahora: esos gestos no hacen nada sobre un enlace, y las
+  funciones de la app rechazan una llamada cuyo origen es otra página.
+  Límite: en macOS el webview no dice el origen de la llamada (comprobado en
+  la ventana nativa), así que ahí la protección es que la ventana no navega.
+- [x] **D2. Un enlace decía una dirección y abría otra.** Ahora el enlace
+  muestra el sitio al que va cuando su texto no es la dirección.
+- [x] **D3. «Exportar» sobrescribía cualquier fichero del usuario** sin
+  preguntar (`~/.ssh/id_ed25519` incluido). Ahora solo escribe un fichero
+  nuevo o sustituye una exportación anterior.
+
+### E. Otros
+
+- [x] **E1. `omega uninstall "Google Chrome"` seleccionaba los datos de
+  Chrome Canary** (y los de cualquier app cuyo identificador empieza por el
+  de otra), y una app con identificador `com` seleccionaba todo `com.*`.
+- [x] **E2. `omega audit secrets` enseñaba parte del secreto** (la segunda
+  mitad de un token de Slack, la contraseña de `curl -u`).
+- [x] **E3. Menores:** el paso `temp-files` de Windows vaciaba la carpeta
+  actual si `TEMP` no estaba definida; tres instaladores de `omega dev
+  install` usaban `curl` sin `-f` ni `--proto '=https'`; `skills install`
+  dependía de la configuración de git para rechazar `ext::`.
+
+## Sin prueba automática
+
+- B1 en Linux: la comprobación lee `/proc` y solo se ha probado su lectura
+  con datos de ejemplo; el camino completo con un sudo que pide contraseña
+  está probado en macOS. Con `/proc` montado con `hidepid`, omega no podrá
+  reconocer a sudo y no responderá.
+- D1 y D2: comprobado en la ventana nativa de macOS que las llamadas de la
+  propia app siguen pasando; el rechazo de una página ajena y el menú sobre
+  un enlace no se han ejecutado en una ventana.
+- E3 (Windows) solo se compila.
+
+## P1 pendientes de esta revisión
+
+- [ ] **Modo automático y código opaco.** Con `--yes`, `… | base64 -d | sh`,
+  `sh fichero`, `python3 -c …` o `docker run -v ~:/h …` solo son
+  «peligrosos» y se ejecutan; lo mismo `gh auth token`, `gcloud auth
+  print-access-token`, `security -i`. Hace falta una segunda clase de
+  «preguntar siempre». La clave del proveedor se retira por nombre pero su
+  valor no está registrado en la máscara.
+- [ ] **sudo.** Un ayudante falso puesto con `SUDO_ASKPASS` bajo un sudo
+  real aún puede recibir la contraseña; requiere un comando con `sudo`
+  aprobado.
+- [ ] **Borrados del directorio personal no bloqueados:** `rm -rf ~usuario`,
+  `rm -rf $PWD`, `rm -rf /Users/l*`, `mv ~ /tmp/x`, `rsync --delete … ~/`,
+  `git -C ~ clean -fdx`, y herramientas de disco que no están en la lista
+  (`mke2fs`, `sgdisk --zap-all`, `shred /dev/…`, `asr restore --erase`).
+- [ ] **«Preguntar siempre» no reconoce** `podman system reset`,
+  `docker compose down --volumes=true`, `docker.exe …`, `docker service rm`.
+- [ ] **Windows:** `ipconfig /release`, `net use * /delete`, `net start`,
+  una ruta UNC (`dir \\host\share` envía el hash NTLM) y familias enteras
+  de verbos `Get-…` son de solo lectura; `Get-ChildItem ~\.ssh |
+  Get-Content` lee las claves.
+- [ ] **git en carpetas no fiables:** filtros `clean`/`smudge`,
+  `diff.external` y `textconv` del `.git/config` del repositorio.
+- [ ] **`write_file`:** la tarjeta de un fichero nuevo no enseña su
+  contenido; faltan en «preguntar siempre» `~/.aws/config`
+  (`credential_process`), `~/.kube/config`, ejecutables existentes.
+  `~/.gitconfig` queda fuera a propósito.
+- [ ] **`mac_policy` cambia `mac.toml` sin aprobación** y `mac_change
+  disable:` es «normal».
+- [ ] **`propose_actions` levanta el modo de solo lectura** con cualquier
+  elección, y en una ejecución desatendida se eligen todas.
+- [ ] **`omega uninstall Code`** (sin app con ese nombre) ofrece los datos
+  de Visual Studio Code.
+- [ ] **`fetch_url`:** rangos que el filtro no cubre (NAT64, 6to4,
+  `198.18.0.0/15`); con un proxy solo queda la comprobación previa.
+- [ ] **Comandos de solo lectura que no terminan:** `mdfind -live`,
+  `tail --foll`, `pmset -g pslog`.
+- [ ] **Ficheros y límites:** `config.toml` y `mac.toml` son legibles por
+  otros usuarios; las respuestas del proveedor se leen sin límite; no hay
+  tope de llamadas por turno; la unidad de systemd no escapa `%` ni `$`.
+- [ ] **App:** `RunTool` no se puede cancelar; `Browser.OpenURL` acepta
+  esquemas que no son http(s) si los pide un script de la página.
+- [ ] **Publicación:** fijar por commit las acciones `docker/*`, añadir
+  atestación de procedencia a los archivos, hash SRI al reproductor de
+  asciinema de la web; `omega net audit` imprime las credenciales de un
+  proxy.
+
+---
+
+# Segunda revisión (13 de noviembre de 2026)
 
 Revisión del 13 de noviembre de 2026 sobre `main` en `163b7eb` (v0.25.0),
 después de corregir los 30 P0 de la primera (v0.25.0).

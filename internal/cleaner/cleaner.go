@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/lcajigasm/omega/internal/runner"
 	"io"
 	"io/fs"
 	"net/url"
@@ -113,6 +114,7 @@ func tracked(path string) bool {
 		return false
 	}
 	cmd := exec.Command("git", "-C", filepath.Dir(path), "ls-files", "--", filepath.Base(path))
+	cmd.Env = append(os.Environ(), runner.GitEnv()...)
 	cmd.Stderr = nil
 	out, err := cmd.Output()
 	return err == nil && len(strings.TrimSpace(string(out))) > 0
@@ -131,7 +133,9 @@ func gitOutput(dir string, args ...string) (out []byte, ok bool) {
 	cmd := exec.CommandContext(ctx, "git", append([]string{"-C", dir}, args...)...)
 	// Looking must not write: git status refreshes .git/index otherwise,
 	// and the next scan would take that for work on the project.
-	cmd.Env = append(os.Environ(), "GIT_OPTIONAL_LOCKS=0")
+	// Nor run anything: the folder may be one the user only unpacked, with
+	// a .git/config of its own that names a program for git status to call.
+	cmd.Env = append(append(os.Environ(), "GIT_OPTIONAL_LOCKS=0"), runner.GitEnv()...)
 	out, err := cmd.Output()
 	return out, err == nil
 }
@@ -513,10 +517,43 @@ func FindAppArtifacts(appName string) (*AppArtifacts, error) {
 		}
 	}
 
+	// An identifier read from a bundle is taken as one only when it is
+	// written as one: an app that calls itself "com" would own every
+	// com.* file of the Library.
+	if id != "" && !looksLikeID(id) {
+		id = ""
+	}
+	// Other installed apps whose identifier starts with this one
+	// (com.google.Chrome and com.google.Chrome.canary): their data is
+	// theirs, though its name starts with this app's identifier.
+	var relatives []string
+	if id != "" && goos == "darwin" {
+		for _, dir := range appDirs(home) {
+			entries, _ := os.ReadDir(dir)
+			for _, e := range entries {
+				bundle := filepath.Join(dir, e.Name())
+				if !strings.HasSuffix(e.Name(), ".app") || bundle == app.AppBundle {
+					continue
+				}
+				if other := strings.ToLower(bundleID(bundle)); strings.HasPrefix(other, strings.ToLower(id)+".") {
+					relatives = append(relatives, other)
+				}
+			}
+		}
+	}
+	anothers := func(entry string) bool {
+		for _, other := range relatives {
+			if ownedBy(entry, "", other) {
+				return true
+			}
+		}
+		return false
+	}
+
 	for _, sDir := range searchDirs {
 		entries, _ := os.ReadDir(sDir)
 		for _, e := range entries {
-			if ownedBy(e.Name(), appName, id) {
+			if ownedBy(e.Name(), appName, id) && !anothers(e.Name()) {
 				p := filepath.Join(sDir, e.Name())
 				app.DataPaths = append(app.DataPaths, p)
 				app.TotalSizeMB += float64(dirSizeMB(p))

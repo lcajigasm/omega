@@ -237,7 +237,13 @@ func toolMacUndo(ctx context.Context, a *Agent, in map[string]any) (string, erro
 		if strings.Contains(e.Undo, "sudo ") {
 			risk = safety.Dangerous
 		}
-		out, err := a.runShell(ctx, "mac_undo", e.Undo, i18n.T("mac.undoing", e.Title), risk, false)
+		// The command comes from a file (the journal of changes), so it is
+		// held to the policy like any other: what is blocked stays blocked,
+		// and what always needs a person still does.
+		if safety.Classify(e.Undo) == safety.Blocked {
+			risk = safety.Blocked
+		}
+		out, err := a.runShell(ctx, "mac_undo", e.Undo, i18n.T("mac.undoing", e.Title), risk, safety.AlwaysConfirm(e.Undo))
 		if err != nil {
 			return "", err
 		}

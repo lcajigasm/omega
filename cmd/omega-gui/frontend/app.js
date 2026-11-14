@@ -37,6 +37,21 @@ const icons = {
 };
 icons.full = icons.home;
 
+// markLink shows where a link in the model's text really goes: the address
+// on hover, and its site next to the text when the text is not the address.
+// "[https://bank.example](https://evil.example)" reads as one site and
+// opens another.
+function markLink(a) {
+  let url;
+  try { url = new URL(a.href); } catch { return; }
+  if (!/^https?:$/.test(url.protocol)) return;
+  a.title = url.href;
+  const text = a.textContent.trim().replace(/\/$/, "");
+  const bare = url.href.replace(/\/$/, "");
+  const same = [bare, bare.replace(/^https?:\/\//, ""), url.host].includes(text);
+  if (!same) a.after(el("span", "link-host", ` (${url.host})`));
+}
+
 function icon(name) {
   const span = el("span");
   span.innerHTML = `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true">${icons[name] ?? icons.home}</svg>`;
@@ -459,6 +474,7 @@ function handle(m) {
     case "assistant": {
       const d = el("div", "md");
       d.innerHTML = m.html ?? ""; // rendered by omega; raw HTML in the text is escaped there
+      for (const a of d.querySelectorAll("a[href]")) markLink(a);
       add(d);
       break;
     }
@@ -993,6 +1009,18 @@ function wire() {
       if (/^https?:\/\//.test(url ?? "")) wails.Browser.OpenURL(url);
     }
   });
+  // A link is only ever opened by the handler above. A middle click, or
+  // the system's own menu on a link ("Open Link"), would load the page in
+  // this window, where it could pass for omega.
+  for (const kind of ["auxclick", "contextmenu", "dragstart"]) {
+    document.addEventListener(kind, (e) => {
+      if (e.target.closest?.("a[href]")) e.preventDefault();
+    });
+  }
+  // Nor is a file dropped on the window opened in it.
+  for (const kind of ["dragover", "drop"]) {
+    window.addEventListener(kind, (e) => e.preventDefault());
+  }
   $("nav-provider").addEventListener("click", () => go("settings"));
 
   // Ctrl or ⌘ with 1 to 7 changes the view.

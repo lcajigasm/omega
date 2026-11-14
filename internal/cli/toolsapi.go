@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -69,6 +70,29 @@ func ToolList() []ToolInfo {
 	return out
 }
 
+// replaceable reports a path the export may write: one where nothing is
+// yet, or an earlier export.
+func replaceable(path string) bool {
+	info, err := os.Lstat(path)
+	if os.IsNotExist(err) {
+		return true
+	}
+	if err != nil || !info.Mode().IsRegular() || info.Size() > 8<<20 {
+		return false
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return false
+	}
+	var doc map[string]json.RawMessage
+	if json.Unmarshal(data, &doc) != nil {
+		return false
+	}
+	_, version := doc["version"]
+	_, date := doc["export_date"]
+	return version && date
+}
+
 // homePath expands a leading ~ to the home directory.
 func homePath(p string) string {
 	if p == "~" || strings.HasPrefix(p, "~/") {
@@ -97,6 +121,13 @@ func RunTool(id, arg string) (string, error) {
 			}
 			if t.arg == "dir" || t.arg == "file" {
 				arg = homePath(arg)
+			}
+			// The one tool that writes: it may replace an earlier export
+			// and nothing else. In the window a mistyped path, or a script
+			// that got into the page, would otherwise overwrite any file
+			// of the user (a private key, a document) without a question.
+			if t.arg == "file" && !replaceable(arg) {
+				return "", fmt.Errorf("%s", i18n.T("gui.tools.exists", arg))
 			}
 			args = append(args, arg)
 		}

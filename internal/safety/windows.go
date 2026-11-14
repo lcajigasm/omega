@@ -29,7 +29,7 @@ var windowsBlocked = []*regexp.Regexp{
 	// Manager, the user's environment in the registry, or the variable.
 	regexp.MustCompile(`(?i)\b(passwordvault|credread|credenumerate|get-storedcredential|vaultcmd)\b`),
 	regexp.MustCompile(`(?i)(anthropic|openai|openrouter|opencode)_api_key`),
-	regexp.MustCompile(`(?i)hkcu:?\\environment|hkey_current_user\\environment`),
+	regexp.MustCompile(`(?i)(hkcu:?|hkey_current_user)[\\/]+env`),
 }
 
 func init() { blocked = append(blocked, windowsBlocked...) }
