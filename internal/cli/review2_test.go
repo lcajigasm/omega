@@ -829,12 +829,20 @@ func TestCompletionAsHomebrewAsksForIt(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		// Read while the script is written: a pipe holds little (on Windows
+		// less than the bash script), and the writer would wait for ever.
+		read := make(chan []byte)
+		go func() {
+			b, _ := io.ReadAll(r)
+			read <- b
+		}()
 		stdout := os.Stdout
 		os.Stdout = w
 		_, runErr := execRoot(t, "completion", "completion", shell)
 		os.Stdout = stdout
 		w.Close()
-		script, _ := io.ReadAll(r)
+		script := <-read
+		r.Close()
 		if runErr != nil {
 			t.Errorf("%s: %v", shell, runErr)
 		}
