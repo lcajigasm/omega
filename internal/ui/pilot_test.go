@@ -107,7 +107,7 @@ func TestPilotScreen(t *testing.T) {
 	}
 }
 
-// A terminal without room for the big head gets the small mascot.
+// A terminal without room for the big Ω gets the small mascot.
 func TestPilotSmallMascot(t *testing.T) {
 	m := testPilot(t, 100, 22)
 	m.Update(pilotStageMsg{idx: 1, ord: 2, of: 3})
@@ -156,10 +156,10 @@ func TestMascot(t *testing.T) {
 			}
 		}
 	}
-	// The big head: every frame of every mood has the same shape, and it
+	// The big Ω: every frame of every mood has the same shape, and it
 	// moves while the run works.
 	for mood, eyes := range map[int]string{moodIdle: "( o )   ( o )", moodOops: "( > )   ( < )", moodHappy: "( ^ )   ( ^ )", moodSad: "( ; )   ( ; )", moodStop: "( - )   ( - )"} {
-		if art := strings.Join(avatar(mood, 10), "\n"); !strings.Contains(art, eyes) || !strings.Contains(art, "Ω") {
+		if art := strings.Join(avatar(mood, 10), "\n"); !strings.Contains(art, eyes) || !strings.Contains(art, ":") || !strings.Contains(art, "'.         .'") {
 			t.Errorf("mood %d:\n%s", mood, art)
 		}
 	}

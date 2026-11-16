@@ -145,24 +145,23 @@ At a terminal the run has a screen of its own, since nobody is going to type
 anything into it (this one is `omega unattended --demo --only update,clean`):
 
 ```text
- ✻ omega unattended run  v0.27.0-3-gb1f9c8e-dirty · claude-haiku-5-5 · demo, noth 43s · $0.2198
- ✓✳  1/2  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ✻ omega unattended run  dev · claude-haiku-5-5 · demo, nothing real runs         45s · $0.2207
+ ✓✻  1/2  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-            O             ╭────────────────────────────────────────────────────────────────────╮
-      .-=========-.       │ Stage 2 of 2 · Clean up  omega clean · 11s                         │
+            .             ╭────────────────────────────────────────────────────────────────────╮
+      .-======*==-.       │ Stage 2 of 2 · Clean up  omega clean · 13s                         │
     .'             '.   ◂ │ Disk is at 91% and 6 Homebrew packages are outdated. Updating      │
-   /   .-.     .-.   \    │ first.                                                             │
+   /                 \    │ first.                                                             │
   |   ( o )   ( o )   |   ╰────────────────────────────────────────────────────────────────────╯
-  |    '-'     '-'    |
-  |         Ω         |     ✳ thinking about the next step 0s
-   \         ~       /
-    '.             .'
-      '-=========-'
+  |                   |
+   \     \_____/     /      ✶ Step(pipx) 1s
+    '.             .'         ⎿ Error: python@3.12 is not installed
+      '.         .'
+  '-----:       :====='
 
  ROUTE                      1/2 │ DONE SO FAR            actions: 14 done · 1 failed · 1 denied
- ✓ Update                   32s │  ✓ Bash(pipx reinstall-all --python python3.13)            4s
- ✶ Clean up                 11s │  ✓ Disk(~/Library)                                         4s
-                                │  ✓ Step(brew-cleanup)                                      3s
+ ✓ Update                   32s │  ✓ Disk(~/Library)                                         4s
+ ✶ Clean up                 13s │  ✓ Step(brew-cleanup)                                      3s
                                 │  ⊘ Step(docker-build-cache) · Unattended run: this ac… denied
                                 │  ✓ Step(xcode-derived)                                     2s
                                 │  ✓ Step(npm-cache)                                         3s
@@ -171,16 +170,17 @@ anything into it (this one is `omega unattended --demo --only update,clean`):
                                 │  ✓ Step(brew-outdated)                                     4s
                                 │  ✓ Step(disk)                                              4s
                                 │  ✓ Step(brew)                                              5s
+                                │  ✶ Step(pipx)                                              1s
 
  Nobody needs to answer anything: every stage runs on its own · ctrl+c stops the run
 ```
 
-- the mascot, a big head that never sits still while a stage runs (its
-  antenna sparks, its eyes look around and blink, its mouth moves), says what
-  the run is doing, in the model's own words, with the stage it is on; its
-  face follows the run (working, thinking, wincing at a failure, pleased or
-  sorry at the end). A terminal under 26 lines or 72 columns gets a small
-  version of it;
+- the mascot, the letter Ω itself with a face inside it, never sits still
+  while a stage runs (a glint runs along its arc, its feet step, its eyes
+  look around and blink, its mouth moves) and says what the run is doing, in
+  the model's own words, with the stage it is on; its face follows the run
+  (working, thinking, wincing at a failure, pleased or sorry at the end). A
+  terminal under 26 lines or 72 columns gets a small version of it;
 - under it, the command that is running and the last line it printed;
 - **Route** is every stage and how it went; **Done so far** is every command
   that has run, failed or been refused, with the totals;
