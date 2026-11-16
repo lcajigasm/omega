@@ -383,3 +383,83 @@ func TestUnattendedShortcut(t *testing.T) {
 		}
 	}
 }
+
+// At a terminal an unattended run has its own screen, and leaves on the
+// terminal what the screen reported and the summary; --no-tui keeps lines.
+func TestUnattendedScreen(t *testing.T) {
+	stages := fullFixture(t, "darwin", false)
+	oldStart, oldFree, oldScreen, oldPilot := startTask, sudoPasswordless, pilotScreen, runPilot
+	t.Cleanup(func() { startTask, sudoPasswordless, pilotScreen, runPilot = oldStart, oldFree, oldScreen, oldPilot })
+	sudoPasswordless = func() bool { return true }
+	var started []string
+	startTask = func(task string, f runFlags) error {
+		if !f.unattended || !f.yes || !f.noTUI || !f.stage {
+			t.Errorf("%s is not unattended: %+v", task, f)
+		}
+		started = append(started, task)
+		if task == "clean" {
+			return exitCode(1)
+		}
+		return nil
+	}
+	var asked []bool
+	pilotScreen = func(_ io.Writer, noTUI bool) bool { asked = append(asked, noTUI); return !noTUI }
+	piloted := 0
+	runPilot = func(info ui.PilotInfo, gs []ui.GuideStage, run ui.StageRunner) ([]ui.StageResult, []string, error) {
+		piloted++
+		if len(info.Flags) != 1 {
+			t.Errorf("the screen is not told about --dry-run: %+v", info)
+		}
+		res := make([]ui.StageResult, len(gs))
+		for i, s := range gs {
+			res[i] = ui.StageResult{ID: s.ID, Status: ui.StageSkipped}
+			if !s.Selected {
+				continue
+			}
+			res[i].Status = ui.StageDone
+			if err := run(s.ID, io.Discard); err != nil {
+				res[i].Status = ui.StageFailed
+			}
+		}
+		return res, []string{"what the screen reported"}, nil
+	}
+	chosen, err := pickStages(stages, []string{"update", "clean"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	byID := map[string]fullStage{}
+	for _, s := range stages {
+		byID[s.id] = s
+	}
+	var b strings.Builder
+	err = runUnattended(&b, guideStages(stages, chosen), byID, runFlags{dryRun: true})
+	if code, ok := err.(exitCode); !ok || code != 1 {
+		t.Errorf("a failed stage must end with exit 1, got %v", err)
+	}
+	if piloted != 1 || strings.Join(started, " ") != "update clean" {
+		t.Errorf("piloted %d times, started %v", piloted, started)
+	}
+	out := b.String()
+	for _, want := range []string{"Unattended run", "its own screen", "what the screen reported", "What happened"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("the output does not say %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "Stage 1 of") {
+		t.Errorf("the stages printed lines under the screen:\n%s", out)
+	}
+
+	// --no-tui: lines, as without a terminal.
+	b.Reset()
+	started = nil
+	if err := runUnattended(&b, guideStages(stages, chosen), byID, runFlags{noTUI: true}); err == nil {
+		t.Error("a failed stage must not exit 0")
+	}
+	if piloted != 1 || len(asked) != 2 || !asked[1] || !strings.Contains(b.String(), "Stage 1 of 2") || strings.Contains(b.String(), "its own screen") {
+		t.Errorf("--no-tui: piloted %d, asked %v, output:\n%s", piloted, asked, b.String())
+	}
+	// A buffer is not a terminal: the real check says no.
+	if oldScreen(&b, false) {
+		t.Error("a run that does not write to the terminal got a screen")
+	}
+}

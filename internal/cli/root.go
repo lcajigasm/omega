@@ -588,7 +588,10 @@ func runAgent(task string, f runFlags) error {
 	ag := r.agent(stdinTTY && !f.once, stdinTTY, sudoPassword)
 	go ag.Run(ctx, r.prompt)
 
-	if f.noTUI || !stdinTTY || !stdoutTTY {
+	if ui.Piloted() {
+		// An unattended run has the screen: the session is one of its stages.
+		ui.PilotSession(ctx, cancel, ag, ui.Header{Version: version, Provider: r.p.Name(), Model: r.plan.Model, Task: r.task})
+	} else if f.noTUI || !stdinTTY || !stdoutTTY {
 		// An unattended run answers nothing at the terminal, although the
 		// user who started it may still be sitting there.
 		ui.RunPlain(ctx, ag, os.Stdin, stdinTTY && !f.unattended)

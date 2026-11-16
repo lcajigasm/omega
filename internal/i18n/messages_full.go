@@ -44,6 +44,48 @@ var fullMessages = map[string][]string{
 		"Kein Terminal, um nach dem sudo-Passwort zu fragen: Schritte, die es brauchen, schlagen fehl und stehen in der Zusammenfassung.",
 		"Não há terminal para pedir a palavra-passe do sudo: os passos que precisarem dela vão falhar e aparecer no resumo.",
 	},
+	"unattended.intro_screen": {
+		"With a terminal the run has its own screen: what it is doing, the stage it is on and everything done so far. --no-tui prints lines instead.",
+		"Con un terminal la ejecución tiene su propia pantalla: qué está haciendo, en qué etapa va y todo lo hecho hasta ahora. --no-tui imprime líneas en su lugar.",
+		"Avec un terminal, l'exécution a son propre écran : ce qu'elle fait, l'étape en cours et tout ce qui a été fait. --no-tui affiche des lignes à la place.",
+		"Mit einem Terminal hat der Lauf einen eigenen Bildschirm: was er gerade tut, bei welcher Etappe er ist und alles bisher Erledigte. --no-tui gibt stattdessen Zeilen aus.",
+		"Com um terminal a execução tem o seu próprio ecrã: o que está a fazer, em que etapa vai e tudo o que já foi feito. --no-tui imprime linhas em vez disso.",
+	},
+	"pilot.title":       {"unattended run", "ejecución desatendida", "exécution sans surveillance", "unbeaufsichtigter Lauf", "execução sem vigilância"},
+	"pilot.starting":    {"Getting ready…", "Preparándome…", "Je me prépare…", "Ich mache mich bereit…", "A preparar-me…"},
+	"pilot.thinking":    {"thinking about the next step", "pensando el siguiente paso", "réfléchit à la suite", "überlegt den nächsten Schritt", "a pensar no próximo passo"},
+	"pilot.done_head":   {"DONE SO FAR", "HECHO HASTA AHORA", "FAIT JUSQU'ICI", "BISHER ERLEDIGT", "FEITO ATÉ AGORA"},
+	"pilot.nothing_yet": {"Nothing yet.", "Nada todavía.", "Rien pour l'instant.", "Noch nichts.", "Ainda nada."},
+	"pilot.tally": {
+		"actions: %d done · %d failed · %d denied", "acciones: %d hechas · %d fallidas · %d rechazadas", "actions : %d faites · %d échouées · %d refusées",
+		"Aktionen: %d erledigt · %d fehlgeschlagen · %d abgelehnt", "ações: %d feitas · %d falhadas · %d recusadas",
+	},
+	"pilot.hint": {
+		"Nobody needs to answer anything: every stage runs on its own · ctrl+c stops the run",
+		"No hace falta responder nada: cada etapa se ejecuta sola · ctrl+c detiene la ejecución",
+		"Personne n'a rien à répondre : chaque étape se lance seule · ctrl+c arrête l'exécution",
+		"Niemand muss etwas beantworten: jede Etappe läuft von selbst · ctrl+c hält den Lauf an",
+		"Ninguém precisa de responder a nada: cada etapa corre sozinha · ctrl+c para a execução",
+	},
+	"pilot.stopping": {
+		"Stopping: the step that is running is ending · ctrl+c again leaves now",
+		"Parando: el paso en curso está terminando · ctrl+c otra vez sale ya",
+		"Arrêt : l'étape en cours se termine · ctrl+c à nouveau quitte tout de suite",
+		"Wird gestoppt: der laufende Schritt endet gerade · ctrl+c noch einmal beendet sofort",
+		"A parar: o passo em curso está a terminar · ctrl+c outra vez sai já",
+	},
+	"pilot.bye_ok": {
+		"All done: no stage failed.", "Todo hecho: ninguna etapa falló.", "Tout est fait : aucune étape n'a échoué.",
+		"Alles erledigt: keine Etappe ist gescheitert.", "Tudo feito: nenhuma etapa falhou.",
+	},
+	"pilot.bye_failed": {
+		"Finished, but %d of the %d stages that ran ended with an error.", "Terminado, pero %d de las %d etapas ejecutadas acabaron con error.",
+		"Terminé, mais %d des %d étapes lancées ont fini avec une erreur.", "Fertig, aber %d von %d gelaufenen Etappen endeten mit einem Fehler.",
+		"Terminado, mas %d das %d etapas executadas acabaram com erro.",
+	},
+	"pilot.bye_stopped": {
+		"Stopped before the end.", "Detenida antes del final.", "Arrêtée avant la fin.", "Vor dem Ende gestoppt.", "Parada antes do fim.",
+	},
 	"full.unknown_stage": {
 		"omega full has no stage %q. The stages are: %s", "omega full no tiene ninguna etapa %q. Las etapas son: %s",
 		"omega full n'a pas d'étape %q. Les étapes sont : %s", "omega full hat keine Etappe %q. Die Etappen sind: %s",

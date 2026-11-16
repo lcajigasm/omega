@@ -429,14 +429,40 @@ func unattendedFlags(f runFlags) runFlags {
 	return f
 }
 
+// Seams the tests replace.
+var (
+	// pilotScreen says whether an unattended run writing to w gets its own
+	// screen: it needs a terminal at both ends, and --no-tui asks for lines.
+	pilotScreen = func(w io.Writer, noTUI bool) bool {
+		return w == io.Writer(os.Stdout) && !noTUI && os.Getenv("TERM") != "dumb" &&
+			term.IsTerminal(int(os.Stdin.Fd())) && term.IsTerminal(int(os.Stdout.Fd()))
+	}
+	runPilot = ui.RunPilot
+)
+
 // runUnattended is omega full --unattended: the sudo password is asked once,
 // at the start, and from then on nothing waits for anybody. Every stage
 // ticked by --only and --skip runs, one after another, and a failure does not
-// stop the ones after it.
+// stop the ones after it. At a terminal the run has its own screen; without
+// one, or with --no-tui, it prints lines.
 func runUnattended(w io.Writer, stages []ui.GuideStage, byID map[string]fullStage, f runFlags) error {
+	screen := pilotScreen(w, f.noTUI)
+	info := ui.PilotInfo{Version: version}
+	for _, fl := range []struct {
+		on  bool
+		key string
+	}{{f.dryRun, "full.flag_dry"}, {f.demo, "full.flag_demo"}} {
+		if fl.on {
+			info.Flags = append(info.Flags, i18n.T(fl.key))
+		}
+	}
 	f = unattendedFlags(f)
 	fmt.Fprintln(w, i18n.T("unattended.intro"))
-	if goos != "windows" && !f.dryRun {
+	if screen {
+		fmt.Fprintln(w, i18n.T("unattended.intro_screen"))
+	}
+	// The scripted demo runs nothing real: it has no use for the password.
+	if goos != "windows" && !f.dryRun && !f.demo {
 		switch {
 		case sudoPasswordless():
 			// sudo never asks here: nothing to ask either.
@@ -450,6 +476,22 @@ func runUnattended(w io.Writer, stages []ui.GuideStage, byID map[string]fullStag
 		default:
 			fmt.Fprintln(w, i18n.T("unattended.no_sudo"))
 		}
+	}
+	if screen {
+		// The screen reads the keyboard itself: ctrl+c reaches it as a key.
+		res, report, err := runPilot(info, stages, func(id string, out io.Writer) error { return runStage(byID[id], f, out) })
+		if err != nil {
+			return err
+		}
+		fmt.Fprintln(w)
+		for _, line := range report {
+			fmt.Fprintln(w, line)
+		}
+		fullSummary(w, stages, res)
+		if fullFailed(res) {
+			return exitCode(1)
+		}
+		return nil
 	}
 	// ctrl+c stops the stage that is running and the run with it.
 	sig := make(chan os.Signal, 1)
