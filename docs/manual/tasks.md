@@ -145,33 +145,42 @@ At a terminal the run has a screen of its own, since nobody is going to type
 anything into it (this one is `omega unattended --demo --only update,clean`):
 
 ```text
- ✻ omega unattended run  v0.27.0-1-g31bc8c6-dirty · claude-haiku-5-5 · demo, noth 42s · $0.2198
- ✓✢  1/2  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ✻ omega unattended run  v0.27.0-3-gb1f9c8e-dirty · claude-haiku-5-5 · demo, noth 43s · $0.2198
+ ✓✳  1/2  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-   .---.    ╭──────────────────────────────────────────────────────────────────────────────────╮
-  ( o o ) ◂ │ Stage 2 of 2 · Clean up  omega clean · 10s                                       │
-  /| Ω |\   │ Disk is at 91% and 6 Homebrew packages are outdated. Updating first.             │
-   '---'    │                                                                                  │
-    " "     ╰──────────────────────────────────────────────────────────────────────────────────╯
-  ✢ Step(brew) 3s
-    ⎿ 🍺  /opt/homebrew/Cellar/ffmpeg/8.0.1: 285 files, 54.1MB
+            O             ╭────────────────────────────────────────────────────────────────────╮
+      .-=========-.       │ Stage 2 of 2 · Clean up  omega clean · 11s                         │
+    .'             '.   ◂ │ Disk is at 91% and 6 Homebrew packages are outdated. Updating      │
+   /   .-.     .-.   \    │ first.                                                             │
+  |   ( o )   ( o )   |   ╰────────────────────────────────────────────────────────────────────╯
+  |    '-'     '-'    |
+  |         Ω         |     ✳ thinking about the next step 0s
+   \         ~       /
+    '.             .'
+      '-=========-'
 
- ROUTE                      1/2 │ DONE SO FAR            actions: 13 done · 1 failed · 1 denied
- ✓ Update                   32s │  ⊘ Step(docker-build-cache) · Unattended run: this ac… denied
- ✢ Clean up                 10s │  ✓ Step(xcode-derived)                                     2s
+ ROUTE                      1/2 │ DONE SO FAR            actions: 14 done · 1 failed · 1 denied
+ ✓ Update                   32s │  ✓ Bash(pipx reinstall-all --python python3.13)            4s
+ ✶ Clean up                 11s │  ✓ Disk(~/Library)                                         4s
+                                │  ✓ Step(brew-cleanup)                                      3s
+                                │  ⊘ Step(docker-build-cache) · Unattended run: this ac… denied
+                                │  ✓ Step(xcode-derived)                                     2s
                                 │  ✓ Step(npm-cache)                                         3s
                                 │ ── Clean up
                                 │  ✓ System
                                 │  ✓ Step(brew-outdated)                                     4s
                                 │  ✓ Step(disk)                                              4s
-                                │  ✳ Step(brew)                                              2s
+                                │  ✓ Step(brew)                                              5s
 
  Nobody needs to answer anything: every stage runs on its own · ctrl+c stops the run
 ```
 
-- the mascot says what the run is doing, in the model's own words, with the
-  stage it is on; its face follows the run (working, thinking, wincing at a
-  failure, pleased or sorry at the end);
+- the mascot, a big head that never sits still while a stage runs (its
+  antenna sparks, its eyes look around and blink, its mouth moves), says what
+  the run is doing, in the model's own words, with the stage it is on; its
+  face follows the run (working, thinking, wincing at a failure, pleased or
+  sorry at the end). A terminal under 26 lines or 72 columns gets a small
+  version of it;
 - under it, the command that is running and the last line it printed;
 - **Route** is every stage and how it went; **Done so far** is every command
   that has run, failed or been refused, with the totals;

@@ -66,7 +66,7 @@ func TestPilotScreen(t *testing.T) {
 		"ROUTE", "1/3", "✓ Check omega", "Clean up", // the route
 		"DONE SO FAR", "actions: 2 done · 1 failed · 1 denied", "✓ Remember(pipx needs Python 3.13)", // the summary so far
 		"✓ Bash(brew update)", "✗ Bash(softwareupdate -ia)", "exit 2", "⊘ Bash(docker volume prune -f) · Unattended run: this ne…", "denied",
-		"── Check omega", "── Update", "$0.0123", "claude-haiku-5-5", "( > < )", `/| Ω |\`, "ctrl+c stops the run",
+		"── Check omega", "── Update", "$0.0123", "claude-haiku-5-5", "( > )   ( < )", `/~~~\`, ".-=========-.", "ctrl+c stops the run",
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("the screen does not show %q:\n%s", want, got)
@@ -88,7 +88,7 @@ func TestPilotScreen(t *testing.T) {
 	if _, cmd := m.Update(key("ctrl+c")); cmd != nil || !cancelled || !m.host.stop.Load() {
 		t.Errorf("ctrl+c: cancelled %v, stop %v, cmd %v", cancelled, m.host.stop.Load(), cmd)
 	}
-	if got := screen(m.View(), 100, 30); !strings.Contains(got, "ctrl+c again leaves now") || !strings.Contains(got, "( - - )") {
+	if got := screen(m.View(), 100, 30); !strings.Contains(got, "ctrl+c again leaves now") || !strings.Contains(got, "( - )   ( - )") {
 		t.Errorf("stopping is not shown:\n%s", got)
 	}
 	if _, cmd := m.Update(key("ctrl+c")); cmd == nil {
@@ -107,9 +107,20 @@ func TestPilotScreen(t *testing.T) {
 	}
 }
 
+// A terminal without room for the big head gets the small mascot.
+func TestPilotSmallMascot(t *testing.T) {
+	m := testPilot(t, 100, 22)
+	m.Update(pilotStageMsg{idx: 1, ord: 2, of: 3})
+	m.frame = 10 // not on a blink
+	got := screen(m.View(), 100, 22)
+	if !strings.Contains(got, "( o o )") || strings.Contains(got, ".-=========-.") || !strings.Contains(got, "Stage 2 of 3") {
+		t.Errorf("a terminal 22 lines high:\n%s", got)
+	}
+}
+
 // Narrow and short terminals still get a screen that fits.
 func TestPilotSmallTerminal(t *testing.T) {
-	for _, size := range [][2]int{{60, 24}, {80, 12}, {40, 8}, {200, 50}} {
+	for _, size := range [][2]int{{60, 24}, {60, 40}, {72, 26}, {80, 12}, {40, 8}, {200, 50}} {
 		m := testPilot(t, size[0], size[1])
 		m.Update(pilotStageMsg{idx: 1, ord: 2, of: 3})
 		for i := 0; i < 40; i++ {
@@ -145,11 +156,44 @@ func TestMascot(t *testing.T) {
 			}
 		}
 	}
+	// The big head: every frame of every mood has the same shape, and it
+	// moves while the run works.
+	for mood, eyes := range map[int]string{moodIdle: "( o )   ( o )", moodOops: "( > )   ( < )", moodHappy: "( ^ )   ( ^ )", moodSad: "( ; )   ( ; )", moodStop: "( - )   ( - )"} {
+		if art := strings.Join(avatar(mood, 10), "\n"); !strings.Contains(art, eyes) || !strings.Contains(art, "Ω") {
+			t.Errorf("mood %d:\n%s", mood, art)
+		}
+	}
+	for mood := moodIdle; mood <= moodStop; mood++ {
+		for frame := 0; frame < 120; frame++ {
+			art := avatar(mood, frame)
+			if len(art) != 10 {
+				t.Fatalf("mood %d: %d lines", mood, len(art))
+			}
+			for _, line := range art {
+				if len([]rune(line)) != avatarWidth {
+					t.Fatalf("mood %d, frame %d: line %q is not %d wide", mood, frame, line, avatarWidth)
+				}
+			}
+		}
+	}
+	for _, mood := range []int{moodWork, moodThink, moodHappy} {
+		seen := map[string]bool{}
+		for frame := 0; frame < 120; frame++ {
+			seen[strings.Join(avatar(mood, frame), "\n")] = true
+		}
+		if len(seen) < 2 {
+			t.Errorf("mood %d does not move", mood)
+		}
+	}
+
 	m := testPilot(t, 100, 30)
+	if m.mood() != moodIdle {
+		t.Errorf("mood %d before the first stage", m.mood())
+	}
 	m.Update(pilotStageMsg{idx: 0, ord: 1, of: 3})
 	m.Update(pilotAttachMsg{cancel: func() {}})
-	if m.mood() != moodIdle {
-		t.Errorf("mood %d before anything runs", m.mood())
+	if m.mood() != moodWork {
+		t.Errorf("mood %d while a stage runs", m.mood())
 	}
 	ev(m, agent.Event{Kind: agent.EvThinking})
 	if m.mood() != moodThink {
@@ -166,7 +210,7 @@ func TestMascot(t *testing.T) {
 	for i := 0; i < 25; i++ {
 		m.Update(tickMsg(time.Now()))
 	}
-	if m.mood() != moodIdle {
+	if m.mood() != moodWork {
 		t.Errorf("mood %d once the failure is old", m.mood())
 	}
 }
@@ -195,7 +239,7 @@ func TestPilotReport(t *testing.T) {
 		"━━ Check omega · done", "omega is set up",
 		"━━ Update · ended with an error · 1m00s", "Everything is up to date.", "macOS could not be updated.", "! the model stopped answering", "✗ Bash(sleep 100)",
 		"✗ Bash(softwareupdate -ia) · exit 2", "⊘ Bash(docker volume prune -f) · denied · It needs a person.", "Run log: /tmp/run.md",
-		"━━ Clean up · done", "( ; ; )", "Finished, but 1 of the 3 stages that ran ended with an error.", "actions: 0 done · 2 failed · 1 denied",
+		"━━ Clean up · done", "( ; )   ( ; )", "Finished, but 1 of the 3 stages that ran ended with an error.", "actions: 0 done · 2 failed · 1 denied",
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("the report does not say %q:\n%s", want, got)
@@ -209,7 +253,7 @@ func TestPilotReport(t *testing.T) {
 	ok.Update(pilotStageMsg{idx: 0, ord: 1, of: 1})
 	ok.Update(pilotEndMsg{idx: 0})
 	ok.Update(pilotFinishMsg{})
-	if got := stripANSI(strings.Join(ok.report(), "\n")); !strings.Contains(got, "( ^ ^ )") || !strings.Contains(got, "All done: no stage failed.") {
+	if got := stripANSI(strings.Join(ok.report(), "\n")); !strings.Contains(got, "( ^ )   ( ^ )") || !strings.Contains(got, "All done: no stage failed.") {
 		t.Errorf("a clean run:\n%s", got)
 	}
 }

@@ -491,7 +491,8 @@ const (
 // mascotWidth is the width of every line of the mascot.
 const mascotWidth = 9
 
-// mascot draws the mascot: a small round robot with an Ω on its chest. Its
+// mascot draws the mascot small, for a terminal without room for its big
+// head (avatar): a round robot with an Ω on its chest. Its
 // eyes and arms say what the run is doing.
 func mascot(mood, frame int) []string {
 	eyes, arms := " o o ", `/| Ω |\`
@@ -523,6 +524,66 @@ func mascot(mood, frame int) []string {
 	}
 }
 
+// avatarWidth is the width of every line of the avatar.
+const avatarWidth = 23
+
+// mid centres s in a field w wide.
+func mid(s string, w int) string {
+	gap := w - len([]rune(s))
+	if gap <= 0 {
+		return s
+	}
+	return strings.Repeat(" ", gap/2) + s + strings.Repeat(" ", gap-gap/2)
+}
+
+// avatar draws the mascot as a big head, for a terminal with room for it:
+// the antenna sparks, the eyes look around and blink, and the mouth moves
+// while the run works. frame counts ticks of the screen.
+func avatar(mood, frame int) []string {
+	spark, left, right, mouth := ".", " o ", " o ", ` \___/ `
+	look := func(n int) string { return []string{" o ", "o  ", " o ", "  o"}[n%4] }
+	switch mood {
+	case moodIdle:
+		if frame%40 < 2 {
+			left, right = " - ", " - " // a blink
+		}
+	case moodWork:
+		spark = []string{".", "*", `\|/`, "*"}[frame/3%4]
+		left = look(frame / 10)
+		right = left
+		if frame%40 < 2 {
+			left, right = " - ", " - "
+		}
+		mouth = []string{` \___/ `, `\_____/`, ` \___/ `, "  ---  "}[frame/2%4]
+	case moodThink:
+		spark = []string{".", "o", "O", "o O", ". o O"}[frame/4%5]
+		left = []string{"o  ", " o ", "  o", " o "}[frame/6%4]
+		right = left
+		mouth = []string{"   ~   ", "  ~    ", "   ~   ", "    ~  "}[frame/6%4]
+	case moodOops:
+		spark, left, right, mouth = "!", " > ", " < ", ` /~~~\ `
+	case moodHappy:
+		spark = []string{`\|/`, "*"}[frame/3%2]
+		left, right, mouth = " ^ ", " ^ ", `\_____/`
+	case moodSad:
+		left, right, mouth = " ; ", " ; ", " .---. "
+	case moodStop:
+		spark, left, right, mouth = " ", " - ", " - ", "  ---  "
+	}
+	return []string{
+		mid(spark, avatarWidth),
+		mid(".-=========-.", avatarWidth),
+		"   .'" + strings.Repeat(" ", 13) + "'.   ",
+		"  /" + mid(".-.     .-.", 17) + `\  `,
+		" |" + mid("("+left+")   ("+right+")", 19) + "| ",
+		" |" + mid("'-'     '-'", 19) + "| ",
+		" |" + mid("Ω", 19) + "| ",
+		`  \` + mid(mouth, 17) + "/  ",
+		"   '." + strings.Repeat(" ", 13) + ".'   ",
+		mid("'-=========-'", avatarWidth),
+	}
+}
+
 func (m *pilotModel) mood() int {
 	switch {
 	case m.finished:
@@ -541,8 +602,8 @@ func (m *pilotModel) mood() int {
 		return moodOops
 	case m.thinking:
 		return moodThink
-	case m.running() >= 0 || (m.cur >= 0 && m.cancel == nil):
-		return moodWork
+	case m.cur >= 0:
+		return moodWork // a stage is running: the mascot never sits still
 	}
 	return moodIdle
 }
@@ -771,7 +832,24 @@ func (m *pilotModel) View() string {
 	}
 	w = max(w, 40)
 	top := []string{m.headLine(w), m.progressLine(w), ""}
-	if h >= 18 {
+	big := h >= 26 && w >= 72
+	if big {
+		// Room for the big head: what it says and what is running beside it.
+		art := avatar(m.mood(), m.frame)
+		side := append(m.bubble(w-avatarWidth-3), "")
+		side = append(side, m.nowLines(w-avatarWidth-3)...)
+		for i, line := range art {
+			tip := "  "
+			if i == 2 {
+				tip = lipgloss.NewStyle().Foreground(accentDim).Render("◂") + " "
+			}
+			row := " " + lipgloss.NewStyle().Foreground(accent).Render(line) + tip
+			if i < len(side) {
+				row += side[i]
+			}
+			top = append(top, row)
+		}
+	} else if h >= 18 {
 		art := mascot(m.mood(), m.frame)
 		bubble := m.bubble(w - mascotWidth - 3)
 		for i, line := range art {
@@ -789,7 +867,9 @@ func (m *pilotModel) View() string {
 		// A short terminal: the stage on one line, without the mascot.
 		top = append(top, truncateANSI(" "+titleStyle.Render(i18n.T("full.stage", m.ord, m.of))+mutedStyle.Render(" · ")+cmdStyle.Render(m.stages[m.cur].Title), w))
 	}
-	top = append(top, m.nowLines(w)...)
+	if !big {
+		top = append(top, m.nowLines(w)...)
+	}
 	hint := i18n.T("pilot.hint")
 	if m.stopping {
 		hint = i18n.T("pilot.stopping")
@@ -916,8 +996,8 @@ func (m *pilotModel) report() []string {
 		mood, verdict = moodSad, errStyle.Render(i18n.T("pilot.bye_failed", failedStages, ran))
 	}
 	ok, failed, denied := m.tally(-1)
-	side := []string{"", verdict, mutedStyle.Render(i18n.T("pilot.tally", ok, failed, denied)), "", ""}
-	for i, line := range mascot(mood, 10) {
+	side := []string{"", "", "", "", verdict, mutedStyle.Render(i18n.T("pilot.tally", ok, failed, denied)), "", "", "", ""}
+	for i, line := range avatar(mood, 6) {
 		lines = append(lines, strings.TrimRight(" "+lipgloss.NewStyle().Foreground(accent).Render(line)+"  "+side[i], " "))
 	}
 	return lines
