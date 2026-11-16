@@ -123,8 +123,7 @@ omega desatendido                # the same, in Spanish
 `omega unattended` is the guided run with nobody at the keyboard. It asks for
 the sudo password once, before the first stage, checks it and keeps it in
 memory until the run ends; if sudo needs no password on this machine, it asks
-nothing. Then every stage that applies here runs, one after another, with
-plain output:
+nothing. Then every stage that applies here runs, one after another:
 
 - every approval is answered yes, as with `--yes`, and the low-risk
   improvements are applied, as with `--auto`;
@@ -142,8 +141,49 @@ plain output:
   in its summary;
 - a stage that fails does not stop the ones after it; Ctrl+C stops the run.
 
-It ends with the summary of every stage and exits with status **1** if any of
-them failed. With `--dry-run` nothing changes and no password is asked. Without
+At a terminal the run has a screen of its own, since nobody is going to type
+anything into it (this one is `omega unattended --demo --only update,clean`):
+
+```text
+ ✻ omega unattended run  v0.27.0-1-g31bc8c6-dirty · claude-haiku-5-5 · demo, noth 42s · $0.2198
+ ✓✢  1/2  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+   .---.    ╭──────────────────────────────────────────────────────────────────────────────────╮
+  ( o o ) ◂ │ Stage 2 of 2 · Clean up  omega clean · 10s                                       │
+  /| Ω |\   │ Disk is at 91% and 6 Homebrew packages are outdated. Updating first.             │
+   '---'    │                                                                                  │
+    " "     ╰──────────────────────────────────────────────────────────────────────────────────╯
+  ✢ Step(brew) 3s
+    ⎿ 🍺  /opt/homebrew/Cellar/ffmpeg/8.0.1: 285 files, 54.1MB
+
+ ROUTE                      1/2 │ DONE SO FAR            actions: 13 done · 1 failed · 1 denied
+ ✓ Update                   32s │  ⊘ Step(docker-build-cache) · Unattended run: this ac… denied
+ ✢ Clean up                 10s │  ✓ Step(xcode-derived)                                     2s
+                                │  ✓ Step(npm-cache)                                         3s
+                                │ ── Clean up
+                                │  ✓ System
+                                │  ✓ Step(brew-outdated)                                     4s
+                                │  ✓ Step(disk)                                              4s
+                                │  ✳ Step(brew)                                              2s
+
+ Nobody needs to answer anything: every stage runs on its own · ctrl+c stops the run
+```
+
+- the mascot says what the run is doing, in the model's own words, with the
+  stage it is on; its face follows the run (working, thinking, wincing at a
+  failure, pleased or sorry at the end);
+- under it, the command that is running and the last line it printed;
+- **Route** is every stage and how it went; **Done so far** is every command
+  that has run, failed or been refused, with the totals;
+- Ctrl+C stops the stage that is running and the run with it; a second Ctrl+C
+  leaves at once.
+
+When the run ends the screen closes and leaves on the terminal what each stage
+concluded, what failed or was refused in it, and the summary of every stage,
+so it is all there when you come back. Without a terminal (a pipe, cron,
+launchd), with `TERM=dumb` or with `--no-tui`, the run prints lines instead.
+
+It exits with status **1** if any stage failed. With `--dry-run` nothing changes and no password is asked. Without
 a terminal (from launchd or cron) there is nobody to type the password, so the
 steps that need sudo fail and are listed.
 
