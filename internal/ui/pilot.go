@@ -492,7 +492,7 @@ const (
 const mascotWidth = 9
 
 // mascot draws the mascot small, for a terminal without room for its big
-// head (avatar): a round robot with an Ω on its chest. Its
+// Ω (avatar): a round robot with an Ω on its chest. Its
 // eyes and arms say what the run is doing.
 func mascot(mood, frame int) []string {
 	eyes, arms := " o o ", `/| Ω |\`
@@ -536,12 +536,21 @@ func mid(s string, w int) string {
 	return strings.Repeat(" ", gap/2) + s + strings.Repeat(" ", gap-gap/2)
 }
 
-// avatar draws the mascot as a big head, for a terminal with room for it:
-// the antenna sparks, the eyes look around and blink, and the mouth moves
-// while the run works. frame counts ticks of the screen.
+// avatar draws the mascot big, for a terminal with room for it: the letter
+// Ω itself, with a face inside it. While the run works a glint runs along
+// its arc, its feet step, its eyes look around and blink and its mouth
+// moves. frame counts ticks of the screen.
 func avatar(mood, frame int) []string {
-	spark, left, right, mouth := ".", " o ", " o ", ` \___/ `
+	spark, left, right, mouth := " ", " o ", " o ", ` \___/ `
+	arc, footL, footR := "=========", "'=====:", ":====='"
 	look := func(n int) string { return []string{" o ", "o  ", " o ", "  o"}[n%4] }
+	glint := func(at int, with string) string {
+		at %= len(arc) + 3 // the glint leaves the arc for a moment
+		if at >= len(arc) {
+			return arc
+		}
+		return arc[:at] + with + arc[at+1:]
+	}
 	switch mood {
 	case moodIdle:
 		if frame%40 < 2 {
@@ -549,6 +558,12 @@ func avatar(mood, frame int) []string {
 		}
 	case moodWork:
 		spark = []string{".", "*", `\|/`, "*"}[frame/3%4]
+		arc = glint(frame/2, "*")
+		if frame/4%2 == 0 {
+			footL = "'-----:" // a step
+		} else {
+			footR = ":-----'"
+		}
 		left = look(frame / 10)
 		right = left
 		if frame%40 < 2 {
@@ -557,6 +572,7 @@ func avatar(mood, frame int) []string {
 		mouth = []string{` \___/ `, `\_____/`, ` \___/ `, "  ---  "}[frame/2%4]
 	case moodThink:
 		spark = []string{".", "o", "O", "o O", ". o O"}[frame/4%5]
+		arc = glint(frame/5, "~")
 		left = []string{"o  ", " o ", "  o", " o "}[frame/6%4]
 		right = left
 		mouth = []string{"   ~   ", "  ~    ", "   ~   ", "    ~  "}[frame/6%4]
@@ -564,23 +580,25 @@ func avatar(mood, frame int) []string {
 		spark, left, right, mouth = "!", " > ", " < ", ` /~~~\ `
 	case moodHappy:
 		spark = []string{`\|/`, "*"}[frame/3%2]
+		arc = []string{"=*=*=*=*=", "*=*=*=*=*"}[frame/3%2]
 		left, right, mouth = " ^ ", " ^ ", `\_____/`
 	case moodSad:
 		left, right, mouth = " ; ", " ; ", " .---. "
+		footL, footR = "'-----:", ":-----'"
 	case moodStop:
-		spark, left, right, mouth = " ", " - ", " - ", "  ---  "
+		left, right, mouth = " - ", " - ", "  ---  "
 	}
 	return []string{
 		mid(spark, avatarWidth),
-		mid(".-=========-.", avatarWidth),
+		mid(".-"+arc+"-.", avatarWidth),
 		"   .'" + strings.Repeat(" ", 13) + "'.   ",
-		"  /" + mid(".-.     .-.", 17) + `\  `,
+		"  /" + strings.Repeat(" ", 17) + `\  `,
 		" |" + mid("("+left+")   ("+right+")", 19) + "| ",
-		" |" + mid("'-'     '-'", 19) + "| ",
-		" |" + mid("Ω", 19) + "| ",
+		" |" + strings.Repeat(" ", 19) + "| ",
 		`  \` + mid(mouth, 17) + "/  ",
 		"   '." + strings.Repeat(" ", 13) + ".'   ",
-		mid("'-=========-'", avatarWidth),
+		mid("'.         .'", avatarWidth),
+		" " + footL + strings.Repeat(" ", 7) + footR + " ",
 	}
 }
 
