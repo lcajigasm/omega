@@ -1,35 +1,42 @@
-// Package claudecode finds what Claude Code sessions leave running: the dev
-// servers, watchers, emulators and browsers a session started and that kept
-// running after the session closed. It also lists the sessions that are
-// still open, whether they are working or waiting, and ends them.
+// Package aiagents finds what AI coding agents leave running: the dev
+// servers, watchers, emulators and browsers a session of Claude Code, Codex,
+// Gemini CLI and the others started and that kept running after the session
+// closed. It also lists the agent sessions that are still open and ends
+// them.
 //
-// Claude Code sets CLAUDECODE=1 in the environment of everything it starts,
-// with the ID of the session (CLAUDE_CODE_SESSION_ID) and of its own process
-// (CLAUDE_PID). A process carrying them is a leftover once that Claude Code
-// process is gone. Some programs keep their environment unreadable (Chrome
-// does), so whatever a marked process started counts as part of its session
-// too. Nothing here leaves the machine.
-package claudecode
+// Most agents put a variable in the environment of every command they run
+// (Claude Code sets CLAUDECODE=1, with the session's ID and its own PID). A
+// process carrying one is a leftover once the agent process that started it
+// is gone. Some programs keep their environment unreadable (Chrome does), so
+// whatever a marked process started counts as part of its session too. An
+// agent that marks nothing still shows as an open session, with what runs
+// under it, but what it leaves behind cannot be told from any other process.
+// Nothing here leaves the machine.
+package aiagents
 
 import (
 	"errors"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
 
 // ErrUnsupported is what Scan returns where the environment of other
 // processes cannot be read: Windows.
-var ErrUnsupported = errors.New("finding what Claude Code left running works on macOS and Linux")
+var ErrUnsupported = errors.New("finding what AI agents left running works on macOS and Linux")
 
-// Proc is a process started by a Claude Code session.
+// Proc is a process started by an agent session.
 type Proc struct {
-	PID     int    `json:"pid"`
-	PPID    int    `json:"ppid"`
-	Age     int    `json:"age"` // seconds since it started
+	PID   int    `json:"pid"`
+	PPID  int    `json:"ppid"`
+	Age   int    `json:"age"` // seconds since it started
+	Agent string `json:"agent"`
+	// Session is the agent's session ID, "pid-<n>" when only the agent's
+	// process is known, or "" when not even that.
 	Session string `json:"session"`
-	// Alive is true while the Claude Code process that started it runs.
+	// Alive is true while the agent process that started it runs.
 	Alive   bool     `json:"alive"`
 	Command string   `json:"command"`
 	Path    string   `json:"path,omitempty"`
@@ -40,6 +47,11 @@ type Proc struct {
 	// per tab), folded into this row. Their memory and ports count here,
 	// and they go when it goes.
 	Helpers []Helper `json:"helpers,omitempty"`
+	// Shared is a daemon the whole machine uses (git's fsmonitor, mutagen,
+	// op): it is ended only when named by its PID.
+	Shared bool `json:"shared,omitempty"`
+	// agentPID is the running agent process it belongs to, when known.
+	agentPID int
 }
 
 // Helper is a process folded into the row of the app it belongs to.
@@ -85,11 +97,15 @@ func (p Proc) bundleRoot() string {
 
 // Group is what one closed session left running.
 type Group struct {
+	Agent   string `json:"agent"`
 	Session string `json:"session"`
 	Project string `json:"project"`
 	Title   string `json:"title,omitempty"`
 	Procs   []Proc `json:"procs"`
 }
+
+// Key names the group among all the others: an agent and a session.
+func (g Group) Key() string { return g.Agent + "/" + g.Session }
 
 // Memory is what the group holds, in bytes.
 func (g Group) Memory() uint64 {
@@ -109,25 +125,26 @@ func (g Group) Oldest() int {
 	return o
 }
 
-// Session statuses as Claude Code records them; Unknown when it left no
-// record for the process.
+// Session statuses as Claude Code records them; Unknown for agents that
+// record none, or when there is no record for the process.
 const (
 	Busy    = "busy"
 	Idle    = "idle"
 	Unknown = "unknown"
 )
 
-// Session is a Claude Code session that is still open: the claude process
-// and what it has had running for more than a minute.
+// Session is an agent session that is still open: the agent's process and
+// what it has had running for more than a minute.
 type Session struct {
 	PID     int    `json:"pid"`
+	Agent   string `json:"agent"`
 	ID      string `json:"id,omitempty"`
 	Project string `json:"project"`
 	Title   string `json:"title,omitempty"`
 	Cwd     string `json:"cwd,omitempty"`
 	Age     int    `json:"age"`
 	Command string `json:"command"`
-	// Status is busy, idle, unknown or whatever newer status Claude Code
+	// Status is busy, idle, unknown or whatever newer status the agent
 	// records. Since is when it entered it; zero when not known.
 	Status string    `json:"status"`
 	Since  time.Time `json:"since"`
@@ -136,6 +153,9 @@ type Session struct {
 	// Current is the session omega itself runs in: ending it would end
 	// omega too, so it is never ended.
 	Current bool `json:"current,omitempty"`
+	// Service is an agent's background service rather than a session: it
+	// runs the commands of the sessions that use it, and is not ended here.
+	Service bool `json:"service,omitempty"`
 }
 
 // IdleFor is how long the session has waited for input, or -1 while it is
@@ -168,30 +188,54 @@ type Report struct {
 	live []Proc
 }
 
-// LeftoverMemory is what every leftover holds, in bytes.
+// LeftoverMemory is what the leftovers that would be ended together hold,
+// in bytes: shared daemons are not counted.
 func (r *Report) LeftoverMemory() uint64 {
 	var n uint64
 	for _, g := range r.Leftovers {
-		n += g.Memory()
+		for _, p := range g.Procs {
+			if !p.Shared {
+				n += p.Memory
+			}
+		}
 	}
 	return n
 }
 
-// LeftoverCount is the number of leftover rows.
+// LeftoverCount is the number of leftover rows that would be ended
+// together, and SharedCount the number of shared daemons kept.
 func (r *Report) LeftoverCount() int {
 	n := 0
 	for _, g := range r.Leftovers {
-		n += len(g.Procs)
+		for _, p := range g.Procs {
+			if !p.Shared {
+				n++
+			}
+		}
+	}
+	return n
+}
+
+// SharedCount is the number of shared daemons among the leftovers.
+func (r *Report) SharedCount() int {
+	n := 0
+	for _, g := range r.Leftovers {
+		for _, p := range g.Procs {
+			if p.Shared {
+				n++
+			}
+		}
 	}
 	return n
 }
 
 // IdleSessions are the open sessions that have waited at least limit,
-// without the one omega runs in.
+// without the one omega runs in. Only agents that record their status can
+// be idle.
 func (r *Report) IdleSessions(limit time.Duration) []Session {
 	var out []Session
 	for _, s := range r.Sessions {
-		if d := s.IdleFor(r.Taken); !s.Current && d >= 0 && d >= limit {
+		if d := s.IdleFor(r.Taken); !s.Current && !s.Service && d >= 0 && d >= limit {
 			out = append(out, s)
 		}
 	}
@@ -202,16 +246,15 @@ func (r *Report) IdleSessions(limit time.Duration) []Session {
 // under it a session that only paused for a reply would go.
 const MinIdle = 30 * time.Minute
 
-// Scan looks at the running processes and at Claude Code's own records.
+// Scan looks at the running processes and at the agents' own records.
 func Scan() (*Report, error) {
 	snap, err := snapshot()
 	if err != nil {
 		return nil, err
 	}
-	home := homeDir()
 	r := analyze(snap, selfPID(), time.Now())
 	details(r)
-	describe(r, snap, home)
+	describe(r, snap, homeDir())
 	return r, nil
 }
 
@@ -230,26 +273,95 @@ type raw struct {
 	lstart string
 }
 
-// marker variables, the only ones read from the environment.
-const (
-	envMarker  = "CLAUDECODE"
-	envSession = "CLAUDE_CODE_SESSION_ID"
-	envPID     = "CLAUDE_PID"
-)
-
-var envKeys = []string{envMarker, envSession, envPID}
-
 type snap struct {
 	procs map[int]*raw
+	// agents caches what agent each process is, nil for none.
+	agents map[int]*Agent
 }
 
-func (s snap) isClaude(pid int) bool {
-	p := s.procs[pid]
-	if p == nil {
-		return false
+// agentOf is the agent a process is, or nil.
+func (s *snap) agentOf(pid int) *Agent {
+	if a, ok := s.agents[pid]; ok {
+		return a
 	}
-	// Exactly "claude": the desktop app's own process is "Claude".
-	return filepath.Base(p.exe) == "claude"
+	if s.agents == nil {
+		s.agents = map[int]*Agent{}
+	}
+	var a *Agent
+	if p := s.procs[pid]; p != nil {
+		a = identify(p.exe, p.command)
+	}
+	s.agents[pid] = a
+	return a
+}
+
+// agentAncestor is the nearest ancestor of pid that is the agent a (any
+// agent when a is nil) and how many levels up it is, or 0.
+func (s *snap) agentAncestor(pid int, a *Agent) (int, int) {
+	seen := map[int]bool{}
+	depth := 0
+	for at := pid; at > 1 && !seen[at]; {
+		seen[at] = true
+		p := s.procs[at]
+		if p == nil {
+			return 0, 0
+		}
+		at = p.ppid
+		depth++
+		if b := s.agentOf(at); b != nil && (a == nil || b == a) {
+			return at, depth
+		}
+	}
+	return 0, 0
+}
+
+// owner says which agent session a marked process belongs to. Agents run
+// inside agents (Codex started from Claude Code carries both markers): of
+// the agents still running, the nearest ancestor wins, then one known only
+// by the PID it left in the environment; when none runs, any other agent
+// still running above it, and else the innermost, taken to be the one
+// latest in the catalogue.
+func (s *snap) owner(p *raw) (a *Agent, session string, agentPID int) {
+	best := 1 << 40
+	for i := range Catalogue {
+		c := &Catalogue[i]
+		if !c.marks(p.env) {
+			continue
+		}
+		found, depth := s.agentAncestor(p.pid, c)
+		score := depth
+		if found == 0 {
+			if n := atoi(p.env[c.PIDVar]); n > 0 && s.agentOf(n) == c {
+				found, score = n, 1<<20
+			} else {
+				score = 1<<30 - i
+			}
+		}
+		if score >= best {
+			continue
+		}
+		best = score
+		a, agentPID = c, found
+		switch {
+		case c.SessionVar != "" && p.env[c.SessionVar] != "":
+			session = p.env[c.SessionVar]
+		case found > 0:
+			session = "pid-" + strconv.Itoa(found)
+		case atoi(p.env[c.PIDVar]) > 0:
+			session = "pid-" + p.env[c.PIDVar]
+		default:
+			session = ""
+		}
+	}
+	// Whatever runs under an agent that is still running is not left
+	// behind, whatever markers it inherited: a Codex started from a Cursor
+	// session that has closed still owns its helpers.
+	if a != nil && agentPID == 0 {
+		if up, _ := s.agentAncestor(p.pid, nil); up > 0 {
+			a, session, agentPID = s.agentOf(up), "pid-"+strconv.Itoa(up), up
+		}
+	}
+	return a, session, agentPID
 }
 
 // analyze finds the leftovers and the open sessions in a snapshot. self is
@@ -267,23 +379,7 @@ func analyze(s snap, self int, now time.Time) *Report {
 		}
 		at = p.ppid
 	}
-	skip := func(p *raw) bool { return ancestors[p.pid] || p.ppid == self || s.isClaude(p.pid) }
-
-	hasClaudeAncestor := func(pid int) bool {
-		seen := map[int]bool{}
-		for at := pid; at > 1 && !seen[at]; {
-			seen[at] = true
-			p := s.procs[at]
-			if p == nil {
-				return false
-			}
-			at = p.ppid
-			if s.isClaude(at) {
-				return true
-			}
-		}
-		return false
-	}
+	skip := func(p *raw) bool { return ancestors[p.pid] || p.ppid == self || s.agentOf(p.pid) != nil }
 
 	pids := make([]int, 0, len(s.procs))
 	for pid := range s.procs {
@@ -295,23 +391,21 @@ func analyze(s snap, self int, now time.Time) *Report {
 	marked := map[int]int{}
 	for _, pid := range pids {
 		p := s.procs[pid]
-		if !p.mine || p.env[envMarker] != "1" || skip(p) {
+		if !p.mine || skip(p) {
 			continue
 		}
-		session := p.env[envSession]
-		if session == "" {
-			session = "no-session"
-		}
-		alive := hasClaudeAncestor(pid)
-		if cp := atoi(p.env[envPID]); cp > 0 && s.isClaude(cp) {
-			alive = true
+		a, session, agentPID := s.owner(p)
+		if a == nil {
+			continue
 		}
 		marked[pid] = len(procs)
-		procs = append(procs, Proc{PID: pid, PPID: p.ppid, Age: p.age, Session: session, Alive: alive,
-			Command: p.command, Path: p.exe, Memory: p.rss, Ports: []string{}})
+		procs = append(procs, Proc{PID: pid, PPID: p.ppid, Age: p.age, Agent: a.ID, Session: session, Alive: agentPID > 0,
+			Command: p.command, Path: p.exe, Memory: p.rss, Ports: []string{}, agentPID: agentPID})
 	}
 
-	// A process started by a marked one belongs to its session, marker or not.
+	// A process started by a marked one belongs to its session, marker or
+	// not. A process under an agent that marks nothing belongs to that
+	// agent's open session.
 	for _, pid := range pids {
 		p := s.procs[pid]
 		if !p.mine || skip(p) {
@@ -321,6 +415,8 @@ func analyze(s snap, self int, now time.Time) *Report {
 			continue
 		}
 		owner := -1
+		var agent *Agent
+		agentPID := 0
 		seen := map[int]bool{}
 		for at := pid; at > 1 && !seen[at]; {
 			seen[at] = true
@@ -329,7 +425,13 @@ func analyze(s snap, self int, now time.Time) *Report {
 				break
 			}
 			at = up.ppid
-			if at == self || s.isClaude(at) {
+			if at == self {
+				break
+			}
+			if a := s.agentOf(at); a != nil {
+				if a.Marker == "" {
+					agent, agentPID = a, at
+				}
 				break
 			}
 			if i, ok := marked[at]; ok {
@@ -337,61 +439,74 @@ func analyze(s snap, self int, now time.Time) *Report {
 				break
 			}
 		}
-		if owner < 0 {
-			continue
+		switch {
+		case owner >= 0:
+			o := procs[owner]
+			procs = append(procs, Proc{PID: pid, PPID: p.ppid, Age: p.age, Agent: o.Agent, Session: o.Session,
+				Alive: o.Alive, Command: p.command, Path: p.exe, Memory: p.rss, Ports: []string{}, agentPID: o.agentPID})
+		case agent != nil:
+			procs = append(procs, Proc{PID: pid, PPID: p.ppid, Age: p.age, Agent: agent.ID, Session: "pid-" + strconv.Itoa(agentPID),
+				Alive: true, Command: p.command, Path: p.exe, Memory: p.rss, Ports: []string{}, agentPID: agentPID})
 		}
-		procs = append(procs, Proc{PID: pid, PPID: p.ppid, Age: p.age, Session: procs[owner].Session,
-			Alive: procs[owner].Alive, Command: p.command, Path: p.exe, Memory: p.rss, Ports: []string{}})
 	}
 	procs = fold(procs)
+	for i := range procs {
+		procs[i].Shared = shared(procs[i])
+	}
 
-	// Leftovers: grouped by session, oldest first.
-	by := map[string][]Proc{}
+	// Leftovers: grouped by agent and session, oldest first.
+	by := map[[2]string][]Proc{}
 	for _, p := range procs {
 		if !p.Alive {
-			by[p.Session] = append(by[p.Session], p)
+			k := [2]string{p.Agent, p.Session}
+			by[k] = append(by[k], p)
 		}
 	}
-	for id, members := range by {
+	for k, members := range by {
 		sort.Slice(members, func(i, j int) bool { return members[i].Age > members[j].Age })
-		r.Leftovers = append(r.Leftovers, Group{Session: id, Procs: members})
+		r.Leftovers = append(r.Leftovers, Group{Agent: k[0], Session: k[1], Procs: members})
 	}
 	sort.Slice(r.Leftovers, func(i, j int) bool {
 		a, b := r.Leftovers[i], r.Leftovers[j]
 		if a.Oldest() != b.Oldest() {
 			return a.Oldest() > b.Oldest()
 		}
-		return a.Session < b.Session
+		return a.Key() < b.Key()
 	})
 
-	// Open sessions: claude processes not started by another claude.
+	// Open sessions: agent processes not started by the same agent (its
+	// subagents and helpers are part of the session).
 	for _, pid := range pids {
 		p := s.procs[pid]
-		if !p.mine || !s.isClaude(pid) || s.isClaude(p.ppid) {
+		a := s.agentOf(pid)
+		if !p.mine || a == nil {
 			continue
 		}
-		r.Sessions = append(r.Sessions, Session{PID: pid, Age: p.age, Command: p.command, Memory: p.rss,
-			Status: Unknown, Procs: []Proc{}, Current: ancestors[pid]})
+		if up, _ := s.agentAncestor(pid, a); up != 0 {
+			continue
+		}
+		r.Sessions = append(r.Sessions, Session{PID: pid, Agent: a.ID, Age: p.age, Command: p.command, Memory: p.rss,
+			Status: Unknown, Procs: []Proc{}, Current: ancestors[pid], Service: a.service(p.command)})
 	}
 	for _, p := range procs {
 		if p.Alive {
 			r.live = append(r.live, p)
 		}
 	}
+	r.attach(r.live)
 	return r
 }
 
-// attach gives each open session its live processes older than a minute,
-// once the session's ID is known.
+// attach gives each open session its live processes older than a minute.
+// A session is found by its ID once its records are read, else by its
+// process.
 func (r *Report) attach(procs []Proc) {
 	for i := range r.Sessions {
 		s := &r.Sessions[i]
 		s.Procs = []Proc{}
-		if s.ID == "" {
-			continue
-		}
 		for _, p := range procs {
-			if p.Alive && p.Age >= 60 && p.Session == s.ID {
+			mine := p.agentPID == s.PID || (s.ID != "" && p.Session == s.ID)
+			if p.Alive && p.Age >= 60 && p.Agent == s.Agent && mine {
 				s.Procs = append(s.Procs, p)
 			}
 		}
@@ -439,6 +554,9 @@ func fold(procs []Proc) []Proc {
 
 func atoi(s string) int {
 	n := 0
+	if s == "" {
+		return 0
+	}
 	for _, c := range s {
 		if c < '0' || c > '9' {
 			return 0

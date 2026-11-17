@@ -1,4 +1,4 @@
-package claudecode
+package aiagents
 
 import (
 	"os"
@@ -22,7 +22,11 @@ func ps(env []string, args ...string) string {
 	return string(out)
 }
 
-var markerRE = regexp.MustCompile(`(?:^|\s)(` + envMarker + `|` + envSession + `|` + envPID + `)=(\S+)`)
+// plain is a value as the agents set them: an ID, a number or a word. ps
+// separates variables with spaces, so a variable holding a shell line shows
+// words like CURSOR_CONVERSATION_ID='x'; of its own: those are not taken,
+// and the variable itself comes as a word of its own.
+var plain = regexp.MustCompile(`^[A-Za-z0-9._:@/+-]+$`)
 
 func snapshot() (snap, error) {
 	uid := strconv.Itoa(os.Getuid())
@@ -59,10 +63,8 @@ func snapshot() (snap, error) {
 		}
 		p.command = f[7]
 	}
+	keys := envKeys()
 	for _, line := range strings.Split(ps(nil, "eww", "-U", uid, "-o", "pid=,command="), "\n") {
-		if !strings.Contains(line, envMarker+"=") {
-			continue
-		}
 		f := fields(line, 2)
 		if f == nil {
 			continue
@@ -74,15 +76,20 @@ func snapshot() (snap, error) {
 		// Read the markers only from the environment, after the command's
 		// own arguments: `grep CLAUDECODE=1` would match itself.
 		env := f[1]
-		if p.command != "" && strings.HasPrefix(env, p.command) {
-			env = env[len(p.command):]
+		if p.command == "" || !strings.HasPrefix(env, p.command) {
+			continue
 		}
-		for _, m := range markerRE.FindAllStringSubmatch(env, -1) {
+		env = env[len(p.command):]
+		for _, word := range strings.Fields(env) {
+			k, v, ok := strings.Cut(word, "=")
+			if !ok || !keys[k] || !plain.MatchString(v) {
+				continue
+			}
 			if p.env == nil {
 				p.env = map[string]string{}
 			}
-			if _, set := p.env[m[1]]; !set {
-				p.env[m[1]] = m[2]
+			if _, set := p.env[k]; !set {
+				p.env[k] = v
 			}
 		}
 	}

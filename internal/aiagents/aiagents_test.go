@@ -1,4 +1,4 @@
-package claudecode
+package aiagents
 
 import (
 	"os"
@@ -11,7 +11,7 @@ import (
 )
 
 func marked(session, claudePID string) map[string]string {
-	return map[string]string{envMarker: "1", envSession: session, envPID: claudePID}
+	return map[string]string{"CLAUDECODE": "1", "CLAUDE_CODE_SESSION_ID": session, "CLAUDE_PID": claudePID}
 }
 
 // machine is a process table: launchd, a live session (claude 100) with a
@@ -37,7 +37,7 @@ func machine() snap {
 		// Someone else's process with the marker is not ours to touch.
 		{pid: 400, ppid: 1, exe: "/usr/bin/python3", command: "python3 x", mine: false, env: marked("other", "200"), age: 10},
 		// A marked process with no session ID.
-		{pid: 500, ppid: 1, exe: "/usr/bin/sleep", command: "sleep 999", mine: true, env: map[string]string{envMarker: "1"}, age: 70},
+		{pid: 500, ppid: 1, exe: "/usr/bin/sleep", command: "sleep 999", mine: true, env: map[string]string{"CLAUDECODE": "1"}, age: 70},
 		// Not marked and not started by anything marked.
 		{pid: 600, ppid: 90, exe: "/usr/bin/vim", command: "vim", mine: true, age: 10},
 		// omega, run from the live session, and what it started.
@@ -76,7 +76,7 @@ func TestAnalyze(t *testing.T) {
 	if chrome.Name() != "Google Chrome" || !strings.HasPrefix(chrome.Short(), "Google Chrome --remote") {
 		t.Errorf("name %q, short %q", chrome.Name(), chrome.Short())
 	}
-	if r.Leftovers[1].Session != "no-session" || r.Leftovers[1].Procs[0].PID != 500 {
+	if r.Leftovers[1].Session != "" || r.Leftovers[1].Procs[0].PID != 500 {
 		t.Errorf("second group = %+v, want the marked process without a session", r.Leftovers[1])
 	}
 	if got := r.LeftoverMemory(); got != 750<<20 {
@@ -104,7 +104,7 @@ func TestAnalyze(t *testing.T) {
 
 func TestAliveThroughAncestorWithoutClaudePID(t *testing.T) {
 	s := machine()
-	s.procs[102].env = map[string]string{envMarker: "1", envSession: "live"} // no CLAUDE_PID
+	s.procs[102].env = map[string]string{"CLAUDECODE": "1", "CLAUDE_CODE_SESSION_ID": "live"} // no CLAUDE_PID
 	r := analyze(s, 0, time.Now())
 	for _, g := range r.Leftovers {
 		if g.Session == "live" {
@@ -265,5 +265,173 @@ func TestSnapshotFindsThisProcess(t *testing.T) {
 	}
 	if me.start.IsZero() {
 		t.Error("the start time of this process is not known")
+	}
+}
+
+// withCatalogue swaps the catalogue for a test.
+func withCatalogue(t *testing.T, agents ...Agent) {
+	t.Helper()
+	old := Catalogue
+	Catalogue = agents
+	t.Cleanup(func() { Catalogue = old })
+}
+
+var (
+	testClaude = Agent{ID: "claude", Name: "Claude Code", Exes: []string{"claude"}, Marker: "CLAUDECODE", Value: "1",
+		SessionVar: "CLAUDE_CODE_SESSION_ID", PIDVar: "CLAUDE_PID", Records: true}
+	testCodex  = Agent{ID: "codex", Name: "Codex", Exes: []string{"codex"}, Marker: "CODEX_THREAD", SessionVar: "CODEX_THREAD"}
+	testGemini = Agent{ID: "gemini", Name: "Gemini CLI", Scripts: []string{"@google/gemini-cli/", "/bin/gemini"}, Marker: "GEMINI_CLI", Value: "1"}
+	testAider  = Agent{ID: "aider", Name: "Aider", Exes: []string{"aider"}, Scripts: []string{"/bin/aider"}}
+)
+
+func table(ps ...*raw) snap {
+	s := snap{procs: map[int]*raw{}}
+	for _, p := range ps {
+		s.procs[p.pid] = p
+	}
+	return s
+}
+
+func TestIdentify(t *testing.T) {
+	withCatalogue(t, testClaude, testCodex, testGemini, testAider)
+	for _, c := range []struct{ exe, cmd, want string }{
+		{"/opt/homebrew/bin/codex", "codex", "codex"},
+		{"/usr/local/bin/node", "node --no-warnings /usr/local/lib/node_modules/@google/gemini-cli/dist/index.js", "gemini"},
+		{"node", "node /Users/x/.nvm/versions/node/v22/bin/gemini -p hi", "gemini"},
+		{"/usr/bin/python3.12", "/usr/bin/python3.12 /home/x/.local/bin/aider --model y", "aider"},
+		{"/Applications/Claude.app/Contents/MacOS/Claude", "/Applications/Claude.app/Contents/MacOS/Claude", ""},
+		{"/usr/local/bin/node", "node server.js", ""},
+		{"/usr/local/bin/node", "node", ""},
+	} {
+		got := ""
+		if a := identify(c.exe, c.cmd); a != nil {
+			got = a.ID
+		}
+		if got != c.want {
+			t.Errorf("identify(%q, %q) = %q, want %q", c.exe, c.cmd, got, c.want)
+		}
+	}
+}
+
+func TestSeveralAgents(t *testing.T) {
+	withCatalogue(t, testClaude, testCodex, testGemini, testAider)
+	codex := map[string]string{"CODEX_THREAD": "th-1"}
+	both := map[string]string{"CLAUDECODE": "1", "CLAUDE_CODE_SESSION_ID": "cl-1", "CLAUDE_PID": "100", "CODEX_THREAD": "th-2"}
+	s := table(
+		&raw{pid: 1, exe: "/sbin/launchd", command: "/sbin/launchd"},
+		&raw{pid: 100, ppid: 1, exe: "/bin/claude", command: "claude", mine: true},
+		// Codex started from Claude Code, still running, with a server.
+		&raw{pid: 110, ppid: 100, exe: "/bin/codex", command: "codex exec", mine: true, env: marked("cl-1", "100")},
+		&raw{pid: 111, ppid: 110, exe: "/bin/node", command: "node dev", mine: true, env: both, age: 120},
+		// What a Codex session that closed left: the inner agent's.
+		&raw{pid: 200, ppid: 1, exe: "/bin/node", command: "node watch", mine: true, env: both, age: 500},
+		// A plain Codex session that closed.
+		&raw{pid: 300, ppid: 1, exe: "/bin/vite", command: "vite", mine: true, env: codex, age: 900},
+		// Gemini running as a node script, with a server it marked.
+		&raw{pid: 400, ppid: 1, exe: "/bin/node", command: "node /usr/lib/node_modules/@google/gemini-cli/dist/index.js", mine: true},
+		&raw{pid: 401, ppid: 400, exe: "/bin/python3", command: "python3 -m http.server", mine: true, env: map[string]string{"GEMINI_CLI": "1"}, age: 90},
+		// Gemini's marker with another value is not Gemini's.
+		&raw{pid: 402, ppid: 1, exe: "/bin/sleep", command: "sleep 9", mine: true, env: map[string]string{"GEMINI_CLI": "0"}},
+		// Aider marks nothing: what runs under it is its session's.
+		&raw{pid: 500, ppid: 1, exe: "/bin/aider", command: "aider", mine: true},
+		&raw{pid: 501, ppid: 500, exe: "/bin/npm", command: "npm test --watch", mine: true, age: 300},
+	)
+	r := analyze(s, 0, time.Now())
+
+	keys := map[string]int{}
+	for _, g := range r.Leftovers {
+		keys[g.Key()] = len(g.Procs)
+	}
+	// 200 is not left behind: the Claude Code session around the Codex that
+	// started it is still open.
+	if len(keys) != 1 || keys["codex/th-1"] != 1 {
+		t.Fatalf("leftover groups = %v, want only codex/th-1", keys)
+	}
+
+	got := map[string]int{}
+	for _, ss := range r.Sessions {
+		got[ss.Agent] = len(ss.Procs)
+	}
+	// Codex 110 runs under Claude Code but is a session of its own agent,
+	// and 111 under it is Codex's, not Claude Code's. 200 is the Claude Code
+	// session's, through the PID in its environment.
+	want := map[string]int{"claude": 1, "codex": 1, "gemini": 1, "aider": 1}
+	for k, v := range want {
+		if n, ok := got[k]; !ok || n != v {
+			t.Errorf("sessions = %v, want %v", got, want)
+			break
+		}
+	}
+}
+
+func TestCatalogue(t *testing.T) {
+	seen := map[string]bool{}
+	for _, a := range Catalogue {
+		if a.ID == "" || a.Name == "" || seen[a.ID] || (len(a.Exes) == 0 && len(a.Scripts) == 0) {
+			t.Errorf("bad entry %+v", a)
+		}
+		seen[a.ID] = true
+		if a.Marker == "" && (a.SessionVar != "" || a.PIDVar != "") {
+			t.Errorf("%s has session variables but no marker", a.ID)
+		}
+	}
+	for _, c := range []struct{ exe, cmd, want string }{
+		{"/opt/homebrew/bin/codex", "/opt/homebrew/bin/codex", "codex"},
+		{"/Users/x/.local/share/cursor-agent/versions/1/node", "/Users/x/.local/bin/cursor-agent --use-system-ca /Users/x/.local/share/cursor-agent/versions/1/index.js", "cursor"},
+		{"/usr/local/bin/node", "node /usr/local/lib/node_modules/@qwen-code/qwen-code/dist/index.js", "qwen"},
+		{"/usr/local/bin/node", "node /usr/local/lib/node_modules/@github/copilot/npm-loader.js", "copilot"},
+		{"/usr/local/bin/goosed", "goosed agent", "goose"},
+		{"/Applications/Claude.app/Contents/MacOS/Claude", "Claude", ""},
+	} {
+		got := ""
+		if a := identify(c.exe, c.cmd); a != nil {
+			got = a.ID
+		}
+		if got != c.want {
+			t.Errorf("identify(%q) = %q, want %q", c.cmd, got, c.want)
+		}
+	}
+	codex, _ := ByID("codex")
+	if !codex.service("/x/bin/codex app-server --listen unix:///tmp/s --managed-daemon") || codex.service("codex exec fix it") {
+		t.Error("codex's service is not told from a session")
+	}
+}
+
+func TestServicesAndForks(t *testing.T) {
+	s := table(
+		&raw{pid: 1, exe: "/sbin/launchd", command: "/sbin/launchd"},
+		&raw{pid: 10, ppid: 1, exe: "/bin/codex", command: "codex app-server --managed-daemon", mine: true},
+		&raw{pid: 11, ppid: 10, exe: "/bin/node", command: "node dev", mine: true, env: map[string]string{"CODEX_THREAD_ID": "t1"}, age: 100},
+		// Kilo sets OPENCODE=1 too: a command of a Kilo that is gone is Kilo's.
+		&raw{pid: 20, ppid: 1, exe: "/bin/vite", command: "vite", mine: true, env: map[string]string{"OPENCODE": "1", "KILO": "1", "KILO_PID": "999"}, age: 100},
+	)
+	r := analyze(s, 0, time.Now())
+	if len(r.Sessions) != 1 || !r.Sessions[0].Service || len(r.Sessions[0].Procs) != 1 {
+		t.Fatalf("sessions = %+v, want codex's service holding its command", r.Sessions)
+	}
+	if len(r.Leftovers) != 1 || r.Leftovers[0].Key() != "kilo/pid-999" {
+		t.Fatalf("leftovers = %+v, want kilo/pid-999", r.Leftovers)
+	}
+	r.Sessions[0].Status, r.Sessions[0].Since = Idle, time.Now().Add(-5*time.Hour)
+	if len(r.IdleSessions(time.Hour)) != 0 {
+		t.Error("a service can be ended as idle")
+	}
+}
+
+func TestUnderAnotherLiveAgent(t *testing.T) {
+	cursor := map[string]string{"CURSOR_AGENT": "1", "CURSOR_CONVERSATION_ID": "c1"}
+	s := table(
+		&raw{pid: 1, exe: "/sbin/launchd", command: "/sbin/launchd"},
+		// A script a closed Cursor session left, still running Codex.
+		&raw{pid: 10, ppid: 1, exe: "/bin/zsh", command: "/bin/zsh chain.sh", mine: true, env: cursor, age: 600},
+		&raw{pid: 11, ppid: 10, exe: "/bin/codex", command: "codex review", mine: true, env: cursor, age: 100},
+		&raw{pid: 12, ppid: 11, exe: "/bin/codex-code-mode-host", command: "codex-code-mode-host --listen grpc+stdio://", mine: true, env: cursor, age: 90},
+	)
+	r := analyze(s, 0, time.Now())
+	if len(r.Leftovers) != 1 || len(r.Leftovers[0].Procs) != 1 || r.Leftovers[0].Procs[0].PID != 10 {
+		t.Fatalf("leftovers = %+v, want only the script", r.Leftovers)
+	}
+	if len(r.Sessions) != 1 || r.Sessions[0].Agent != "codex" || len(r.Sessions[0].Procs) != 1 {
+		t.Fatalf("sessions = %+v, want codex holding its helper", r.Sessions)
 	}
 }

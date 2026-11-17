@@ -1,4 +1,4 @@
-package claudecode
+package aiagents
 
 import (
 	"strconv"
@@ -20,12 +20,25 @@ func TargetOf(p Proc) Target {
 	return Target{PID: p.PID, Command: p.Command, Memory: p.Memory, Helpers: p.Helpers}
 }
 
-// SessionTargets are the claude process of an open session and its
-// processes.
+// SessionTargets are the agent process of an open session and its
+// processes, without the shared daemons.
 func SessionTargets(s Session) []Target {
 	out := []Target{{PID: s.PID, Command: s.Command, Memory: s.Memory}}
 	for _, p := range s.Procs {
-		out = append(out, TargetOf(p))
+		if !p.Shared {
+			out = append(out, TargetOf(p))
+		}
+	}
+	return out
+}
+
+// GroupTargets are what a closed session left, without the shared daemons.
+func GroupTargets(g Group) []Target {
+	var out []Target
+	for _, p := range g.Procs {
+		if !p.Shared {
+			out = append(out, TargetOf(p))
+		}
 	}
 	return out
 }

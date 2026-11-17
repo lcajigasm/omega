@@ -1,6 +1,6 @@
 //go:build !darwin && !linux
 
-package claudecode
+package aiagents
 
 func snapshot() (snap, error) { return snap{}, ErrUnsupported }
 

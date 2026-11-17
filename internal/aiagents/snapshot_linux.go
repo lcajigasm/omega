@@ -1,4 +1,4 @@
-package claudecode
+package aiagents
 
 import (
 	"bytes"
@@ -57,8 +57,8 @@ func snapshot() (snap, error) {
 		}
 		// A program can rename itself (node does, to "claude"); the name in
 		// stat is what it calls itself.
-		if p.comm == "claude" {
-			p.exe = "claude"
+		if identify(p.exe, "") == nil && identify(p.comm, "") != nil {
+			p.exe = p.comm
 		}
 		if cmd, err := os.ReadFile(filepath.Join(dir, "cmdline")); err == nil {
 			p.command = strings.TrimSpace(string(bytes.ReplaceAll(cmd, []byte{0}, []byte{' '})))
@@ -105,10 +105,11 @@ func parseStat(pid int, stat string) *linuxProc {
 
 // markers reads the three marker variables from a NUL-separated environment.
 func markers(env []byte) map[string]string {
+	keys := envKeys()
 	var out map[string]string
 	for _, kv := range bytes.Split(env, []byte{0}) {
 		k, v, ok := strings.Cut(string(kv), "=")
-		if !ok || (k != envMarker && k != envSession && k != envPID) {
+		if !ok || !keys[k] {
 			continue
 		}
 		if out == nil {

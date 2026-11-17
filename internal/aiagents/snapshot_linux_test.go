@@ -1,4 +1,4 @@
-package claudecode
+package aiagents
 
 import "testing"
 
@@ -17,7 +17,7 @@ func TestParseStat(t *testing.T) {
 func TestMarkers(t *testing.T) {
 	env := []byte("PATH=/bin\x00CLAUDECODE=1\x00CLAUDE_CODE_SESSION_ID=abc\x00CLAUDE_PID=77\x00X=CLAUDECODE=1\x00")
 	m := markers(env)
-	if m[envMarker] != "1" || m[envSession] != "abc" || m[envPID] != "77" || len(m) != 3 {
+	if m["CLAUDECODE"] != "1" || m["CLAUDE_CODE_SESSION_ID"] != "abc" || m["CLAUDE_PID"] != "77" || len(m) != 3 {
 		t.Fatalf("markers = %v", m)
 	}
 	if markers([]byte("PATH=/bin\x00")) != nil {

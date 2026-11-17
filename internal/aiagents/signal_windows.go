@@ -1,4 +1,4 @@
-package claudecode
+package aiagents
 
 // Scan returns ErrUnsupported on Windows, so nothing is ever ended here.
 

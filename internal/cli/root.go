@@ -126,7 +126,7 @@ func newRoot(f *runFlags) *cobra.Command {
 		fullCmd(), quickCmd(f), fixCmd(f), setupCmd(), group(authCmd()), modelCmd(), modelsCmd(),
 		dockerCmd(), macCmd(), devCmd(), menuCmd(), group(configCmd()), stepsCmd(), notesCmd(),
 		logsCmd(), doctorCmd(), group(netCmd()), group(auditCmd()), privacyCmd(), group(gitCmd()), group(diskCmd()),
-		uninstallCmd(), skillsCmd(), claudeCmd(), group(scheduleCmd()), rollbackCmd(), exportCmd(), bootstrapCmd(), shellCmd(),
+		uninstallCmd(), skillsCmd(), agentsCmd(), group(scheduleCmd()), rollbackCmd(), exportCmd(), bootstrapCmd(), shellCmd(),
 		completionGroup(completionCmd(root)), manCmd(root),
 	)
 	return root
@@ -195,7 +195,6 @@ var shortcuts = map[string][]string{
 	"login": {"mac", "login"}, "shortcuts": {"mac", "shortcuts"}, "atajos": {"mac", "shortcuts"},
 	"dock": {"mac", "dock"}, "menubar": {"mac", "menubar"}, "background": {"mac", "background"},
 	"install": {"dev", "install"}, "instalar": {"dev", "install"}, "activate": {"dev", "activate"},
-	"leftovers": {"claude"}, "sesiones": {"claude"},
 	"history": {"logs"}, "historial": {"logs"}, "log": {"logs"}, "runs": {"logs"},
 	"settings": {"config", "show"}, "ajustes": {"config", "show"}, "configuracion": {"config", "show"},
 	"key": {"auth", "status"}, "keys": {"auth", "status"}, "claves": {"auth", "status"},

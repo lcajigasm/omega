@@ -6,7 +6,7 @@
 - [Developer tools](#developer-tools)
 - [Docker cleanup](#docker-cleanup)
 - [Skills of your AI agents](#skills-of-your-ai-agents)
-- [What Claude Code left running](#what-claude-code-left-running)
+- [What AI agents left running](#what-ai-agents-left-running)
 
 ## Tuning your tools' configuration
 
@@ -184,44 +184,75 @@ configuration folder exists. Skills kept inside a project (`.claude/skills`,
 Agents read their skills when they start, so one that is already running sees
 a change after a restart. The desktop app has the same in its **Skills** view.
 
-## What Claude Code left running
+## What AI agents left running
 
-Claude Code sessions end; the dev servers, watchers and emulators they started
-do not. `omega claude` finds them and ends them, without AI and without a key:
+Agent sessions end; the dev servers, watchers and emulators they started do
+not. `omega agents` finds them and ends them, without AI and without a key
+(`omega claude` is the same command):
 
 ```bash
-omega claude                    # what closed sessions left, and the open sessions
-omega claude kill               # end everything closed sessions left behind
-omega claude kill 4242 5d1e     # one process, and what one session left
-omega claude end 7f3a           # end an open session and what it runs
-omega claude idle --after 3h    # end the sessions waiting for you for 3 hours
+omega agents                    # what closed sessions left, and the open sessions
+omega agents kill               # end everything closed sessions left behind
+omega agents kill 4242 5d1e     # one process, and what one session left
+omega agents end 7f3a           # end an open session and what it runs
+omega agents idle --after 3h    # end the Claude Code sessions waiting for 3 hours
 ```
 
-Claude Code puts `CLAUDECODE=1` in the environment of everything it starts,
-with the ID of the session and of its own process. omega reads those markers
-from your own processes (`ps` on macOS, `/proc` on Linux). A process is left
-behind once the Claude Code process that started it is gone. Some programs keep
-their environment unreadable, Chrome among them, so whatever a marked process
-started counts too: a browser Playwright opened shows up next to Playwright, and
-an app's helper processes are folded into one row with the app.
+Most agents put a variable in the environment of every command they run.
+omega reads those variables from your own processes (`ps` on macOS, `/proc` on
+Linux), and a process is left behind once the agent that started it is gone
+and no other agent runs above it. These are the agents it knows, with what
+their source code sets:
 
-- **The list** groups the leftovers by session, with the project and the title
-  Claude Code gave it, each process's ports, memory and age, and where it runs.
-  The open sessions come after it: working or idle, for how long, and the
-  processes they have had running for more than a minute. Claude Code keeps
-  that status in `~/.claude/sessions`, which is not a documented interface: when
-  it is missing a session still shows, without a status. `--json` prints the
-  whole report.
+| Agent | Marks its commands with | Session |
+|---|---|---|
+| Claude Code | `CLAUDECODE=1`, `CLAUDE_PID` | `CLAUDE_CODE_SESSION_ID`, status in `~/.claude/sessions` |
+| Codex | `CODEX_THREAD_ID` | the thread |
+| Gemini CLI | `GEMINI_CLI=1` | none |
+| Qwen Code | `QWEN_CODE=1` | `QWEN_CODE_SESSION_ID` |
+| opencode | `OPENCODE=1`, `OPENCODE_PID` (1.x) | `OPENCODE_SESSION_ID` (2.x) |
+| Kilo Code | `KILO=1`, `KILO_PID` | none |
+| Cursor CLI | `CURSOR_AGENT=1` | `CURSOR_CONVERSATION_ID` |
+| GitHub Copilot CLI | `COPILOT_CLI=1` | `COPILOT_AGENT_SESSION_ID` |
+| Crush | `CRUSH=1` | none |
+| Goose | `GOOSE_TERMINAL=1` | `AGENT_SESSION_ID` |
+| Amp, Aider | nothing confirmed | open sessions only |
+
+Cursor's variables come from its published bundle and Copilot's from its
+changelog; the rest from each project's source. An agent that marks nothing
+still shows as an open session with what runs under it, but once it is gone
+what it left cannot be told from any other process. Some programs keep their
+environment unreadable, Chrome among them, so whatever a marked process
+started counts too: a browser Playwright opened shows up next to Playwright,
+and an app's helper processes are folded into one row with the app.
+
+- **The list** groups the leftovers by agent and session, with the project and,
+  for Claude Code, the title it gave the session; each process's ports, memory
+  and age, and where it runs. The open sessions come after it. Only Claude Code
+  records whether a session is working or idle, in a file that is not a
+  documented interface: when it is missing a session still shows, without a
+  status. Codex's `app-server` and opencode's `serve` show as background
+  services, which other sessions use and which are not ended from here.
+  `--json` prints the whole report.
+- **Agents inside agents.** A command started by Codex that Claude Code started
+  carries both markers: it belongs to the nearest agent still running above it,
+  and a process under any running agent is never left behind.
+- **Shared daemons** an agent's command happened to start, like git's
+  `fsmonitor--daemon`, `mutagen daemon`, 1Password's `op daemon`, `ssh-agent`
+  or `gpg-agent`, are listed but kept when everything, a session's worth or a
+  session is ended: the rest of the machine uses them. Name one by its PID to
+  end it.
 - **Ending** asks each process to exit, waits two seconds and forces what did
   not. Before that it checks that each PID still runs the command it listed: a
   PID the system has since given to something else is left alone. It asks
   first; `--yes` skips the question and is required without a terminal.
 - **Idle sessions** are the ones waiting for your input for longer than
-  `--after` (two hours unless you say, never under 30 minutes). Ending one ends
-  its `claude` process and what it runs.
+  `--after` (two hours unless you say, never under 30 minutes): Claude Code
+  sessions, the only ones with a status. Ending one ends its `claude` process
+  and what it runs.
 - The session omega itself runs in is never ended, and neither is omega.
 
 It works on macOS and Linux. Windows does not let one program read another's
 environment, so there the command says so and does nothing. The desktop app has
-the same in its **Claude Code** view, which looks again every five seconds while
+the same in its **AI agents** view, which looks again every five seconds while
 it is open and marks the view with a dot when something was left behind.

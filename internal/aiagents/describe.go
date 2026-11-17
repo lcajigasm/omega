@@ -1,4 +1,4 @@
-package claudecode
+package aiagents
 
 import (
 	"bufio"
@@ -14,18 +14,23 @@ import (
 	"time"
 )
 
-// describe fills in what Claude Code's own files say: each open session's
-// ID, status and title, and the project and title of each closed one.
+// describe names each session and group after its project folder, and
+// fills in what Claude Code's own files say: each open session's ID, status
+// and title, and the title of each closed one.
 func describe(r *Report, s snap, home string) {
-	if home == "" {
-		return
+	projects := ""
+	if home != "" {
+		projects = filepath.Join(home, ".claude", "projects")
 	}
-	projects := filepath.Join(home, ".claude", "projects")
 	for i := range r.Sessions {
 		ss := &r.Sessions[i]
+		ss.Project = firstOf(base(ss.Cwd))
+		a, _ := ByID(ss.Agent)
+		if a == nil || !a.Records || home == "" {
+			continue
+		}
 		rec := readRecord(filepath.Join(home, ".claude", "sessions", strconv.Itoa(ss.PID)+".json"), s.procs[ss.PID])
 		if rec == nil {
-			ss.Project = "Claude Code"
 			continue
 		}
 		ss.ID, ss.Cwd, ss.Title = rec.SessionID, rec.Cwd, rec.Name
@@ -36,7 +41,7 @@ func describe(r *Report, s snap, home string) {
 			ss.Since = time.UnixMilli(ms)
 		}
 		info := lookup(projects, ss.ID)
-		ss.Project = firstOf(base(ss.Cwd), info.project, "Claude Code")
+		ss.Project = firstOf(base(ss.Cwd), info.project)
 		if ss.Title == "" {
 			ss.Title = info.title
 		}
@@ -53,8 +58,11 @@ func describe(r *Report, s snap, home string) {
 
 	for i := range r.Leftovers {
 		g := &r.Leftovers[i]
-		info := lookup(projects, g.Session)
-		g.Title = info.title
+		var meta info
+		if a, _ := ByID(g.Agent); a != nil && a.Records && projects != "" {
+			meta = lookup(projects, g.Session)
+		}
+		g.Title = meta.title
 		cwd := ""
 		for _, p := range g.Procs {
 			if p.Cwd != "" {
@@ -62,11 +70,7 @@ func describe(r *Report, s snap, home string) {
 				break
 			}
 		}
-		project := ""
-		if cwd != "" {
-			project = filepath.Base(cwd)
-		}
-		g.Project = firstOf(info.project, project, "unknown project")
+		g.Project = firstOf(meta.project, base(cwd))
 	}
 }
 
@@ -227,6 +231,17 @@ func details(r *Report) {
 	for i := range r.live {
 		rows = append(rows, &r.live[i])
 	}
+	// The agents' own processes, for the folder each session works in.
+	sess := make([]Proc, len(r.Sessions))
+	for i, s := range r.Sessions {
+		sess[i] = Proc{PID: s.PID}
+		rows = append(rows, &sess[i])
+	}
+	defer func() {
+		for i := range r.Sessions {
+			r.Sessions[i].Cwd = sess[i].Cwd
+		}
+	}()
 	if len(rows) == 0 {
 		return
 	}

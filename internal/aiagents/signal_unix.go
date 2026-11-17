@@ -1,6 +1,6 @@
 //go:build !windows
 
-package claudecode
+package aiagents
 
 import (
 	"errors"
