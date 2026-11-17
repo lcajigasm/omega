@@ -5,6 +5,8 @@
 - [Tuning your tools' configuration](#tuning-your-tools-configuration)
 - [Developer tools](#developer-tools)
 - [Docker cleanup](#docker-cleanup)
+- [Skills of your AI agents](#skills-of-your-ai-agents)
+- [What Claude Code left running](#what-claude-code-left-running)
 
 ## Tuning your tools' configuration
 
@@ -181,3 +183,45 @@ configuration folder exists. Skills kept inside a project (`.claude/skills`,
 
 Agents read their skills when they start, so one that is already running sees
 a change after a restart. The desktop app has the same in its **Skills** view.
+
+## What Claude Code left running
+
+Claude Code sessions end; the dev servers, watchers and emulators they started
+do not. `omega claude` finds them and ends them, without AI and without a key:
+
+```bash
+omega claude                    # what closed sessions left, and the open sessions
+omega claude kill               # end everything closed sessions left behind
+omega claude kill 4242 5d1e     # one process, and what one session left
+omega claude end 7f3a           # end an open session and what it runs
+omega claude idle --after 3h    # end the sessions waiting for you for 3 hours
+```
+
+Claude Code puts `CLAUDECODE=1` in the environment of everything it starts,
+with the ID of the session and of its own process. omega reads those markers
+from your own processes (`ps` on macOS, `/proc` on Linux). A process is left
+behind once the Claude Code process that started it is gone. Some programs keep
+their environment unreadable, Chrome among them, so whatever a marked process
+started counts too: a browser Playwright opened shows up next to Playwright, and
+an app's helper processes are folded into one row with the app.
+
+- **The list** groups the leftovers by session, with the project and the title
+  Claude Code gave it, each process's ports, memory and age, and where it runs.
+  The open sessions come after it: working or idle, for how long, and the
+  processes they have had running for more than a minute. Claude Code keeps
+  that status in `~/.claude/sessions`, which is not a documented interface: when
+  it is missing a session still shows, without a status. `--json` prints the
+  whole report.
+- **Ending** asks each process to exit, waits two seconds and forces what did
+  not. Before that it checks that each PID still runs the command it listed: a
+  PID the system has since given to something else is left alone. It asks
+  first; `--yes` skips the question and is required without a terminal.
+- **Idle sessions** are the ones waiting for your input for longer than
+  `--after` (two hours unless you say, never under 30 minutes). Ending one ends
+  its `claude` process and what it runs.
+- The session omega itself runs in is never ended, and neither is omega.
+
+It works on macOS and Linux. Windows does not let one program read another's
+environment, so there the command says so and does nothing. The desktop app has
+the same in its **Claude Code** view, which looks again every five seconds while
+it is open and marks the view with a dot when something was left behind.

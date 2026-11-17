@@ -21,6 +21,7 @@
   <button type="button" data-view="history"><i data-icon="history"></i><span class="label" data-t="gui.nav.history"></span></button>
   <button type="button" data-view="tools"><i data-icon="tools"></i><span class="label" data-t="gui.nav.tools"></span></button>
   <button type="button" data-view="skills"><i data-icon="skills"></i><span class="label" data-t="gui.nav.skills"></span></button>
+  <button type="button" data-view="claude"><i data-icon="claude"></i><span class="label" data-t="gui.nav.claude"></span><span id="claude-badge" class="badge-dot ask" hidden></span></button>
   <button type="button" data-view="system"><i data-icon="system"></i><span class="label" data-t="gui.nav.system"></span></button>
   <button type="button" data-view="settings"><i data-icon="settings"></i><span class="label" data-t="gui.nav.settings"></span></button>
   <span class="grow"></span>
@@ -189,6 +190,51 @@
             <h2 data-t="gui.skills.audit"></h2>
             <ul id="skill-notes" class="lines"></ul>
           </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="claude" class="view" hidden>
+    <div class="page">
+      <header class="head">
+        <div class="panel-head">
+          <div>
+            <h1 data-t="gui.nav.claude"></h1>
+            <p class="muted" data-t="gui.claude.intro"></p>
+            <p class="muted mono small" data-t="gui.claude.terminal"></p>
+          </div>
+          <button type="button" id="claude-refresh" data-t="gui.claude.refresh"></button>
+        </div>
+      </header>
+      <div id="claude-unsupported" class="alert" hidden><span data-t="gui.claude.unsupported"></span></div>
+      <div id="claude-body">
+        <div class="panel">
+          <div class="panel-head">
+            <div><h2 data-t="gui.claude.left"></h2><p class="muted" data-t="gui.claude.left_intro"></p></div>
+            <span id="claude-summary" class="muted nowrap"></span>
+            <button type="button" id="claude-all" data-end="all" data-label="gui.claude.end_all" data-t="gui.claude.end_all" hidden></button>
+          </div>
+          <p id="claude-clean" class="verdict ok" hidden></p>
+          <div id="claude-groups"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head">
+            <div><h2 data-t="gui.claude.open"></h2><p class="muted" data-t="gui.claude.open_intro"></p></div>
+          </div>
+          <div class="row" id="claude-idle-row">
+            <div><b data-t="gui.claude.idle_after"></b></div>
+            <select id="claude-idle">
+              <option value="30">30 min</option>
+              <option value="60">1 h</option>
+              <option value="120" selected>2 h</option>
+              <option value="240">4 h</option>
+              <option value="480">8 h</option>
+            </select>
+            <button type="button" id="claude-idle-end" data-end="idle" data-label="gui.claude.end_idle" data-t="gui.claude.end_idle"></button>
+          </div>
+          <p id="claude-none" class="muted" data-t="gui.claude.none_open" hidden></p>
+          <div id="claude-sessions"></div>
         </div>
       </div>
     </div>

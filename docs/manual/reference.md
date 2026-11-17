@@ -242,6 +242,10 @@ The JSON report has `task`, `timestamp`, `dry_run`, `steps_run` (always a list; 
 | `omega skills [list\|audit]` | the skills of your AI coding agents, who sees each one and what is wrong with them; `--json` for the inventory |
 | `omega skills install <folder\|git-url\|owner/repo>` | install the skills of a folder or a repository for every agent (`--skill`, `--to`, `--copy`, `--force`) |
 | `omega skills sync\|update\|remove` | share skills with every installed agent, update them from their source, remove them |
+| `omega claude [list]` | what closed Claude Code sessions left running and the open sessions; `--json` for the report |
+| `omega claude kill [pid\|session-id]...` | end what closed sessions left: everything, one process or one session's worth (`--yes`) |
+| `omega claude end <pid\|session-id>` | end an open session and what it runs (`--yes`) |
+| `omega claude idle [--after 2h]` | end the open sessions idle for longer than `--after`, 30 minutes at least (`--yes`) |
 | `omega disk duplicates\|large\|artifacts` | duplicate file finder by SHA-256, large files, and dev build artifact cleanup |
 | `omega audit ssh\|secrets` | SSH directory & key permissions audit, and shell history secret leak scanner |
 | `omega privacy [--clean]` | review OS telemetry and safely clean browser caches |

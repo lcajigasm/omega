@@ -68,6 +68,11 @@ every step and every setting.
   Claude Code, Codex, Gemini CLI, opencode, Cursor and GitHub Copilot, says
   which agent can see each one, finds broken links and invalid `SKILL.md` files,
   and installs, shares, updates and removes skills. No model and no key needed.
+- **What Claude Code left running** (`omega claude`): the dev servers, watchers,
+  emulators and browsers of Claude Code sessions that have closed, grouped by
+  session with their ports, memory and age, and the sessions still open,
+  working or idle. Ends one process, one session's worth or all of them, and
+  the sessions idle for longer than you allow. No model and no key needed.
 - **Developer tools** (`omega dev`): knows more than 70 languages, version managers and
   command-line tools. It shows what is installed and by which manager, finds
   overlapping version managers, shadowed commands and a broken `PATH`, installs
