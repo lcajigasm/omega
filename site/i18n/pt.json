@@ -332,6 +332,7 @@
   "cmd.dev": "Mais de 70 linguagens, gestores de versões e ferramentas: o que está instalado, o que se sobrepõe, o que está partido",
   "cmd.git": "Trabalho sem commit e sem push nas tuas pastas, ramos já integrados para apagar e <code>.git</code> para otimizar",
   "cmd.skills": "As skills do Claude Code, Codex, Gemini CLI, opencode, Cursor e Copilot: que agente vê cada uma, e como instalá-las, partilhá-las, atualizá-las e removê-las",
+  "cmd.agents": "O que as sessões fechadas do Claude Code, Codex, Gemini CLI, Cursor, Copilot, opencode e outros agentes de IA deixaram a correr (servidores de desenvolvimento, watchers, emuladores, navegadores), com portas e memória, e as sessões abertas, e como terminá-las",
   "cmd.tune": "Revê a configuração das tuas ferramentas à luz da documentação atual, e cita-a",
   "cmd.audit": "Chaves SSH e as respetivas permissões em <code>~/.ssh</code>, e segredos esquecidos no histórico da shell",
   "cmd.privacy": "Revê a telemetria do sistema e limpa as caches do navegador sem fechar as tuas sessões",

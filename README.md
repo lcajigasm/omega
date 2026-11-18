@@ -140,6 +140,7 @@ topgrade and Mole are excellent until something breaks. Then the work is yours.
 | **Developer setup** | `omega dev` | More than 70 languages, version managers and tools: what is installed, what overlaps, what is broken |
 | **Git hygiene** | `omega git` | Scans dev folders for uncommitted/unpushed work, deletes merged branches and optimizes `.git` |
 | **AI agent skills** | `omega skills` | Lists the skills of Claude Code, Codex, Gemini CLI, opencode, Cursor and Copilot, says which agent sees each one, and installs, shares, updates and removes them |
+| **AI agent leftovers** | `omega agents` | Finds the dev servers, watchers, emulators and browsers that closed sessions of Claude Code, Codex, Gemini CLI, Cursor, Copilot, opencode and other AI agents left running, with their ports and memory, and ends them; lists the open sessions and ends the idle ones |
 | **Disk & artifacts** | `omega disk` | Finds duplicate files by SHA-256, locates large files, and prunes stale build folders (`node_modules`, `target`, `.venv`) |
 | **Network & DNS** | `omega net` | Universal DNS flush, package registry latency test, port conflict hunter and hosts/proxy auditor |
 | **Security audit** | `omega audit` | Audits SSH keys and permissions (`~/.ssh`), and scans shell history for leaked secrets |
@@ -311,7 +312,8 @@ model and no key: registry latency, listening ports, SSH keys, secrets left in
 the shell history, large and duplicate files, stale build folders and the state
 of your repositories. The **Skills** view manages the skills of your AI coding
 agents: what is installed, which agent can see it, and installing, sharing,
-updating and removing them. On a Mac, when macOS blocks something for lack of a
+updating and removing them. The **AI agents** view shows what closed agent
+sessions left running and the sessions still open, and ends them in two clicks. On a Mac, when macOS blocks something for lack of a
 privacy permission, the app and the command show a card that opens the right
 pane of System Settings and retry once you have granted it.
 

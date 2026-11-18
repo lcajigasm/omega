@@ -34,6 +34,7 @@ const icons = {
   tools: '<path d="M4 6h16M4 12h10M4 18h7"/><circle cx="18" cy="16" r="3"/><path d="M20.2 18.2L22 20"/>',
   quick: '<path d="M13 3L5 13h6l-1 8 8-10h-6z"/>',
   skills: '<path d="M12 3l8 4.5-8 4.5-8-4.5z"/><path d="M4 12l8 4.5 8-4.5M4 16.5L12 21l8-4.5"/>',
+  agents: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M13 15h4"/>',
 };
 icons.full = icons.home;
 
@@ -75,8 +76,8 @@ function applyTexts() {
   showProvider();
 }
 
-const views = ["home", "session", "history", "tools", "skills", "system", "settings"];
-const loaders = { home: showHome, session: showSession, history: showHistory, tools: showTools, skills: showSkills, system: showSystem, settings: showSettings };
+const views = ["home", "session", "history", "tools", "skills", "agents", "system", "settings"];
+const loaders = { home: showHome, session: showSession, history: showHistory, tools: showTools, skills: showSkills, agents: showAgents, system: showSystem, settings: showSettings };
 let view = "";
 
 function go(name) {
@@ -804,6 +805,132 @@ function disarm() {
   armed = null;
 }
 
+// ---------- AI agents ----------
+
+let agentsTimer = 0;
+let agentsBusy = false;
+
+const fill = (key, ...args) => args.reduce((text, a) => text.replace(/%[ds]/, a), t(key));
+
+// procRow is one process: what it runs, where, its ports and age.
+function procRow(p, end) {
+  const row = el("div", "row proc");
+  const body = el("div");
+  const head = el("div", "proc-head");
+  head.append(el("b", "", p.name));
+  if (p.helpers) head.append(el("span", "muted small", fill("gui.agents.helpers", p.helpers)));
+  for (const port of p.ports ?? []) head.append(el("span", "badge good", ":" + port));
+  if (p.shared) head.append(el("span", "badge normal", t("gui.agents.shared")));
+  body.append(head, el("p", "mono muted small selectable cmd", p.command));
+  const where = ["pid " + p.pid, p.age, p.cwd].filter(Boolean).join(" · ");
+  body.append(el("p", "muted small selectable", where));
+  row.append(body, el("span", "nowrap mem", p.memory));
+  if (end) row.append(endButton("proc", String(p.pid), "gui.agents.end"));
+  return row;
+}
+
+function endButton(what, id, label) {
+  const b = el("button", "", t(label));
+  b.type = "button";
+  b.dataset.end = what;
+  b.dataset.id = id;
+  b.dataset.label = label;
+  return b;
+}
+
+// showAgents draws what closed sessions left and the open sessions. While
+// the view is open it looks again every five seconds.
+async function showAgents() {
+  clearTimeout(agentsTimer);
+  const v = await call("Agents");
+  $("agents-badge").hidden = !v.count;
+  if (view !== "agents") return;
+  agentsTimer = setTimeout(() => showAgents().catch(() => {}), 5000);
+  $("agents-known").textContent = fill("gui.agents.known", v.known);
+  $("agents-unsupported").hidden = v.supported;
+  $("agents-body").hidden = !v.supported;
+  // An armed button would be drawn again unarmed under the pointer.
+  if (!v.supported || armedEnd || agentsBusy) return;
+
+  $("agents-summary").textContent = v.count ? fill("gui.agents.summary", v.count, v.memory) : "";
+  $("agents-all").hidden = !v.count;
+  $("agents-clean").hidden = !!(v.count + v.shared);
+  $("agents-clean").textContent = "✓ " + t("gui.agents.clean");
+  $("agents-groups").replaceChildren(...v.leftovers.map((g) => {
+    const box = el("div", "agents-group");
+    const head = el("div", "row group-head");
+    const title = el("div");
+    const line = el("div", "proc-head");
+    line.append(el("span", "badge", g.agent));
+    if (g.project) line.append(el("b", "", g.project));
+    if (g.short) line.append(el("span", "mono muted small", g.short));
+    title.append(line);
+    if (g.title) title.append(el("p", "muted small", g.title));
+    head.append(title, el("span", "nowrap mem", g.memory), endButton("group", g.id, "gui.agents.end_group"));
+    box.append(head, ...g.procs.map((p) => procRow(p, true)));
+    return box;
+  }));
+
+  $("agents-none").hidden = v.sessions.length > 0;
+  $("agents-idle-row").hidden = !v.sessions.some((s) => s.status === "idle" && !s.current);
+  $("agents-sessions").replaceChildren(...v.sessions.map((s) => {
+    const box = el("div", "agents-group");
+    const head = el("div", "row group-head");
+    const title = el("div");
+    const line = el("div", "proc-head");
+    line.append(el("span", "badge", s.agent));
+    if (s.project) line.append(el("b", "", s.project));
+    if (s.id) line.append(el("span", "mono muted small", s.id.slice(0, 8)));
+    title.append(line);
+    if (s.title) title.append(el("p", "muted small", s.title));
+    title.append(el("p", "muted small", "pid " + s.pid + " · " + s.age));
+    const state = el("span", "badge " + (s.status === "busy" ? "good" : s.status === "idle" ? "normal" : ""), s.state);
+    head.append(title, state, el("span", "nowrap mem", s.memory));
+    if (s.current) head.append(el("span", "badge", t("gui.agents.this")));
+    else if (s.service) head.append(el("span", "badge", t("gui.agents.service")));
+    else head.append(endButton("session", String(s.pid), "gui.agents.end_session"));
+    box.append(head, ...s.procs.map((p) => procRow(p, false)));
+    return box;
+  }));
+}
+
+// Ending takes two clicks: the first arms the button for four seconds.
+let armedEnd = null;
+function disarmEnd() {
+  if (!armedEnd) return;
+  clearTimeout(armedEnd.dataset.timer);
+  armedEnd.textContent = t(armedEnd.dataset.label);
+  armedEnd.classList.remove("danger");
+  armedEnd = null;
+}
+
+async function endAgents(button) {
+  if (agentsBusy) return;
+  if (armedEnd !== button) {
+    disarmEnd();
+    armedEnd = button;
+    button.textContent = t("gui.confirm_again");
+    button.classList.add("danger");
+    button.dataset.timer = setTimeout(disarmEnd, 4000);
+    return;
+  }
+  disarmEnd();
+  const what = button.dataset.end;
+  const id = what === "idle" ? $("agents-idle").value : button.dataset.id ?? "";
+  agentsBusy = true;
+  const buttons = [...document.querySelectorAll("#agents button")];
+  for (const b of buttons) b.disabled = true;
+  try {
+    toast(await call("AgentEnd", what, id));
+  } catch (err) {
+    toastError(err);
+  } finally {
+    agentsBusy = false;
+    for (const b of buttons) b.disabled = false;
+  }
+  await showAgents().catch(toastError);
+}
+
 // ---------- status ----------
 
 async function showSystem() {
@@ -997,6 +1124,8 @@ function wire() {
     if (act) return skillAction(act.dataset.skillAct, "one" in act.dataset ? openSkill : "", "");
     const gone = e.target.closest?.("[data-skill-remove]");
     if (gone) return removeSkill(gone);
+    const end = e.target.closest?.("#agents [data-end]");
+    if (end) return endAgents(end);
     const run = e.target.closest?.("#runs .run");
     if (run) return showRun(run.dataset.run).catch(toastError);
     const mode = e.target.closest?.("#mode button");
@@ -1023,7 +1152,7 @@ function wire() {
   }
   $("nav-provider").addEventListener("click", () => go("settings"));
 
-  // Ctrl or ⌘ with 1 to 7 changes the view.
+  // Ctrl or ⌘ with 1 to 8 changes the view.
   document.addEventListener("keydown", (e) => {
     const n = Number(e.key);
     if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && n >= 1 && n <= views.length) {
@@ -1079,6 +1208,7 @@ function wire() {
     wails.Clipboard.SetText($("tool-out").textContent).then(() => toast(t("gui.copied") + " ✓"), toastError);
   });
   $("check-run").addEventListener("click", () => runCheck().catch(toastError));
+  $("agents-refresh").addEventListener("click", () => showAgents().catch(toastError));
   $("steps").addEventListener("change", (e) => {
     const id = e.target.dataset.step;
     if (!id) return;
@@ -1163,6 +1293,8 @@ async function init() {
   const running = await resume().catch(() => (replaying = false));
   // Without a provider there is nothing to start: open where one is chosen.
   go(running ? "session" : info.ready || info.demo ? "home" : "settings");
+  // The dot on the AI agents view says something was left behind.
+  call("Agents").then((v) => ($("agents-badge").hidden = !v.count), () => {});
 }
 
 init().catch((err) => {

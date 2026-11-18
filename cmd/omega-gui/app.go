@@ -223,6 +223,16 @@ func (a *App) SkillAction(action, name, arg string) (string, error) {
 	return cli.SkillAction(action, name, arg)
 }
 
+// Agents lists what closed AI agent sessions left running and the sessions
+// still open.
+func (a *App) Agents() (cli.AgentsView, error) { return cli.AgentList() }
+
+// AgentEnd ends what an agent left: "proc" (id is a PID), "group" (id is an
+// agent and a closed session), "all", "session" (id is the PID of an open
+// session) or "idle" (id is minutes). What is ended is looked up again, so
+// only processes the screen could show are ended.
+func (a *App) AgentEnd(what, id string) (string, error) { return cli.AgentEnd(what, id) }
+
 // Providers lists the providers for the setup screen.
 func (a *App) Providers() ([]cli.ProviderStatus, error) { return cli.SetupProviders() }
 

@@ -21,6 +21,7 @@
   <button type="button" data-view="history"><i data-icon="history"></i><span class="label" data-t="gui.nav.history"></span></button>
   <button type="button" data-view="tools"><i data-icon="tools"></i><span class="label" data-t="gui.nav.tools"></span></button>
   <button type="button" data-view="skills"><i data-icon="skills"></i><span class="label" data-t="gui.nav.skills"></span></button>
+  <button type="button" data-view="agents"><i data-icon="agents"></i><span class="label" data-t="gui.nav.agents"></span><span id="agents-badge" class="badge-dot ask" hidden></span></button>
   <button type="button" data-view="system"><i data-icon="system"></i><span class="label" data-t="gui.nav.system"></span></button>
   <button type="button" data-view="settings"><i data-icon="settings"></i><span class="label" data-t="gui.nav.settings"></span></button>
   <span class="grow"></span>
@@ -189,6 +190,52 @@
             <h2 data-t="gui.skills.audit"></h2>
             <ul id="skill-notes" class="lines"></ul>
           </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="agents" class="view" hidden>
+    <div class="page">
+      <header class="head">
+        <div class="panel-head">
+          <div>
+            <h1 data-t="gui.nav.agents"></h1>
+            <p class="muted" data-t="gui.agents.intro"></p>
+            <p id="agents-known" class="muted small"></p>
+            <p class="muted mono small" data-t="gui.agents.terminal"></p>
+          </div>
+          <button type="button" id="agents-refresh" data-t="gui.agents.refresh"></button>
+        </div>
+      </header>
+      <div id="agents-unsupported" class="alert" hidden><span data-t="gui.agents.unsupported"></span></div>
+      <div id="agents-body">
+        <div class="panel">
+          <div class="panel-head">
+            <div><h2 data-t="gui.agents.left"></h2><p class="muted" data-t="gui.agents.left_intro"></p></div>
+            <span id="agents-summary" class="muted nowrap"></span>
+            <button type="button" id="agents-all" data-end="all" data-label="gui.agents.end_all" data-t="gui.agents.end_all" hidden></button>
+          </div>
+          <p id="agents-clean" class="verdict ok" hidden></p>
+          <div id="agents-groups"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head">
+            <div><h2 data-t="gui.agents.open"></h2><p class="muted" data-t="gui.agents.open_intro"></p></div>
+          </div>
+          <div class="row" id="agents-idle-row">
+            <div><b data-t="gui.agents.idle_after"></b></div>
+            <select id="agents-idle">
+              <option value="30">30 min</option>
+              <option value="60">1 h</option>
+              <option value="120" selected>2 h</option>
+              <option value="240">4 h</option>
+              <option value="480">8 h</option>
+            </select>
+            <button type="button" id="agents-idle-end" data-end="idle" data-label="gui.agents.end_idle" data-t="gui.agents.end_idle"></button>
+          </div>
+          <p id="agents-none" class="muted" data-t="gui.agents.none_open" hidden></p>
+          <div id="agents-sessions"></div>
         </div>
       </div>
     </div>
