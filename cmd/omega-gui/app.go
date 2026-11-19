@@ -6,10 +6,12 @@ import (
 	"context"
 	"errors"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/lcajigasm/omega/internal/agent"
+	"github.com/lcajigasm/omega/internal/assist"
 	"github.com/lcajigasm/omega/internal/cli"
 	"github.com/lcajigasm/omega/internal/gui"
 	"github.com/lcajigasm/omega/internal/i18n"
@@ -221,6 +223,19 @@ func (a *App) Skills() (cli.SkillsView, error) { return cli.SkillList() }
 // command printed. An empty name means every skill for sync and update.
 func (a *App) SkillAction(action, name, arg string) (string, error) {
 	return cli.SkillAction(action, name, arg)
+}
+
+// Configure is the disk limits and the configuration assistants.
+func (a *App) Configure() assist.Report { return cli.AssistReport() }
+
+// ConfigureApply applies one check: value "" is the recommended one, "now"
+// empties a budget's folder.
+func (a *App) ConfigureApply(id, value string) (string, error) { return cli.AssistApply(id, value) }
+
+// ConfigureEnforce frees what is over its limit and says what it did.
+func (a *App) ConfigureEnforce() (string, error) {
+	lines, err := cli.DiskEnforce(false)
+	return strings.Join(lines, "\n"), err
 }
 
 // Agents lists what closed AI agent sessions left running and the sessions

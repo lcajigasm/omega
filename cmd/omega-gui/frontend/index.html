@@ -21,6 +21,7 @@
   <button type="button" data-view="history"><i data-icon="history"></i><span class="label" data-t="gui.nav.history"></span></button>
   <button type="button" data-view="tools"><i data-icon="tools"></i><span class="label" data-t="gui.nav.tools"></span></button>
   <button type="button" data-view="skills"><i data-icon="skills"></i><span class="label" data-t="gui.nav.skills"></span></button>
+  <button type="button" data-view="configure"><i data-icon="configure"></i><span class="label" data-t="gui.nav.configure"></span><span id="configure-badge" class="badge-dot ask" hidden></span></button>
   <button type="button" data-view="agents"><i data-icon="agents"></i><span class="label" data-t="gui.nav.agents"></span><span id="agents-badge" class="badge-dot ask" hidden></span></button>
   <button type="button" data-view="system"><i data-icon="system"></i><span class="label" data-t="gui.nav.system"></span></button>
   <button type="button" data-view="settings"><i data-icon="settings"></i><span class="label" data-t="gui.nav.settings"></span></button>
@@ -191,6 +192,39 @@
             <ul id="skill-notes" class="lines"></ul>
           </div>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="configure" class="view" hidden>
+    <div class="page">
+      <header class="head">
+        <div class="panel-head">
+          <div>
+            <h1 data-t="gui.nav.configure"></h1>
+            <p class="muted" data-t="gui.cfg.intro"></p>
+            <p class="muted mono small" data-t="gui.cfg.terminal"></p>
+          </div>
+          <button type="button" id="cfg-refresh" data-t="gui.agents.refresh"></button>
+        </div>
+      </header>
+      <div class="panel">
+        <div class="panel-head">
+          <div><h2 data-t="gui.cfg.disk"></h2><p class="muted" data-t="gui.cfg.disk_intro"></p></div>
+          <span id="cfg-summary" class="muted nowrap"></span>
+        </div>
+        <div class="buttons">
+          <button type="button" id="cfg-apply-all" data-cfg="all" data-label="gui.cfg.apply_all" data-t="gui.cfg.apply_all"></button>
+          <button type="button" id="cfg-enforce" data-cfg="enforce" data-label="gui.cfg.enforce" data-t="gui.cfg.enforce"></button>
+        </div>
+        <div id="cfg-disk"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <div><h2 data-t="gui.cfg.tools"></h2><p class="muted" data-t="gui.cfg.tools_intro"></p></div>
+        </div>
+        <div id="cfg-tools"></div>
+        <p id="cfg-missing" class="muted small"></p>
       </div>
     </div>
   </section>

@@ -141,6 +141,10 @@ topgrade and Mole are excellent until something breaks. Then the work is yours.
 | **Git hygiene** | `omega git` | Scans dev folders for uncommitted/unpushed work, deletes merged branches and optimizes `.git` |
 | **AI agent skills** | `omega skills` | Lists the skills of Claude Code, Codex, Gemini CLI, opencode, Cursor and Copilot, says which agent sees each one, and installs, shares, updates and removes them |
 | **AI agent leftovers** | `omega agents` | Finds the dev servers, watchers, emulators and browsers that closed sessions of Claude Code, Codex, Gemini CLI, Cursor, Copilot, opencode and other AI agents left running, with their ports and memory, and ends them; lists the open sessions and ends the idle ones |
+| **Disk limits** | `omega disk limits` | What Claude Desktop, Claude Code, ChatGPT/Codex, Docker, Cursor, Homebrew and Xcode take on disk, and a limit for each: written in the tool's own configuration where it has one (Docker's build cache, logs and disk image, Claude Code's conversations, Codex's history, Homebrew's downloads), kept by omega where it has none (Claude Desktop's VM image, caches, DerivedData), and the old versions updaters keep, freed |
+| **Configuration assistants** | `omega assist` | Checks Claude Code, Claude Desktop, ChatGPT/Codex, Grok, Docker, Cursor, VS Code, Gemini CLI, Homebrew, Xcode and Ollama and sets what is worth setting in their own files, after keeping a copy: limits, deny rules that keep agents out of `.env` files and keys, omega's MCP server |
+| **For AI agents** | `omega mcp` | An MCP server, so Claude, Codex, Cursor and Gemini CLI use omega's commands and read its manual instead of improvising |
+| **Ask the manual** | `omega docs ask "…"` | Answers in your language from the manual with your model, with the commands to type; `omega docs search` works offline |
 | **Disk & artifacts** | `omega disk` | Finds duplicate files by SHA-256, locates large files, and prunes stale build folders (`node_modules`, `target`, `.venv`) |
 | **Network & DNS** | `omega net` | Universal DNS flush, package registry latency test, port conflict hunter and hosts/proxy auditor |
 | **Security audit** | `omega audit` | Audits SSH keys and permissions (`~/.ssh`), and scans shell history for leaked secrets |
@@ -312,7 +316,9 @@ model and no key: registry latency, listening ports, SSH keys, secrets left in
 the shell history, large and duplicate files, stale build folders and the state
 of your repositories. The **Skills** view manages the skills of your AI coding
 agents: what is installed, which agent can see it, and installing, sharing,
-updating and removing them. The **AI agents** view shows what closed agent
+updating and removing them. The **Configure** view has the disk limits and
+the configuration assistants: what each tool takes, its limit, and the settings
+and actions of each one. The **AI agents** view shows what closed agent
 sessions left running and the sessions still open, and ends them in two clicks. On a Mac, when macOS blocks something for lack of a
 privacy permission, the app and the command show a card that opens the right
 pane of System Settings and retry once you have granted it.
@@ -326,7 +332,8 @@ and API keys: have both, or only one. More in
 - **Deterministic offline mode**: run `omega --no-ai` or `omega --offline` for completely deterministic maintenance without calling external AI models or needing API keys. It covers `full`, `quick`, `update`, `clean`, `analyze` and `health`; a request in your own words needs the AI.
 - **CI/CD & Scripting ready**: structured JSON output with `--json` (or `--format json`), also for `omega steps --json` and `omega doctor --json`; with `--no-ai`, quiet mode `-q` and assertion flags `--fail-on-warning`, `--fail-on-outdated`, and `--fail-on-critical` with semantic exit codes.
 - **Custom steps & lifecycle hooks**: define custom steps in `~/.config/omega/steps.d/*.toml` and configure lifecycle hooks (`pre_<task>`, `post_<task>`, `on_error`). A file omega cannot use is reported at startup and by `omega doctor`.
-- **Autocompletions & man pages**: install completions automatically with `omega completion install` and generate troff man pages with `omega man`.
+- **Help that answers**: `omega --help` groups the commands by what they are for; `omega docs ask "how do I…?"` answers from the manual in your language; `omega man` writes a man page with every command, option and example.
+- **Autocompletions**: install completions automatically with `omega completion install`.
 - **Speaks five languages**: English, Spanish, French, German and Portuguese,
   in the command, in the app and on the [website](https://lcajigasm.github.io/omega/).
 - **Remembers**: it learns from each run and starts there next time.
@@ -350,6 +357,7 @@ and API keys: have both, or only one. More in
 | [Linux](docs/manual/linux.md) | [Windows](docs/manual/windows.md) |
 | [Safety, approvals and memory](docs/manual/safety.md) | [Reference: steps, configuration, commands](docs/manual/reference.md) |
 | [Troubleshooting and FAQ](docs/manual/help.md) | [How it works, development and releasing](docs/manual/development.md) |
+| [Assistants, disk limits, MCP and the manual](docs/manual/assistants.md) | |
 
 `omega doctor` checks your setup and says when a newer release exists.
 

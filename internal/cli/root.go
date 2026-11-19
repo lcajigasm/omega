@@ -126,10 +126,42 @@ func newRoot(f *runFlags) *cobra.Command {
 		fullCmd(), quickCmd(f), fixCmd(f), setupCmd(), group(authCmd()), modelCmd(), modelsCmd(),
 		dockerCmd(), macCmd(), devCmd(), menuCmd(), group(configCmd()), stepsCmd(), notesCmd(),
 		logsCmd(), doctorCmd(), group(netCmd()), group(auditCmd()), privacyCmd(), group(gitCmd()), group(diskCmd()),
-		uninstallCmd(), skillsCmd(), agentsCmd(), group(scheduleCmd()), rollbackCmd(), exportCmd(), bootstrapCmd(), shellCmd(),
+		uninstallCmd(), skillsCmd(), agentsCmd(), assistCmd(), mcpCmd(), docsCmd(root), group(scheduleCmd()), rollbackCmd(), exportCmd(), bootstrapCmd(), shellCmd(),
 		completionGroup(completionCmd(root)), manCmd(root),
 	)
+	groupCommands(root)
 	return root
+}
+
+// commandGroups sorts the commands of `omega --help` by what they are for,
+// so the list reads as a map rather than an alphabet.
+var commandGroups = []struct {
+	id, title string
+	names     []string
+}{
+	{"run", "help.g.run", []string{"full", "quick", "fix", "menu", "shell", "schedule", "rollback"}},
+	{"tools", "help.g.tools", []string{"assist", "agents", "skills", "dev", "docker", "mac", "uninstall"}},
+	{"system", "help.g.system", []string{"disk", "net", "git", "audit", "privacy"}},
+	{"setup", "help.g.setup", []string{"setup", "auth", "model", "models", "config", "steps", "notes", "logs", "doctor", "export", "bootstrap"}},
+	{"help", "help.g.help", []string{"docs", "man", "mcp", "completion", "help"}},
+}
+
+func groupCommands(root *cobra.Command) {
+	group := map[string]string{}
+	for _, g := range commandGroups {
+		root.AddGroup(&cobra.Group{ID: g.id, Title: i18n.T(g.title)})
+		for _, n := range g.names {
+			group[n] = g.id
+		}
+	}
+	root.SetHelpCommandGroupID("help")
+	root.SetCompletionCommandGroupID("help")
+	for _, c := range root.Commands() {
+		if id, ok := group[c.Name()]; ok {
+			c.GroupID = id
+		}
+	}
+	root.SetUsageTemplate(root.UsageTemplate() + "\n" + i18n.T("help.ask") + "\n")
 }
 
 // group finishes a command that only holds subcommands. On its own it shows
