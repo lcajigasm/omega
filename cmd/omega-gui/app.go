@@ -38,6 +38,9 @@ type App struct {
 	// closing the window.
 	quitting bool
 	quit     func()
+	// full is the guided run in progress, nil when there is none. Between
+	// two of its stages there is no bridge, and the run still holds the app.
+	full *fullRun
 }
 
 // maxLog is how many messages of a session are kept for a window drawn
@@ -71,7 +74,7 @@ type SessionState struct {
 func (a *App) Session() SessionState {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	return SessionState{Running: a.bridge != nil || a.starting, Info: a.title, Prompt: a.prompt,
+	return SessionState{Running: a.busy(), Info: a.title, Prompt: a.prompt,
 		Messages: append([]gui.Message{}, a.log...)}
 }
 
@@ -84,6 +87,8 @@ func local(err error) error {
 		return errors.New(i18n.T("gui.err.running"))
 	case errors.Is(err, errNoSession):
 		return errors.New(i18n.T("gui.err.no_session"))
+	case errors.Is(err, errNoStages):
+		return errors.New(i18n.T("gui.full.none"))
 	case errors.Is(err, gui.ErrNoRequest):
 		return errors.New(i18n.T("gui.err.no_request"))
 	case errors.Is(err, gui.ErrBusy):
@@ -145,7 +150,7 @@ func (a *App) Info() Info {
 	in := Info{Version: cli.Version(), OS: runtime.GOOS, Lang: i18n.Lang(), Demo: a.demo,
 		Tagline: i18n.T("ui.welcome_tagline"), LastRun: cli.LastRun(),
 		Text: i18n.WithPrefix("gui.", "setup.no_key", "ui.mode_", "ui.password_", "ui.always_note", "ui.denied", "ui.confirm",
-			"ui.model_switch", "logs.empty", "notes.empty")}
+			"ui.model_switch", "logs.empty", "notes.empty", "full.")}
 	in.Provider, in.Ready = cli.CurrentProvider()
 	for _, id := range homeTasks {
 		if _, ok := agent.TaskPrompts[id]; !ok || (id == agent.TaskMac && runtime.GOOS != "darwin") {
@@ -245,6 +250,7 @@ func (a *App) SaveSetup(provider, key, baseURL string) (cli.SetupResult, error) 
 var (
 	errRunning   = errors.New("a session is already running")
 	errNoSession = errors.New("no session is running")
+	errNoStages  = errors.New("no stage is ticked")
 )
 
 // Start begins a session: a preset task, or prompt as free text.
@@ -253,7 +259,7 @@ func (a *App) Start(task, prompt string, dryRun bool) (SessionInfo, error) {
 	// provider and the model are looked up: that goes over the network, and
 	// Stop and closing the window must not wait for it. Stop cancels ctx.
 	a.mu.Lock()
-	if a.bridge != nil || a.starting {
+	if a.busy() {
 		a.mu.Unlock()
 		return SessionInfo{}, local(errRunning)
 	}
@@ -346,6 +352,9 @@ func (a *App) SetMode(mode string) (string, error) {
 	}
 	a.mu.Lock()
 	a.title.Mode = b.Mode()
+	if a.full != nil {
+		a.full.mode = b.Mode() // the stages after this one keep it
+	}
 	a.mu.Unlock()
 	return b.Mode(), nil
 }
@@ -355,6 +364,14 @@ func (a *App) SetMode(mode string) (string, error) {
 func (a *App) Stop() {
 	a.mu.Lock()
 	cancel := a.cancel
+	if f := a.full; f != nil {
+		// In a guided run Stop ends the stage that is running, and the run
+		// asks what to do next; between two stages it ends the run.
+		if f.stop != nil {
+			f.stopped = true
+			cancel = f.stop
+		}
+	}
 	a.mu.Unlock()
 	if cancel != nil {
 		cancel()
@@ -365,15 +382,18 @@ func (a *App) Stop() {
 func (a *App) Busy() bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	return a.bridge != nil || a.starting
+	return a.busy()
 }
+
+// busy is Busy with a.mu held.
+func (a *App) busy() bool { return a.bridge != nil || a.starting || a.full != nil }
 
 // closing is asked when the window is about to close. It answers whether
 // it may: with a session running the window stays and asks the user, since
 // closing stops the command in flight.
 func (a *App) closing() bool {
 	a.mu.Lock()
-	busy := (a.bridge != nil || a.starting) && !a.quitting
+	busy := a.busy() && !a.quitting
 	a.mu.Unlock()
 	if busy {
 		a.emit(gui.Message{Kind: "quit_ask"})

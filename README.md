@@ -307,6 +307,8 @@ xattr -dr com.apple.quarantine /Applications/Omega.app   # after every install o
 | Windows 10 and 11 | `omega-gui_<version>_windows_amd64.zip` or `arm64`, from the [latest release](https://github.com/lcajigasm/omega/releases/latest) | extract it and open `omega-gui.exe`; SmartScreen warns once: More info, then Run anyway |
 | Linux | `omega-gui_<version>_linux_amd64.tar.gz` or `arm64`, from the [latest release](https://github.com/lcajigasm/omega/releases/latest) | extract it and run `./omega-gui`; it needs GTK 4 and WebKitGTK 6.0 |
 
+**Full maintenance** in the app is the guided run of `omega full`: the same
+plan and stages, with go on, skip, repeat and finish between two of them.
 Besides the tasks, the app has a **Tools** view with the checks that need no
 model and no key: registry latency, listening ports, SSH keys, secrets left in
 the shell history, large and duplicate files, stale build folders and the state

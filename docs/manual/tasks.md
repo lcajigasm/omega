@@ -82,6 +82,15 @@ Without a terminal (a scheduled job) `omega full --yes` runs every ticked
 stage and exits with an error when one failed; `ctrl+c` stops the stage and
 the run.
 
+In the desktop app, **Full maintenance** on the home screen is the same run:
+the plan opens first with every stage ticked, and each stage then runs in the
+session view, with the stages in a row above it. A stage that has not run is
+ticked or unticked there with a click, at any time. **Stop this stage** ends
+the one running; between two stages a card offers to go on, skip the next,
+repeat the last one when it failed or was stopped, or finish there. The
+summary closes the session. *Read only* on the home screen makes every stage
+read only, as `--dry-run` does.
+
 `omega` alone is still the quick maintenance (check, update, clean, summarise)
 in a single session. `omega full` used to be another name for it and is now the
 guided run; `omega all` and `omega everything` start it too.
