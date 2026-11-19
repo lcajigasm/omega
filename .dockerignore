@@ -4,4 +4,6 @@
 !go.sum
 !cmd
 !internal
+!docs/manual/*.md
+!docs/manual/*.go
 !LICENSE
