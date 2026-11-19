@@ -121,10 +121,10 @@ func LoadPolicy() (*UserPolicy, error) {
 
 // Save writes mac.toml.
 func (p *UserPolicy) Save() error {
-	if err := os.MkdirAll(config.Dir(), 0o755); err != nil {
+	if err := os.MkdirAll(config.Dir(), 0o700); err != nil {
 		return err
 	}
-	f, err := os.Create(PolicyPath())
+	f, err := os.OpenFile(PolicyPath(), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
 		return err
 	}

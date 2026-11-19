@@ -15,8 +15,8 @@ commands with `&&`, `;`, `|`) and applies the highest risk level found:
 | **read-only** | `brew outdated`, `df -h`, `git config --list`, `docker system df`, any `--dry-run` or `--help` | runs |
 | **normal** | `brew upgrade`, `npm update -g`, `pipx upgrade-all`, `rustup update` | runs |
 | **dangerous** | `rm`, `sudo`, output redirection to a file, `sed -i`, `find -delete`, editing configs, **any unknown command** | asks |
-| **always ask** | `docker … prune`, `docker rm`, `docker rmi`, `docker volume rm` | asks every time, even with `--yes` |
-| **blocked** | `rm -rf ~` or `/` (extra flags and `..` still count), `find / -delete`, `diskutil erase…`, `dd of=/dev/…`, `curl … \| sh`, `csrutil disable`, `nvram`, reading a private key or a credential file (`~/.ssh/id_ed25519`, `~/.aws/credentials`, `~/.netrc`, `.env`, `security … -w`) | never runs |
+| **always ask** | `docker … prune`, `docker rm`, `docker rmi`, `docker volume rm`; from the model also code the policy cannot read: `… \| sh`, `sh file`, `python3 -c …`, `base64 -d \| …`, `docker run -v ~:/h …` | asks every time, even with `--yes` |
+| **blocked** | `rm -rf ~` or `/` (extra flags and `..` still count), `find / -delete`, `diskutil erase…`, `dd of=/dev/…`, `curl … \| sh`, `csrutil disable`, `nvram`, `sudo -A`, reading a private key or a credential file (`~/.ssh/id_ed25519`, `~/.aws/credentials`, `~/.netrc`, `.env`, `security … -w`), a program that prints a credential (`gh auth token`) | never runs |
 
 - `omega config set approval all`: also ask before normal updates.
 - `omega config set approval never`, or `--yes`: never ask, except for Docker
@@ -68,7 +68,14 @@ commands with `&&`, `;`, `|`) and applies the highest risk level found:
   is left out, a step cannot take the id of one of omega's, and a file that
   another user of the machine could write is not read.
 - git is always called with `core.fsmonitor` off, so looking at a folder that
-  came with its own `.git/config` does not run the program it names.
+  came with its own `.git/config` does not run the program it names. A
+  repository whose configuration names other programs for git (a filter, a
+  text converter, an alias, a pager) is recognised: `omega git` and
+  `omega disk artifacts` leave it alone and say so, and a `git status` from
+  the agent there waits for approval.
+- `write_file` shows the content of a new file on its card, and always asks
+  before replacing a credential file or a program that is already there.
+- One turn of the model runs at most 40 tool calls, 8 at a time.
 - Denied actions are shown in the interface and recorded in the run log.
 - The agent is instructed never to touch personal data (Documents, Desktop,
   Downloads, Photos, iCloud, SSH keys, keychains).

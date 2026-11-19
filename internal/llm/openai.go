@@ -25,6 +25,11 @@ type openAICompat struct {
 	after func(time.Duration) <-chan time.Time
 }
 
+// maxResponse is the most that is read of one answer of a provider. A
+// model list or an error is far smaller; an endpoint that never stops
+// sending would otherwise fill the memory.
+const maxResponse = 32 << 20
+
 func newOpenAICompat(name string, opts Options) *openAICompat {
 	opts.BaseURL = strings.TrimRight(opts.BaseURL, "/")
 	return &openAICompat{name: name, opts: opts, http: &http.Client{Timeout: 10 * time.Minute}}
@@ -58,7 +63,7 @@ func (p *openAICompat) Models(ctx context.Context) ([]string, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
-	body, _ := io.ReadAll(resp.Body)
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, maxResponse))
 	if resp.StatusCode != http.StatusOK {
 		return nil, apiError(resp.StatusCode, body)
 	}
@@ -93,7 +98,7 @@ func (p *openAICompat) verify(ctx context.Context) error {
 		return err
 	}
 	defer resp.Body.Close()
-	body, _ := io.ReadAll(resp.Body)
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, maxResponse))
 	if resp.StatusCode != http.StatusOK {
 		return apiError(resp.StatusCode, body)
 	}
@@ -307,7 +312,7 @@ func (c *openAIChat) post(ctx context.Context, body map[string]any) ([]byte, err
 			lastErr = err
 			continue
 		}
-		raw, _ := io.ReadAll(resp.Body)
+		raw, _ := io.ReadAll(io.LimitReader(resp.Body, maxResponse))
 		resp.Body.Close()
 		if resp.StatusCode == http.StatusOK {
 			return raw, nil

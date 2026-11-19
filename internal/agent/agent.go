@@ -336,12 +336,28 @@ func (a *Agent) Run(ctx context.Context, task string) {
 	}
 }
 
+// Limits of one turn: how many tool calls it may hold and how many of the
+// read-only ones run at the same time.
+const (
+	maxCallsPerTurn  = 40
+	maxParallelCalls = 8
+)
+
 // executeAll runs every call. A batch that is entirely read-only runs at
 // once: several checks then finish in the time of the slowest one. A call
 // that changes the machine or may ask the user keeps the whole batch in
 // order, so a question is never racing another command.
 func (a *Agent) executeAll(ctx context.Context, calls []llm.ToolCall) []llm.ToolResult {
 	results := make([]llm.ToolResult, len(calls))
+	// A turn with more calls than any task needs is cut: the rest are
+	// answered, not run, so the model can ask for them again.
+	if len(calls) > maxCallsPerTurn {
+		for i := maxCallsPerTurn; i < len(calls); i++ {
+			results[i] = llm.ToolResult{CallID: calls[i].ID, IsError: true,
+				Content: fmt.Sprintf("not run: a turn takes at most %d tool calls; ask again for the ones you still need", maxCallsPerTurn)}
+		}
+		calls = calls[:maxCallsPerTurn]
+	}
 	if len(calls) < 2 || !allReadOnly(calls) {
 		for i, call := range calls {
 			results[i] = a.execute(ctx, call)
@@ -349,10 +365,13 @@ func (a *Agent) executeAll(ctx context.Context, calls []llm.ToolCall) []llm.Tool
 		return results
 	}
 	var wg sync.WaitGroup
+	slots := make(chan struct{}, maxParallelCalls)
 	for i, call := range calls {
 		wg.Add(1)
 		go func(i int, call llm.ToolCall) {
 			defer wg.Done()
+			slots <- struct{}{}
+			defer func() { <-slots }()
 			results[i] = a.execute(ctx, call)
 		}(i, call)
 	}

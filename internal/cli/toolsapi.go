@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/lcajigasm/omega/internal/i18n"
 )
@@ -103,10 +104,19 @@ func homePath(p string) string {
 	return p
 }
 
+var toolRunning sync.Mutex
+
 // RunTool runs a tool and returns what the command printed. arg is its
 // optional argument; an argument that looks like a flag is refused, so the
 // app can only run the commands listed here.
 func RunTool(id, arg string) (string, error) {
+	// One at a time: the window keeps to that by itself, and nothing else
+	// that reaches these functions gets to start a walk of the disk for
+	// every call it makes.
+	if !toolRunning.TryLock() {
+		return "", fmt.Errorf("%s", i18n.T("gui.tools.busy"))
+	}
+	defer toolRunning.Unlock()
 	for _, t := range guiTools {
 		if t.id != id {
 			continue

@@ -178,7 +178,7 @@ func (c *Config) Save() error {
 	if err := c.Validate(); err != nil {
 		return err
 	}
-	if err := os.MkdirAll(Dir(), 0o755); err != nil {
+	if err := os.MkdirAll(Dir(), 0o700); err != nil {
 		return err
 	}
 	// The temporary file is made next to the file that is really written,
@@ -195,7 +195,7 @@ func (c *Config) Save() error {
 			os.Remove(tmp)
 		}
 	}()
-	if err := f.Chmod(0o644); err != nil {
+	if err := f.Chmod(0o600); err != nil {
 		f.Close()
 		return err
 	}

@@ -167,52 +167,98 @@ el cambio está hecho y tiene una prueba; lo que no la tiene lo dice.
   un enlace no se han ejecutado en una ventana.
 - E3 (Windows) solo se compila.
 
-## P1 pendientes de esta revisión
+## P1 de esta revisión
 
-- [ ] **Modo automático y código opaco.** Con `--yes`, `… | base64 -d | sh`,
-  `sh fichero`, `python3 -c …` o `docker run -v ~:/h …` solo son
-  «peligrosos» y se ejecutan; lo mismo `gh auth token`, `gcloud auth
-  print-access-token`, `security -i`. Hace falta una segunda clase de
-  «preguntar siempre». La clave del proveedor se retira por nombre pero su
-  valor no está registrado en la máscara.
-- [ ] **sudo.** Un ayudante falso puesto con `SUDO_ASKPASS` bajo un sudo
-  real aún puede recibir la contraseña; requiere un comando con `sudo`
-  aprobado.
-- [ ] **Borrados del directorio personal no bloqueados:** `rm -rf ~usuario`,
-  `rm -rf $PWD`, `rm -rf /Users/l*`, `mv ~ /tmp/x`, `rsync --delete … ~/`,
-  `git -C ~ clean -fdx`, y herramientas de disco que no están en la lista
-  (`mke2fs`, `sgdisk --zap-all`, `shred /dev/…`, `asr restore --erase`).
-- [ ] **«Preguntar siempre» no reconoce** `podman system reset`,
-  `docker compose down --volumes=true`, `docker.exe …`, `docker service rm`.
-- [ ] **Windows:** `ipconfig /release`, `net use * /delete`, `net start`,
-  una ruta UNC (`dir \\host\share` envía el hash NTLM) y familias enteras
-  de verbos `Get-…` son de solo lectura; `Get-ChildItem ~\.ssh |
-  Get-Content` lee las claves.
-- [ ] **git en carpetas no fiables:** filtros `clean`/`smudge`,
-  `diff.external` y `textconv` del `.git/config` del repositorio.
-- [ ] **`write_file`:** la tarjeta de un fichero nuevo no enseña su
-  contenido; faltan en «preguntar siempre» `~/.aws/config`
-  (`credential_process`), `~/.kube/config`, ejecutables existentes.
-  `~/.gitconfig` queda fuera a propósito.
-- [ ] **`mac_policy` cambia `mac.toml` sin aprobación** y `mac_change
-  disable:` es «normal».
-- [ ] **`propose_actions` levanta el modo de solo lectura** con cualquier
-  elección, y en una ejecución desatendida se eligen todas.
-- [ ] **`omega uninstall Code`** (sin app con ese nombre) ofrece los datos
-  de Visual Studio Code.
-- [ ] **`fetch_url`:** rangos que el filtro no cubre (NAT64, 6to4,
-  `198.18.0.0/15`); con un proxy solo queda la comprobación previa.
-- [ ] **Comandos de solo lectura que no terminan:** `mdfind -live`,
-  `tail --foll`, `pmset -g pslog`.
-- [ ] **Ficheros y límites:** `config.toml` y `mac.toml` son legibles por
-  otros usuarios; las respuestas del proveedor se leen sin límite; no hay
-  tope de llamadas por turno; la unidad de systemd no escapa `%` ni `$`.
-- [ ] **App:** `RunTool` no se puede cancelar; `Browser.OpenURL` acepta
-  esquemas que no son http(s) si los pide un script de la página.
-- [ ] **Publicación:** fijar por commit las acciones `docker/*`, añadir
-  atestación de procedencia a los archivos, hash SRI al reproductor de
-  asciinema de la web; `omega net audit` imprime las credenciales de un
-  proxy.
+Hechos el 14 de noviembre de 2026, después de la v0.27.0. Marcado quiere
+decir hecho y con prueba; lo que queda a medias lo dice en la misma línea.
+
+- [x] **Modo automático y código opaco.** Con `--yes` o tras «aprobar todo»
+  se pregunta siempre por lo que la política no puede leer: un shell o un
+  intérprete alimentado por una tubería (`… | sh`, `| $SHELL`, `| python3`),
+  `base64 -d | …`, `sh fichero`, `source fichero`, `python3 -c`, `perl -e`,
+  `node -e`, `osascript -e`, `powershell -enc`, y un contenedor con la
+  carpeta personal o el disco dentro (`docker run -v ~:/h …`). Solo para los
+  comandos que escribe el modelo: los pasos de omega y los de `steps.d` son
+  texto conocido. Bloqueados los programas cuya salida es una credencial:
+  `gh auth token`, `gcloud … print-access-token`, `aws configure
+  export-credentials`, `az account get-access-token`, `kubectl config view
+  --raw`, `… | security -i`, y más formas de leer el portapapeles. El valor
+  de la clave del proveedor queda registrado en la máscara de la salida.
+- [x] **sudo.** `sudo -A`, `sudo --askpass` y cualquier asignación a una
+  variable `…ASKPASS…` están bloqueados: eran la forma de poner un ayudante
+  propio bajo un sudo real. Queda: una asignación construida sin escribir el
+  nombre; requiere un comando con `sudo` aprobado.
+- [x] **Borrados del directorio personal:** `rm -rf ~usuario`, `rm -rf *` y
+  `rm -rf .` cuando omega corre en la carpeta personal, `$PWD`,
+  `/Users/l*`, `/U*`, `~/[A-Za-z]*`, `/System/Volumes/Data/…`,
+  `mv ~ /tmp/x`, `rsync --delete … ~/`, `git -C ~ clean -fdx`,
+  `chmod -R … ~`, `ls -A | xargs rm`, y en Windows la carpeta del perfil
+  escrita entera. Herramientas de disco añadidas: `mke2fs`, `mkswap`,
+  `sgdisk --zap-all`, `parted mklabel`, `shred /dev/…`, `gpt destroy`,
+  `asr --erase`, `cryptsetup luksFormat`, `wmic shadowcopy delete`,
+  `spctl --global-disable`.
+- [x] **«Preguntar siempre»** reconoce `podman system reset`,
+  `podman machine reset`, `docker compose down --volumes=true`,
+  `docker.exe …`, `docker service|secret|config|context|plugin rm`,
+  `docker swarm leave`.
+- [x] **Windows:** `ipconfig` solo es de lectura solo o con `/all`,
+  `/displaydns`; `net use` y `net start` solo sin argumentos; `powercfg`
+  solo con `/a`, `/list`, `/energy`; una ruta UNC pide aprobación;
+  `Get-Secret`, `Get-AzAccessToken`, `Get-Credential`,
+  `Get-WindowsUpdateLog`, `Test-ComputerSecureChannel`, `KeyProtector`
+  piden aprobación; `Get-ChildItem ~\.ssh | Get-Content` está bloqueado.
+  Queda: en macOS y Linux un programa llamado `get-…` sigue leyéndose como
+  un cmdlet. Solo se compila y se prueba el clasificador; no se ha
+  ejecutado en Windows.
+- [x] **git en carpetas no fiables.** Un repositorio cuyo `.git/config`
+  nombra programas (un filtro, `textconv`, `diff.external`, un alias, un
+  paginador, `include`) se reconoce: `omega git status`, `git clean` y
+  `disk artifacts` no ejecutan git en él y lo dicen, y un `git …` del
+  agente ahí pide aprobación en vez de ser de solo lectura. (Un
+  `diff.external` vacío no sirve para desactivarlo: `git diff` falla.)
+- [x] **`write_file`:** la tarjeta de un fichero nuevo enseña su contenido
+  (principio y final si es largo); se pregunta siempre por un fichero de
+  credenciales y por un ejecutable que ya existe. `~/.gitconfig` sigue
+  fuera a propósito.
+- [x] **`mac_policy` y `mac_change`:** `mac_policy` no escribe en modo de
+  solo lectura, y los dos piden aprobación cuando la sesión ya ha leído la
+  web. Sin eso siguen como estaban: `disable:` es «normal» porque es lo
+  que el usuario acaba de elegir en una tarjeta. Sin prueba automática
+  (solo existen en macOS y leen el sistema).
+- [x] **`omega uninstall Code`** (sin app con ese nombre y con otras cuyo
+  nombre lo contiene) ya no ofrece nada y pide el nombre exacto; sin app y
+  sin parecidas, avisa de que las carpetas pueden ser de un programa en uso.
+- [x] **`fetch_url`:** rechaza NAT64, 6to4, Teredo, la forma compatible con
+  IPv4, `fec0::/10` y los rangos reservados (`198.18.0.0/15`,
+  `192.0.0.0/24`, `240.0.0.0/4`…). Con un proxy, un nombre que no se puede
+  resolver solo pasa si parece público (con punto y sin `.local`, `.lan`,
+  `.internal`…). Queda: con un proxy la conexión no se puede comprobar.
+- [x] **Comandos de solo lectura que no terminan:** `mdfind -live`,
+  `pmset -g pslog|thermlog|rawlog`, `log stream`, `top -l` con más de 60
+  muestras, las abreviaturas de `--follow` y `-Wait`, `-Continuous`.
+- [x] **Ficheros y límites:** `config.toml`, `mac.toml`, el diario de
+  cambios y las carpetas nuevas son solo del usuario; la respuesta de un
+  proveedor se lee hasta 32 MB; un turno ejecuta 40 llamadas como mucho y 8
+  a la vez; la unidad de systemd escapa `%`, `$` y `\`.
+- [x] **Publicación:** las acciones `docker/*` del release van fijadas por
+  commit; los archivos llevan atestación de procedencia
+  (`gh attestation verify <fichero> --repo lcajigasm/omega`), que se
+  probará en el próximo release; el reproductor de asciinema de la web se
+  carga con hash de integridad (comprobado en un navegador);
+  `omega net audit` ya no imprime la contraseña de un proxy.
+- [ ] **App:** solo se ejecuta una herramienta a la vez (hecho, en Go), pero
+  sigue sin poderse cancelar: los comandos no reciben el contexto.
+  `Browser.OpenURL` de Wails acepta esquemas que no son http(s) si los pide
+  un script de la página; la página no deja cargar scripts ajenos (CSP).
+- [ ] **Contenedor:** la imagen base del `Dockerfile` no está fijada por
+  digest.
+
+## Deliberado
+
+- `propose_actions` levanta el modo de solo lectura para lo elegido, y en
+  una ejecución desatendida (`omega unattended`) se elige todo: es lo que
+  esa ejecución promete. Los comandos bloqueados, los de «preguntar
+  siempre» y la configuración personal siguen sin ejecutarse en ella.
 
 ---
 

@@ -385,7 +385,8 @@ func AuditHostsAndProxies() (*NetworkAudit, error) {
 	// Check proxy variables
 	for _, key := range []string{"HTTP_PROXY", "http_proxy", "HTTPS_PROXY", "https_proxy", "ALL_PROXY", "all_proxy", "NO_PROXY", "no_proxy"} {
 		if val := os.Getenv(key); val != "" {
-			audit.ProxyEnv[key] = val
+			// As it is shown: without the password of user:password@host.
+			audit.ProxyEnv[key] = runner.Scrub(val)
 			if strings.Contains(key, "HTTP") || strings.Contains(key, "http") {
 				// Test if proxy host is reachable
 				addr, err := proxyAddress(val)

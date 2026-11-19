@@ -65,6 +65,13 @@ func Describe(task string) string {
 	return "Each run " + what + ", with omega's built-in steps and no AI model. A scheduled run never empties the Trash."
 }
 
+// systemdQuote writes a path for a quoted ExecStart= value. systemd expands
+// %x specifiers and $VARIABLES there and reads the backslash as an escape:
+// each is written so that it stays the character it is.
+func systemdQuote(p string) string {
+	return strings.NewReplacer(`\`, `\\`, `"`, `\"`, "%", "%%", "$", "$$").Replace(p)
+}
+
 // stablePath is the path the schedule should call omega by. Homebrew
 // installs every version in its own folder (…/Cellar/omega/1.2.3/bin/omega)
 // and deletes it on upgrade; <prefix>/bin/omega is a link that follows the
@@ -348,7 +355,7 @@ Description=Omega Scheduled Maintenance
 Type=oneshot
 Environment=%s=1
 ExecStart="%s" %s %s
-`, EnvScheduled, strings.ReplaceAll(omegaPath, `"`, `\"`), task, taskFlags)
+`, EnvScheduled, systemdQuote(omegaPath), task, taskFlags)
 
 	timerContent := fmt.Sprintf(`[Unit]
 Description=Omega Scheduled Maintenance Timer

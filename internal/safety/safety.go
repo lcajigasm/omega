@@ -8,6 +8,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -33,7 +34,25 @@ var blocked = []*regexp.Regexp{
 	regexp.MustCompile(`\bcp\b[^;|&]*\s/dev/` + wholeDisk + `\S*\s*($|[;|&])`),
 	regexp.MustCompile(`\btee\b[^;|&]*\s/dev/` + wholeDisk),
 	regexp.MustCompile(`\bcsrutil\s+(disable|clear|authenticated-root)`),
-	regexp.MustCompile(`\bspctl\s+--master-disable`),
+	regexp.MustCompile(`\bspctl\s+--(master|global)-disable`),
+	// Other ways to erase a disk or its partition table.
+	regexp.MustCompile(`\bsgdisk\b.*\s(--zap|--zap-all|-Z|-z|-o|--clear)\b`),
+	regexp.MustCompile(`\bparted\b.*\b(mklabel|mktable|rm)\b`),
+	regexp.MustCompile(`\b(shred|wipe|srm)\b[^;|&]*\s/dev/`),
+	regexp.MustCompile(`\bgpt\s+destroy\b`),
+	regexp.MustCompile(`\basr\b.*\s--erase\b`),
+	regexp.MustCompile(`(?i)\bcryptsetup\b.*\b(luksFormat|erase|luksErase)\b`),
+	regexp.MustCompile(`(?i)\bwmic\b.*\bshadowcopy\b.*\bdelete\b`),
+	// Programs whose whole output is a credential.
+	regexp.MustCompile(`\bgh\s+auth\s+(token|status\b.*\s(-t|--show-token))\b`),
+	regexp.MustCompile(`\bgcloud\b.*\bprint-(access|identity)-token\b`),
+	regexp.MustCompile(`\baws\s+configure\s+(export-credentials|get\b.*(secret|token))`),
+	regexp.MustCompile(`\baz\s+account\s+get-access-token\b`),
+	regexp.MustCompile(`\bkubectl\b.*\bconfig\s+view\b.*\s--raw\b`),
+	regexp.MustCompile(`\bdocker-credential-\S+\s+get\b|\bgit\s+credential(-\S+)?\s+(fill|get)\b`),
+	// security reading its commands from a pipe: the direct form is
+	// refused by what it asks for, this one hides it.
+	regexp.MustCompile(`\|\s*(sudo\s+)?(\S*/)?security\s+(-\S+\s+)*-i\b|\bsecurity\s+-i\b.*<`),
 	regexp.MustCompile(`:\(\)\s*\{`),
 	regexp.MustCompile(`\b(curl|wget)\b[^|]*\|\s*(sudo\s+(-\S+\s+)*)?(env\s+)?(\S*/)?(ba|z|da|k|fi|)sh\b`),
 	regexp.MustCompile(`\bchmod\s+(-R\s+)?[0-7]*777\s+/(\s|$)`),
@@ -47,11 +66,15 @@ var blocked = []*regexp.Regexp{
 	// run, and the folder it lives in. Only sudo calls it: a command that
 	// names it wants the password.
 	regexp.MustCompile(`(?i)sudo_askpass|askpass\.sock|omega_askpass_sock|omega-sudo-`),
+	// sudo told to take the password from a helper: omega's own wrapper
+	// does that for every sudo; a command that asks for it is choosing the
+	// helper, and the helper gets the password.
+	regexp.MustCompile(`\bsudo\s+(-\S+\s+)*(-[A-Za-z]*A[A-Za-z]*|--askpass)(\s|$)|\b\w*ASKPASS\w*=`),
 	// The privacy database is only ever changed through tccutil: a direct
 	// write can grant a permission the user never approved.
 	regexp.MustCompile(`(?i)TCC\.db.*\b(insert|update|delete|replace|drop|alter)\b|\b(insert|update|delete|replace|drop|alter)\b.*TCC\.db`),
 	// What was last copied is often a password.
-	regexp.MustCompile(`(?i)\b(get-clipboard|gcb|pbpaste|wl-paste)\b|\bxclip\b.*\s-o\b|\bxsel\b.*\s(-o|--output)\b`),
+	regexp.MustCompile(`(?i)\b(get-clipboard|gcb|pbpaste|wl-paste)\b|\bxclip\b.*\s-(o|out)\b|\bxsel\b(.*\s(-o|--output|-b|--clipboard)\b|\s*($|[|;&]))|\bthe clipboard\b`),
 }
 
 const wholeDisk = `(r?disk[0-9]|sd[a-z]|nvme[0-9]|vd[a-z]|mmcblk[0-9]|hd[a-z])`
@@ -59,7 +82,7 @@ const wholeDisk = `(r?disk[0-9]|sd[a-z]|nvme[0-9]|vd[a-z]|mmcblk[0-9]|hd[a-z])`
 // blockedTools format disks, erase firmware variables or turn disk
 // encryption off. They are matched by name wherever one can run; the name
 // alone is not the tool, so "man mkfs" and "ls /usr/sbin | grep nvram" pass.
-var blockedTools = regexp.MustCompile(`\b(mkfs|newfs(_\w+)?|wipefs|blkdiscard|nvram|fdesetup)\b`)
+var blockedTools = regexp.MustCompile(`\b(mkfs|mke2fs|mkswap|newfs(_\w+)?|wipefs|blkdiscard|nvram|fdesetup)\b`)
 
 // printsOnly are programs that only show the words they are given, or look
 // them up.
@@ -196,7 +219,54 @@ var (
 	arithmetic = regexp.MustCompile(`\$\(\([0-9+\-*/%\s()]*\)\)`)
 )
 
-var dockerDestructive = regexp.MustCompile(`\b(docker|podman|nerdctl)\s+((system|image|container|volume|network|builder|buildx|pod)\s+prune|rmi|rm|volume\s+(rm|remove)|image\s+(rm|remove)|container\s+(rm|remove)|buildx\s+rm|stack\s+(rm|remove))\b`)
+var dockerDestructive = regexp.MustCompile(`\b(docker|podman|nerdctl)(\.exe)?\s+((system|image|container|volume|network|builder|buildx|pod)\s+prune|rmi|rm|volume\s+(rm|remove)|image\s+(rm|remove)|container\s+(rm|remove)|buildx\s+rm|stack\s+(rm|remove)|(system|machine)\s+reset)\b`)
+
+// Code whose effect cannot be read from the command: a shell or an
+// interpreter that is handed its program through a pipe, a here-string or
+// a file, a program written in a language the policy does not read, text
+// decoded on the way to something else, and a container started with the
+// home directory or the whole disk inside it. Under --yes the policy is
+// all that stands between the model and the machine, and for these it has
+// nothing to say: a person decides, every time.
+var (
+	interpreter  = `(ba|z|da|k|fi|c|tc)?sh|\$\{?SHELL\}?|python[0-9.]*|perl|ruby|node|deno|bun|php|lua|osascript|pwsh|powershell(\.exe)?|iex|invoke-expression`
+	pipedToCode  = regexp.MustCompile(`(?i)\|\s*(sudo\s+(-\S+\s+)*)?(env\s+(\S+=\S*\s+)*)?(\S*/)?(` + interpreter + `)(\s|$)`)
+	inlineCode   = regexp.MustCompile(`(?i)(^|[\s;|&(])(\S*/)?(python[0-9.]*|perl|ruby|node|deno|bun|php|lua|osascript)\s+(\S+\s+)*?-(c|e|E|r|-eval|-execute)\b|\b(pwsh|powershell)(\.exe)?\b.*\s-(e|en|enc|enco|encodedcommand|c|command)\b`)
+	decodedText  = regexp.MustCompile(`(?i)\b(base64|base32|xxd|openssl\s+(enc|base64))\b[^|;&]*\s(-d|-D|--decode|-r)\b[^|;&]*\|`)
+	hereCode     = regexp.MustCompile(`(?i)(^|[\s;|&(])(\S*/)?(` + interpreter + `)\s+(-\S+\s+)*<<`)
+	homeInBox    = regexp.MustCompile(`(?i)\b(docker|podman|nerdctl)(\.exe)?\b.*\s(-v|--volume|--mount)[= ](\S*(source|src)=)?(~|\$\{?HOME\}?|/Users/[^/:\s]+|/home/[^/:\s]+|/root|/)/?(:|,|\s)`)
+	shellScripts = map[string]bool{"sh": true, "bash": true, "zsh": true, "dash": true, "ksh": true, "fish": true, "source": true, ".": true}
+)
+
+// Opaque reports one of those. It is asked of the commands the model
+// writes; omega's own steps and the user's (steps.d) are known text.
+func Opaque(command string) bool {
+	plain := dequote(command)
+	if pipedToCode.MatchString(plain) || inlineCode.MatchString(plain) || decodedText.MatchString(plain) ||
+		hereCode.MatchString(plain) || homeInBox.MatchString(plain+" ") {
+		return true
+	}
+	// sh file, source file: a script nobody has read. "sh -c '…'" is not
+	// one: its text is in the command and is read like the rest.
+	for _, seg := range shellSegments(command) {
+		words := seg
+		for len(words) > 0 && (strings.Contains(words[0], "=") || has("sudo env command exec nohup time nice", path.Base(words[0]))) {
+			words = words[1:]
+		}
+		if len(words) < 2 || !shellScripts[path.Base(words[0])] {
+			continue
+		}
+		for _, a := range words[1:] {
+			if a == "-c" || a == "--version" || a == "--help" {
+				break
+			}
+			if !strings.HasPrefix(a, "-") {
+				return true
+			}
+		}
+	}
+	return false
+}
 
 // containerGlobals are the options docker, podman and nerdctl take before
 // the subcommand with a value after them.
@@ -216,7 +286,7 @@ func AlwaysConfirm(command string) bool {
 		if len(run) == 0 {
 			continue
 		}
-		switch path.Base(run[0]) {
+		switch strings.TrimSuffix(strings.ToLower(path.Base(run[0])), ".exe") {
 		case "docker", "podman", "nerdctl":
 			if containerDeletes(run[1:]) {
 				return true
@@ -251,8 +321,11 @@ func containerDeletes(args []string) bool {
 	switch sub {
 	case "rm", "rmi":
 		return true
-	case "system", "image", "container", "volume", "network", "builder", "buildx", "pod", "stack", "machine":
-		return next == "prune" || next == "rm" || next == "remove"
+	case "system", "image", "container", "volume", "network", "builder", "buildx", "pod", "stack", "machine",
+		"service", "secret", "config", "context", "plugin":
+		return next == "prune" || next == "rm" || next == "remove" || next == "reset"
+	case "swarm":
+		return next == "leave"
 	case "compose":
 		return composeDeletes(args[i+1:])
 	}
@@ -273,7 +346,7 @@ func composeDeletes(args []string) bool {
 		return false
 	}
 	for _, a := range args {
-		if a == "--volumes" || strings.HasPrefix(a, "--rmi") || (shortFlags.MatchString(a) && strings.Contains(a, "v")) {
+		if abbrev(a, "--volumes") || strings.HasPrefix(a, "--rmi") || (shortFlags.MatchString(a) && strings.Contains(a, "v")) {
 			return true
 		}
 	}
@@ -306,7 +379,7 @@ func Classify(command string) Risk {
 	if leaksSecret(cmd) || namesKeptSecret(cmd) {
 		return Blocked
 	}
-	if wipesAnywhere(cmd) || windowsPipeWipes(cmd) {
+	if wipesAnywhere(cmd) || windowsPipeWipes(cmd) || windowsPipeReads(cmd) {
 		return Blocked
 	}
 	for _, part := range splitCommands(cmd) {
@@ -368,7 +441,8 @@ func abbrev(arg, full string) bool {
 // naming it.
 func wipesAnywhere(cmd string) bool {
 	dir := ""
-	for _, seg := range shellSegments(cmd) {
+	segs := shellSegments(cmd)
+	for n, seg := range segs {
 		run := afterWrappers(seg)
 		if len(run) == 0 {
 			continue
@@ -380,7 +454,62 @@ func wipesAnywhere(cmd string) bool {
 		if wipesMachine(strings.Join(run, " ")) {
 			return true
 		}
-		if dir != "" && wipesMachine(strings.Join(rebase(dir, run), " ")) {
+		// Without a cd the command runs where omega does, which is the
+		// home directory more often than not: "rm -rf *" there is the same
+		// wipe as "rm -rf ~/*".
+		here := dir
+		if here == "" {
+			if wd, err := getwd(); err == nil {
+				here = strings.ReplaceAll(wd, `\`, "/")
+			}
+		}
+		if here == "" {
+			continue
+		}
+		if wipesMachine(strings.Join(rebase(here, run), " ")) {
+			return true
+		}
+		if !isRootTarget(here) {
+			continue
+		}
+		// In a root: git clean with nothing named, and a listing of the
+		// folder handed to rm.
+		verb := path.Base(run[0])
+		if verb == "git" && gitCleans(run[1:]) && !has(strings.Join(run, " "), "-C") {
+			return true
+		}
+		if verb == "rm" && feedsXargs(seg) && n > 0 {
+			if prev := afterWrappers(segs[n-1]); len(prev) > 0 && has("ls find echo printf", path.Base(prev[0])) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// gitCleans reports "git clean" that deletes (not -n, the dry run).
+func gitCleans(args []string) bool {
+	clean, force := false, false
+	for _, a := range args {
+		clean = clean || a == "clean"
+		if clean && strings.HasPrefix(a, "-") && !strings.HasPrefix(a, "--") {
+			if strings.Contains(a, "n") {
+				return false
+			}
+			force = force || strings.Contains(a, "f")
+		}
+		if a == "--dry-run" {
+			return false
+		}
+		force = force || a == "--force"
+	}
+	return clean && force
+}
+
+// feedsXargs reports a simple command run through xargs.
+func feedsXargs(seg []string) bool {
+	for _, w := range seg {
+		if path.Base(w) == "xargs" {
 			return true
 		}
 	}
@@ -765,10 +894,51 @@ func wipesMachine(part string) bool {
 	}
 	args := words[i+1:]
 	switch filepath.Base(words[i]) {
-	case "rm", "rmdir":
+	case "rm", "rmdir", "shred", "srm":
 		return rmWipes(args)
 	case "find":
 		return findWipes(args)
+	case "mv":
+		// Moving a root away empties it as surely as deleting it.
+		var names []string
+		for _, a := range args {
+			if !strings.HasPrefix(a, "-") {
+				names = append(names, a)
+			}
+		}
+		for _, a := range names[:max(len(names)-1, 0)] {
+			if isRootTarget(a) {
+				return true
+			}
+		}
+	case "rsync":
+		// --delete makes the destination equal to the source: an empty
+		// folder as the source empties it.
+		deletes, last := false, ""
+		for _, a := range args {
+			if strings.HasPrefix(a, "--del") {
+				deletes = true
+			}
+			if !strings.HasPrefix(a, "-") {
+				last = a
+			}
+		}
+		return deletes && isRootTarget(last)
+	case "chmod", "chown", "chgrp":
+		recursive := false
+		for _, a := range args {
+			if a == "--recursive" || (strings.HasPrefix(a, "-") && !strings.HasPrefix(a, "--") && strings.Contains(a, "R")) {
+				recursive = true
+			}
+		}
+		return recursive && rmWipes(args)
+	case "git":
+		// git -C <root> clean -fdx deletes everything git does not track.
+		for j, a := range args {
+			if a == "-C" && j+1 < len(args) && isRootTarget(args[j+1]) && gitCleans(args) {
+				return true
+			}
+		}
 	}
 	return false
 }
@@ -856,30 +1026,62 @@ func isRootTarget(arg string) bool {
 // root or home itself.
 func rootPath(arg, home string) bool {
 	expanded := homeVar.ReplaceAllString(arg, home)
+	if pwdVar.MatchString(expanded) {
+		wd, err := getwd()
+		if err != nil || wd == "" {
+			return false
+		}
+		expanded = pwdVar.ReplaceAllString(expanded, strings.ReplaceAll(wd, `\`, "/"))
+	}
 	if strings.HasPrefix(expanded, "~") {
 		rest := strings.TrimPrefix(expanded, "~")
 		if rest != "" && !strings.HasPrefix(rest, "/") {
-			return false
+			// ~ana is the home directory of ana, whoever that is.
+			return otherHome.MatchString(rest)
 		}
 		expanded = home + rest
 	}
 	if !strings.HasPrefix(expanded, "/") {
 		return false
 	}
-	if strings.HasSuffix(expanded, "/*") {
-		expanded = strings.TrimSuffix(expanded, "/*")
+	// The data volume of macOS holds the same folders under another name.
+	if rest, ok := strings.CutPrefix(expanded, "/System/Volumes/Data"); ok && (rest == "" || strings.HasPrefix(rest, "/")) {
+		expanded = rest
 		if expanded == "" {
 			expanded = "/"
 		}
 	}
-	switch p := path.Clean(expanded); p {
-	case "/", "/Users", "/System", "/Library", "/Applications",
-		"/home", "/root", "/etc", "/usr", "/var", "/boot", "/bin", "/sbin", "/lib", "/lib64", "/opt":
-		return true
-	default:
-		return p == home
+	// A last part that is only a pattern (*, ?*, [A-Za-z]*) takes what is
+	// in the folder: the folder is what counts.
+	clean := path.Clean(expanded)
+	if last := path.Base(clean); last != "/" && strings.ContainsAny(last, "*?[") && globOnly.MatchString(last) {
+		clean = path.Dir(clean)
 	}
+	roots := []string{"/", "/Users", "/System", "/Library", "/Applications",
+		"/home", "/root", "/etc", "/usr", "/var", "/boot", "/bin", "/sbin", "/lib", "/lib64", "/opt", home}
+	for _, r := range roots {
+		if clean == r {
+			return true
+		}
+	}
+	// A pattern that the shell can expand to one of them: /U*, /Users/l*.
+	if strings.ContainsAny(clean, "*?[") {
+		if re := looseRegexp(clean); re != nil {
+			for _, r := range roots {
+				if r != "" && re.MatchString(r) {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
+
+var (
+	pwdVar    = regexp.MustCompile(`\$\{PWD\}|\$PWD\b`)
+	otherHome = regexp.MustCompile(`^[A-Za-z0-9._-]+(/\*?)?$`)
+	globOnly  = regexp.MustCompile(`^(\*|\?|\[[^\]]*\])+$`)
+)
 
 func classifyOne(part string) Risk {
 	if wipesMachine(part) || leaksSecret(part) || windowsWipes(part) {
@@ -997,9 +1199,8 @@ func neverEnds(f []string) bool {
 	}
 	long := func(names ...string) bool {
 		for _, a := range args {
-			name, _, _ := strings.Cut(a, "=")
 			for _, n := range names {
-				if name == n {
+				if abbrev(a, n) {
 					return true
 				}
 			}
@@ -1007,6 +1208,16 @@ func neverEnds(f []string) bool {
 		return false
 	}
 	switch f[0] {
+	case "mdfind":
+		return has(strings.Join(args, " "), "-live")
+	case "pmset":
+		for _, a := range args {
+			if a == "pslog" || a == "thermlog" || a == "rawlog" {
+				return true
+			}
+		}
+	case "log":
+		return len(args) > 0 && args[0] == "stream"
 	case "tail":
 		if short("fF") || long("--follow", "--retry") {
 			return true
@@ -1022,6 +1233,15 @@ func neverEnds(f []string) bool {
 		for i, a := range args {
 			if a == "-l0" || (a == "-l" && (i+1 >= len(args) || args[i+1] == "0")) {
 				return true
+			}
+			// A number of samples that takes hours is no better than none.
+			if n, err := strconv.Atoi(strings.TrimPrefix(a, "-l")); err == nil && strings.HasPrefix(a, "-l") && n > 60 {
+				return true
+			}
+			if a == "-l" && i+1 < len(args) {
+				if n, err := strconv.Atoi(args[i+1]); err == nil && n > 60 {
+					return true
+				}
 			}
 		}
 	case "docker", "podman", "nerdctl":

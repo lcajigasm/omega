@@ -88,14 +88,58 @@ func psTargetsRoot(w string) bool {
 	} else if strings.HasPrefix(w, "/") && len(w) <= 3 {
 		return false // a cmd switch such as /s /q
 	}
+	home := strings.ToLower(strings.TrimRight(strings.ReplaceAll(userHome(), `\`, "/"), "/"))
 	for _, target := range strings.Split(w, ",") {
 		target = psBrace.ReplaceAllString(strings.Trim(target, `"'`), "$$$1") // ${env:X} is $env:X
 		if psWipeTarget.MatchString(target) {
 			return true
 		}
+		// The profile folder written out: C:\Users\ana, with or without \*.
+		full := strings.ToLower(strings.ReplaceAll(target, `\`, "/"))
+		full = strings.TrimRight(strings.TrimSuffix(strings.TrimSuffix(full, "*.*"), "*"), "/")
+		if home != "" && driveLetter.MatchString(home+"/") && full == home {
+			return true
+		}
 	}
 	return false
 }
+
+// psReads print what the files they are handed hold.
+var psReads = regexp.MustCompile(`(?i)^(get-content|gc|cat|type|select-string|sls|format-hex|fhx)$`)
+
+// windowsPipeReads reports a folder of secrets listed into a reader:
+// Get-ChildItem $HOME\.ssh | Get-Content names no key and prints them all.
+func windowsPipeReads(cmd string) bool {
+	for _, pipeline := range splitUnquoted(cmd, false, true) {
+		listsSecrets := false
+		for _, stage := range splitUnquoted(pipeline, true, false) {
+			words := psWords(stage)
+			if len(words) == 0 {
+				continue
+			}
+			if listsSecrets && psReads.MatchString(words[0]) {
+				return true
+			}
+			if psLists.MatchString(words[0]) {
+				for _, a := range words[1:] {
+					if !strings.HasPrefix(a, "-") && unsafeRoot(a) {
+						listsSecrets = true
+					}
+				}
+			}
+		}
+	}
+	return false
+}
+
+// psDenied are cmdlets with a reading verb that hand out a credential,
+// write a file or change the machine.
+var psDenied = regexp.MustCompile(`(?i)^(get-secret|get-secretinfo|get-azaccesstoken|get-mgaccesstoken|get-credential|convertfrom-securestring|` +
+	`get-windowsupdatelog|test-computersecurechannel|show-command|read-host)$`)
+
+// uncPath is \\host\share: naming one makes Windows sign in to that host
+// with the user's credentials. \\?\ and \\.\ are local.
+var uncPath = regexp.MustCompile(`^[\\/]{2}[^\\/?.]`)
 
 // windowsPipeWipes reports a root listed into a delete:
 // Get-ChildItem C:\ | Remove-Item -Recurse names no path after Remove-Item.
@@ -189,16 +233,16 @@ func psRunsCode(p string) bool {
 
 // psWrites are parameters that turn a reading cmdlet into a writing one,
 // or into one that never ends (Get-Content -Wait follows the file).
-var psWrites = regexp.MustCompile(`(?i)\s-(outfile|outvariable|filepath|wait|literalpath\s+\S+\s+-value|passthru\s+\|\s*set-)\b`)
+var psWrites = regexp.MustCompile(`(?i)\s-(outfile|outvariable|filepath|wai|wait|continuous|repair|literalpath\s+\S+\s+-value|passthru\s+\|\s*set-)\b`)
 
 // Read-only Windows commands that are not cmdlets.
 var windowsSafePrefixes = []string{
 	"winget list", "winget search", "winget show", "winget source list", "winget --version", "winget --info",
 	"scoop status", "scoop list", "scoop info", "scoop search", "scoop bucket list", "scoop which", "scoop --version",
 	"choco outdated", "choco list", "choco info", "choco search", "choco --version",
-	"systeminfo", "tasklist", "ver", "where", "where.exe", "dir", "ipconfig", "wsl --list", "wsl -l", "wsl --status", "wsl --version",
-	"dism /online /get-", "dism.exe /online /get-", "sfc /verifyonly", "powercfg /a", "powercfg /list", "powercfg /energy",
-	"cmdkey /list", "driverquery", "net use", "net start", "sc query", "sc.exe query", "schtasks /query",
+	"systeminfo", "tasklist", "ver", "where", "where.exe", "dir", "wsl --list", "wsl -l", "wsl --status", "wsl --version",
+	"dism /online /get-", "dism.exe /online /get-", "sfc /verifyonly",
+	"cmdkey /list", "driverquery", "sc query", "sc.exe query", "schtasks /query",
 }
 
 // windowsNormalPrefixes are routine updates of software the user installed
@@ -215,6 +259,35 @@ func classifyWindows(p string) (Risk, bool) {
 	words := psWords(p)
 	if len(words) == 0 {
 		return Safe, false
+	}
+	// These read with one argument and change the machine with another:
+	// ipconfig /release drops the network, net use maps and unmaps drives,
+	// net start starts a service, powercfg /setactive changes the plan.
+	switch strings.TrimSuffix(strings.ToLower(words[0]), ".exe") {
+	case "ipconfig":
+		for _, a := range words[1:] {
+			if !strings.EqualFold(a, "/all") && !strings.EqualFold(a, "/displaydns") {
+				return Dangerous, true
+			}
+		}
+		return Safe, true
+	case "net":
+		if len(words) == 2 && (strings.EqualFold(words[1], "use") || strings.EqualFold(words[1], "start")) {
+			return Safe, true
+		}
+	case "powercfg":
+		if len(words) == 2 && has("/a /list /l /energy /batteryreport", strings.ToLower(words[1])) {
+			return Safe, true
+		}
+		return Dangerous, true
+	}
+	for _, w := range words[1:] {
+		if uncPath.MatchString(w) {
+			return Dangerous, true
+		}
+	}
+	if psDenied.MatchString(words[0]) || strings.Contains(strings.ToLower(p), "keyprotector") {
+		return Dangerous, true
 	}
 	if psForEach.MatchString(words[0]) {
 		m := psOneBlock.FindStringSubmatch(strings.TrimSpace(p))
