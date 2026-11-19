@@ -100,7 +100,9 @@ func TestDocumentedCommandsExist(t *testing.T) {
 				if _, _, err := interpret(root, rest); err != nil {
 					t.Errorf("%s shows `omega %s`, which omega answers with: %v", doc, c, err)
 				}
-			case cmd.HasSubCommands():
+			// A command with subcommands may also take a word of its own:
+			// omega assist docker, omega docs tools.
+			case cmd.HasSubCommands() && (cmd.RunE == nil || cmd.ValidateArgs(rest) != nil):
 				t.Errorf("%s shows `omega %s`, but `omega %s` has no subcommand %q", doc, c, strings.TrimPrefix(cmd.CommandPath(), "omega "), rest[0])
 			}
 		}

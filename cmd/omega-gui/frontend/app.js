@@ -34,6 +34,7 @@ const icons = {
   tools: '<path d="M4 6h16M4 12h10M4 18h7"/><circle cx="18" cy="16" r="3"/><path d="M20.2 18.2L22 20"/>',
   quick: '<path d="M13 3L5 13h6l-1 8 8-10h-6z"/>',
   skills: '<path d="M12 3l8 4.5-8 4.5-8-4.5z"/><path d="M4 12l8 4.5 8-4.5M4 16.5L12 21l8-4.5"/>',
+  configure: '<path d="M4 18h16M4 18V9l4-3 4 3 4-3 4 3v9"/><path d="M9 14h6"/>',
   agents: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M13 15h4"/>',
 };
 icons.full = icons.home;
@@ -76,8 +77,8 @@ function applyTexts() {
   showProvider();
 }
 
-const views = ["home", "session", "history", "tools", "skills", "agents", "system", "settings"];
-const loaders = { home: showHome, session: showSession, history: showHistory, tools: showTools, skills: showSkills, agents: showAgents, system: showSystem, settings: showSettings };
+const views = ["home", "session", "history", "tools", "skills", "configure", "agents", "system", "settings"];
+const loaders = { home: showHome, session: showSession, history: showHistory, tools: showTools, skills: showSkills, configure: showConfigure, agents: showAgents, system: showSystem, settings: showSettings };
 let view = "";
 
 function go(name) {
@@ -805,6 +806,144 @@ function disarm() {
   armed = null;
 }
 
+// ---------- Configure: disk limits and assistants ----------
+
+let cfg = { tools: [], disk: [] };
+let cfgBusy = false;
+
+function cfgButton(what, id, label, text) {
+  const b = el("button", "", text ?? t(label));
+  b.type = "button";
+  b.dataset.cfg = what;
+  b.dataset.id = id;
+  b.dataset.label = label;
+  if (text) b.dataset.text = text;
+  return b;
+}
+
+// cfgRow is one check: what it is, what is set now, and what can be done.
+function cfgRow(c, withTool) {
+  const row = el("div", "row cfg-row");
+  const body = el("div");
+  const head = el("div", "proc-head");
+  if (withTool) head.append(el("span", "badge", cfg.tools.find((x) => x.id === c.tool)?.name ?? c.tool));
+  head.append(el("b", "", c.title));
+  if (c.kind !== "info") head.append(el("span", "badge " + (c.ok ? "good" : "normal"), c.ok ? "✓" : t("gui.cfg.kind." + c.kind)));
+  if (c.blocked) head.append(el("span", "badge dangerous", t("gui.cfg.open")));
+  body.append(head, el("p", "muted small", c.why));
+  let now = fill("gui.cfg.now", c.current);
+  if (c.recommended && !c.ok && c.kind === "setting") now += " · " + fill("gui.cfg.rec", c.recommended + (c.unit === "days" ? " days" : ""));
+  body.append(el("p", "small", now));
+  if (c.file) body.append(el("p", "muted mono small selectable", c.file));
+  if (c.note) body.append(el("p", "muted small", c.note));
+  row.append(body);
+  if (c.size_text) row.append(el("span", "nowrap mem", c.size_text));
+  if (c.kind === "info" || c.blocked) return row;
+  const act = el("div", "cfg-act");
+  if (c.kind === "setting" || c.kind === "budget") {
+    const input = el("input");
+    input.type = "text";
+    input.spellcheck = false;
+    input.value = c.kind === "setting" && !c.ok ? c.recommended ?? "" : "";
+    input.placeholder = c.kind === "budget" ? t("gui.cfg.budget_ph") : c.recommended || c.unit || "";
+    input.dataset.for = c.id;
+    act.append(input, cfgButton("set", c.id, "gui.cfg.set"));
+  }
+  if ((c.kind === "cleanup" && !c.ok) || (c.kind === "budget" && c.free > 0)) {
+    act.append(cfgButton("free", c.id, "gui.cfg.free", fill("gui.cfg.free", c.free_text ?? c.size_text)));
+  }
+  if (c.kind === "action" && !c.ok) act.append(cfgButton("apply", c.id, "gui.cfg.apply"));
+  row.append(act);
+  return row;
+}
+
+const human = (b) => (b >= 1 << 30 ? (b / (1 << 30)).toFixed(1) + " GB" : b >= 1 << 20 ? Math.round(b / (1 << 20)) + " MB" : Math.round(b / 1024) + " KB");
+
+async function showConfigure() {
+  cfg = await call("Configure");
+  for (const c of cfg.disk) c.free_text = c.free ? human(c.free) : "";
+  const pending = cfg.tools.reduce((n, x) => n + (x.installed ? x.pending : 0), 0);
+  $("configure-badge").hidden = !(cfg.freeable > 1 << 30);
+  if (view !== "configure" || armedCfg || cfgBusy) return;
+  $("cfg-summary").textContent = fill("gui.cfg.summary", cfg.disk_text, cfg.free_text);
+  $("cfg-apply-all").hidden = !cfg.disk.some((c) => c.kind === "setting" && !c.ok && !c.blocked && c.recommended);
+  $("cfg-enforce").hidden = !cfg.disk.some((c) => c.free > 0 && !c.ok && !c.blocked);
+  $("cfg-disk").replaceChildren(...cfg.disk.map((c) => cfgRow(c, true)));
+  const installed = cfg.tools.filter((x) => x.installed);
+  $("cfg-tools").replaceChildren(...installed.map((x) => {
+    const box = el("div", "agents-group");
+    const head = el("div", "row group-head");
+    const title = el("div");
+    const line = el("div", "proc-head");
+    line.append(el("b", "", x.name));
+    if (x.version) line.append(el("span", "mono muted small", x.version));
+    line.append(el("span", "badge " + (x.pending ? "normal" : "good"), x.pending ? fill("gui.cfg.pending", x.pending) : t("gui.cfg.done")));
+    title.append(line, el("p", "muted small", x.about));
+    if (x.where) title.append(el("p", "muted mono small selectable", x.where));
+    head.append(title);
+    if (x.data_text) head.append(el("span", "nowrap mem", x.data_text));
+    box.append(head, ...(x.checks ?? []).filter((c) => !c.disk).map((c) => cfgRow(c, false)));
+    return box;
+  }));
+  const missing = cfg.tools.filter((x) => !x.installed).map((x) => x.name);
+  $("cfg-missing").textContent = missing.length ? fill("gui.cfg.missing", missing.join(", ")) : "";
+}
+
+// Freeing space takes two clicks, like ending a process.
+let armedCfg = null;
+function disarmCfg() {
+  if (!armedCfg) return;
+  clearTimeout(armedCfg.dataset.timer);
+  armedCfg.textContent = armedCfg.dataset.text ?? t(armedCfg.dataset.label);
+  armedCfg.classList.remove("danger");
+  armedCfg = null;
+}
+
+async function configure(button) {
+  if (cfgBusy) return;
+  const what = button.dataset.cfg;
+  const id = button.dataset.id ?? "";
+  if ((what === "free" || what === "enforce") && armedCfg !== button) {
+    disarmCfg();
+    armedCfg = button;
+    button.textContent = t("gui.confirm_again");
+    button.classList.add("danger");
+    button.dataset.timer = setTimeout(disarmCfg, 4000);
+    return;
+  }
+  disarmCfg();
+  cfgBusy = true;
+  const buttons = [...document.querySelectorAll("#configure button, #configure input")];
+  for (const b of buttons) b.disabled = true;
+  try {
+    let out = "";
+    if (what === "set") {
+      const input = document.querySelector(`#configure input[data-for="${CSS.escape(id)}"]`);
+      out = await call("ConfigureApply", id, input?.value.trim() ?? "");
+    } else if (what === "apply") {
+      out = await call("ConfigureApply", id, "");
+    } else if (what === "free") {
+      const c = cfg.disk.find((x) => x.id === id);
+      out = await call("ConfigureApply", id, c?.kind === "budget" ? "now" : "");
+    } else if (what === "all") {
+      const done = [];
+      for (const c of cfg.disk.filter((x) => x.kind === "setting" && !x.ok && !x.blocked && x.recommended)) {
+        done.push(await call("ConfigureApply", c.id, ""));
+      }
+      out = done.join("\n");
+    } else if (what === "enforce") {
+      out = (await call("ConfigureEnforce")) || t("gui.cfg.nothing");
+    }
+    toast(out);
+  } catch (err) {
+    toastError(err);
+  } finally {
+    cfgBusy = false;
+    for (const b of buttons) b.disabled = false;
+    showConfigure().catch(toastError);
+  }
+}
+
 // ---------- AI agents ----------
 
 let agentsTimer = 0;
@@ -1124,6 +1263,8 @@ function wire() {
     if (act) return skillAction(act.dataset.skillAct, "one" in act.dataset ? openSkill : "", "");
     const gone = e.target.closest?.("[data-skill-remove]");
     if (gone) return removeSkill(gone);
+    const cfgAct = e.target.closest?.("#configure button[data-cfg]");
+    if (cfgAct) return configure(cfgAct);
     const end = e.target.closest?.("#agents [data-end]");
     if (end) return endAgents(end);
     const run = e.target.closest?.("#runs .run");
@@ -1209,6 +1350,7 @@ function wire() {
   });
   $("check-run").addEventListener("click", () => runCheck().catch(toastError));
   $("agents-refresh").addEventListener("click", () => showAgents().catch(toastError));
+  $("cfg-refresh").addEventListener("click", () => showConfigure().catch(toastError));
   $("steps").addEventListener("change", (e) => {
     const id = e.target.dataset.step;
     if (!id) return;

@@ -151,6 +151,9 @@ command_timeout = "45m"         # time limit per command
 # model_catalog = "off"         # do not download the public model catalogue (automatic mode then uses built-in names)
 skip_steps = ["macos"]
 
+[disk_budgets]                    # omega disk limits set <check> <size>
+"claude-desktop.vm" = "8.0 GB"
+
 [providers.anthropic]
 fast_model = "claude-haiku-5-5"     # optional: override the automatic tiers
 smart_model = "claude-sonnet-5-5"
@@ -170,6 +173,7 @@ model = "my-model"
 | `~/.config/omega/notes.md` | the agent's memory |
 | `~/.config/omega/mac.toml` | your rules for `omega mac` |
 | `~/.local/state/omega/mac-journal.jsonl` | changes made by `omega mac`, for `omega mac undo` |
+| `~/.local/state/omega/backups/<tool>/` | the copy of a tool's file kept before `omega assist` or `omega disk limits` changed it |
 | `~/.local/state/omega/runs/*.log` | log of each run (commands, output, approvals, denials, tokens and cost). omega keeps the newest 30 |
 | macOS Keychain, service `omega-cli` | API keys on macOS |
 | Secret Service, attributes `service=omega-cli account=<provider>` | API keys on Linux with a keyring |
@@ -246,6 +250,12 @@ The JSON report has `task`, `timestamp`, `dry_run`, `steps_run` (always a list; 
 | `omega agents kill [pid\|session-id]...` | end what closed sessions left: everything, one process or one session's worth (`--yes`); shared daemons only by PID |
 | `omega agents end <pid\|session-id>` | end an open agent session and what it runs (`--yes`) |
 | `omega agents idle [--after 2h]` | end the Claude Code sessions idle for longer than `--after`, 30 minutes at least (`--yes`) |
+| `omega assist [tool]` | configuration assistants for Claude Code, Claude Desktop, ChatGPT/Codex, Grok, Docker, Cursor, VS Code, Gemini CLI, Homebrew, Xcode and Ollama; `--yes` applies every recommendation, `--json` |
+| `omega assist apply <check> [value]` | apply one check with its recommended value or yours (`--yes`) |
+| `omega disk limits [--json]` | what each tool takes on disk and how it is limited |
+| `omega disk limits apply\|set <check> <value>\|enforce` | write the recommended limits, set one (a budget: `8GB` or `off`), free what is over its limit (`--yes`, `--dry-run`) |
+| `omega mcp` | MCP server on stdin/stdout so AI agents can use omega's commands |
+| `omega docs [page]`, `omega docs search <words>`, `omega docs ask <question>` | the manual inside omega: a page, an offline search, an answer from your model |
 | `omega disk duplicates\|large\|artifacts` | duplicate file finder by SHA-256, large files, and dev build artifact cleanup |
 | `omega audit ssh\|secrets` | SSH directory & key permissions audit, and shell history secret leak scanner |
 | `omega privacy [--clean]` | review OS telemetry and safely clean browser caches |
@@ -255,7 +265,7 @@ The JSON report has `task`, `timestamp`, `dry_run`, `steps_run` (always a list; 
 | `omega export [file]` | write the machine's blueprint to omega-blueprint.json (mode `0600`): Homebrew formulae and casks, global npm packages, pipx packages, the developer tools found (for reference) and omega's settings. What could not be listed is named |
 | `omega bootstrap <file> [-n] [-y]` | show what a blueprint would install and restore, then do it after a yes at the terminal (or with `-y`); `-n` shows the plan only |
 | `omega shell` | interactive maintenance REPL console |
-| `omega man [dir]` | generate troff man pages for Omega commands |
+| `omega man [dir]` | write omega.1, a man page with every command, its options and examples (`man -l man/omega.1`) |
 | `omega fix [--log <file>] [error...]` | diagnose and fix failing commands, configuration or external build logs |
 
 `omega logs view` prints the newest transcript, `omega logs view 2` prints the second row of `omega logs`, and `omega logs view <file>` prints that file. A new run deletes older transcripts until 30 remain.

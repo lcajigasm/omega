@@ -50,6 +50,10 @@ type Config struct {
 	// catalogue that automatic model selection uses; empty or "live" allows it.
 	Catalog   string                    `toml:"model_catalog,omitempty"`
 	Providers map[string]ProviderConfig `toml:"providers,omitempty"`
+	// DiskBudgets are the most a folder omega can only empty (Claude
+	// Desktop's VM, Xcode's DerivedData...) may hold before `omega disk
+	// limits enforce` empties it: check id -> size such as "8GB".
+	DiskBudgets map[string]string `toml:"disk_budgets,omitempty"`
 }
 
 // Default returns the configuration used when no file exists yet.

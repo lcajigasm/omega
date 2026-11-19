@@ -20,6 +20,7 @@ func diskCmd() *cobra.Command {
 	}
 
 	c.AddCommand(
+		diskLimitsCmd(),
 		&cobra.Command{
 			Use:   "duplicates [dir]",
 			Short: "Find identical duplicate files by size and SHA-256 hash",

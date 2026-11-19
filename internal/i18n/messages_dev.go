@@ -3,6 +3,47 @@ package i18n
 // Messages of omega dev, the privacy and apps sections of omega mac, the
 // session panel and the home screen. Same order as messages: en, es, fr, de, pt.
 var devMessages = map[string][]string{
+	// ---- omega --help: command groups and the way to ask ----
+	"help.g.run":    {"Maintenance:", "Mantenimiento:", "Maintenance :", "Wartung:", "Manutenção:"},
+	"help.g.tools":  {"Your apps, tools and AI agents:", "Tus apps, herramientas y agentes de IA:", "Vos apps, outils et agents d'IA :", "Deine Apps, Werkzeuge und KI-Agenten:", "As tuas apps, ferramentas e agentes de IA:"},
+	"help.g.system": {"Disk, network and security:", "Disco, red y seguridad:", "Disque, réseau et sécurité :", "Festplatte, Netzwerk und Sicherheit:", "Disco, rede e segurança:"},
+	"help.g.setup":  {"Setup and history:", "Configuración e historial:", "Configuration et historique :", "Einrichtung und Verlauf:", "Configuração e histórico:"},
+	"help.g.help":   {"Help:", "Ayuda:", "Aide :", "Hilfe:", "Ajuda:"},
+	"cmd.assist": {
+		"Configuration assistants for Claude, ChatGPT/Codex, Grok, Docker, Cursor and other tools",
+		"Asistentes de configuración para Claude, ChatGPT/Codex, Grok, Docker, Cursor y otras herramientas",
+		"Assistants de configuration pour Claude, ChatGPT/Codex, Grok, Docker, Cursor et d'autres outils",
+		"Konfigurationsassistenten für Claude, ChatGPT/Codex, Grok, Docker, Cursor und andere Werkzeuge",
+		"Assistentes de configuração para Claude, ChatGPT/Codex, Grok, Docker, Cursor e outras ferramentas",
+	},
+	"cmd.disk_limits": {
+		"Limit how much disk Claude, Docker, Codex, Cursor, Homebrew and other tools may take",
+		"Limita cuánto disco pueden ocupar Claude, Docker, Codex, Cursor, Homebrew y otras herramientas",
+		"Limiter le disque que Claude, Docker, Codex, Cursor, Homebrew et d'autres outils peuvent occuper",
+		"Begrenzen, wie viel Speicher Claude, Docker, Codex, Cursor, Homebrew und andere Werkzeuge belegen dürfen",
+		"Limita quanto disco podem ocupar o Claude, Docker, Codex, Cursor, Homebrew e outras ferramentas",
+	},
+	"cmd.docs": {
+		"Read omega's manual, search it, or ask it a question in your own words",
+		"Lee el manual de omega, búscalo o hazle una pregunta con tus palabras",
+		"Lire le manuel d'omega, le chercher ou lui poser une question avec vos mots",
+		"omegas Handbuch lesen, durchsuchen oder ihm eine Frage in deinen Worten stellen",
+		"Lê o manual do omega, pesquisa-o ou faz-lhe uma pergunta com as tuas palavras",
+	},
+	"cmd.mcp": {
+		"Run omega as an MCP server so AI agents can use its commands",
+		"Ejecuta omega como servidor MCP para que los agentes de IA usen sus comandos",
+		"Lancer omega comme serveur MCP pour que les agents d'IA utilisent ses commandes",
+		"omega als MCP-Server starten, damit KI-Agenten seine Befehle nutzen",
+		"Executa o omega como servidor MCP para que os agentes de IA usem os seus comandos",
+	},
+	"help.ask": {
+		"Not sure which command? Ask in your own words: omega docs ask \"how do I limit Docker's disk?\"\nThe manual, offline: omega docs search <words> · Every command and option: omega man",
+		"¿No sabes qué comando usar? Pregunta con tus palabras: omega docs ask \"¿cómo limito el disco de Docker?\"\nEl manual, sin conexión: omega docs search <palabras> · Todos los comandos y opciones: omega man",
+		"Vous ne savez pas quelle commande ? Demandez avec vos mots : omega docs ask \"comment limiter le disque de Docker ?\"\nLe manuel, hors ligne : omega docs search <mots> · Toutes les commandes et options : omega man",
+		"Unsicher, welcher Befehl? Frag in deinen Worten: omega docs ask \"Wie begrenze ich Dockers Speicher?\"\nDas Handbuch, offline: omega docs search <Wörter> · Alle Befehle und Optionen: omega man",
+		"Não sabes que comando usar? Pergunta com as tuas palavras: omega docs ask \"como limito o disco do Docker?\"\nO manual, sem ligação: omega docs search <palavras> · Todos os comandos e opções: omega man",
+	},
 	// ---- omega mac permissions / apps ----
 	"cmd.mac_permissions": {
 		"Remove privacy permissions left behind by binaries and apps that are gone",

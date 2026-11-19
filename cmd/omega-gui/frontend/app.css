@@ -283,3 +283,8 @@ i[data-icon] { display: contents; }
 .mem { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 13px; }
 #agents-idle-row select { width: auto; }
 #agents-body { display: flex; flex-direction: column; gap: 14px; }
+
+/* Configure: disk limits and assistants */
+.cfg-row { align-items: flex-start; }
+.cfg-act { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end; max-width: 280px; }
+.cfg-act input { width: 96px; }

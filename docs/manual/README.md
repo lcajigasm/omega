@@ -12,6 +12,7 @@ every step and every setting.
 | [The interface](interface.md) | The full-screen interface, the session panel, shortcuts, slash commands, selection cards |
 | [Models and cost](models.md) | How the two models are chosen, prices, fixing a model, local models |
 | [Your tools](tools.md) | `omega tune`, `omega dev` and `omega docker` |
+| [Assistants, disk limits, MCP and the manual](assistants.md) | `omega assist`, `omega disk limits`, `omega mcp` for AI agents, `omega docs ask` |
 | [Your Mac](mac.md) | Login and background items, menu bar, Dock, shortcut conflicts, privacy permissions, apps and leftovers |
 | [Linux](linux.md) | Exactly what works on Linux and what does not |
 | [Windows](windows.md) | Exactly what works on Windows and what does not |
@@ -75,6 +76,19 @@ every step and every setting.
   age, and the agent sessions still open. Ends one process, one session's worth
   or all of them, and the Claude Code sessions idle for longer than you allow.
   No model and no key needed.
+- **Configuration assistants** (`omega assist`): checks Claude Code, Claude
+  Desktop, ChatGPT/Codex, Grok, Docker, Cursor, VS Code, Gemini CLI, Homebrew,
+  Xcode and Ollama, and sets in their own files what is worth setting: how long
+  they keep conversations, keys out of the agents' reach, omega's MCP server.
+- **Disk limits** (`omega disk limits`): what each of those tools takes on disk
+  and a limit for each, written in the tool's own configuration where it has
+  one (Docker's build cache, logs and disk image, Claude Code's conversations,
+  Codex's history, Homebrew's downloads) and kept by omega where it has none
+  (Claude Desktop's VM image, caches, DerivedData).
+- **omega for AI agents** (`omega mcp`): an MCP server so Claude, Codex,
+  Cursor and Gemini CLI use omega's commands instead of improvising them.
+- **Ask the manual** (`omega docs ask`): answers a question in your language
+  from this manual with your model; `omega docs search` works offline.
 - **Developer tools** (`omega dev`): knows more than 70 languages, version managers and
   command-line tools. It shows what is installed and by which manager, finds
   overlapping version managers, shadowed commands and a broken `PATH`, installs
