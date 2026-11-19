@@ -177,6 +177,11 @@ function openSession(task, prompt) {
   $("new").hidden = true;
   $("stop").hidden = $("mode").hidden = $("reply").hidden = false;
   $("stop").disabled = false;
+  $("stop").textContent = t("gui.stop");
+  stages = [];
+  guided = false;
+  between = null;
+  $("stages").hidden = true;
   $("stats").textContent = "";
   $("s-task").textContent = prompt || preset?.title || task;
   $("s-model").textContent = "";
@@ -327,7 +332,7 @@ function card(title, risk, id) {
     root.querySelectorAll("button, input").forEach((n) => (n.disabled = true));
     root.querySelector(".buttons")?.remove();
     root.querySelector(".row")?.remove();
-    root.append(el("div", "answer", text));
+    if (text) root.append(el("div", "answer", text));
     asking = Math.max(0, asking - 1);
     working();
     // The buttons that had the focus are gone: it goes to the next card
@@ -467,6 +472,8 @@ function handle(m) {
     lastSeq = m.seq;
   }
   if (m.stats) showStats(m.stats);
+  // A message of the guided run carries every stage as it now stands.
+  if (m.stages) showStages(m.stages);
   switch (m.kind) {
     case "answered": answered(m); break;
     case "thinking":
@@ -526,6 +533,25 @@ function handle(m) {
     case "done":
       if (m.text) add(el("div", "note", m.text));
       break;
+    case "stages":
+      break;
+    case "session":
+      $("s-model").textContent = m.text ?? "";
+      setMode(m.mode);
+      break;
+    case "stage_start":
+      stageStart(m);
+      break;
+    case "stage_end":
+      stageEnd(m);
+      break;
+    case "between":
+      betweenCard(m);
+      break;
+    case "summary":
+      closeBetween();
+      add(summary());
+      break;
     case "closed":
       live = stopping = false;
       asking = 0;
@@ -548,9 +574,220 @@ function handle(m) {
       // An ended session is only read: what acted on it goes away.
       $("stop").hidden = $("mode").hidden = $("reply").hidden = true;
       $("new").hidden = false;
+      if (guided) showStages(stages);
       if (view === "home") showHome().catch(toastError);
       break;
   }
+}
+
+// ---------- guided run ----------
+
+// The guided run is `omega full` in the window: a plan to choose the
+// stages, then each one as a session of its own, and between two of them
+// the choice to go on, skip the next, repeat the last or finish.
+
+let plan = [];       // the stages the plan dialog offers
+let stages = [];     // the stages of the run on show, as they stand
+let guided = false;  // the session on show is a guided run
+let between = null;  // the card between two stages, while it waits
+
+const marks = { done: "✓", failed: "✗", stopped: "■", skipped: "⊘", pending: "○" };
+const riskClass = (risk) => (risk === "dangerous" ? "dangerous" : risk === "normal" ? "normal" : "good");
+const riskLabel = (risk) => t("gui.risk." + (risk === "dangerous" ? "danger" : risk === "normal" ? "normal" : "safe"));
+const togglable = (s) => s.status === "pending" || s.status === "skipped";
+
+async function openPlan() {
+  if (!canStart()) return;
+  plan = await call("FullPlan");
+  $("plan-list").replaceChildren(...plan.map((s) => {
+    const row = el("label", "opt");
+    const input = el("input");
+    input.type = "checkbox";
+    input.checked = true;
+    input.value = s.id;
+    const body = el("div", "body");
+    const head = el("div", "head");
+    head.append(el("b", "", s.title), el("span", "cmd", s.command));
+    body.append(head, el("div", "detail", s.what), el("div", "detail", t("full.why") + ": " + s.why));
+    const badge = el("span", "badge " + riskClass(s.risk), riskLabel(s.risk));
+    badge.title = t(s.risk === "dangerous" ? "full.risk_dangerous" : s.risk === "normal" ? "full.risk_normal" : "full.risk_readonly");
+    row.append(input, body, badge);
+    return row;
+  }));
+  const dry = $("dry").checked;
+  $("plan-flags").hidden = !dry;
+  $("plan-flags").textContent = dry ? fill("full.plan_flags", t("full.flag_dry")) : "";
+  planCount();
+  $("plan").hidden = false;
+  $("plan-start").focus();
+}
+
+function planCount() {
+  const n = $("plan-list").querySelectorAll("input:checked").length;
+  $("plan-count").textContent = fill("full.plan_count", n, plan.length);
+  $("plan-start").disabled = n === 0;
+}
+
+async function startFull() {
+  const ids = [...$("plan-list").querySelectorAll("input:checked")].map((i) => i.value);
+  $("plan").hidden = true;
+  if (!canStart() || ids.length === 0) return;
+  openSession("full", "");
+  go("session");
+  try {
+    showModel(await call("StartFull", ids, $("dry").checked));
+  } catch (err) {
+    live = started = false;
+    startError = message(err);
+    go("home");
+  }
+  badge();
+}
+
+// showStages draws the stages above the log. While the run goes on, a
+// stage that has not run is ticked or unticked with a click.
+function showStages(list) {
+  stages = list ?? [];
+  guided = true;
+  // A stage ends with its work: there is no message to send it.
+  $("reply").hidden = true;
+  const box = $("stages");
+  box.hidden = stages.length === 0;
+  box.title = live ? t("gui.full.toggle") : "";
+  box.replaceChildren(...stages.map((s) => {
+    const b = el("button", "stage " + s.status);
+    b.type = "button";
+    b.setAttribute("role", "listitem");
+    b.dataset.stage = s.id;
+    const off = togglable(s) && (!s.selected || s.status === "skipped");
+    if (off) b.classList.add("off");
+    if (live && togglable(s)) b.classList.add("can");
+    else b.tabIndex = -1;
+    const mark = el("span", "m");
+    if (s.status === "running") mark.append(el("span", "spinner"));
+    else mark.textContent = off ? "⊘" : marks[s.status] ?? "○";
+    b.append(mark, el("span", "", s.title));
+    b.title = s.command + " · " + s.what;
+    return b;
+  }));
+}
+
+function toggleStage(id) {
+  const s = stages.find((x) => x.id === id);
+  if (!s || !live || !togglable(s)) return;
+  const on = !s.selected || s.status === "skipped";
+  call("FullToggle", id, on).catch(toastError);
+}
+
+// stageStart opens a stage in the log. What the stage before it left
+// running or asking is over: its calls and cards are closed.
+function stageStart(m) {
+  closeBetween();
+  for (const e of tools.values()) {
+    e.ended = true;
+    e.mark.querySelector(".spinner")?.remove();
+  }
+  tools.clear();
+  cards.clear();
+  const s = stages[m.stage - 1];
+  if (!s) return;
+  const head = el("div", "stage-head");
+  const top = el("div", "top");
+  top.append(el("span", "ord", m.text ?? ""), el("b", "", s.title), el("span", "cmd", s.command));
+  head.append(top, el("div", "what", s.what));
+  add(head);
+  stopping = false;
+  $("stop").hidden = false;
+  $("stop").disabled = false;
+  $("stop").textContent = t("gui.full.stop_stage");
+  $("stats").textContent = "";
+  setIdle(false);
+  working();
+}
+
+function stageEnd(m) {
+  const s = stages[m.stage - 1];
+  if (!s) return;
+  for (const e of tools.values()) {
+    e.ended = true;
+    e.mark.querySelector(".spinner")?.remove();
+  }
+  // A card the stage left waiting has no one to answer it now.
+  for (const c of cards.values()) c.finish("");
+  cards.clear();
+  let text = (marks[s.status] ?? "·") + " " + s.title + " · ";
+  if (s.status === "done") text += fill("full.finished", seconds(s.seconds ?? 0));
+  else text += t("full.st_" + s.status) + (s.note ? " · " + s.note : "");
+  add(el("div", "stage-end " + s.status, text));
+  stopping = false;
+  $("stop").hidden = true;
+  setMode("");
+  setState(t("gui.ended"), false);
+}
+
+// betweenCard asks what comes after a stage, as the terminal does.
+function betweenCard(m) {
+  // A card asked before the plan changed is replaced, not answered.
+  if (between) {
+    between.finish("");
+    between.root.remove();
+    between = null;
+  }
+  const s = stages[m.stage - 1];
+  if (!s) return;
+  const c = card(t("full.next") + ": " + s.title, s.risk === "read-only" ? "" : s.risk);
+  c.root.append(el("div", "cmd", s.command), el("div", "reason", s.what));
+  const done = stages.filter((x) => x.status !== "pending" && x.status !== "skipped" && x.status !== "running").length;
+  const left = stages.filter((x) => x.selected && x.status === "pending").map((x) => x.title);
+  c.root.append(el("div", "reason", fill("full.plain_left", done, done + left.length, left.join(", "))));
+  const answer = (action, label) => () => call("FullNext", action).then(() => {
+    c.finish(label);
+    if (between === c) between = null;
+  }, report);
+  const buttons = el("div", "buttons");
+  buttons.append(button(t("gui.full.go"), "primary", answer("go", t("gui.full.go"))));
+  if (m.retry) buttons.append(button(t("gui.full.retry"), "", answer("retry", t("gui.full.retry"))));
+  buttons.append(button(t("gui.full.skip"), "", answer("skip", t("gui.full.skip"))));
+  buttons.append(button(t("gui.full.end"), "", answer("end", t("gui.full.end"))));
+  c.root.append(buttons);
+  add(c.root);
+  between = c;
+  if (view === "session") buttons.firstChild.focus();
+}
+
+// closeBetween closes the card between two stages once the run has moved
+// on: answered here, in a window drawn before, or by a change of plan.
+function closeBetween() {
+  if (between) between.finish("");
+  between = null;
+}
+
+// summary is what happened to every stage, at the end of the run.
+function summary() {
+  const box = el("div", "summary");
+  box.append(el("h3", "", t("full.summary")));
+  const count = { done: 0, bad: 0, skipped: 0, pending: 0 };
+  let cost = 0, costKnown = false, took = 0;
+  for (const s of stages) {
+    const st = !s.selected && s.status === "pending" ? "skipped" : s.status;
+    if (st === "done") count.done++;
+    else if (st === "failed" || st === "stopped") count.bad++;
+    else if (st === "skipped") count.skipped++;
+    else count.pending++;
+    took += s.seconds ?? 0;
+    if (s.costKnown) [cost, costKnown] = [cost + s.cost, true];
+    const line = el("div", "line " + st);
+    let what = t("full.st_" + st);
+    if (s.seconds >= 1) what += " · " + seconds(s.seconds);
+    if (s.costKnown) what += " · $" + s.cost.toFixed(s.cost < 1 ? 3 : 2);
+    line.append(el("span", "m", marks[st] ?? "·"), el("span", "", s.title + (s.note ? " — " + s.note : "")), el("span", "st", what));
+    box.append(line);
+  }
+  let total = fill("full.total", count.done, count.bad, count.skipped, count.pending);
+  if (took >= 1) total += " · " + seconds(took);
+  if (costKnown) total += " · $" + cost.toFixed(cost < 1 ? 3 : 2);
+  box.append(el("div", "total", total));
+  return box;
 }
 
 // ---------- history ----------
@@ -1115,7 +1352,9 @@ function wire() {
     const nav = e.target.closest?.("[data-view], [data-go]");
     if (nav) return go(nav.dataset.view ?? nav.dataset.go);
     const task = e.target.closest?.("#home [data-task]");
-    if (task) return start(task.dataset.task, "");
+    if (task) return task.dataset.task === "full" ? openPlan().catch(toastError) : start(task.dataset.task, "");
+    const chip = e.target.closest?.("#stages .stage.can");
+    if (chip) return toggleStage(chip.dataset.stage);
     const tool = e.target.closest?.("#tool-list .run");
     if (tool) return pickTool(tool.dataset.tool);
     const skill = e.target.closest?.("#skill-list .run");
@@ -1190,6 +1429,12 @@ function wire() {
     if (e.key === "Escape") $("quit").hidden = true;
   });
   $("new").addEventListener("click", () => go("home"));
+  $("plan-cancel").addEventListener("click", () => ($("plan").hidden = true));
+  $("plan-start").addEventListener("click", () => startFull());
+  $("plan-list").addEventListener("change", planCount);
+  $("plan").addEventListener("keydown", (e) => {
+    if (e.key === "Escape") $("plan").hidden = true;
+  });
 
   $("run-copy").addEventListener("click", (e) => {
     wails.Clipboard.SetText(e.currentTarget.dataset.text ?? "").then(() => toast(t("gui.copied") + " ✓"), toastError);

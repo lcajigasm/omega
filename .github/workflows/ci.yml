@@ -303,6 +303,8 @@ jobs:
         run: scripts/install_webview_deps.sh ~/.cache/webview-debs
       - name: gui vet
         run: go vet -tags gui ./cmd/omega-gui
+      - name: gui test
+        run: go test -tags gui ./cmd/omega-gui
       - name: gui build
         run: make gui
       - name: gui bundle

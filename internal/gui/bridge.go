@@ -74,6 +74,27 @@ type Message struct {
 	Multi    bool     `json:"multi,omitempty"`
 	Mode     string   `json:"mode,omitempty"`
 	Stats    *Stats   `json:"stats,omitempty"`
+	// The guided run: the position of the stage a message is about, from
+	// 1, and every stage as it stands (stages, summary).
+	Stage  int     `json:"stage,omitempty"`
+	Stages []Stage `json:"stages,omitempty"`
+	Retry  bool    `json:"retry,omitempty"` // between: the last stage may be repeated
+}
+
+// Stage is one stage of a guided run and what has happened to it.
+type Stage struct {
+	ID        string  `json:"id"`
+	Title     string  `json:"title"`
+	What      string  `json:"what"`
+	Why       string  `json:"why"`
+	Command   string  `json:"command"`
+	Risk      string  `json:"risk"`
+	Selected  bool    `json:"selected"`
+	Status    string  `json:"status"` // ui.Stage*: pending, running, done, failed, skipped, stopped
+	Note      string  `json:"note,omitempty"`
+	Seconds   float64 `json:"seconds,omitempty"`
+	Cost      float64 `json:"cost,omitempty"`
+	CostKnown bool    `json:"costKnown,omitempty"`
 }
 
 var kinds = map[agent.EventKind]string{

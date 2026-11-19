@@ -83,6 +83,7 @@
         <button type="button" id="stop" class="danger" data-t="gui.stop"></button>
         <button type="button" id="new" class="primary" data-t="gui.new" hidden></button>
       </header>
+      <div id="stages" class="stages" role="list" hidden></div>
       <div id="log" class="log" role="log" aria-live="polite"></div>
       <div id="status" class="status">
         <span id="spinner" class="spinner" hidden></span>
@@ -333,6 +334,19 @@
     <div class="buttons">
       <button type="button" id="quit-no" class="primary" data-t="gui.quit_no"></button>
       <button type="button" id="quit-yes" class="danger" data-t="gui.quit_yes"></button>
+    </div>
+  </div>
+</div>
+<div id="plan" class="overlay" role="dialog" aria-modal="true" aria-labelledby="plan-title" hidden>
+  <div class="dialog wide">
+    <h2 id="plan-title" data-t="full.title"></h2>
+    <p class="muted" data-t="full.plan_intro"></p>
+    <p id="plan-flags" class="warn small" hidden></p>
+    <div id="plan-list" class="plan-list"></div>
+    <div class="buttons">
+      <span id="plan-count" class="muted grow"></span>
+      <button type="button" id="plan-cancel" data-t="gui.cancel"></button>
+      <button type="button" id="plan-start" class="primary" data-t="gui.full.start"></button>
     </div>
   </div>
 </div>

@@ -12,6 +12,9 @@ type SessionRequest struct {
 	Prompt string // free text instead of a preset task
 	DryRun bool   // read only: changes are offered, never made
 	Demo   bool   // scripted session: no API calls, no real commands
+	// Stage is a stage of the guided run: the session ends when the model
+	// finishes its work, instead of waiting for a follow-up.
+	Stage bool
 }
 
 // Session is a run that has started. Its agent is already working; the
@@ -30,7 +33,7 @@ type Session struct {
 // interactive: the frontend can answer and send follow-ups. Cancelling ctx
 // stops it.
 func StartSession(ctx context.Context, req SessionRequest) (*Session, error) {
-	r, err := prepareRun(req.Task, runFlags{prompt: req.Prompt, dryRun: req.DryRun, demo: req.Demo})
+	r, err := prepareRun(req.Task, runFlags{prompt: req.Prompt, dryRun: req.DryRun, demo: req.Demo, stage: req.Stage})
 	if err != nil {
 		return nil, err
 	}
