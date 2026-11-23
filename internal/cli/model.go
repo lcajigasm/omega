@@ -16,11 +16,11 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 
-	"github.com/lcajigasm/omega/internal/agent"
 	"github.com/lcajigasm/omega/internal/config"
 	"github.com/lcajigasm/omega/internal/i18n"
 	"github.com/lcajigasm/omega/internal/llm"
 	"github.com/lcajigasm/omega/internal/models"
+	"github.com/lcajigasm/omega/internal/runner"
 	"github.com/lcajigasm/omega/internal/ui"
 )
 
@@ -57,8 +57,8 @@ func tiers(cfg *config.Config, info llm.Info) (fast, smart string) {
 
 // planModel decides which model runs a task. An explicit model (flag or
 // config) is used as is. Otherwise tasks start on the fast tier and switch to
-// the smart tier on the first failing step; fix, which is all diagnosis,
-// starts on the smart tier.
+// the smart tier on the first step that fails for a reason a stronger model
+// can do something about.
 func planModel(cfg *config.Config, info llm.Info, flagModel, task string) (modelPlan, error) {
 	plan, err := pickModel(cfg, info, flagModel, task)
 	if err != nil {
@@ -93,9 +93,9 @@ func pickModel(cfg *config.Config, info llm.Info, flagModel, task string) (model
 	if fast == "" {
 		return modelPlan{}, fmt.Errorf("%s", i18n.T("model.need_local", info.Name))
 	}
-	if task == agent.TaskFix {
-		return modelPlan{Model: smart}, nil
-	}
+	// fix used to start on the smart tier. Its runs were three dry runs and
+	// a read of two files, at ten times the cost: it now starts fast too
+	// and switches when a step really fails.
 	if smart != fast {
 		return modelPlan{Model: fast, Escalate: smart}, nil
 	}
@@ -303,6 +303,10 @@ func newProvider(cfg *config.Config, info llm.Info, effort string) (llm.Provider
 			return nil, err
 		}
 		opts.APIKey = key
+		// The key's variable is withheld from commands by name; its value
+		// is also masked in their output, wherever it came from (the
+		// keychain, a file a command prints).
+		runner.Redact(key)
 	}
 	return llm.New(info.Name, opts)
 }

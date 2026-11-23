@@ -102,8 +102,42 @@ func shellInvocation(script string) (string, []string) {
 		if pathPrefix != "" {
 			script = "export PATH=" + shellQuote(pathPrefix) + ":\"$PATH\"; " + script
 		}
-		return sh, []string{"-lc", unsetWithheld(base) + script}
+		return sh, []string{"-lc", unsetWithheld(base) + resetAskpass() + posixPrelude(base) + script}
 	}
+}
+
+// posixPrelude makes a POSIX shell report what the command did:
+//
+//   - pipefail: "topgrade | tail -150" otherwise exits with tail's 0 when
+//     topgrade failed, and the agent reads success. The cost is that a
+//     producer cut short by head (SIGPIPE) now fails the pipeline too.
+//   - zsh's no_nomatch: an unmatched pattern stays as the word it was, as
+//     in bash and sh, instead of aborting the whole command with "no
+//     matches found" (ls /Applications/MySQL*). nullglob would turn
+//     "ls /x/*" into a bare "ls" that lists the working directory.
+//
+// dash has no pipefail (before 0.5.12), and set -o with an option it does
+// not know is a fatal error there, so it is tried in a subshell first.
+func posixPrelude(shell string) string {
+	switch shell {
+	case "zsh":
+		return "setopt no_nomatch; setopt pipefail 2>/dev/null; "
+	case "fish", "csh", "tcsh":
+		return "" // other syntax; fish keeps $pipestatus
+	}
+	return "(set -o pipefail) 2>/dev/null && set -o pipefail; "
+}
+
+// resetAskpass points SUDO_ASKPASS at omega's helper again after the
+// startup files have run: a line in ~/.zshenv that points it elsewhere
+// would otherwise receive the password from every approved sudo.
+func resetAskpass() string {
+	for _, kv := range extraEnv {
+		if v, ok := strings.CutPrefix(kv, "SUDO_ASKPASS="); ok {
+			return "export SUDO_ASKPASS=" + shellQuote(v) + "; "
+		}
+	}
+	return ""
 }
 
 var envName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
@@ -228,8 +262,12 @@ var (
 		`[sr]k_live_[A-Za-z0-9]{16,}|sk-[A-Za-z0-9_-]{20,}|AGE-SECRET-KEY-1[A-Z0-9]{20,})`)
 	// keyValue is a credential written as configuration files write it:
 	// password = "x", oauth_token: x, "access_token": "x", and the value
-	// of an Authorization header.
-	keyValue = regexp.MustCompile(`(?i)(["']?[A-Za-z0-9_.-]*(token|secret|passw(or)?d|api_?key|credential|private_?key|_pat)[A-Za-z0-9_.-]*["']?\s*[:=]\s*)("[^"]{4,}"|'[^']{4,}'|[^\s"',;]{4,})`)
+	// of an Authorization header. The key must be a whole word: at the
+	// start of the line or after a blank, a quote, a bracket or a comma
+	// (with the dashes of an option), not the tail of a file name such as
+	// iam/get-account-password-policy.rst, which an error message prints
+	// before its colon.
+	keyValue = regexp.MustCompile(`(?i)((?:^|[\s"'{,(\[])-{0,2}["']?[A-Za-z0-9_.-]*(token|secret|passw(or)?d|api_?key|credential|private_?key|_pat)[A-Za-z0-9_.-]*["']?\s*[:=]\s*)("[^"]{4,}"|'[^']{4,}'|[^\s"',;]{4,})`)
 	bearer   = regexp.MustCompile(`(?i)\b(bearer|basic)\s+[A-Za-z0-9._~+/=-]{12,}`)
 	// privateKey is a line of a PEM block. The body lines are base64 with
 	// nothing to tell them apart, so the block is masked from its first
@@ -373,6 +411,10 @@ func scrub(line string) string {
 			if location(value) || strings.HasPrefix(value, "$") || strings.Contains(value, "[redacted]") || plainValue.MatchString(value) {
 				return m
 			}
+			// password-policy.rst: No such file — a file named in a message.
+			if fileKey.MatchString(sub[1]) {
+				return m
+			}
 			return sub[1] + "[redacted]"
 		})
 	}
@@ -411,6 +453,9 @@ func (m *pemMask) line(l string) string {
 	return l
 }
 
+// fileKey is a key that is a file name, followed by the colon of a message.
+var fileKey = regexp.MustCompile(`(?i)\.(txt|rst|md|json|ya?ml|toml|ini|conf|cfg|py|go|js|ts|rb|sh|html?|xml|csv|log|pdf|plist)["']?\s*:\s*$`)
+
 // plainValue is a value that is not a secret whatever its name is.
 var plainValue = regexp.MustCompile(`(?i)^(true|false|null|none|yes|no|on|off|auto|never|always|dangerous|required|optional|[0-9.]+|\[.*|\{.*|<.*)$`)
 
@@ -431,6 +476,75 @@ func Scrub(text string) string {
 // .git/config. Given this way the values win over the repository's.
 func GitEnv() []string {
 	return []string{"GIT_CONFIG_COUNT=1", "GIT_CONFIG_KEY_0=core.fsmonitor", "GIT_CONFIG_VALUE_0=false"}
+}
+
+// UntrustedGitConfig reports a repository whose own configuration names a
+// program that git runs while it only looks: a clean or smudge filter
+// (git status runs it on changed files), a diff or text-conversion driver.
+// GitEnv cannot switch those off, because they are keyed by a name the
+// repository chooses; such a repository is better not looked into. Git LFS,
+// which installs a filter in many repositories, is the exception.
+func UntrustedGitConfig(dir string) bool {
+	// The repository is the nearest folder upwards that has a .git.
+	repo := dir
+	for {
+		if _, err := os.Lstat(filepath.Join(repo, ".git")); err == nil {
+			break
+		}
+		parent := filepath.Dir(repo)
+		if parent == repo {
+			return false
+		}
+		repo = parent
+	}
+	gitDir := filepath.Join(repo, ".git")
+	if b, err := os.ReadFile(gitDir); err == nil {
+		// A worktree: .git is a file naming its folder, whose commondir is
+		// the repository's.
+		line := strings.TrimSpace(strings.TrimPrefix(string(b), "gitdir:"))
+		if !filepath.IsAbs(line) {
+			line = filepath.Join(repo, line)
+		}
+		gitDir = line
+		if c, err := os.ReadFile(filepath.Join(gitDir, "commondir")); err == nil {
+			common := strings.TrimSpace(string(c))
+			if !filepath.IsAbs(common) {
+				common = filepath.Join(gitDir, common)
+			}
+			gitDir = common
+		}
+	}
+	data, err := os.ReadFile(filepath.Join(gitDir, "config"))
+	if err != nil {
+		return false
+	}
+	return runsPrograms(string(data))
+}
+
+var (
+	gitSection = regexp.MustCompile(`^\s*\[\s*(filter|diff|merge)\b`)
+	gitAnyHead = regexp.MustCompile(`^\s*\[`)
+	gitProgram = regexp.MustCompile(`(?i)^\s*(clean|smudge|process|textconv|command|driver)\s*=\s*(.*)$`)
+)
+
+func runsPrograms(config string) bool {
+	in := false
+	for _, line := range strings.Split(config, "\n") {
+		switch {
+		case gitSection.MatchString(line):
+			in = true
+		case gitAnyHead.MatchString(line):
+			in = false
+		case in:
+			if m := gitProgram.FindStringSubmatch(line); m != nil {
+				v := strings.Trim(strings.TrimSpace(m[2]), `"`)
+				if v != "" && !strings.HasPrefix(v, "git-lfs ") && !strings.HasPrefix(v, "git lfs ") {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 // childEnv is omega's environment without the withheld variables and

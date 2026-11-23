@@ -16,7 +16,7 @@
 | `analyze` | report, then a card with the recommendations | only what you pick | fast → smart on failure |
 | `health` | disk and battery health, memory, backups, firewall, encryption, automatic updates and the system logs | only what you pick | fast → smart on failure |
 | `tune` | reviews your tools' configuration against the current docs | only what you pick | fast → smart on failure |
-| `fix` | runs the topgrade and Mole dry runs, diagnoses and fixes their config | yes (with approval) | smart |
+| `fix` | runs the topgrade and Mole dry runs, diagnoses and fixes their config | yes (with approval) | fast → smart on failure |
 
 `omega mac` and `omega dev` are guided tasks of the same kind, for what runs on
 your Mac and for your development setup. `omega menu` lists everything on one

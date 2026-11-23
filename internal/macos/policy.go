@@ -124,11 +124,12 @@ func (p *UserPolicy) Save() error {
 	if err := os.MkdirAll(config.Dir(), 0o755); err != nil {
 		return err
 	}
-	f, err := os.Create(PolicyPath())
+	f, err := os.OpenFile(PolicyPath(), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
+	f.Chmod(0o600) // a file written by an earlier version was readable by all
 	f.WriteString(policyHeader)
 	return toml.NewEncoder(f).Encode(p)
 }

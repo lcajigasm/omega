@@ -22,15 +22,16 @@ func subcommand(args []string) string {
 }
 
 var (
-	rpmShort    = regexp.MustCompile(`^-q[ailcdfpRsv]*$|^-[ailcdfpRsv]+$`)
-	pacmanQuery = regexp.MustCompile(`^-Q[a-z]*$|^-S[si]+$|^-F[lxo]+$`)
-	shortFlags  = regexp.MustCompile(`^-[A-Za-z0-9]+$`)
-	psEnvBSD    = regexp.MustCompile(`^[A-Za-z]*e[A-Za-z]*$`)
-	listOrGet   = regexp.MustCompile(`^-(list|get)\w*$`)
-	ifaceName   = regexp.MustCompile(`^[a-z]+[0-9]*$`)
-	lsofRepeats = regexp.MustCompile(`^[-+][A-Za-z]*r`)
-	netstatFlag = regexp.MustCompile(`^-[A-Za-z46]+$`)
-	xattrReads  = regexp.MustCompile(`^-[lprsvx]+$`)
+	rpmShort      = regexp.MustCompile(`^-q[ailcdfpRsv]*$|^-[ailcdfpRsv]+$`)
+	pacmanQuery   = regexp.MustCompile(`^-Q[a-z]*$|^-S[si]+$|^-F[lxo]+$`)
+	shortFlags    = regexp.MustCompile(`^-[A-Za-z0-9]+$`)
+	psEnvBSD      = regexp.MustCompile(`^[A-Za-z]*e[A-Za-z]*$`)
+	listOrGet     = regexp.MustCompile(`^-(list|get)\w*$`)
+	ifaceName     = regexp.MustCompile(`^[a-z]+[0-9]*$`)
+	lsofRepeats   = regexp.MustCompile(`^[-+][A-Za-z]*r`)
+	netstatFlag   = regexp.MustCompile(`^-[A-Za-z46]+$`)
+	xattrReads    = regexp.MustCompile(`^-[lprsvx]+$`)
+	quietRedirect = regexp.MustCompile(`^[0-9&]?>{1,2}(/dev/null|&[0-9-])$`)
 	// What makes an awk program more than a filter: it runs a command,
 	// reads from one, or prints into a file or a pipe.
 	// So is one that calls a function by a name it builds (gawk's @f()),
@@ -74,7 +75,13 @@ func queryTool(p string) (risk Risk, ok bool) {
 	if len(f) == 0 {
 		return Safe, false
 	}
-	args := f[1:]
+	// 2>/dev/null and 2>&1 are for the shell, not the program.
+	var args []string
+	for _, a := range f[1:] {
+		if !quietRedirect.MatchString(a) {
+			args = append(args, a)
+		}
+	}
 	safe := func(yes bool) (Risk, bool) {
 		if yes {
 			return Safe, true
@@ -164,6 +171,11 @@ func queryTool(p string) (risk Risk, ok bool) {
 		}
 		return Safe, false
 	case "softwareupdate":
+		// --schedule alone says whether automatic checking is on; with on
+		// or off after it, it switches it.
+		if len(args) == 1 && args[0] == "--schedule" {
+			return Safe, true
+		}
 		// -l lists; -i, -d, -R and the rest download, install and restart.
 		lists := false
 		for _, a := range args {
@@ -187,6 +199,34 @@ func queryTool(p string) (risk Risk, ok bool) {
 			}
 		}
 		return safe(status)
+	case "sed":
+		return safe(sedReadOnly(args))
+	case "memory_pressure":
+		// -Q asks for the current level; the rest simulate pressure.
+		return safe(len(args) == 1 && args[0] == "-Q")
+	case "/usr/libexec/ApplicationFirewall/socketfilterfw":
+		// --getglobalstate, --getstealthmode, --getappblocked app, --listapps.
+		if len(args) == 0 || !(strings.HasPrefix(args[0], "--get") || args[0] == "--listapps") {
+			return Dangerous, true
+		}
+		for _, a := range args[1:] {
+			if strings.HasPrefix(a, "-") {
+				return Dangerous, true
+			}
+		}
+		return Safe, true
+	case "lipo":
+		// -archs, -info and -verify_arch only look; -create, -thin, -remove
+		// and -output write a file.
+		for _, a := range args {
+			if strings.HasPrefix(a, "-") && !has("-archs -info -detailed_info -verify_arch", a) {
+				return Dangerous, true
+			}
+		}
+		return safe(len(args) > 0)
+	case "sfltool":
+		// dumpbtm prints the login items; resetbtm and the rest change them.
+		return safe(len(args) == 1 && args[0] == "dumpbtm")
 	case "xcode-select":
 		return safe(len(args) == 1 && has("-p --print-path -v --version", args[0]))
 	case "spctl":
@@ -375,4 +415,154 @@ func queryTool(p string) (risk Risk, ok bool) {
 		}
 	}
 	return Safe, false
+}
+
+// sedReadOnly reports a sed that only prints: no -i (or BSD's -I), no
+// script file, and a script without the commands that write a file (w, W,
+// the w flag of s), run one (e, the e flag) or read one (r, R).
+func sedReadOnly(args []string) bool {
+	var scripts []string
+	given := false
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case a == "-e" || a == "--expression":
+			if i+1 >= len(args) {
+				return false
+			}
+			scripts, given = append(scripts, args[i+1]), true
+			i++
+		case strings.HasPrefix(a, "--expression="):
+			scripts, given = append(scripts, strings.TrimPrefix(a, "--expression=")), true
+		case has("-n --quiet --silent -E -r --regexp-extended -u --unbuffered -z --null-data -s --separate --posix --debug --sandbox", a):
+		case a == "-l":
+			i++
+		case shortFlags.MatchString(a):
+			// A cluster such as -nE, or -ne with the script next.
+			letters := a[1:]
+			if strings.HasSuffix(letters, "e") {
+				if i+1 >= len(args) {
+					return false
+				}
+				scripts, given = append(scripts, args[i+1]), true
+				i++
+				letters = strings.TrimSuffix(letters, "e")
+			}
+			if strings.Trim(letters, "nEruzs") != "" {
+				return false
+			}
+		case strings.HasPrefix(a, "-") && a != "-":
+			return false
+		case !given:
+			scripts, given = append(scripts, a), true
+		}
+	}
+	if len(scripts) == 0 {
+		return false
+	}
+	for _, sc := range scripts {
+		if !sedScriptReadOnly(strings.ReplaceAll(sc, inWord, " ")) {
+			return false
+		}
+	}
+	return true
+}
+
+// sedScriptReadOnly reads a sed script command by command.
+func sedScriptReadOnly(s string) bool {
+	i := 0
+	// delimited skips a regular expression or a replacement up to the
+	// unescaped delimiter d, and returns the index after it.
+	delimited := func(i int, d byte) int {
+		for ; i < len(s); i++ {
+			if s[i] == '\\' {
+				i++
+				continue
+			}
+			if s[i] == d {
+				return i + 1
+			}
+		}
+		return -1
+	}
+	address := func(i int) int {
+		switch {
+		case i >= len(s):
+		case s[i] >= '0' && s[i] <= '9':
+			for i < len(s) && (s[i] >= '0' && s[i] <= '9' || s[i] == '~') {
+				i++
+			}
+		case s[i] == '$':
+			i++
+		case s[i] == '/':
+			i = delimited(i+1, '/')
+		case s[i] == '\\' && i+1 < len(s):
+			i = delimited(i+2, s[i+1])
+		case s[i] == '+' || s[i] == '~':
+			i++
+			for i < len(s) && s[i] >= '0' && s[i] <= '9' {
+				i++
+			}
+		}
+		for i >= 0 && i < len(s) && (s[i] == 'I' || s[i] == 'M') {
+			i++
+		}
+		return i
+	}
+	toEnd := func(i int, stops string) int {
+		for i < len(s) && strings.IndexByte(stops, s[i]) < 0 {
+			i++
+		}
+		return i
+	}
+	for i < len(s) {
+		for i < len(s) && strings.IndexByte(" \t\n;", s[i]) >= 0 {
+			i++
+		}
+		if i >= len(s) {
+			break
+		}
+		if i = address(i); i < 0 {
+			return false
+		}
+		if i < len(s) && s[i] == ',' {
+			if i = address(i + 1); i < 0 {
+				return false
+			}
+		}
+		for i < len(s) && (s[i] == ' ' || s[i] == '!') {
+			i++
+		}
+		if i >= len(s) {
+			break
+		}
+		c := s[i]
+		i++
+		switch c {
+		case '{', '}', '=', 'd', 'D', 'g', 'G', 'h', 'H', 'n', 'N', 'p', 'P', 'x', 'z', 'F':
+		case 's', 'y':
+			if i >= len(s) || s[i] == '\\' || s[i] == '\n' {
+				return false
+			}
+			d := s[i]
+			if i = delimited(i+1, d); i < 0 {
+				return false
+			}
+			if i = delimited(i, d); i < 0 {
+				return false
+			}
+			end := toEnd(i, ";\n}")
+			if c == 's' && strings.ContainsAny(s[i:end], "wWe") {
+				return false
+			}
+			i = end
+		case 'a', 'i', 'c', '#':
+			i = toEnd(i, "\n")
+		case ':', 'b', 't', 'T', 'q', 'Q', 'l', 'L':
+			i = toEnd(i, ";\n}")
+		default:
+			return false // w, W, r, R, e and anything unknown
+		}
+	}
+	return true
 }

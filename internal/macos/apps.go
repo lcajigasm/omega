@@ -22,11 +22,15 @@ type AppInfo struct {
 	App
 	Size     int64     // bytes; 0 when unknown
 	LastUsed time.Time // zero when Spotlight does not know
-	Cask     string    // Homebrew cask that installed it
-	Store    bool      // from the Mac App Store
-	Intel    bool      // no Apple silicon slice: runs under Rosetta
-	Verdict  string
-	Why      string
+	// LastActive is when the app last wrote its own files (preferences,
+	// container, saved state): the estimate when Spotlight keeps no date,
+	// which on some Macs is the case for every app.
+	LastActive time.Time
+	Cask       string // Homebrew cask that installed it
+	Store      bool   // from the Mac App Store
+	Intel      bool   // no Apple silicon slice: runs under Rosetta
+	Verdict    string
+	Why        string
 }
 
 // Reasons an app is marked for review.
@@ -115,6 +119,29 @@ func each(n int, fn func(i int)) {
 	wg.Wait()
 }
 
+// lastActive is the newest change among the files an app keeps for itself
+// in the user's Library: a rough "last used" that works without Spotlight.
+func lastActive(bundle string) time.Time {
+	if bundle == "" {
+		return time.Time{}
+	}
+	home, _ := os.UserHomeDir()
+	lib := filepath.Join(home, "Library")
+	var newest time.Time
+	for _, p := range []string{
+		filepath.Join(lib, "Preferences", bundle+".plist"),
+		filepath.Join(lib, "Containers", bundle),
+		filepath.Join(lib, "Application Support", bundle),
+		filepath.Join(lib, "Saved Application State", bundle+".savedState"),
+		filepath.Join(lib, "HTTPStorages", bundle),
+	} {
+		if fi, err := os.Stat(p); err == nil && fi.ModTime().After(newest) {
+			newest = fi.ModTime()
+		}
+	}
+	return newest
+}
+
 // Apps lists the apps the user installed (Apple's own are left out), largest first.
 func Apps(p *UserPolicy, installed map[string]App, now time.Time) []AppInfo {
 	casks := caskApps()
@@ -129,6 +156,9 @@ func Apps(p *UserPolicy, installed map[string]App, now time.Time) []AppInfo {
 		a := &apps[i]
 		a.Size = diskSize(a.Path)
 		a.LastUsed = lastUsed(a.Path)
+		if a.LastUsed.IsZero() {
+			a.LastActive = lastActive(a.Bundle)
+		}
 		_, err := os.Stat(filepath.Join(a.Path, "Contents", "_MASReceipt", "receipt"))
 		a.Store = err == nil
 		if hostARM {
@@ -144,6 +174,8 @@ func Apps(p *UserPolicy, installed map[string]App, now time.Time) []AppInfo {
 		case p != nil && match(p.Apps.Keep, a.Name, a.Bundle):
 			a.Why = "the user's rules keep it"
 		case !a.LastUsed.IsZero() && now.Sub(a.LastUsed) > UnusedApp:
+			a.Verdict, a.Why = Review, WhyUnused
+		case a.LastUsed.IsZero() && !a.LastActive.IsZero() && now.Sub(a.LastActive) > UnusedApp:
 			a.Verdict, a.Why = Review, WhyUnused
 		case a.Intel:
 			a.Verdict, a.Why = Review, WhyIntel

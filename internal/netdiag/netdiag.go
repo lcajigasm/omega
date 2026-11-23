@@ -318,6 +318,24 @@ func KillPortProcess(ctx context.Context, port int) error {
 	return nil
 }
 
+// hideUserinfo replaces the user and password of a URL with "***".
+func hideUserinfo(v string) string {
+	scheme, rest, ok := strings.Cut(v, "://")
+	if !ok {
+		rest, scheme = v, ""
+	}
+	at := strings.LastIndex(rest, "@")
+	slash := strings.Index(rest, "/")
+	if at < 0 || (slash >= 0 && slash < at) {
+		return v
+	}
+	rest = "***@" + rest[at+1:]
+	if scheme != "" {
+		return scheme + "://" + rest
+	}
+	return rest
+}
+
 // proxyAddress is the host and port a proxy variable points to. The value
 // is a URL, with or without a scheme, and the port may be left out.
 func proxyAddress(value string) (string, error) {
@@ -385,7 +403,9 @@ func AuditHostsAndProxies() (*NetworkAudit, error) {
 	// Check proxy variables
 	for _, key := range []string{"HTTP_PROXY", "http_proxy", "HTTPS_PROXY", "https_proxy", "ALL_PROXY", "all_proxy", "NO_PROXY", "no_proxy"} {
 		if val := os.Getenv(key); val != "" {
-			audit.ProxyEnv[key] = val
+			// A proxy address may carry a user and a password
+			// (http://user:pass@host:3128): they are not shown.
+			audit.ProxyEnv[key] = hideUserinfo(val)
 			if strings.Contains(key, "HTTP") || strings.Contains(key, "http") {
 				// Test if proxy host is reachable
 				addr, err := proxyAddress(val)

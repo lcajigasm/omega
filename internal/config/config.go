@@ -195,7 +195,9 @@ func (c *Config) Save() error {
 			os.Remove(tmp)
 		}
 	}()
-	if err := f.Chmod(0o644); err != nil {
+	// For this user only: it names the provider's address, the models and
+	// the approval policy, which other accounts have no business reading.
+	if err := f.Chmod(0o600); err != nil {
 		f.Close()
 		return err
 	}

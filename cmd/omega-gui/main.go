@@ -93,6 +93,8 @@ func main() {
 // ever be taken to one (a link opened from the system's own menu, a file
 // dropped on it), says where it is from when it posts. Neither may act as
 // the user: approve a command, change the provider, switch approvals off.
+var urlGuard = &gui.URLGuard{}
+
 func postOnly(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/wails/runtime" {
@@ -101,6 +103,12 @@ func postOnly(next http.Handler) http.Handler {
 				return
 			}
 			if !ownPage(r) {
+				http.Error(w, "forbidden", http.StatusForbidden)
+				return
+			}
+			// Opening a link is for web pages only: the system would open
+			// file://, smb:// or another app's scheme just the same.
+			if !urlGuard.Allow(r) {
 				http.Error(w, "forbidden", http.StatusForbidden)
 				return
 			}

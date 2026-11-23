@@ -235,17 +235,17 @@ jobs:
       - uses: actions/checkout@v7
       # The arm64 half of the image installs its packages under emulation;
       # the Go build is cross-compiled and does not need it.
-      - uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4
         with:
           platforms: arm64
-      - uses: docker/setup-buildx-action@v4
-      - uses: docker/login-action@v4
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ github.token }}
       - id: meta
-        uses: docker/metadata-action@v6
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
         env:
           # On the image index too, where GitHub reads the description.
           DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
@@ -257,7 +257,7 @@ jobs:
           labels: |
             org.opencontainers.image.title=omega
             org.opencontainers.image.licenses=MIT
-      - uses: docker/build-push-action@v7
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: .
           platforms: linux/amd64,linux/arm64
@@ -280,6 +280,11 @@ jobs:
     permissions:
       contents: write
       actions: write
+      # Signing the provenance of the archives (who built them, from which
+      # commit and workflow): GitHub's attestation, checked with
+      # `gh attestation verify <archive> --repo lcajigasm/omega`.
+      id-token: write
+      attestations: write
     env:
       TAG: ${{ needs.version.outputs.tag }}
     steps:
@@ -296,6 +301,12 @@ jobs:
           set -euo pipefail
           cd dist
           sha256sum omega_* omega-* > SHA256SUMS
+      - name: provenance
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
+        with:
+          subject-path: |
+            dist/omega_*
+            dist/omega-*
       - name: publish
         # A release started by hand has no tag yet: gh creates it here, on
         # the commit that was tested and built, in the same call that

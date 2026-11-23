@@ -21,8 +21,9 @@ func TestPlanModel(t *testing.T) {
 	if len(p.Choices) != 2 {
 		t.Fatalf("auto routine choices: %+v", p.Choices)
 	}
+	// fix starts on the fast tier too: its runs are dry runs and reads.
 	p, _ = planModel(cfg, info, "", "fix")
-	if p.Model != "claude-sonnet-5-5" || p.Escalate != "" {
+	if p.Model != "claude-haiku-5-5" || p.Escalate != "claude-sonnet-5-5" {
 		t.Fatalf("auto fix: %+v", p)
 	}
 	p, _ = planModel(cfg, info, "claude-opus-5-5", "update")
@@ -75,7 +76,7 @@ func TestAutoUsesTheLivePicksAndOverridesStillWin(t *testing.T) {
 	if p.Model != "claude-small-6" || p.Escalate != "claude-new-6" {
 		t.Fatalf("live picks: %+v", p)
 	}
-	if p, _ = planModel(cfg, info, "", "fix"); p.Model != "claude-new-6" {
+	if p, _ = planModel(cfg, info, "", "fix"); p.Model != "claude-small-6" || p.Escalate != "claude-new-6" {
 		t.Fatalf("fix: %+v", p)
 	}
 	cfg.Providers["anthropic"] = config.ProviderConfig{SmartModel: "my-smart"}

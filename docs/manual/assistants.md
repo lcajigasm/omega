@@ -18,6 +18,8 @@ this machine and sets what is worth setting in their own files:
 
 | Tool | What the assistant checks |
 |---|---|
+| topgrade (`topgrade`) | omega's local CI image (`omega:ci*`) in `[containers] ignored_containers`, so topgrade stops trying to pull it; `pre_sudo` and `sudo_loop`, which stop a whole run that has no sudo |
+| Mole (`mole`) | Chrome's on-device AI model in `~/.config/mole/whitelist`, so `mo clean` stops deleting what Chrome downloads again. A new whitelist starts with Mole's own defaults, read from the installed Mole, because the file replaces them |
 | Claude Code (`claude-code`) | how many days conversations are kept (`cleanupPeriodDays`), deny rules that keep the agent out of `.env` files, SSH and AWS keys and omega's own configuration, omega's MCP server, old versions the native installer kept |
 | Claude Desktop (`claude-desktop`) | the Cowork VM image (`vm_bundles`), the app's caches, the old Claude Code versions it keeps, omega's MCP server in `claude_desktop_config.json` |
 | ChatGPT / Codex (`codex`) | the size of the prompt history (`[history] max_bytes`), session recordings in `~/.codex/sessions`, omega's MCP server in `config.toml`, the caches of the ChatGPT app's browser |
@@ -96,6 +98,7 @@ budgets without asking.
 | `docker.disk` | setting | `DiskSizeMiB` in Docker Desktop's `settings-store.json`, with Docker Desktop closed. omega refuses a size below what the disk image holds now plus 2 GB, since Docker Desktop would delete it |
 | `homebrew.cleanup-days` | setting | `HOMEBREW_CLEANUP_MAX_AGE_DAYS` in `~/.homebrew/brew.env`; recommended 30 days (Homebrew's default is 120) |
 | `homebrew.downloads` | cleanup | `brew cleanup --prune=all` |
+| `mole.chrome-model` | action | adds `OptGuideOnDeviceModel/*` to Mole's whitelist (about 4 GB Chrome would download again) |
 | `cursor.agent-versions`, `cursor.cli-versions`, `claude-code.versions`, `claude-desktop.versions` | cleanup | removes every version but the one its link points to |
 | `*.cache` | cleanup | empties the app's web, code and GPU caches |
 | `xcode.derived-data`, `gemini-cli.tmp` | budget | empties DerivedData; removes the oldest chats |

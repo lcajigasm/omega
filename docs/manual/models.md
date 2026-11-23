@@ -11,7 +11,9 @@
 
 Routine maintenance does not need the biggest model. With the default
 **automatic** choice omega runs on a fast model and switches to a smart one the
-first time a step fails, to diagnose it.
+first time a step fails, to diagnose it. A failure a stronger model cannot help
+with (Docker not running, nothing to update, a warning, a full disk,
+administrator access not given) does not switch it.
 
 Which two models those are is decided from live data, not from a list compiled
 into omega. Once a day omega reads OpenRouter's public model catalogue, which

@@ -664,11 +664,15 @@ function pickTool(id, keep) {
 }
 
 async function runTool() {
-  if (!openTool || toolBusy) return;
+  if (!openTool) return;
+  // While a tool runs the button stops it.
+  if (toolBusy) {
+    call("StopTool");
+    return;
+  }
   const out = $("tool-out");
   toolBusy = true;
-  $("tool-run").disabled = true;
-  $("tool-run").textContent = t("gui.tools.running");
+  $("tool-run").textContent = t("gui.tools.stop");
   out.classList.remove("bad");
   out.textContent = "";
   out.hidden = false;
@@ -681,7 +685,6 @@ async function runTool() {
     out.textContent = message(err);
   } finally {
     toolBusy = false;
-    $("tool-run").disabled = false;
     $("tool-run").textContent = t("gui.tools.run");
     $("tool-copy").hidden = false;
     out.scrollTop = 0;

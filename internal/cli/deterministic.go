@@ -248,7 +248,11 @@ func (d *detRun) exit() error {
 // dangerous, or when the configuration says approval = "all", unless --yes
 // was given.
 func needsAnswer(cfg *config.Config, s steps.Step, yes bool) bool {
-	if s.AlwaysConfirm || safety.AlwaysConfirm(s.Command) {
+	// omega's own steps say themselves whether they always ask: their
+	// commands are written here and use sudo or --yes on purpose (apt, the
+	// macOS update, mole-purge). A step the user wrote in steps.d is judged
+	// by its command, like anything the model would run.
+	if s.AlwaysConfirm || (!steps.Builtin(s.ID) && safety.AlwaysConfirm(s.Command)) {
 		return true
 	}
 	if s.Risk == safety.Safe || yes {

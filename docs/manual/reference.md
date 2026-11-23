@@ -236,6 +236,8 @@ The JSON report has `task`, `timestamp`, `dry_run`, `steps_run` (always a list; 
 | `omega steps [--json]` | step catalogue and availability |
 | `omega steps run <id>… [-y] [-n]` | run steps without AI; `-n` shows the commands only. `-y` does not answer for a step that always asks, and a step nobody could confirm makes the command fail |
 | `omega notes [clear]` | the agent's memory |
+| `omega pending` | what earlier runs left for you to do by hand, with how long it has been there |
+| `omega pending dismiss\|snooze <id> <3d\|2w\|1m>\|reopen\|done <id>` | stop runs from repeating an item, postpone it, bring it back or mark it done |
 | `omega logs` | list run transcripts, newest first |
 | `omega logs view [n\|file]` | print one transcript (the latest if omitted) |
 | `omega doctor [--json]` | check config, key shape, provider, the configured model, your own steps and installed steps; no chat, no tokens |

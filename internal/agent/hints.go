@@ -24,13 +24,24 @@ var hints = []hint{
 	{Tool: "topgrade", Bin: "topgrade",
 		Config: []string{"~/.config/topgrade.toml", "~/.config/topgrade.d/"},
 		Check:  []string{"topgrade --config-reference", "topgrade --dry-run --no-retry"},
-		Ideas:  "disable steps that are not installed or not wanted, [misc] cleanup, [brew] autoremove/greedy_cask, pre_sudo, run steps the user runs by hand in [commands]",
-		Docs:   []string{"https://github.com/topgrade-rs/topgrade/blob/main/config.example.toml"}},
+		Ideas: "disable steps that are not installed or not wanted, [misc] cleanup, [brew] autoremove/greedy_cask, run steps the user runs by hand in [commands]. " +
+			"pre_sudo = true and sudo_loop = true run sudo -v before any step and stop the whole run when sudo is not available (an unattended run, " +
+			"no --sudo); under omega neither is needed, because omega's sudo helper answers each step that needs it: do not add them, and do not " +
+			"call a configuration with pre_sudo = false fine while sudo_loop = true is set. omega's topgrade step turns both off for its run and " +
+			"passes --disable system on macOS (macOS updates are the macos-check step). omega's assistant fixes both with a copy of " +
+			"the file: omega assist apply topgrade.pre-sudo, and omega assist apply topgrade.omega-ci (omega's CI image exists only " +
+			"locally and every pull of it fails).",
+		Docs: []string{"https://github.com/topgrade-rs/topgrade/blob/main/config.example.toml"}},
 	{Tool: "Mole", Bin: "mo",
 		Config: []string{"~/.config/mole/"},
 		Check:  []string{"mo --help", "mo clean --dry-run", "mo optimize --dry-run"},
-		Ideas:  "whitelists for caches that must survive (mo clean --whitelist is interactive: edit the files instead), what optimize touches",
-		Docs:   []string{"https://github.com/tw93/Mole#readme"}},
+		Ideas: "whitelists for caches that must survive (mo clean --whitelist is interactive: edit ~/.config/mole/whitelist instead, one absolute " +
+			"path or pattern per line). Once that file exists it replaces Mole's default list, so copy the defaults into it first (Mole's " +
+			"lib/core/base.sh, DEFAULT_WHITELIST_PATTERNS). Keep Chrome's on-device model, which Chrome downloads again (about 4 GB): " +
+			"omega assist apply mole.chrome-model does it, with Mole's defaults first. When a real clean frees much more than its dry run said, " +
+			"say so and compare the two lists. \"No items selected\" from mo purge means nothing was chosen, not that nothing is there: use the " +
+			"mole-purge-preview and mole-purge steps. What optimize touches.",
+		Docs: []string{"https://github.com/tw93/Mole#readme"}},
 	{Tool: "Homebrew", Bin: "brew",
 		Config: []string{"~/.zshrc or ~/.zprofile (HOMEBREW_* variables)", "~/.homebrew/brew.env", "$(brew --prefix)/etc/homebrew/brew.env"},
 		Check:  []string{"brew config", "env | grep ^HOMEBREW_"},

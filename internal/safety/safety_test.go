@@ -25,7 +25,10 @@ func TestClassify(t *testing.T) {
 		{"sudo -n softwareupdate -i -a", Dangerous},
 		{"find ~/Library/Caches -name '*.tmp' -delete", Dangerous},
 		{"sed -i '' 's/a/b/' ~/.zshrc", Dangerous},
-		{"echo $(whoami)", Dangerous},
+		// A substitution is read-only when what runs inside is (fourth
+		// review, B1); one that changes something is not.
+		{"echo $(whoami)", Safe},
+		{"echo $(rm -rf /tmp/x)", Dangerous},
 		{"brew uninstall node", Dangerous},
 		{"mo clean", Dangerous},
 		{"brewx upgrade", Dangerous},

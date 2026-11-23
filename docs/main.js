@@ -327,11 +327,14 @@
       if (!d.open || d.dataset.loaded) return;
       d.dataset.loaded = "1";
       const base = "https://cdn.jsdelivr.net/npm/asciinema-player@3.8.2/dist/bundle/asciinema-player";
+      // Pinned by hash: a changed file on the CDN is refused by the browser.
       const css = document.createElement("link");
-      css.rel = "stylesheet"; css.href = `${base}.css`;
+      css.rel = "stylesheet"; css.href = `${base}.css`; css.crossOrigin = "anonymous";
+      css.integrity = "sha384-wruPiIlJl5dqdCj6KyIvrFetsqpS/yjdpHZlLUeRQJ1fboGXTveBDR1fIEidEHFH";
       document.head.appendChild(css);
       const s = document.createElement("script");
-      s.src = `${base}.min.js`;
+      s.src = `${base}.min.js`; s.crossOrigin = "anonymous";
+      s.integrity = "sha384-w0IcgUS+zaHBq3GEUGVViBPPw+hF6xhnP17Hs/xaW1CJds9RVPi8hsRHPc10YhIY";
       s.onload = () => window.AsciinemaPlayer.create(d.dataset.cast, $(".cast-body", d), { cols: 100, rows: 32, autoPlay: true, fit: "width", idleTimeLimit: 2 });
       document.head.appendChild(s);
     });

@@ -124,7 +124,7 @@ func newRoot(f *runFlags) *cobra.Command {
 
 	root.AddCommand(
 		fullCmd(), quickCmd(f), fixCmd(f), setupCmd(), group(authCmd()), modelCmd(), modelsCmd(),
-		dockerCmd(), macCmd(), devCmd(), menuCmd(), group(configCmd()), stepsCmd(), notesCmd(),
+		dockerCmd(), macCmd(), devCmd(), menuCmd(), group(configCmd()), stepsCmd(), notesCmd(), pendingCmd(),
 		logsCmd(), doctorCmd(), group(netCmd()), group(auditCmd()), privacyCmd(), group(gitCmd()), group(diskCmd()),
 		uninstallCmd(), skillsCmd(), agentsCmd(), assistCmd(), mcpCmd(), docsCmd(root), group(scheduleCmd()), rollbackCmd(), exportCmd(), bootstrapCmd(), shellCmd(),
 		completionGroup(completionCmd(root)), manCmd(root),
@@ -142,7 +142,7 @@ var commandGroups = []struct {
 	{"run", "help.g.run", []string{"full", "quick", "fix", "menu", "shell", "schedule", "rollback"}},
 	{"tools", "help.g.tools", []string{"assist", "agents", "skills", "dev", "docker", "mac", "uninstall"}},
 	{"system", "help.g.system", []string{"disk", "net", "git", "audit", "privacy"}},
-	{"setup", "help.g.setup", []string{"setup", "auth", "model", "models", "config", "steps", "notes", "logs", "doctor", "export", "bootstrap"}},
+	{"setup", "help.g.setup", []string{"setup", "auth", "model", "models", "config", "steps", "notes", "pending", "logs", "doctor", "export", "bootstrap"}},
 	{"help", "help.g.help", []string{"docs", "man", "mcp", "completion", "help"}},
 }
 
@@ -234,7 +234,7 @@ var shortcuts = map[string][]string{
 	"start": {"menu"}, "ui": {"menu"}, "inicio": {"menu"}, "menú": {"menu"},
 	// A bare "status" or "check" gets the check that costs nothing.
 	"diagnose": {"doctor"}, "status": {"doctor"}, "check": {"doctor"}, "estado": {"doctor"}, "ranking": {"models"}, "modelos": {"models"},
-	"memory": {"notes"}, "notas": {"notes"}, "pasos": {"steps"}, "wizard": {"setup"}, "configure": {"setup"}, "init": {"setup"},
+	"memory": {"notes"}, "notas": {"notes"}, "pendientes": {"pending"}, "pasos": {"steps"}, "wizard": {"setup"}, "configure": {"setup"}, "init": {"setup"},
 	"unattended": {"full", "--unattended"}, "desatendido": {"full", "--unattended"}, "autopilot": {"full", "--unattended"},
 	"cron": {"schedule"}, "daemon": {"schedule"}, "backup": {"export"},
 }
@@ -485,6 +485,7 @@ func (r *run) agent(interactive, demoInteractive bool, sudoPassword string) *age
 		Approval:     cfg.Approval,
 		AutoYes:      r.f.yes,
 		ReadOnly:     r.readOnly,
+		DryRun:       r.f.dryRun,
 		Interactive:  interactive,
 		Timeout:      r.timeout,
 		Config:       cfg,
@@ -509,6 +510,9 @@ func (r *run) agent(interactive, demoInteractive bool, sudoPassword string) *age
 		MaxTurns:   r.f.maxTurns,
 		OneShot:    r.f.stage,
 		Unattended: r.f.unattended,
+		Version:    version,
+		Task:       r.task,
+		Command:    strings.Join(os.Args, " "),
 	}
 	if r.f.demo {
 		opts.Provider = "anthropic"

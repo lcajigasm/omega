@@ -190,7 +190,7 @@ var menuGroups = []struct {
 	{"mac", []string{"mac"}},
 	{"dev", []string{"dev"}},
 	{"models", []string{"setup", "model", "models", "auth"}},
-	{"state", []string{"doctor", "steps", "logs", "notes"}},
+	{"state", []string{"doctor", "steps", "logs", "notes", "pending"}},
 	{"settings", []string{"config"}},
 }
 

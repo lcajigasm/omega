@@ -103,3 +103,28 @@ func TestGitDoesNotRunARepositorysMonitor(t *testing.T) {
 		t.Errorf("git status no longer works: %q", res.Output)
 	}
 }
+
+// Fourth review, H2: a file name that contains "password" is not a key.
+// brew printed this line while the disk was full, and the mask ate the
+// error message.
+func TestScrubLeavesFileNamesWithSecretWords(t *testing.T) {
+	for _, line := range []string{
+		`awscli/examples/iam/get-account-password-policy.rst: Failed to create dir 'x': No space left on device`,
+		`Error: /usr/local/share/token-cache.json: Permission denied always`,
+		`password-policy.rst: Failed to create dir`,
+	} {
+		if got := Scrub(line); got != line {
+			t.Errorf("Scrub(%q) = %q", line, got)
+		}
+	}
+	for line, want := range map[string]string{
+		`password: hunter2hunter2`:          `password: [redacted]`,
+		`  db_password = s3cr3tvalue`:       `  db_password = [redacted]`,
+		`{"api_key":"abcd1234efgh"}`:        `{"api_key":[redacted]}`,
+		`mysql --password=hunter2hunter2 x`: `mysql --password=[redacted] x`,
+	} {
+		if got := Scrub(line); got != want {
+			t.Errorf("Scrub(%q) = %q, want %q", line, got, want)
+		}
+	}
+}

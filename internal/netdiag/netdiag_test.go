@@ -187,3 +187,18 @@ func TestPingRegistries(t *testing.T) {
 		t.Errorf("expected results from PingRegistries")
 	}
 }
+
+// Third review: net audit printed a proxy's user and password.
+func TestHideUserinfo(t *testing.T) {
+	for in, want := range map[string]string{
+		"http://user:secret@proxy:3128": "http://***@proxy:3128",
+		"user:secret@proxy:3128":        "***@proxy:3128",
+		"http://proxy:3128":             "http://proxy:3128",
+		"localhost,.corp":               "localhost,.corp",
+		"http://proxy/a@b":              "http://proxy/a@b",
+	} {
+		if got := hideUserinfo(in); got != want {
+			t.Errorf("%s: %s", in, got)
+		}
+	}
+}

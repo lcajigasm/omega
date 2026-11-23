@@ -386,7 +386,7 @@ func TestUserChangesApplyBeforeNextTurn(t *testing.T) {
 	if a.model != "other" || len(p.models) != 1 || p.models[0] != "other" {
 		t.Fatalf("picked model not applied: %s %v", a.model, p.models)
 	}
-	a.escalate()
+	a.escalate("test")
 	if a.model != "other" {
 		t.Fatal("a model the user picked must not be replaced by escalation")
 	}
@@ -402,8 +402,9 @@ func TestUserChangesApplyBeforeNextTurn(t *testing.T) {
 	}
 }
 
-// An unattended run waits for nobody: every option offered is taken, and an
-// action that always needs a person is skipped instead of asked.
+// An unattended run waits for nobody: every safe option offered is taken
+// (and said to be taken by omega, not by the user), and an action that
+// always needs a person is skipped instead of asked.
 func TestUnattendedTakesEveryOptionAndSkipsAlwaysAsk(t *testing.T) {
 	p := &scriptedProvider{replies: []*llm.Reply{
 		{Calls: []llm.ToolCall{call("1", "propose_actions", map[string]any{
@@ -429,8 +430,9 @@ func TestUnattendedTakesEveryOptionAndSkipsAlwaysAsk(t *testing.T) {
 			t.Fatalf("an unattended run asked something: %+v", e)
 		}
 	}
-	if got := p.results[1][0].Content; !strings.Contains(got, "- a: A") || !strings.Contains(got, "- b: B") {
-		t.Fatalf("every option should be taken: %q", got)
+	if got := p.results[1][0].Content; !strings.Contains(got, "- a: A") || !strings.Contains(got, "- b: B") ||
+		!strings.Contains(got, "nobody chose") || strings.Contains(got, "The user selected") {
+		t.Fatalf("every safe option should be taken, by omega: %q", got)
 	}
 	if r := p.results[2][0]; r.IsError {
 		t.Fatalf("an approved command was rejected: %+v", r)
@@ -751,7 +753,7 @@ func TestRefusedModelSwitchKeepsTheModel(t *testing.T) {
 	t.Cleanup(a.closeLog)
 	a.SetModel("other")
 	a.applyChanges("hello")
-	a.escalate()
+	a.escalate("test")
 	if a.currentModel() != "fast" || len(p.models) != 0 {
 		t.Fatalf("the model changed to %s (%v) though the provider refused", a.currentModel(), p.models)
 	}
