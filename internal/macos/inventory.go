@@ -302,7 +302,9 @@ func (inv *Inventory) Report(section string) string {
 	var b strings.Builder
 	all := section == "" || section == "all"
 	if inv.NoBTM && (all || section == "login" || section == "background") {
-		b.WriteString("NOTE: macOS's Background Task Management did not answer (sfltool dumpbtm timed out), so login items and app helpers are missing below; only launchd jobs are listed. Try again later.\n\n")
+		b.WriteString("NOTE: macOS's Background Task Management did not answer (sfltool dumpbtm timed out or failed recently), so app helpers " +
+			"registered with it are missing below; the login items System Events knows and the launchd jobs are listed. omega does not " +
+			"try sfltool again for a few hours: do not retry in this session.\n\n")
 	}
 	if all || section == "login" {
 		b.WriteString("## Open at login\n")
@@ -491,8 +493,11 @@ func (inv *Inventory) reportApps(b *strings.Builder) {
 			continue
 		}
 		used := "last opened unknown"
-		if !a.LastUsed.IsZero() {
+		switch {
+		case !a.LastUsed.IsZero():
 			used = fmt.Sprintf("last opened %d days ago", int(inv.Now.Sub(a.LastUsed).Hours()/24))
+		case !a.LastActive.IsZero():
+			used = fmt.Sprintf("last active about %d days ago (estimated from its own files; Spotlight keeps no date)", int(inv.Now.Sub(a.LastActive).Hours()/24))
 		}
 		var notes []string
 		if s := a.Source(); s != "" {

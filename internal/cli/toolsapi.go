@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -106,7 +107,31 @@ func homePath(p string) string {
 // RunTool runs a tool and returns what the command printed. arg is its
 // optional argument; an argument that looks like a flag is refused, so the
 // app can only run the commands listed here.
-func RunTool(id, arg string) (string, error) {
+func RunTool(id, arg string) (string, error) { return RunToolContext(context.Background(), id, arg) }
+
+// RunToolContext is RunTool that stops when ctx is cancelled: the window's
+// Stop button. A command that listens to its context ends there; one that
+// does not is left to finish in the background, and the window is free
+// again at once.
+func RunToolContext(ctx context.Context, id, arg string) (string, error) {
+	type result struct {
+		out string
+		err error
+	}
+	done := make(chan result, 1)
+	go func() {
+		out, err := runTool(ctx, id, arg)
+		done <- result{out, err}
+	}()
+	select {
+	case r := <-done:
+		return r.out, r.err
+	case <-ctx.Done():
+		return "", fmt.Errorf("%s", i18n.T("gui.tools.stopped"))
+	}
+}
+
+func runTool(ctx context.Context, id, arg string) (string, error) {
 	for _, t := range guiTools {
 		if t.id != id {
 			continue
@@ -137,7 +162,7 @@ func RunTool(id, arg string) (string, error) {
 		root.SetOut(&out)
 		root.SetErr(&out)
 		root.SetArgs(args)
-		err := root.Execute()
+		err := root.ExecuteContext(ctx)
 		return strings.TrimRight(out.String(), "\n"), err
 	}
 	return "", fmt.Errorf("%s", i18n.T("gui.tools.unknown", id))

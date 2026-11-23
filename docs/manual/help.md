@@ -34,7 +34,20 @@ list.
 
 **I want to see exactly what it did**: `omega logs` lists the transcripts and
 `omega logs view` prints the latest. omega keeps the newest 30 under
-`~/.local/state/omega/runs/`.
+`~/.local/state/omega/runs/`. Each one starts with the omega version, the
+machine, the command and the mode (interactive, guided stage or unattended).
+Inside, `$` is a shell command and `»` another tool (a file read, a page, a
+search) with the start of what it returned; `[tool DENIED]` is a refusal and
+its reason; `? choice` is a card with its options and `? answer` who answered
+it (you, or omega in an unattended run); `[… approved by the user]` or
+`[… approved without asking]` says who let a change through. Calls that ran
+together are written one after another, and long or repeated output is folded
+(`… N more lines like the one above`). The end counts the tools that
+succeeded and failed, and the cost per model when more than one was used.
+
+**Every run tells me the same things**: `omega pending` lists them;
+`omega pending dismiss <id>` or `omega pending snooze <id> 2w` keeps runs from
+repeating one.
 
 **`omega doctor` fails**: it prints which check failed. A key that is a URL or
 too short is rejected before any request. "Not reachable" means the provider

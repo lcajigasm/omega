@@ -88,7 +88,8 @@ const unattendedPersonal = "UNATTENDED RUN: the Dock, the menu bar, keyboard sho
 // arranged themselves.
 func (a *Agent) personalDenied(tool, command, what string) error {
 	why := "Unattended run: " + what + " is how the user arranged this machine, not maintenance, so it was left as it is. " +
-		"Do not retry it or an equivalent; mention it in your summary as a suggestion the user can apply with omega mac."
+		"Do not retry it or an equivalent; mention it in your summary as a suggestion. The user can apply it by running omega mac " +
+		"themselves, where a person answers the cards (it is refused only in unattended runs)."
 	a.emit(Event{Kind: EvDenied, Tool: tool, Command: command, Reason: why})
 	return explained(errors.New(why))
 }
@@ -121,8 +122,10 @@ func toolMacChange(ctx context.Context, a *Agent, in map[string]any) (string, er
 	}
 	// The changes are journaled and reversible; those that need sudo, remove
 	// an app or forget a permission for every app count as dangerous.
+	// Turning off a login or background item stops software the user
+	// installed from running: the user approves it.
 	risk := safety.Normal
-	if c.Sudo() || strings.HasPrefix(id, "app-remove:") || strings.HasPrefix(id, "perm-reset-all:") {
+	if c.Sudo() || strings.HasPrefix(id, "app-remove:") || strings.HasPrefix(id, "perm-reset-all:") || strings.HasPrefix(id, "disable:") {
 		risk = safety.Dangerous
 	}
 	reason := c.Title
@@ -134,7 +137,9 @@ func toolMacChange(ctx context.Context, a *Agent, in map[string]any) (string, er
 		return "", err
 	}
 	a.macInv = nil // the system changed: read it again next time
-	if strings.HasPrefix(out, "exit_code: 0\n") {
+	if strings.Contains(out, "not removed by omega") {
+		out += "\nNothing changed: omega opened the pane instead. In your summary, list this as left for the user; do not say it was done."
+	} else if strings.HasPrefix(out, "exit_code: 0\n") {
 		if err := macos.Record(c); err != nil {
 			out += "\n(could not record the change for undo: " + err.Error() + ")"
 		} else if c.Undo != "" {
@@ -147,11 +152,16 @@ func toolMacChange(ctx context.Context, a *Agent, in map[string]any) (string, er
 	return out, nil
 }
 
-func toolMacPolicy(_ context.Context, a *Agent, in map[string]any) (string, error) {
+func toolMacPolicy(ctx context.Context, a *Agent, in map[string]any) (string, error) {
 	kind, value := getString(in, "kind"), getString(in, "value")
 	if a.opts.Unattended {
 		// Rules record what the user decided, and nobody decided anything.
 		return "", a.personalDenied("mac_policy", kind+" "+value, "a rule in mac.toml")
+	}
+	// A rule decides what later runs suggest and apply: the user sees it
+	// and says yes, like any other lasting setting.
+	if ok, why := a.authorize(ctx, "mac_policy", kind+" "+value, i18n.T("agent.mac_rule", kind, value), safety.Dangerous, false); !ok {
+		return "", explained(errors.New(why))
 	}
 	p, err := macos.LoadPolicy()
 	if err != nil {

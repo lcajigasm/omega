@@ -23,10 +23,18 @@ var gitTimeout = 30 * time.Second
 // ErrGitTimeout is returned when git did not answer in time.
 var ErrGitTimeout = errors.New("git took too long")
 
+// ErrUntrusted is a repository whose own configuration names a program git
+// would run while omega only looks (a filter, a diff driver): it is left
+// out instead.
+var ErrUntrusted = errors.New("its .git/config names a program git would run (a filter or diff driver); not inspected")
+
 // git runs git in a repository and returns what it printed. It is run as
 // it is, not through the user's shell: starting a login shell for every
 // command took longer than git itself. Tests replace it.
 var git = func(ctx context.Context, repo string, args ...string) (string, error) {
+	if runner.UntrustedGitConfig(repo) {
+		return "", fmt.Errorf("git %s: %w", args[0], ErrUntrusted)
+	}
 	ctx, cancel := context.WithTimeout(ctx, gitTimeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "git", append([]string{"-C", repo}, args...)...)

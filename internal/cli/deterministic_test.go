@@ -150,3 +150,18 @@ func TestShellSubcommands(t *testing.T) {
 		}
 	}
 }
+
+// omega's own steps decide for themselves whether they always ask: the
+// sudo of a system update or the --yes of a cleaner is written on purpose.
+// A step from steps.d is judged by its command.
+func TestNeedsAnswerTrustsBuiltinCommands(t *testing.T) {
+	cfg := config.Default()
+	builtin := steps.Step{ID: "brew", Command: "sudo softwareupdate --install --all", Risk: safety.Dangerous}
+	if needsAnswer(cfg, builtin, true) {
+		t.Error("a builtin step with --yes should not always ask")
+	}
+	own := steps.Step{ID: "my-own-step", Command: "sudo softwareupdate --install --all", Risk: safety.Dangerous}
+	if !needsAnswer(cfg, own, true) {
+		t.Error("a user's step that runs sudo always asks")
+	}
+}

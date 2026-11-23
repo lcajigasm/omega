@@ -373,6 +373,26 @@ Exemplos:
 	"cmd.notes_clear": {"Delete the notes", "Borrar las notas", "Supprimer les notes", "Notizen löschen", "Apagar as notas"},
 	"notes.empty":     {"No notes yet.", "Aún no hay notas.", "Pas encore de notes.", "Noch keine Notizen.", "Ainda não há notas."},
 
+	// ---- pending ----
+	"cmd.pending": {
+		"What earlier runs left for you to do by hand", "Lo que las ejecuciones anteriores te dejaron por hacer a mano",
+		"Ce que les exécutions précédentes vous ont laissé à faire", "Was frühere Läufe für Sie zum Erledigen übrig gelassen haben",
+		"O que as execuções anteriores deixaram para fazer à mão",
+	},
+	"cmd.pending_dismiss": {"Stop mentioning an item", "Dejar de mencionar un pendiente", "Ne plus mentionner un élément", "Einen Eintrag nicht mehr erwähnen", "Deixar de mencionar um item"},
+	"cmd.pending_reopen":  {"Mention an item again", "Volver a mencionar un pendiente", "Mentionner à nouveau un élément", "Einen Eintrag wieder erwähnen", "Voltar a mencionar um item"},
+	"cmd.pending_done":    {"Mark an item as done", "Marcar un pendiente como hecho", "Marquer un élément comme fait", "Einen Eintrag als erledigt markieren", "Marcar um item como feito"},
+	"cmd.pending_snooze": {
+		"Postpone an item (3d, 2w, 1m)", "Posponer un pendiente (3d, 2w, 1m)", "Reporter un élément (3d, 2w, 1m)",
+		"Einen Eintrag verschieben (3d, 2w, 1m)", "Adiar um item (3d, 2w, 1m)",
+	},
+	"pending.empty": {"Nothing pending.", "No hay nada pendiente.", "Rien en attente.", "Nichts ausstehend.", "Nada pendente."},
+	"pending.seen": {
+		"since %s, seen in %d runs", "desde el %s, visto en %d ejecuciones", "depuis le %s, vu dans %d exécutions",
+		"seit %s, in %d Läufen gesehen", "desde %s, visto em %d execuções",
+	},
+	"pending.set": {"%s: %s", "%s: %s", "%s : %s", "%s: %s", "%s: %s"},
+
 	// ---- logs ----
 	"cmd.logs": {
 		"List run transcripts", "Listar los registros de ejecución", "Lister les journaux d'exécution",
@@ -582,6 +602,8 @@ Exemplos:
 	"step.trash":                 {"Trash", "Papelera", "Corbeille", "Papierkorb", "Lixo"},
 	"step.topgrade-preview":      {"topgrade (dry run)", "topgrade (simulación)", "topgrade (simulation)", "topgrade (Probelauf)", "topgrade (simulação)"},
 	"step.mole-clean-preview":    {"Mole clean (dry run)", "Mole clean (simulación)", "Mole clean (simulation)", "Mole clean (Probelauf)", "Mole clean (simulação)"},
+	"step.mole-purge-preview":    {"Mole purge (dry run)", "Mole purge (simulación)", "Mole purge (simulation)", "Mole purge (Probelauf)", "Mole purge (simulação)"},
+	"step.mole-purge":            {"Mole purge: build artifacts", "Mole purge: artefactos de compilación", "Mole purge : artefacts de compilation", "Mole purge: Build-Artefakte", "Mole purge: artefactos de compilação"},
 	"step.mole-optimize-preview": {"Mole optimize (dry run)", "Mole optimize (simulación)", "Mole optimize (simulation)", "Mole optimize (Probelauf)", "Mole optimize (simulação)"},
 	"step.mole-update":           {"Update Mole", "Actualizar Mole", "Mettre à jour Mole", "Mole aktualisieren", "Atualizar o Mole"},
 

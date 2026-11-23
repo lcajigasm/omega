@@ -24,6 +24,9 @@ import (
 
 const maxTurns = 80
 
+// maxCallsPerTurn is how many tool calls one reply of the model may run.
+const maxCallsPerTurn = 16
+
 // Process status values. ExitCancelled is the conventional 128+SIGINT.
 const (
 	ExitOK        = 0
@@ -36,13 +39,16 @@ type ExecFunc func(ctx context.Context, command string, timeout time.Duration, o
 
 // Options configure a run.
 type Options struct {
-	Provider    string
-	Model       string
-	Escalate    string // stronger model to switch to when a step fails; "" disables
-	Approval    string // config.Approve*
-	AutoYes     bool   // --yes: approve everything except blocked and always-confirm actions
-	ReadOnly    bool   // only Safe actions are allowed until the user picks actions
-	Interactive bool   // wait for follow-up input after the model finishes
+	Provider string
+	Model    string
+	Escalate string // stronger model to switch to when a step fails; "" disables
+	Approval string // config.Approve*
+	AutoYes  bool   // --yes: approve everything except blocked and always-confirm actions
+	ReadOnly bool   // only Safe actions are allowed until the user picks actions
+	// DryRun is --dry-run: read-only for the whole session. Unlike the
+	// analyze task, a pick on a card does not lift it.
+	DryRun      bool
+	Interactive bool // wait for follow-up input after the model finishes
 	// OneShot ends the session when the model finishes its turn, although
 	// someone is there to answer cards and passwords: a stage of the guided
 	// run goes on to the next one instead of waiting for a message.
@@ -67,6 +73,12 @@ type Options struct {
 	MaxCost float64
 	// MaxTurns limits the agent turns (defaults to 80).
 	MaxTurns int
+	// Version, Task and Command go into the transcript's header, so a run
+	// can be told apart from another later: which omega, which task and the
+	// exact command line (omega full --unattended, a stage, a question).
+	Version string
+	Task    string
+	Command string
 }
 
 // Agent drives one maintenance session.
@@ -105,6 +117,17 @@ type Agent struct {
 	accessMu    sync.Mutex      // one permission card at a time
 	accessAsked map[string]bool // privacy permissions already asked for
 	logMu       sync.Mutex      // serializes transcript writes from parallel tools
+	calls       map[string]*callLog
+	batching    int                // > 0 while a batch of calls runs in parallel (under logMu)
+	costBy      map[string]float64 // cost of each model used, for the transcript
+	ok          int                // calls that succeeded (under logMu)
+	failed      []string           // calls that failed (under logMu)
+
+	// What run_command was told by a tool that wants a confirmation of its
+	// own (mo purge: "use --yes to confirm"): the program, so that adding
+	// --yes or --force to it afterwards is asked about every time.
+	refusedConfirm map[string]bool
+	results        map[string]cachedResult // read-only results kept for the session
 }
 
 // New creates an agent for the given provider.
@@ -117,7 +140,7 @@ func New(p llm.Provider, opts Options) *Agent {
 		opts.Provider = p.Name()
 	}
 	notes, _ := os.ReadFile(config.NotesPath())
-	sys := systemPrompt(string(notes), opts.Config.SkipSteps, opts.ReadOnly)
+	sys := systemPrompt(string(notes), opts.Config.SkipSteps, opts.ReadOnly) + runModePrompt(opts) + pendingPrompt()
 	a := &Agent{
 		opts:    opts,
 		model:   opts.Model,
@@ -220,9 +243,21 @@ func (a *Agent) Run(ctx context.Context, task string) {
 	defer close(a.events)
 	defer a.closeLog()
 	a.ctx = ctx
+	a.writeLog(Event{Kind: EvAssistant, Text: "> " + task})
 	if a.real {
 		if b, err := sudo.Start(a.askPassword, a.opts.SudoPassword); err == nil {
-			runner.Configure(b.Env(), b.PathPrefix())
+			// OMEGA_SUDO tells a step whether this run can answer sudo:
+			// yes with --sudo, ask when someone can type the password,
+			// no when nobody can (the brew step then leaves out the casks
+			// that need it instead of failing on them).
+			sudoMode := "no"
+			switch {
+			case a.opts.SudoPassword != "":
+				sudoMode = "yes"
+			case a.opts.Interactive && !a.opts.Unattended:
+				sudoMode = "ask"
+			}
+			runner.Configure(append(b.Env(), "OMEGA_SUDO="+sudoMode), b.PathPrefix())
 			defer func() {
 				runner.Configure(nil, "")
 				b.Close()
@@ -301,7 +336,14 @@ func (a *Agent) Run(ctx context.Context, task string) {
 		a.usage = a.usage.Add(reply.Usage)
 		model := a.currentModel()
 		if price, ok := llm.PriceFor(a.opts.Provider, model); ok {
-			a.cost += price.Cost(reply.Usage)
+			c := price.Cost(reply.Usage)
+			a.cost += c
+			a.mu.Lock()
+			if a.costBy == nil {
+				a.costBy = map[string]float64{}
+			}
+			a.costBy[model] += c
+			a.mu.Unlock()
 		} else {
 			a.mu.Lock()
 			a.costKnown = false
@@ -342,12 +384,35 @@ func (a *Agent) Run(ctx context.Context, task string) {
 // order, so a question is never racing another command.
 func (a *Agent) executeAll(ctx context.Context, calls []llm.ToolCall) []llm.ToolResult {
 	results := make([]llm.ToolResult, len(calls))
+	// A turn has a ceiling: a reply with hundreds of calls (a page that
+	// talked the model into it, or a loop) would otherwise run them all
+	// before anyone could look. The rest are answered, not run.
+	if len(calls) > maxCallsPerTurn {
+		for i := maxCallsPerTurn; i < len(calls); i++ {
+			results[i] = llm.ToolResult{CallID: calls[i].ID, IsError: true,
+				Content: fmt.Sprintf("not run: at most %d tool calls run per turn; ask for this one again in the next turn if it is still needed", maxCallsPerTurn)}
+		}
+		a.writeLog(Event{Kind: EvError, Text: fmt.Sprintf("the model asked for %d tool calls in one turn; only the first %d ran", len(calls), maxCallsPerTurn)})
+		done := a.executeAll(ctx, calls[:maxCallsPerTurn])
+		copy(results, done)
+		return results
+	}
 	if len(calls) < 2 || !allReadOnly(calls) {
 		for i, call := range calls {
 			results[i] = a.execute(ctx, call)
 		}
 		return results
 	}
+	// Their output goes to the transcript one call at a time, each under its
+	// own header, instead of line by line as it arrives.
+	a.logMu.Lock()
+	a.batching++
+	a.logMu.Unlock()
+	defer func() {
+		a.logMu.Lock()
+		a.batching--
+		a.logMu.Unlock()
+	}()
 	var wg sync.WaitGroup
 	for i, call := range calls {
 		wg.Add(1)
@@ -439,7 +504,7 @@ func (a *Agent) applyChanges(text string) string {
 	a.nextModel, a.notes = "", nil
 	a.mu.Unlock()
 	if next != "" && next != a.currentModel() {
-		a.switchModel(next)
+		a.switchModel(next, "picked by the user")
 	}
 	if len(notes) == 0 {
 		return text
@@ -456,7 +521,7 @@ func (a *Agent) applyChanges(text string) string {
 // refuse (OpenCode Zen cannot carry a conversation from Claude to a model
 // of its other endpoint): the run then goes on with the model it had, and
 // says so.
-func (a *Agent) switchModel(model string) bool {
+func (a *Agent) switchModel(model, why string) bool {
 	a.mu.Lock()
 	a.escalated = true // picked or tried once: no automatic switch after this
 	a.mu.Unlock()
@@ -471,14 +536,18 @@ func (a *Agent) switchModel(model string) bool {
 		a.costKnown = false
 	}
 	a.mu.Unlock()
-	a.writeLog(Event{Kind: EvAssistant, Text: "[model " + model + "]"})
+	line := "[model " + model + "]"
+	if why != "" {
+		line = "[model " + model + ": " + why + "]"
+	}
+	a.writeLog(Event{Kind: EvAssistant, Text: line})
 	return true
 }
 
 // escalate switches to the stronger model once, the first time something
 // fails, so routine work stays on the cheap model. A model the user picked
 // in the meantime wins.
-func (a *Agent) escalate() {
+func (a *Agent) escalate(why string) {
 	a.mu.Lock()
 	picked := a.nextModel != ""
 	model := a.opts.Escalate
@@ -488,7 +557,7 @@ func (a *Agent) escalate() {
 	}
 	a.escalated = true
 	a.mu.Unlock()
-	if a.switchModel(model) {
+	if a.switchModel(model, why) {
 		a.emit(Event{Kind: EvModel, Text: model, Stats: a.stats()})
 	}
 }
@@ -521,10 +590,15 @@ func (a *Agent) authorize(ctx context.Context, tool, command, reason string, ris
 			"what the machine runs at login), so it was skipped. Do not retry it; list it in your summary as something to do by hand.")
 	}
 	if !always {
-		if risk == safety.Safe || mode == ModeAuto || a.opts.Approval == config.ApproveNever {
+		if risk == safety.Safe {
+			return true, ""
+		}
+		if mode == ModeAuto || a.opts.Approval == config.ApproveNever {
+			a.logApproval(tool, command, "approved without asking (automatic mode or approval = never)")
 			return true, ""
 		}
 		if risk == safety.Normal && a.opts.Approval != config.ApproveAll {
+			a.logApproval(tool, command, "approved without asking (routine change under the approval policy)")
 			return true, ""
 		}
 	}
@@ -539,12 +613,20 @@ func (a *Agent) authorize(ctx context.Context, tool, command, reason string, ris
 			if !always {
 				a.SetMode(ModeAuto)
 			}
+			a.logApproval(tool, command, "approved by the user (and everything after it)")
 			return true, ""
 		case Approve:
+			a.logApproval(tool, command, "approved by the user")
 			return true, ""
 		}
 	}
 	return deny("The user denied this action. Do not retry it or an equivalent; carry on with the rest.")
+}
+
+// logApproval writes who let a change through: the transcript then shows
+// whether a deletion was the user's yes or the policy's.
+func (a *Agent) logApproval(tool, command, how string) {
+	a.writeLog(Event{Kind: EvAssistant, Text: fmt.Sprintf("[%s %s] %s", tool, how, visible(command))})
 }
 
 // askPassword asks the user for the sudo password in the interface. It runs
@@ -606,6 +688,9 @@ func (a *Agent) execute(ctx context.Context, call llm.ToolCall) llm.ToolResult {
 			a.emit(Event{Kind: EvError, Tool: call.Name, Text: err.Error()})
 		}
 		return res
+	}
+	if loggedResult[call.Name] {
+		a.logResult(call.Name, out)
 	}
 	res.Content = out
 	return res

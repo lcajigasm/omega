@@ -257,3 +257,10 @@ func TestMonthlySchedule(t *testing.T) {
 		t.Errorf("schtasks: %s", args)
 	}
 }
+
+// Third review, P1: % and $ in the path of omega are not expanded by systemd.
+func TestSystemdQuote(t *testing.T) {
+	if got := systemdQuote(`/home/a/50%/$HOME/"x"\omega`); got != `/home/a/50%%/$$HOME/\"x\"\\omega` {
+		t.Fatalf("%s", got)
+	}
+}

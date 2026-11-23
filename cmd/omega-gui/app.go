@@ -40,6 +40,8 @@ type App struct {
 	// closing the window.
 	quitting bool
 	quit     func()
+	// toolCancel stops the tool of the Tools view that is running.
+	toolCancel context.CancelFunc
 }
 
 // maxLog is how many messages of a session are kept for a window drawn
@@ -212,7 +214,27 @@ func (a *App) Tools() []cli.ToolInfo { return cli.ToolList() }
 
 // RunTool runs one of them and returns what it printed. arg is its optional
 // argument: a port, a folder, a number of days or a file.
-func (a *App) RunTool(id, arg string) (string, error) { return cli.RunTool(id, arg) }
+func (a *App) RunTool(id, arg string) (string, error) {
+	ctx, cancel := context.WithCancel(context.Background())
+	a.mu.Lock()
+	if a.toolCancel != nil {
+		a.toolCancel()
+	}
+	a.toolCancel = cancel
+	a.mu.Unlock()
+	defer cancel()
+	return cli.RunToolContext(ctx, id, arg)
+}
+
+// StopTool stops the tool that is running, if any.
+func (a *App) StopTool() {
+	a.mu.Lock()
+	if a.toolCancel != nil {
+		a.toolCancel()
+		a.toolCancel = nil
+	}
+	a.mu.Unlock()
+}
 
 // Skills lists the AI coding agents of this machine and their skills.
 func (a *App) Skills() (cli.SkillsView, error) { return cli.SkillList() }

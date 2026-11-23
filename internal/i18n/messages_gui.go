@@ -12,6 +12,8 @@ var guiMessages = map[string][]string{
 	"gui.tools.pick":     {"Choose a tool on the left", "Elige una herramienta a la izquierda", "Choisissez un outil à gauche", "Wähle links ein Werkzeug", "Escolhe uma ferramenta à esquerda"},
 	"gui.tools.run":      {"Run", "Ejecutar", "Lancer", "Ausführen", "Executar"},
 	"gui.tools.running":  {"Running…", "Ejecutando…", "En cours…", "Läuft…", "A executar…"},
+	"gui.tools.stop":     {"Stop", "Detener", "Arrêter", "Stoppen", "Parar"},
+	"gui.tools.stopped":  {"Stopped.", "Detenido.", "Arrêté.", "Gestoppt.", "Parado."},
 	"gui.tools.empty":    {"It printed nothing.", "No ha mostrado nada.", "Rien n'a été affiché.", "Keine Ausgabe.", "Não mostrou nada."},
 	"gui.tools.terminal": {"On a terminal", "En un terminal", "Dans un terminal", "Im Terminal", "Num terminal"},
 	"gui.tools.unknown":  {"omega has no tool %q", "omega no tiene ninguna herramienta %q", "omega n'a pas d'outil %q", "omega hat kein Werkzeug %q", "o omega não tem nenhuma ferramenta %q"},

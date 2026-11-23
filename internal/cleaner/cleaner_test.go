@@ -531,3 +531,28 @@ func TestUninstallLeavesAnotherAppsData(t *testing.T) {
 		t.Errorf("an app whose identifier is \"com\" selected %v", got)
 	}
 }
+
+// Third review, P1: "omega uninstall Code" with Visual Studio Code installed
+// (and no app called Code) must not offer VS Code's data folder.
+func TestUninstallRefusesAnotherAppsInternalName(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	oldOS, oldDirs, oldID, oldSys, oldNames := goos, appDirs, bundleID, systemAppDirs, bundleNames
+	defer func() { goos, appDirs, bundleID, systemAppDirs, bundleNames = oldOS, oldDirs, oldID, oldSys, oldNames }()
+	goos = "darwin"
+	systemAppDirs = nil
+	apps := filepath.Join(home, "Applications")
+	appDirs = func(string) []string { return []string{apps} }
+	bundleID = func(string) string { return "com.microsoft.VSCode" }
+	bundleNames = func(b string) []string {
+		if strings.Contains(b, "Visual Studio Code") {
+			return []string{"Code", "Code"}
+		}
+		return nil
+	}
+	write(t, filepath.Join(apps, "Visual Studio Code.app", "x"))
+	write(t, filepath.Join(home, "Library", "Application Support", "Code", "x"))
+	if _, err := FindAppArtifacts("Code"); !errors.Is(err, ErrOtherApp) || !strings.Contains(err.Error(), "Visual Studio Code") {
+		t.Fatalf("err = %v", err)
+	}
+}

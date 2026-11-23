@@ -335,6 +335,13 @@ func systemdUnitPaths() (service, timer string) {
 	return filepath.Join(dir, systemdTimerName+".service"), filepath.Join(dir, systemdTimerName+".timer")
 }
 
+// systemdQuote escapes a path for a double-quoted word of a unit file:
+// systemd expands % specifiers and $VARIABLES there, so a folder named
+// "50%" or "$HOME" would run something else.
+func systemdQuote(p string) string {
+	return strings.NewReplacer(`\`, `\\`, `"`, `\"`, `%`, `%%`, `$`, `$$`).Replace(p)
+}
+
 func installLinuxSystemd(omegaPath, interval, task string, hour, minute int) error {
 	serviceFile, timerFile := systemdUnitPaths()
 	if err := os.MkdirAll(filepath.Dir(serviceFile), 0o755); err != nil {
@@ -348,7 +355,7 @@ Description=Omega Scheduled Maintenance
 Type=oneshot
 Environment=%s=1
 ExecStart="%s" %s %s
-`, EnvScheduled, strings.ReplaceAll(omegaPath, `"`, `\"`), task, taskFlags)
+`, EnvScheduled, systemdQuote(omegaPath), task, taskFlags)
 
 	timerContent := fmt.Sprintf(`[Unit]
 Description=Omega Scheduled Maintenance Timer

@@ -53,6 +53,8 @@ var handlers = map[string]handler{
 	"omega_settings":  toolOmegaSettings,
 	"omega_doctor":    toolOmegaDoctor,
 	"model_ranking":   toolModelRanking,
+	"pending":         toolPending,
+	"machine_facts":   toolMachineFacts,
 }
 
 func str(desc string) map[string]any {
@@ -88,8 +90,11 @@ func allToolSpecs() []llm.ToolSpec {
 			Properties: map[string]any{}},
 		{Name: "list_steps", Description: "List the catalogue of maintenance steps (update, clean, check, backend) and whether each is available on this machine.",
 			Properties: map[string]any{"category": map[string]any{"type": "string", "enum": []string{"update", "clean", "check", "backend", "all"}}}},
-		{Name: "run_step", Description: "Run a catalogue step by id. Prefer this over run_command for routine actions.",
-			Properties: map[string]any{"id": str("step id, e.g. brew, npm, brew-cleanup")}, Required: []string{"id"}},
+		{Name: "run_step", Description: "Run a catalogue step by id. Prefer this over run_command for routine actions. A cleaner " +
+			"that ran successfully a few hours ago (mole-clean) is not run again unless again=true, because it would free little.",
+			Properties: map[string]any{"id": str("step id, e.g. brew, npm, brew-cleanup"),
+				"again": map[string]any{"type": "boolean", "description": "run a cleaner again although it ran recently (only when the user asks)"}},
+			Required: []string{"id"}},
 		{Name: "run_command", Description: "Run a non-interactive shell command (the user's login shell, -lc). Read-only commands run directly; " +
 			"commands that change the system may need the user's approval. Returns the exit code and (trimmed) output.",
 			Properties: map[string]any{
@@ -129,6 +134,8 @@ func allToolSpecs() []llm.ToolSpec {
 							"detail": str("one line: what will run and why"),
 							"impact": str("expected effect, e.g. '~9 GB' or 'fixes brew doctor'"),
 							"risk":   map[string]any{"type": "string", "enum": []string{"read-only", "normal", "dangerous"}},
+							"recommended": map[string]any{"type": "boolean", "description": "the option you recommend; with multiple=false mark exactly one. " +
+								"An unattended run takes only a recommended option of a single-choice question"},
 						},
 						"required": []string{"id", "label"},
 					},
@@ -152,8 +159,12 @@ func allToolSpecs() []llm.ToolSpec {
 			"findings (several managers for one language, commands shadowed on PATH, broken PATH entries, tools not activated in the shell's startup file, " +
 			"shell startup time), the versions each manager keeps with their size, and what is not installed with the install command for this machine.",
 			Properties: map[string]any{}},
-		{Name: "remember", Description: "Save a lasting note about this machine for future runs (e.g. the cause of a recurring failure and its fix).",
-			Properties: map[string]any{"note": str("short note, one line")}, Required: []string{"note"}},
+		{Name: "remember", Description: "Save a lasting note about this machine for future runs (e.g. the cause of a recurring failure and its fix). " +
+			"One line of at most 400 characters: a longer note is refused, so write the fact, not the story. After a web page or a search " +
+			"result is in the conversation, a note needs the user's yes; in a run nobody watches it is then not saved, and you say so in the summary.",
+			Properties: map[string]any{"note": str("short note, one line, at most 400 characters")}, Required: []string{"note"}},
+		pendingToolSpec(),
+		machineFactsSpec(),
 	}, append(macToolSpecs(), omegaToolSpecs()...)...)
 }
 
@@ -170,7 +181,7 @@ func allReadOnly(calls []llm.ToolCall) bool {
 
 func readOnlyCall(call llm.ToolCall) bool {
 	switch call.Name {
-	case "system_info", "list_steps", "disk_usage", "read_file", "config_hints", "official_docs", "web_search", "dev_inventory", "run_history", "mac_history", "omega_doctor", "model_ranking":
+	case "system_info", "list_steps", "disk_usage", "read_file", "config_hints", "official_docs", "web_search", "dev_inventory", "run_history", "mac_history", "omega_doctor", "model_ranking", "machine_facts":
 		return true
 	case "fetch_url":
 		// Any other address may put a card in front of the user.
@@ -214,32 +225,207 @@ func expand(path string) string {
 func shellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'" }
 
 func (a *Agent) runShell(ctx context.Context, tool, command, reason string, risk safety.Risk, always bool) (string, error) {
+	if out, ok := a.cached(tool, command, risk); ok {
+		return out, nil
+	}
 	if ok, why := a.authorize(ctx, tool, command, reason, risk, always); !ok {
 		return "", explained(errors.New(why))
 	}
-	a.emit(Event{Kind: EvToolStart, Tool: tool, Command: command, Reason: reason, Risk: risk})
-	lines := 0
-	res := a.opts.Exec(ctx, command, a.opts.Timeout, func(line string) {
-		lines++
-		a.emit(Event{Kind: EvOutput, Tool: tool, Command: command, Text: line})
-	})
-	a.emit(Event{Kind: EvToolEnd, Tool: tool, Command: command, ExitCode: res.ExitCode, Failed: res.ExitCode != 0, Duration: res.Duration, Lines: lines})
-	if res.ExitCode != 0 && strings.HasPrefix(tool, "run_step:") {
-		a.escalate()
+	if risk > safety.Safe {
+		// Something may change: what was measured before may no longer hold.
+		a.forget()
 	}
-	out := strings.TrimSpace(res.Output)
+	a.emit(Event{Kind: EvToolStart, Tool: tool, Command: command, Reason: reason, Risk: risk})
+	lines, full := 0, 0
+	run, stop := context.WithCancel(ctx)
+	defer stop()
+	res := a.opts.Exec(run, command, a.opts.Timeout, func(line string) {
+		lines++
+		a.emit(Event{Kind: EvOutput, Tool: tool, Command: command, Text: maskPersonal(command, line)})
+		// A full disk does not get better by itself: brew went on for two
+		// minutes and 13,000 failed files after the first one.
+		if strings.Contains(line, "No space left on device") {
+			if full++; full == diskFullLines {
+				stop()
+			}
+		}
+	})
+	if full >= diskFullLines && ctx.Err() == nil {
+		res.Output += fmt.Sprintf("\nomega stopped this command: the disk is full (%d \"No space left on device\" errors). "+
+			"Free space first (measure with system_info and disk_usage, clean caches), then run it again.", full)
+		if res.ExitCode == 0 {
+			res.ExitCode = 1
+		}
+	}
+	a.emit(Event{Kind: EvToolEnd, Tool: tool, Command: command, ExitCode: res.ExitCode, Failed: res.ExitCode != 0, Duration: res.Duration, Lines: lines})
+	if res.ExitCode != 0 && strings.HasPrefix(tool, "run_step:") && !benignFailure(res.Output) {
+		a.escalate(fmt.Sprintf("%s failed with exit code %d", tool, res.ExitCode))
+	}
+	if asksConfirmation.MatchString(res.Output) {
+		a.noteRefusal(command)
+	}
+	out := strings.TrimSpace(collapseRepeats(maskPersonal(command, res.Output)))
 	if out == "" {
 		out = "(no output)"
 	}
+	if res.TimedOut {
+		out += "\n(stopped: the command ran out of time)"
+	}
 	out += followUpHint(res.Output)
-	return fmt.Sprintf("exit_code: %d\nduration: %s\n---\n%s", res.ExitCode, res.Duration.Round(time.Second), out), nil
+	result := fmt.Sprintf("exit_code: %d\nduration: %s\n---\n%s", res.ExitCode, res.Duration.Round(time.Second), out)
+	if risk == safety.Safe && res.ExitCode == 0 {
+		a.remember(tool, command, result)
+	}
+	return result, nil
+}
+
+// diskFullLines is how many "No space left on device" errors stop a command.
+const diskFullLines = 20
+
+// Results of read-only measurements are kept for the session: runs went
+// through the same 70-second disk scan three times, and the same dry run
+// before every decision. Anything that may change the machine clears them.
+const cacheFor = 15 * time.Minute
+
+type cachedResult struct {
+	out string
+	at  time.Time
+}
+
+// cacheable are the read-only tools whose results are kept. run_command is
+// not: a command may be repeated on purpose to see a change.
+func cacheable(tool string) bool {
+	return tool == "disk_usage" || strings.HasPrefix(tool, "run_step:")
+}
+
+func (a *Agent) cached(tool, command string, risk safety.Risk) (string, bool) {
+	if risk != safety.Safe || !cacheable(tool) {
+		return "", false
+	}
+	a.mu.Lock()
+	c, ok := a.results[tool+"\x00"+command]
+	a.mu.Unlock()
+	if !ok || time.Since(c.at) > cacheFor {
+		return "", false
+	}
+	mins := int(time.Since(c.at).Minutes())
+	a.writeLog(Event{Kind: EvAssistant, Text: fmt.Sprintf("[%s: result from %d min ago in this session, not run again]", tool, mins)})
+	return fmt.Sprintf("(same result as %d minutes ago in this session; nothing has changed since, so it was not run again)\n%s", mins, c.out), true
+}
+
+func (a *Agent) remember(tool, command, out string) {
+	if !cacheable(tool) {
+		return
+	}
+	a.mu.Lock()
+	if a.results == nil {
+		a.results = map[string]cachedResult{}
+	}
+	a.results[tool+"\x00"+command] = cachedResult{out: out, at: time.Now()}
+	a.mu.Unlock()
+}
+
+func (a *Agent) forget() {
+	a.mu.Lock()
+	a.results = nil
+	a.mu.Unlock()
+}
+
+// asksConfirmation is a program saying it wants a person to confirm.
+var asksConfirmation = regexp.MustCompile(`(?i)requires? confirmation|--yes to confirm|use --yes|re-?run with (--yes|-y|--force|-f)\b|pass (--yes|--force)|confirm with (--yes|-y)`)
+
+// forceFlag adds a confirmation on a person's behalf.
+var forceFlag = regexp.MustCompile(`(^|\s)(--yes|-y|--force|-f|--assume-yes|--no-confirm|--noconfirm)(\s|=|$)`)
+
+// programKey names a program and its subcommand: "mo purge", "brew cleanup".
+func programKey(words []string) string {
+	for len(words) > 0 && (strings.Contains(words[0], "=") || wrappers[words[0]]) {
+		words = words[1:]
+	}
+	if len(words) == 0 {
+		return ""
+	}
+	key := filepath.Base(words[0])
+	if len(words) > 1 && !strings.HasPrefix(words[1], "-") {
+		key += " " + words[1]
+	}
+	return key
+}
+
+func commandSegments(cmd string) [][]string {
+	var out [][]string
+	for _, part := range regexp.MustCompile(`[;|&\n]+`).Split(cmd, -1) {
+		if f := strings.Fields(part); len(f) > 0 {
+			out = append(out, f)
+		}
+	}
+	return out
+}
+
+// noteRefusal records the programs of a command whose output asked for a
+// person's confirmation.
+func (a *Agent) noteRefusal(cmd string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.refusedConfirm == nil {
+		a.refusedConfirm = map[string]bool{}
+	}
+	for _, seg := range commandSegments(cmd) {
+		if k := programKey(seg); k != "" {
+			a.refusedConfirm[k] = true
+		}
+	}
+}
+
+// overridesRefusal reports a command that adds --yes or --force to a
+// program that asked for a person's confirmation earlier in this session.
+func (a *Agent) overridesRefusal(cmd string) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	for _, seg := range commandSegments(cmd) {
+		if a.refusedConfirm[programKey(seg)] && forceFlag.MatchString(strings.Join(seg, " ")) {
+			return true
+		}
+	}
+	return false
+}
+
+// settingsLink finds a command that only opens a pane of System Settings.
+var settingsLink = regexp.MustCompile(`^\s*open\s+['"]?(x-apple\.systempreferences:[^'"\s;&|]*)['"]?`)
+
+// Masks for configuration that names people and machines: the hosts, users
+// and key files of ~/.ssh/config, and e-mail addresses in git's settings.
+var (
+	sshValue = regexp.MustCompile(`(?i)^(\s*(?:HostName|User|IdentityFile|CertificateFile|ProxyJump|ProxyCommand|LocalForward|RemoteForward)\s+).+$`)
+	email    = regexp.MustCompile(`[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}`)
+)
+
+// maskPersonal hides, in what a command printed, the parts of ~/.ssh/config
+// and of git's configuration that identify people and servers. The aliases
+// and the options stay: they are what maintenance needs.
+func maskPersonal(command, text string) string {
+	lower := strings.ToLower(command)
+	if strings.Contains(lower, ".ssh/config") || strings.Contains(lower, "ssh -g") {
+		lines := strings.Split(text, "\n")
+		for i, l := range lines {
+			lines[i] = sshValue.ReplaceAllString(l, "${1}<hidden>")
+		}
+		text = strings.Join(lines, "\n")
+	}
+	if strings.Contains(lower, "git config") || strings.Contains(lower, "gitconfig") || strings.Contains(lower, ".ssh/config") {
+		text = email.ReplaceAllString(text, "<email>")
+	}
+	return text
 }
 
 // systemInfoCommand prints the system summary of an operating system.
 func systemInfoCommand(goos string) string {
 	if goos == "darwin" {
-		return `sw_vers; echo "arch: $(uname -m)"; echo; df -h / | tail -1; echo; ` +
-			`sysctl -n hw.memsize | awk '{printf "RAM: %.0f GB\n", $1/1073741824}'; uptime`
+		return `sw_vers; echo "arch: $(uname -m)"; echo "model: $(sysctl -n hw.model 2>/dev/null)"; echo; ` +
+			`df -h /System/Volumes/Data 2>/dev/null | tail -1 || df -h / | tail -1; echo; ` +
+			`sysctl -n hw.memsize | awk '{printf "RAM: %.0f GB\n", $1/1073741824}'; uptime; ` +
+			`echo "developer tools: $(xcode-select -p 2>/dev/null || echo none)"; ` +
+			`[ -d /Applications/Xcode.app ] && echo "Xcode.app: installed" || echo "Xcode.app: not installed"`
 	}
 	if goos == "windows" {
 		return `$os = Get-CimInstance Win32_OperatingSystem; "{0} {1} (build {2})" -f $os.Caption, $os.Version, $os.BuildNumber; ` +
@@ -281,6 +467,13 @@ func toolSystemInfo(ctx context.Context, a *Agent, _ map[string]any) (string, er
 	b.WriteString(strings.TrimSpace(res.Output))
 	fmt.Fprintf(&b, "\n\ndetected tools: %s\n", strings.Join(managers, ", "))
 	fmt.Fprintf(&b, "shell: %s, omega on %s/%s\n", runner.Shell(), goos, runtime.GOARCH)
+	if total, free, ok := diskSpace(dataVolume()); ok {
+		// One figure for the whole run: df on "/" reports the sealed
+		// system volume on macOS, Mole counts in decimal GB, and runs that
+		// mixed them contradicted themselves.
+		fmt.Fprintf(&b, "FREE SPACE: %s free of %s on %s (decimal GB). Quote this figure, measured the same way, before and after cleaning.\n",
+			gb(free), gb(total), dataVolume())
+	}
 	configs := []string{"~/.config/topgrade.toml"}
 	if goos == "darwin" {
 		configs = append(configs, "~/.config/mole")
@@ -351,7 +544,51 @@ func toolRunStep(ctx context.Context, a *Agent, in map[string]any) (string, erro
 	if s.Description != "" {
 		reason += " · " + s.Description
 	}
-	return a.runShell(ctx, "run_step:"+id, s.Command, reason, risk, s.AlwaysConfirm)
+	again, _ := in["again"].(bool)
+	if since, ok := lastClean(id); ok && !again {
+		msg := fmt.Sprintf("%s ran successfully %s ago, in this or an earlier run; running it again now would free little, so it was "+
+			"not run. Say so in the summary. Run it again only if the user asks (again=true).", id, since.Round(time.Minute))
+		a.writeLog(Event{Kind: EvAssistant, Text: "[run_step:" + id + " skipped: " + msg + "]"})
+		return msg, nil
+	}
+	out, err := a.runShell(ctx, "run_step:"+id, s.Command, reason, risk, s.AlwaysConfirm)
+	if err == nil && strings.HasPrefix(out, "exit_code: 0\n") {
+		markClean(id)
+	}
+	return out, err
+}
+
+// cooldown are the cleaners that are not worth running twice in a few
+// hours: one Mac ran mo clean four times in 25 minutes, 40 to 75 seconds
+// each, for a few megabytes after the first.
+var cooldown = map[string]time.Duration{"mole-clean": 6 * time.Hour, "mole-purge": 6 * time.Hour}
+
+func cleanStamp(id string) string { return filepath.Join(config.StateDir(), "last-"+id) }
+
+// lastClean says how long ago a cooled-down step last succeeded, when that
+// is within its cooldown.
+func lastClean(id string) (time.Duration, bool) {
+	d, ok := cooldown[id]
+	if !ok {
+		return 0, false
+	}
+	fi, err := os.Stat(cleanStamp(id))
+	if err != nil {
+		return 0, false
+	}
+	since := time.Since(fi.ModTime())
+	return since, since < d
+}
+
+func markClean(id string) {
+	if _, ok := cooldown[id]; !ok {
+		return
+	}
+	if os.MkdirAll(config.StateDir(), 0o700) == nil {
+		os.WriteFile(cleanStamp(id), nil, 0o600)
+		now := time.Now()
+		os.Chtimes(cleanStamp(id), now, now)
+	}
 }
 
 func toolRunCommand(ctx context.Context, a *Agent, in map[string]any) (string, error) {
@@ -368,8 +605,21 @@ func toolRunCommand(ctx context.Context, a *Agent, in map[string]any) (string, e
 		a.emit(Event{Kind: EvDenied, Tool: "run_command", Command: visible(cmd), Reason: msg})
 		return "", explained(errors.New(msg))
 	}
+	if m := settingsLink.FindStringSubmatch(cmd); m != nil && a.opts.Unattended {
+		why := "Unattended run: nobody is at the screen, so System Settings was not opened. Put this link in your summary " +
+			"for the user to open: " + m[1]
+		a.emit(Event{Kind: EvDenied, Tool: "run_command", Command: visible(cmd), Reason: why})
+		return "", explained(errors.New(why))
+	}
 	risk := safety.Classify(cmd)
 	always := safety.AlwaysConfirm(cmd) || (risk > safety.Safe && sensitiveCommand(cmd))
+	if a.overridesRefusal(cmd) {
+		// The program asked for a person; --yes from the model is not one.
+		always = true
+		if risk < safety.Dangerous {
+			risk = safety.Dangerous
+		}
+	}
 	return a.runShell(ctx, "run_command", cmd, visible(getString(in, "reason")), risk, always)
 }
 
@@ -487,7 +737,7 @@ func toolReadFile(_ context.Context, a *Agent, in map[string]any) (string, error
 	}
 	a.emit(Event{Kind: EvToolEnd, Tool: "read_file", Command: path})
 	// A startup file is readable, the keys exported in it are not.
-	text := runner.Scrub(string(data))
+	text := maskPersonal("read "+path, runner.Scrub(string(data)))
 	if truncated {
 		return text + "\n[… file truncated …]", nil
 	}
@@ -579,6 +829,11 @@ func sensitiveWrite(path string) bool {
 		if codeFiles[p[strings.LastIndex(p, "/")+1:]] {
 			return true
 		}
+		// ~/.aws/config runs credential_process and ~/.kube/config an exec
+		// plugin: both run a program named in the file.
+		if strings.HasSuffix(p, "/.aws/config") || strings.Contains(p, "/.kube/") {
+			return true
+		}
 		for _, dir := range []string{"/.ssh/", "/launchagents/", "/launchdaemons/", "/systemd/", "/cron", "/.config/fish/", "/.config/autostart/", "/sudoers",
 			"/.git/hooks/", "/.oh-my-zsh/custom/", "/.config/direnv/"} {
 			if strings.Contains(p, dir) {
@@ -609,7 +864,9 @@ func toolWriteFile(ctx context.Context, a *Agent, in map[string]any) (string, er
 		return "", fmt.Errorf("%s is not a regular file", path)
 	}
 	var oldSize int64
-	preview := "(new file)"
+	// A new file is shown whole (its start and its end when long): what
+	// it says is what the user approves.
+	preview := "(new file)\n" + diffPreview("", content)
 	if exists {
 		oldSize = fi.Size()
 		old, truncated, err := readHead(path, maxReadFile)
@@ -623,7 +880,10 @@ func toolWriteFile(ctx context.Context, a *Agent, in map[string]any) (string, er
 		}
 	}
 	summary := fmt.Sprintf("%s (%d → %d bytes)", path, oldSize, len(content))
-	if ok, why := a.authorize(ctx, "write_file", summary, reason+"\n\n"+preview, safety.Dangerous, sensitiveWrite(path)); !ok {
+	// Rewriting a program that exists changes what runs the next time it
+	// starts: asked every time, like a startup file.
+	executable := exists && fi.Mode().Perm()&0o111 != 0
+	if ok, why := a.authorize(ctx, "write_file", summary, reason+"\n\n"+preview, safety.Dangerous, sensitiveWrite(path) || executable); !ok {
 		return "", explained(errors.New(why))
 	}
 	a.emit(Event{Kind: EvToolStart, Tool: "write_file", Command: summary, Risk: safety.Dangerous})
@@ -653,6 +913,7 @@ func toolWriteFile(ctx context.Context, a *Agent, in map[string]any) (string, er
 	}
 	a.emit(Event{Kind: EvToolEnd, Tool: "write_file", Command: summary})
 	if backup != "" {
+		pruneBackups(path, keepBackups)
 		return "written. backup at " + backup, nil
 	}
 	return "written (new file)", nil
@@ -705,11 +966,12 @@ func toolRemember(ctx context.Context, a *Agent, in map[string]any) (string, err
 		return "", fmt.Errorf("empty note")
 	}
 	if len(note) > maxNote {
-		return "", fmt.Errorf("a note is one short line (at most %d characters); this one has %d", maxNote, len(note))
+		return "", fmt.Errorf("not saved: a note is one short line (at most %d characters); this one has %d. Write it again, shorter", maxNote, len(note))
 	}
 	if a.isTainted() {
 		if a.Mode() == ModeReadOnly || a.opts.Unattended {
-			why := "A note written after reading the web needs the user's approval, and nobody can give it in this run. It was not saved; mention it in your summary instead."
+			why := "Not saved: this session has read a web page or search results, and a note written after that needs the user's yes, " +
+				"which nobody can give in this run. In your summary say the note was not saved because the session read the web, and quote it."
 			a.emit(Event{Kind: EvDenied, Tool: "remember", Command: note, Reason: why})
 			return "", explained(errors.New(why))
 		}
@@ -781,6 +1043,7 @@ func toolProposeActions(ctx context.Context, a *Agent, in map[string]any) (strin
 	raw, _ := in["options"].([]any)
 	var opts []Choice
 	labels := map[string]string{}
+	recommended := map[string]bool{}
 	for _, r := range raw {
 		m, ok := r.(map[string]any)
 		if !ok {
@@ -791,26 +1054,33 @@ func toolProposeActions(ctx context.Context, a *Agent, in map[string]any) (strin
 		if c.ID == "" || c.Label == "" {
 			continue
 		}
+		if rec, _ := m["recommended"].(bool); rec {
+			recommended[c.ID] = true
+		}
 		opts = append(opts, c)
 		labels[c.ID] = c.Label
 	}
 	if len(opts) == 0 {
 		return "", fmt.Errorf("options is empty")
 	}
-	var ids []string
-	switch {
-	case a.opts.Unattended:
-		// Nobody is watching and the user asked for everything: every
-		// option is taken, and each command still passes the safety policy.
-		for _, c := range opts {
-			ids = append(ids, c.ID)
-		}
-	case !a.opts.Interactive:
+	if a.opts.Unattended {
+		return a.autoChoose(question, opts, multi, recommended, labels), nil
+	}
+	if !a.opts.Interactive {
+		a.logChoice(question, opts, multi, nil, "nobody (non-interactive run)")
 		return "No user is available to choose (non-interactive run). Do not carry out these actions; " +
 			"list them in your summary instead.", nil
-	default:
-		ids = a.choose(ctx, question, opts, multi)
 	}
+	ids := a.choose(ctx, question, opts, multi)
+	// A card for one answer that comes back with several is not an answer:
+	// acting on it would carry out choices that exclude each other.
+	if !multi && len(ids) > 1 {
+		a.logChoice(question, opts, multi, ids, "the user (rejected: several answers to a single-choice question)")
+		return "The card returned several answers to a question that takes exactly one, so nothing was chosen. " +
+			"Do not carry out any of them. Ask again once with propose_actions if the decision matters; otherwise " +
+			"list the options in your summary.", nil
+	}
+	a.logChoice(question, opts, multi, ids, "the user")
 	if len(ids) == 0 {
 		return "The user chose none of the options. Do not carry them out.", nil
 	}
@@ -820,7 +1090,85 @@ func toolProposeActions(ctx context.Context, a *Agent, in map[string]any) (strin
 		fmt.Fprintf(&b, "- %s: %s\n", id, labels[id])
 	}
 	b.WriteString("Carry out exactly these, in order, then summarise. Approval rules still apply to each command.")
-	if a.Mode() == ModeReadOnly {
+	if a.Mode() == ModeReadOnly && a.opts.DryRun {
+		b.WriteString("\nThis is a dry run (--dry-run): nothing may change, so do not carry them out; describe what each would do.")
+	} else if a.Mode() == ModeReadOnly {
+		// The selection lifts read-only mode for what was picked, not for
+		// everything: each command that changes something is still put to
+		// the user, also after --yes, which was given before the analysis
+		// and not for these actions.
+		a.mu.Lock()
+		a.mode = ModeAsk
+		a.mu.Unlock()
+		a.emit(Event{Kind: EvMode, Mode: ModeAsk})
+		b.WriteString("\nRead-only mode is now lifted so you can perform the selected actions, and only those; " +
+			"each command that changes something is shown to the user for approval.")
+	}
+	return b.String(), nil
+}
+
+// noChange recognises an option that means "leave it as it is". A run
+// that takes options on its own must never take it together with the
+// change it excludes.
+var noChange = regexp.MustCompile(`(?i)^(none|nothing|skip|keep|leave|no[-_ ]?change|do[-_ ]?nothing|cancel)\b|^(no|don'?t|do not|leave|keep|skip|nada|no cambiar|dejar|mantener|ne rien|nichts|nenhum)\b`)
+
+// autoChoose answers a card in a run nobody watches. It takes only what
+// can be undone and was not marked dangerous; for a question with one
+// answer, only the option marked recommended, and nothing when none or
+// several are. The model is told plainly that nobody chose: earlier runs
+// reported the automatic picks as "the ones you chose".
+func (a *Agent) autoChoose(question string, opts []Choice, multi bool, recommended map[string]bool, labels map[string]string) string {
+	var taken, left []string
+	if multi {
+		for _, c := range opts {
+			if c.Risk == "dangerous" || noChange.MatchString(c.ID) || noChange.MatchString(c.Label) {
+				left = append(left, c.ID)
+				continue
+			}
+			taken = append(taken, c.ID)
+		}
+	} else {
+		var recs []string
+		for _, c := range opts {
+			if recommended[c.ID] && c.Risk != "dangerous" && !noChange.MatchString(c.ID) && !noChange.MatchString(c.Label) {
+				recs = append(recs, c.ID)
+			}
+		}
+		if len(recs) == 1 {
+			taken = recs
+		}
+		for _, c := range opts {
+			if len(taken) == 0 || c.ID != taken[0] {
+				left = append(left, c.ID)
+			}
+		}
+	}
+	a.logChoice(question, opts, multi, taken, "omega, automatically (unattended run: nobody chose)")
+	var b strings.Builder
+	b.WriteString("UNATTENDED RUN: nobody saw this card and nobody chose. ")
+	if len(taken) == 0 {
+		b.WriteString("No option was taken.")
+	} else {
+		b.WriteString("omega took these automatically:\n")
+		for _, id := range taken {
+			fmt.Fprintf(&b, "- %s: %s\n", id, labels[id])
+		}
+	}
+	if len(left) > 0 {
+		b.WriteString("\nNot taken (dangerous, a \"leave it\" choice, or a single-choice question without one recommended option): ")
+		var names []string
+		for _, id := range left {
+			names = append(names, id+" ("+labels[id]+")")
+		}
+		b.WriteString(strings.Join(names, "; "))
+		b.WriteString(". List them in your summary as suggestions for the user.")
+	}
+	b.WriteString("\nCarry out only what was taken; actions that always need a person are still skipped. In your summary, never say the user chose or asked for any of this.")
+	if len(taken) > 0 && a.Mode() == ModeReadOnly && a.opts.DryRun {
+		b.WriteString("\nThis is a dry run (--dry-run): nothing may change, so do not carry them out; describe what each would do.")
+	} else if len(taken) > 0 && a.Mode() == ModeReadOnly {
+		// The user approved the upkeep in advance when they started the
+		// unattended run: what was taken may now be done.
 		mode := ModeAsk
 		if a.opts.AutoYes {
 			mode = ModeAuto
@@ -829,9 +1177,42 @@ func toolProposeActions(ctx context.Context, a *Agent, in map[string]any) (strin
 		a.mode = mode
 		a.mu.Unlock()
 		a.emit(Event{Kind: EvMode, Mode: mode})
-		b.WriteString("\nRead-only mode is now lifted so you can perform the selected actions, and only those.")
 	}
-	return b.String(), nil
+	return b.String()
+}
+
+// logChoice writes the answer to a card in the transcript, with who gave it.
+func (a *Agent) logChoice(question string, opts []Choice, multi bool, ids []string, who string) {
+	if a.opts.Unattended || !a.opts.Interactive {
+		// No card was shown, so the question and the options are not in
+		// the transcript yet.
+		a.writeLog(Event{Kind: EvChoice, Text: question, Choices: opts, Multi: multi})
+	}
+	picked := strings.Join(ids, ", ")
+	if picked == "" {
+		picked = "nothing"
+	}
+	a.writeLog(Event{Kind: EvAssistant, Text: "? answer: " + picked + " — chosen by " + who})
+}
+
+// benignFailures are failures a stronger model cannot do anything about:
+// a daemon that is not running, a tool that is missing or has nothing to
+// update, a warning, a disk that is full, administrator access not given.
+// Switching to the expensive model for them only costs money.
+var benignFailures = []string{
+	"Cannot connect to the Docker daemon", "Is the docker daemon running", "command not found", "not installed",
+	"no repositories found", "No global packages", "Nothing to upgrade", "No space left on device",
+	"a password is required", "Failed to elevate", "admin access not granted", "Please note that these warnings",
+	"Your system is ready to brew", "only free", "free space first",
+}
+
+func benignFailure(output string) bool {
+	for _, s := range benignFailures {
+		if strings.Contains(output, s) {
+			return true
+		}
+	}
+	return false
 }
 
 // followUpHint points the model at the next sensible offer for well-known

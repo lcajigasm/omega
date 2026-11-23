@@ -37,6 +37,9 @@ type Step struct {
 	// Install is how to get the tool when it is missing, offered to the user.
 	Install string
 	Detect  func() bool // optional extra detection
+	// unix, when set, writes the step's command for a POSIX system; Command
+	// is then the Windows one.
+	unix func(goos string) string
 	// OS is "darwin", "linux" or "windows" for a step that exists only there; empty for
 	// a step that works wherever its tool is installed. Two steps may share
 	// an id when each belongs to a different system (disk, trash).
@@ -179,6 +182,9 @@ func For(goos string) []Step {
 				s.Install = cmd
 			}
 		}
+		if s.unix != nil && goos != windows {
+			s.Command = s.unix(goos)
+		}
 		out = append(out, s)
 	}
 	return out
@@ -236,7 +242,10 @@ var catalog = []Step{
 	{OS: mac, ID: "disk", Name: "Disk space", Category: Check, Command: "df -h / && du -sh ~/Library/Caches ~/Library/Logs ~/.Trash 2>/dev/null", Risk: safety.Safe,
 		Description: "Free space and size of caches, logs and Trash"},
 	{ID: "brew-outdated", Name: "Outdated Homebrew packages", Category: Check, Command: "brew outdated --verbose", Risk: safety.Safe, Requires: "brew"},
-	{ID: "brew-doctor", Name: "brew doctor", Category: Check, Command: "brew doctor", Risk: safety.Safe, Requires: "brew"},
+	{ID: "brew-doctor", Name: "brew doctor", Category: Check, Risk: safety.Safe, Requires: "brew",
+		Description: "Warnings only (a deprecated formula, an unlinked keg) are advice, not a failure",
+		// brew doctor exits with 1 for any warning; that is not a failed step.
+		Command: `brew doctor; rc=$?; if [ $rc -eq 1 ]; then echo "(brew doctor found warnings: they are advice, not a failure)"; rc=0; fi; (exit $rc)`},
 	{OS: mac, ID: "macos-check", Name: "macOS updates", Category: Check, Command: "softwareupdate --list", Risk: safety.Safe},
 
 	{OS: linux, ID: "disk", Name: "Disk space", Category: Check, Risk: safety.Safe,
@@ -267,7 +276,7 @@ var catalog = []Step{
 			`echo '== Launch agents that are not running and last exited with an error'; launchctl list | awk 'NR>1 && $1 == "-" && $2 != "0"' | head -15; ` +
 			`echo '== Sleep blockers'; pmset -g assertions | grep -E 'Prevent(User)?Idle(System|Display)Sleep|PreventSystemSleep' | grep -v ' 0$' | head -10; ` +
 			`echo '== Processes logging faults, last 30 min'; /usr/bin/log show --last 30m --style compact --predicate 'messageType == fault' 2>/dev/null | awk 'NR>1 {print $4}' | sed 's/\[.*//' | sort | uniq -c | sort -rn | head -10; ` +
-			`echo '== Log folder sizes'; du -sh ~/Library/Logs /Library/Logs /private/var/log 2>/dev/null`},
+			`echo '== Log folder sizes'; du -sh ~/Library/Logs /Library/Logs /private/var/log 2>/dev/null; true`},
 
 	{OS: linux, ID: "health", Name: "Hardware health", Category: Check, Risk: safety.Safe,
 		Description: "Uptime and load, whether a restart is pending, memory and swap, inodes, disks and the battery",
@@ -307,26 +316,25 @@ var catalog = []Step{
 			`for k in AutomaticDownload AutomaticallyInstallMacOSUpdates CriticalUpdateInstall; do ` +
 			`echo "$k: $(defaults read /Library/Preferences/com.apple.SoftwareUpdate $k 2>/dev/null || echo unset)"; done`},
 	{ID: "dev-artifacts", Name: "Stale project build folders", Category: Check, Risk: safety.Safe,
-		Description: "node_modules, target, .venv, Pods and similar folders in projects not touched for 60 days, largest first (size in KB)",
-		Command: `for d in ~/Dev ~/Developer ~/dev ~/Projects ~/projects ~/Code ~/code ~/src ~/work ~/Work ~/Sites ~/repos ~/git ~/Documents/GitHub; do [ -d "$d" ] && echo "$d"; done | ` +
-			`while read -r root; do find "$root" -maxdepth 6 -type d \( -name node_modules -o -name target -o -name .venv -o -name venv -o -name .next -o -name .nuxt ` +
-			`-o -name .turbo -o -name Pods -o -name .gradle -o -name DerivedData -o -name .tox -o -name .parcel-cache \) -prune -mtime +60 -print0 2>/dev/null; done | ` +
-			`xargs -0 du -sk 2>/dev/null | sort -rn | head -40`},
+		Description: "node_modules, target, .venv, Pods and similar folders in projects where no file changed for 60 days, largest first (size in KB)",
+		Command:     devArtifacts},
 	{ID: "shell-startup", Name: "Shell startup time", Category: Check, Risk: safety.Safe, Requires: "zsh",
 		Description: "How long an interactive zsh takes to start, three times",
 		Command:     `for i in 1 2 3; do /usr/bin/time -p zsh -i -c exit 2>&1 | grep real; done`},
 
 	// Updates (topgrade equivalents).
-	{ID: "brew", Name: "Homebrew", Category: Update, Command: "brew update && brew upgrade", Risk: safety.Normal, Requires: "brew",
-		Description: "Upgrades formulae and casks"},
-	{OS: mac, ID: "brew-greedy", Name: "Self-updating casks", Category: Update, Command: "brew upgrade --cask --greedy", Risk: safety.Dangerous, Requires: "brew",
-		Description: "Also casks that update themselves (may quit running apps)"},
-	{OS: mac, ID: "mas", Name: "Mac App Store", Category: Update, Command: "mas upgrade", Risk: safety.Normal, Requires: "mas", Install: "brew install mas"},
+	{ID: "brew", Name: "Homebrew", Category: Update, Command: brewUpgrade, Risk: safety.Normal, Requires: "brew",
+		Description: "Upgrades formulae and casks, when there are at least 10 GB free; casks whose app is gone are left out and named with their fix"},
+	{OS: mac, ID: "brew-greedy", Name: "Self-updating casks", Category: Update, Command: brewGreedy, Risk: safety.Dangerous, Requires: "brew",
+		Description: "Also casks that update themselves (may quit running apps); needs 10 GB free and leaves out casks whose app is gone"},
+	{OS: mac, ID: "mas", Name: "Mac App Store", Category: Update, Command: withSpace("the App Store", "mas upgrade"), Risk: safety.Normal, Requires: "mas", Install: "brew install mas"},
 	{ID: "npm", Name: "npm global", Category: Update, Command: "npm update -g", Risk: safety.Normal, Requires: "npm"},
-	{ID: "pnpm", Name: "pnpm global", Category: Update, Command: "pnpm update -g", Risk: safety.Normal, Requires: "pnpm"},
+	{ID: "pnpm", Name: "pnpm global", Category: Update, Command: "pnpm update -g", Risk: safety.Normal, Requires: "pnpm", Detect: once(pnpmHasGlobals),
+		Description: "Only when pnpm has global packages"},
 	{ID: "bun", Name: "Bun", Category: Update, Command: "bun upgrade", Risk: safety.Normal, Requires: "bun"},
 	{ID: "pipx", Name: "pipx", Category: Update, Command: "pipx upgrade-all", Risk: safety.Normal, Requires: "pipx"},
-	{ID: "uv", Name: "uv tools", Category: Update, Command: "uv tool upgrade --all", Risk: safety.Normal, Requires: "uv"},
+	{ID: "uv", Name: "uv tools", Category: Update, Command: "uv tool upgrade --all", Risk: safety.Normal, Requires: "uv", Detect: once(uvHasTools),
+		Description: "Only when uv has tools installed"},
 	{ID: "rustup", Name: "Rust toolchains", Category: Update, Command: "rustup update", Risk: safety.Normal, Requires: "rustup"},
 	{ID: "cargo", Name: "cargo binaries", Category: Update, Command: "cargo install-update -a", Risk: safety.Normal, Requires: "cargo-install-update", Install: "cargo install cargo-update"},
 	{ID: "gh-ext", Name: "gh extensions", Category: Update, Command: "gh extension upgrade --all", Risk: safety.Normal, Requires: "gh"},
@@ -351,7 +359,8 @@ var catalog = []Step{
 	{ID: "vscode-ext", Name: "VS Code extensions", Category: Update, Command: "code --update-extensions", Risk: safety.Normal, Requires: "code"},
 	{ID: "claude-code", Name: "Claude Code", Category: Update, Command: "claude update", Risk: safety.Normal, Requires: "claude", Detect: selfManaged("claude")},
 	{ID: "tldr", Name: "tldr pages", Category: Update, Command: "tldr --update", Risk: safety.Normal, Requires: "tldr"},
-	{ID: "helm-repos", Name: "Helm repositories", Category: Update, Command: "helm repo update", Risk: safety.Normal, Requires: "helm"},
+	{ID: "helm-repos", Name: "Helm repositories", Category: Update, Command: "helm repo update", Risk: safety.Normal, Requires: "helm", Detect: once(helmHasRepos),
+		Description: "Only when Helm has repositories configured"},
 	{ID: "gcloud", Name: "Google Cloud CLI components", Category: Update, Command: "gcloud components update --quiet", Risk: safety.Normal, Requires: "gcloud",
 		Detect: selfManaged("gcloud")},
 	{ID: "tmux-plugins", Name: "tmux plugins", Category: Update, Command: "~/.tmux/plugins/tpm/bin/update_plugins all", Risk: safety.Normal,
@@ -378,8 +387,8 @@ var catalog = []Step{
 	{OS: linux, ID: "firmware", Name: "Firmware (fwupd)", Category: Update, Risk: safety.Dangerous, Requires: "fwupdmgr",
 		Command:     "fwupdmgr refresh --force && fwupdmgr update -y --no-reboot-check",
 		Description: "Firmware for the devices fwupd supports; some updates are applied on the next restart"},
-	{OS: mac, ID: "macos", Name: "macOS (softwareupdate)", Category: Update, Command: "sudo softwareupdate --install --all", Risk: safety.Dangerous,
-		Description: "Needs sudo; may require a restart"},
+	{OS: mac, ID: "macos", Name: "macOS (softwareupdate)", Category: Update, Command: withSpace("macOS", "sudo softwareupdate --install --all"), Risk: safety.Dangerous,
+		Description: "Needs sudo and 10 GB free; may require a restart"},
 
 	// Cleaning (Mole equivalents).
 	{ID: "brew-cleanup", Name: "Homebrew cleanup", Category: Clean, Command: "brew cleanup --prune=all", Risk: safety.Dangerous, Requires: "brew",
@@ -422,14 +431,15 @@ var catalog = []Step{
 	{OS: mac, ID: "simulators", Name: "Unavailable simulators", Category: Clean, Command: "xcrun simctl delete unavailable", Risk: safety.Dangerous, Requires: "xcrun",
 		Detect: dirExists("Library/Developer/CoreSimulator")},
 	{OS: mac, ID: "docker-df", Name: "Docker disk usage", Category: Check, Risk: safety.Safe, Requires: "docker", Install: "brew install --cask docker",
-		Command:     "docker system df && du -sh ~/Library/Containers/com.docker.docker/Data/vms/0/data/Docker.raw 2>/dev/null",
-		Description: "Space used by images, containers, volumes and build cache, plus the Docker Desktop disk image"},
+		Command: "docker system df 2>/dev/null || echo 'Docker is not running; measured the disk image without starting it'; " +
+			"du -h ~/Library/Containers/com.docker.docker/Data/vms/0/data/Docker.raw 2>/dev/null; true",
+		Description: "Space used by images, containers, volumes and build cache, plus the Docker Desktop disk image (measured without starting Docker)"},
 	{OS: mac, ID: "docker-start", Name: "Start Docker Desktop", Category: Check, Risk: safety.Dangerous, Requires: "docker", Install: "brew install --cask docker",
 		Command:     "docker info >/dev/null 2>&1 || { open -ga Docker && for i in $(seq 45); do docker info >/dev/null 2>&1 && exit 0; sleep 2; done; exit 1; }",
 		Description: "Needed before any Docker cleanup when the daemon is not running"},
 	{ID: "docker-containers", Name: "Docker: stopped containers", Category: Clean, Risk: safety.Dangerous, Requires: "docker", Install: "brew install --cask docker", AlwaysConfirm: true,
 		Command: "docker container prune -f"},
-	{ID: "docker-images", Name: "Docker: dangling images", Category: Clean, Risk: safety.Dangerous, Requires: "docker", Install: "brew install --cask docker", AlwaysConfirm: true,
+	{ID: "docker-images", Name: "Docker: dangling images", Category: Clean, Risk: safety.Dangerous, Requires: "docker", Install: "brew install --cask docker",
 		Command: "docker image prune -f", Description: "Untagged layers left behind by rebuilds"},
 	{ID: "docker-images-all", Name: "Docker: all unused images", Category: Clean, Risk: safety.Dangerous, Requires: "docker", Install: "brew install --cask docker", AlwaysConfirm: true,
 		Command: "docker image prune -a -f", Description: "Every image no container uses; they will be pulled again when needed"},
@@ -441,7 +451,8 @@ var catalog = []Step{
 		Command: "docker system prune -a -f", Description: "Stopped containers, unused networks, unused images and build cache"},
 	{OS: linux, ID: "playwright-cache", Name: "Playwright browsers", Category: Clean, Command: "find ~/.cache/ms-playwright -mindepth 1 -delete", Risk: safety.Dangerous,
 		Detect: dirExists(".cache/ms-playwright"), Description: "Downloaded browsers; `npx playwright install` brings them back"},
-	{OS: linux, ID: "docker-df", Name: "Docker disk usage", Category: Check, Risk: safety.Safe, Requires: "docker", Command: "docker system df",
+	{OS: linux, ID: "docker-df", Name: "Docker disk usage", Category: Check, Risk: safety.Safe, Requires: "docker",
+		Command:     "docker system df 2>/dev/null || echo 'Docker is not running (or this user cannot reach it); nothing to measure without starting it'",
 		Description: "Space used by images, containers, volumes and build cache"},
 	{OS: linux, ID: "docker-start", Name: "Start Docker", Category: Check, Risk: safety.Dangerous, Requires: "docker",
 		Command:     "docker info >/dev/null 2>&1 || sudo systemctl start docker",
@@ -477,13 +488,26 @@ var catalog = []Step{
 	{OS: mac, ID: "trash", Name: "Trash", Category: Clean, Command: "rm -rf ~/.Trash/*", Risk: safety.Dangerous, Detect: dirExists(".Trash")},
 
 	// Backends: the original tools, when installed.
-	{ID: "topgrade-preview", Name: "topgrade (dry run)", Category: Backend, Command: "topgrade --dry-run --no-retry --skip-notify", Risk: safety.Safe, Requires: "topgrade", Install: "brew install topgrade"},
+	{ID: "topgrade-preview", Name: "topgrade (dry run)", Category: Backend, Command: "topgrade --dry-run --no-retry --skip-notify", Risk: safety.Safe, Requires: "topgrade", Install: "brew install topgrade",
+		unix:        func(goos string) string { return topgradeCommand(goos, true) },
+		Description: "Leaves out the containers step while Docker is not running, and warns when the configuration needs sudo this run lacks"},
 	{ID: "topgrade", Name: "topgrade", Category: Backend, Command: "topgrade --yes --no-retry --skip-notify", Risk: safety.Dangerous, Requires: "topgrade", Install: "brew install topgrade",
-		Description: "Runs every topgrade step as configured in ~/.config/topgrade.toml"},
-	{OS: mac, ID: "mole-clean-preview", Name: "Mole clean (dry run)", Category: Backend, Command: "mo clean --dry-run", Risk: safety.Safe, Requires: "mo", Install: "brew install mole"},
-	{OS: mac, ID: "mole-clean", Name: "Mole clean", Category: Backend, Command: "mo clean", Risk: safety.Dangerous, Requires: "mo", Install: "brew install mole"},
-	{OS: mac, ID: "mole-optimize-preview", Name: "Mole optimize (dry run)", Category: Backend, Command: "mo optimize --dry-run", Risk: safety.Safe, Requires: "mo", Install: "brew install mole"},
-	{OS: mac, ID: "mole-optimize", Name: "Mole optimize", Category: Backend, Command: "mo optimize", Risk: safety.Dangerous, Requires: "mo", Install: "brew install mole"},
+		unix: func(goos string) string { return topgradeCommand(goos, false) },
+		Description: "Runs every topgrade step as configured in ~/.config/topgrade.toml, when there are at least 10 GB free. " +
+			"On a Mac its system step (softwareupdate, which may restart the Mac) is left out: macos-check covers it. " +
+			"Without sudo it skips topgrade's sudo check and the steps that need it"},
+	// Mole runs with nothing to read on stdin: it then takes its
+	// non-interactive path, skips what needs sudo it does not have, and never
+	// waits for a key (see moleQuiet).
+	{OS: mac, ID: "mole-clean-preview", Name: "Mole clean (dry run)", Category: Backend, Command: moleQuiet("clean --dry-run"), Risk: safety.Safe, Requires: "mo", Install: "brew install mole"},
+	{OS: mac, ID: "mole-clean", Name: "Mole clean", Category: Backend, Command: moleQuiet("clean"), Risk: safety.Dangerous, Requires: "mo", Install: "brew install mole"},
+	{OS: mac, ID: "mole-optimize-preview", Name: "Mole optimize (dry run)", Category: Backend, Command: moleQuiet("optimize --dry-run"), Risk: safety.Safe, Requires: "mo", Install: "brew install mole"},
+	{OS: mac, ID: "mole-optimize", Name: "Mole optimize", Category: Backend, Command: moleQuiet("optimize"), Risk: safety.Dangerous, Requires: "mo", Install: "brew install mole"},
+	{OS: mac, ID: "mole-purge-preview", Name: "Mole purge (dry run)", Category: Backend, Command: moleQuiet("purge --dry-run"), Risk: safety.Safe, Requires: "mo", Install: "brew install mole",
+		Description: "Project build artifacts Mole would remove, in its scan folders (mo purge --paths)"},
+	{OS: mac, ID: "mole-purge", Name: "Mole purge", Category: Clean, Command: moleQuiet("purge --yes"), Risk: safety.Dangerous, Requires: "mo", Install: "brew install mole",
+		Description: "Removes the build artifacts (node_modules, target, .venv...) of projects with no change in the last 7 days, in Mole's scan folders; " +
+			"they come back with the next install or build. Without --yes Mole selects nothing (\"No items selected\" does not mean there was nothing to clean)"},
 	{OS: mac, ID: "mole-update", Name: "Update Mole", Category: Backend, Command: "mo update", Risk: safety.Normal, Requires: "mo", Install: "brew install mole"},
 	// ---- Windows ----
 	{OS: windows, ID: "disk", Name: "Disk space", Category: Check, Command: winDisk, Risk: safety.Safe,

@@ -113,6 +113,9 @@ func tracked(path string) bool {
 	if _, err := exec.LookPath("git"); err != nil {
 		return false
 	}
+	if runner.UntrustedGitConfig(filepath.Dir(path)) {
+		return true // not looked into: taken for part of the project, so kept
+	}
 	cmd := exec.Command("git", "-C", filepath.Dir(path), "ls-files", "--", filepath.Base(path))
 	cmd.Env = append(os.Environ(), runner.GitEnv()...)
 	cmd.Stderr = nil
@@ -128,6 +131,9 @@ var activityCap = 20000
 // gitOutput runs git in dir and returns what it printed. ok is false when
 // git is missing, dir is not in a repository or git took too long.
 func gitOutput(dir string, args ...string) (out []byte, ok bool) {
+	if runner.UntrustedGitConfig(dir) {
+		return nil, false
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "git", append([]string{"-C", dir}, args...)...)
@@ -403,6 +409,25 @@ var bundleID = func(bundle string) string {
 	return strings.TrimSpace(string(out))
 }
 
+// bundleNames are the names an app goes by inside its bundle: the program
+// it runs and its short name. Visual Studio Code runs "Code" and keeps its
+// data in a folder called Code.
+var bundleNames = func(bundle string) []string {
+	var out []string
+	for _, key := range []string{"CFBundleExecutable", "CFBundleName"} {
+		b, err := exec.Command("/usr/bin/defaults", "read", filepath.Join(bundle, "Contents", "Info"), key).Output()
+		if err == nil && strings.TrimSpace(string(b)) != "" {
+			out = append(out, strings.TrimSpace(string(b)))
+		}
+	}
+	return out
+}
+
+// ErrOtherApp is returned for a name that no app has, but that an installed
+// app uses inside: its data folders would be taken for the leftovers of an
+// app that is not there.
+var ErrOtherApp = errors.New("is not an installed app, but the internal name of one")
+
 // appDirs are where applications the user installed are looked up on a Mac.
 var appDirs = func(home string) []string {
 	return []string{"/Applications", filepath.Join(home, "Applications")}
@@ -490,6 +515,21 @@ func FindAppArtifacts(appName string) (*AppArtifacts, error) {
 					}
 				case strings.Contains(strings.ToLower(base), appNameLower):
 					app.Similar = append(app.Similar, base)
+				}
+			}
+		}
+		if app.AppBundle == "" && !looksLikeID(appName) {
+			for _, dir := range appDirs(home) {
+				entries, _ := os.ReadDir(dir)
+				for _, e := range entries {
+					if !strings.HasSuffix(e.Name(), ".app") {
+						continue
+					}
+					for _, n := range bundleNames(filepath.Join(dir, e.Name())) {
+						if strings.EqualFold(n, appName) {
+							return nil, fmt.Errorf("%s %w (%s); give that app's name to uninstall it", appName, ErrOtherApp, strings.TrimSuffix(e.Name(), ".app"))
+						}
+					}
 				}
 			}
 		}

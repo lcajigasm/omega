@@ -85,7 +85,9 @@ available to the AI in a session:
 |---|---|
 | "install fzf and mise" | `dev_install`, then `dev_activate` for the line in `~/.zshrc` or `~/.bashrc` |
 | "undo what you changed in the Dock yesterday" | `mac_history`, `mac_undo` |
-| "what failed last time?" | `run_history` (the end of an earlier transcript) |
+| "what failed last time?" | `run_history` (the last runs: what failed or was refused, and how each ended) |
+| "what is still pending?" | `pending` (items left for you; you dismiss or postpone them with `omega pending`) |
+| "which worktrees can I delete?", "where is the Go cache?" | `machine_facts` (worktrees, real cache paths, config files, broken PATH entries) |
 | "forget the note about pipx" | `notes` |
 | "stop running the macOS update step" | `omega_settings` (`skip_steps`) |
 | "is omega set up correctly?" | `omega_doctor` |

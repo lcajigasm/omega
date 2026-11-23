@@ -154,7 +154,20 @@ func psWords(part string) []string {
 // psReadOnly are cmdlets that only look: the verbs PowerShell reserves for
 // reading and shaping output. Out-File and the Set/New/Remove families are
 // not here, so they stay dangerous.
-var psReadOnly = regexp.MustCompile(`(?i)^((get|test|measure|select|where|sort|format|group|compare|resolve|convertto|convertfrom|find|show|read|search)-[a-z]+|out-(string|null|host|default)|write-(output|host)|foreach-object|%|\?|where|sort|select|group|measure)$`)
+//
+// Get- is the one verb that modules stretch: Get-Credential asks for a
+// password, Get-Secret and Get-AzAccessToken print one, Get-WindowsUpdate
+// -Install installs. Only the Get- cmdlets below count as reading.
+var psReadOnly = regexp.MustCompile(`(?i)^((test|measure|select|where|sort|format|group|compare|resolve|convertto|convertfrom|find|show|search)-[a-z]+|` +
+	`get-(` + psGets + `)|out-(string|null|host|default)|write-(output|host)|foreach-object|%|\?|where|sort|select|group|measure)$`)
+
+const psGets = `childitem|item|itemproperty|itempropertyvalue|content|process|service|command|help|date|location|psdrive|volume|disk|partition|` +
+	`physicaldisk|ciminstance|wmiobject|computerinfo|hotfix|winevent|eventlog|scheduledtask|scheduledtaskinfo|netadapter|netipaddress|` +
+	`netipconfiguration|dnsclientserveraddress|nettcpconnection|netudpendpoint|netfirewallprofile|netfirewallrule|mpcomputerstatus|` +
+	`mppreference|mpthreatdetection|appxpackage|package|packageprovider|module|installedmodule|psrepository|filehash|acl|host|culture|` +
+	`uiculture|timezone|member|alias|executionpolicy|localuser|localgroup|localgroupmember|bitlockervolume|tpm|counter|printer|` +
+	`smbshare|smbconnection|windowsoptionalfeature|windowscapability|startapps|storagereliabilitycounter|pnpdevice|` +
+	`computerrestorepoint|uptime|unique|psprovider|typedata|culture|winhomelocation|windowsdriver|ciminstance|psversiontable`
 
 // psForEach runs its argument once per object. A block that only reads a
 // property is a filter; a bare word is a method to call (% Delete, % Kill).
@@ -189,16 +202,17 @@ func psRunsCode(p string) bool {
 
 // psWrites are parameters that turn a reading cmdlet into a writing one,
 // or into one that never ends (Get-Content -Wait follows the file).
-var psWrites = regexp.MustCompile(`(?i)\s-(outfile|outvariable|filepath|wait|literalpath\s+\S+\s+-value|passthru\s+\|\s*set-)\b`)
+// -AsPlainText turns a SecureString back into the password it holds.
+var psWrites = regexp.MustCompile(`(?i)\s-(outfile|outvariable|filepath|wait|asplaintext|literalpath\s+\S+\s+-value|passthru\s+\|\s*set-)\b`)
 
 // Read-only Windows commands that are not cmdlets.
 var windowsSafePrefixes = []string{
 	"winget list", "winget search", "winget show", "winget source list", "winget --version", "winget --info",
 	"scoop status", "scoop list", "scoop info", "scoop search", "scoop bucket list", "scoop which", "scoop --version",
 	"choco outdated", "choco list", "choco info", "choco search", "choco --version",
-	"systeminfo", "tasklist", "ver", "where", "where.exe", "dir", "ipconfig", "wsl --list", "wsl -l", "wsl --status", "wsl --version",
+	"systeminfo", "tasklist", "ver", "where", "where.exe", "dir", "wsl --list", "wsl -l", "wsl --status", "wsl --version",
 	"dism /online /get-", "dism.exe /online /get-", "sfc /verifyonly", "powercfg /a", "powercfg /list", "powercfg /energy",
-	"cmdkey /list", "driverquery", "net use", "net start", "sc query", "sc.exe query", "schtasks /query",
+	"cmdkey /list", "driverquery", "sc query", "sc.exe query", "schtasks /query",
 }
 
 // windowsNormalPrefixes are routine updates of software the user installed
@@ -231,6 +245,24 @@ func classifyWindows(p string) (Risk, bool) {
 	}
 	if wingetLists.MatchString(p) {
 		return Safe, true
+	}
+	switch strings.TrimSuffix(strings.ToLower(words[0]), ".exe") {
+	case "ipconfig":
+		// /all and /displaydns show; /release, /renew and /flushdns change
+		// the network.
+		for _, a := range words[1:] {
+			if !has("/all /displaydns /? -all", strings.ToLower(a)) {
+				return Dangerous, true
+			}
+		}
+		return Safe, true
+	case "net":
+		// "net use" and "net start" alone list; with more they map or drop
+		// a share, or start a service.
+		if len(words) == 2 && has("use start session share user localgroup accounts config statistics view", strings.ToLower(words[1])) {
+			return Safe, true
+		}
+		return Dangerous, true
 	}
 	lower := strings.ToLower(p)
 	for _, pre := range windowsSafePrefixes {

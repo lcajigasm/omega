@@ -708,10 +708,46 @@ func recursiveReader(words []string) bool {
 // output is sent to the model. It looks through wrappers (env, sudo, xargs,
 // sh -c …), command substitutions and quoting.
 func leaksSecret(cmd string) bool {
+	if listsIntoReader(cmd) {
+		return true
+	}
 	if strings.Contains(cmd, `\`) && leaksIn(segmentsWith(cmd, "/")) {
 		return true
 	}
 	return leaksIn(shellSegments(cmd))
+}
+
+// contentVerbs print what is in the files they are handed.
+var contentVerbs = map[string]bool{"cat": true, "get-content": true, "gc": true, "type": true, "select-string": true, "sls": true,
+	"more": true, "less": true, "head": true, "tail": true, "xargs": true, "foreach-object": true, "%": true, "strings": true}
+
+// listsIntoReader reports a secret folder listed into a later stage of
+// the same pipeline that prints the files: Get-ChildItem ~\.ssh |
+// Get-Content names no key file, and neither does ls ~/.ssh | xargs cat.
+func listsIntoReader(cmd string) bool {
+	for _, pipeline := range splitUnquoted(cmd, false, true) {
+		listed := false // by an earlier stage
+		for _, stage := range splitUnquoted(pipeline, true, false) {
+			lists := false
+			for _, seg := range segmentsWith(stage, "/") {
+				run := afterWrappers(seg)
+				if len(run) == 0 {
+					continue
+				}
+				verb := strings.ToLower(path.Base(run[0]))
+				if listed && contentVerbs[verb] {
+					return true
+				}
+				if has("ls eza tree find dir get-childitem gci get-item gi", verb) {
+					for _, w := range run[1:] {
+						lists = lists || secretDir(w) || containsSecret(w)
+					}
+				}
+			}
+			listed = listed || lists
+		}
+	}
+	return false
 }
 
 func leaksIn(segs [][]string) bool {

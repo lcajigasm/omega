@@ -2,6 +2,8 @@ package agent
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"html"
@@ -11,11 +13,13 @@ import (
 	"net/netip"
 	"net/url"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"syscall"
 	"time"
 
+	"github.com/lcajigasm/omega/internal/config"
 	"github.com/lcajigasm/omega/internal/i18n"
 	"github.com/lcajigasm/omega/internal/safety"
 )
@@ -51,11 +55,35 @@ func publicOnly(_, address string, _ syscall.RawConn) error {
 	if !ip.IsGlobalUnicast() || ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast() || cgnat.Contains(ip) {
 		return errPrivateAddress
 	}
+	for _, p := range notPublic {
+		if p.Contains(ip) {
+			return errPrivateAddress
+		}
+	}
 	return nil
 }
 
 // cgnat is the shared address space of carrier NAT and of Tailscale.
 var cgnat = netip.MustParsePrefix("100.64.0.0/10")
+
+// notPublic are other ranges that reach this machine or its network: the
+// benchmarking range, documentation and reserved space, and the IPv6
+// prefixes that carry an IPv4 address inside (NAT64, 6to4, Teredo), which
+// can point at 127.0.0.1 or 192.168.x.x.
+var notPublic = []netip.Prefix{
+	netip.MustParsePrefix("198.18.0.0/15"),
+	netip.MustParsePrefix("192.0.0.0/24"),
+	netip.MustParsePrefix("192.0.2.0/24"),
+	netip.MustParsePrefix("198.51.100.0/24"),
+	netip.MustParsePrefix("203.0.113.0/24"),
+	netip.MustParsePrefix("240.0.0.0/4"),
+	netip.MustParsePrefix("64:ff9b::/96"),
+	netip.MustParsePrefix("64:ff9b:1::/48"),
+	netip.MustParsePrefix("2002::/16"),
+	netip.MustParsePrefix("2001::/32"),
+	netip.MustParsePrefix("2001:db8::/32"),
+	netip.MustParsePrefix("100::/64"),
+}
 
 // checkHost refuses a URL whose host is, or resolves to, an address that is
 // not public. It is asked for the first URL and for every redirect. With a
@@ -128,6 +156,32 @@ func htmlToText(s string) string {
 	s = reSpaces.ReplaceAllString(s, " ")
 	s = reNewline.ReplaceAllString(s, "\n\n")
 	return strings.TrimSpace(s)
+}
+
+// webCacheFor is how long a page or a search is kept: runs a few seconds
+// apart fetched the same end-of-life pages and searches again.
+const webCacheFor = 24 * time.Hour
+
+func webCachePath(u string) string {
+	sum := sha256.Sum256([]byte(u))
+	return filepath.Join(config.StateDir(), "web-cache", hex.EncodeToString(sum[:16]))
+}
+
+// cachedGet is get with a day's cache on disk, for this user only.
+func cachedGet(ctx context.Context, u string) (string, string, error) {
+	p := webCachePath(u)
+	if fi, err := os.Stat(p); err == nil && time.Since(fi.ModTime()) < webCacheFor {
+		if b, err := os.ReadFile(p); err == nil {
+			if ctype, body, ok := strings.Cut(string(b), "\n"); ok {
+				return body, ctype, nil
+			}
+		}
+	}
+	body, ctype, err := get(ctx, u)
+	if err == nil && os.MkdirAll(filepath.Dir(p), 0o700) == nil {
+		os.WriteFile(p, []byte(strings.ReplaceAll(ctype, "\n", " ")+"\n"+body), 0o600)
+	}
+	return body, ctype, err
 }
 
 func get(ctx context.Context, u string) (string, string, error) {
@@ -224,7 +278,7 @@ func toolFetchURL(ctx context.Context, a *Agent, in map[string]any) (string, err
 	}
 	a.markTainted()
 	a.emit(Event{Kind: EvToolStart, Tool: "fetch_url", Command: u, Risk: safety.Safe})
-	body, ctype, err := get(ctx, rawGitHub(u))
+	body, ctype, err := cachedGet(ctx, rawGitHub(u))
 	if err != nil {
 		a.emit(Event{Kind: EvToolEnd, Tool: "fetch_url", Command: u, Failed: true, Reason: err.Error()})
 		return "", explained(err)
@@ -247,7 +301,7 @@ func toolWebSearch(ctx context.Context, a *Agent, in map[string]any) (string, er
 	}
 	a.markTainted()
 	a.emit(Event{Kind: EvToolStart, Tool: "web_search", Command: q, Risk: safety.Safe})
-	body, _, err := get(ctx, "https://html.duckduckgo.com/html/?q="+url.QueryEscape(q))
+	body, _, err := cachedGet(ctx, "https://html.duckduckgo.com/html/?q="+url.QueryEscape(q))
 	if err != nil {
 		msg := fmt.Errorf("%s: %w", i18n.T("agent.search_failed"), err)
 		a.emit(Event{Kind: EvToolEnd, Tool: "web_search", Command: q, Failed: true, Reason: msg.Error()})

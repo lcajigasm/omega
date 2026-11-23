@@ -229,9 +229,17 @@ func launchdRunning() map[string]bool {
 	return m
 }
 
-// BTMTimeout bounds `sfltool dumpbtm`, which can take a minute when the
-// background task daemon is busy.
-var BTMTimeout = 90 * time.Second
+// BTMTimeout bounds `sfltool dumpbtm`. On some Macs it never answers: runs
+// spent 90 seconds on it every time and still had no login items, so the
+// wait is short and a failure is remembered for a while (btmFailed).
+var BTMTimeout = 20 * time.Second
+
+// btmFailed marks a recent `sfltool dumpbtm` that did not answer: it is not
+// tried again until BTMRetryAfter has passed.
+func btmFailed() string { return filepath.Join(config.StateDir(), "btm-failed") }
+
+// BTMRetryAfter is how long a failed dump is not tried again.
+var BTMRetryAfter = 6 * time.Hour
 
 // btmCache keeps the last `sfltool dumpbtm` output: it changes rarely and
 // is slow to read.
@@ -250,13 +258,54 @@ func CachedBTM() (string, bool) {
 			return string(b), true
 		}
 	}
+	if fi, err := os.Stat(btmFailed()); err == nil && time.Since(fi.ModTime()) < BTMRetryAfter {
+		return "", false
+	}
 	out, ok := DumpBTM()
-	if ok && out != "" {
-		if os.MkdirAll(config.StateDir(), 0o755) == nil {
+	if os.MkdirAll(config.StateDir(), 0o755) == nil {
+		if ok && out != "" {
 			os.WriteFile(btmCache(), []byte(out), 0o600)
+			os.Remove(btmFailed())
+		} else {
+			os.WriteFile(btmFailed(), nil, 0o600)
 		}
 	}
 	return out, ok
+}
+
+// SystemEventsLoginItems lists the login items System Events knows: the
+// ones added by the user or by an app the old way. It answers in a second
+// where sfltool may not answer at all, so it is the fallback.
+var SystemEventsLoginItems = func() []Item {
+	out, err := Output("osascript", "-e", `tell application "System Events" to get the {name, path} of every login item`)
+	if err != nil {
+		return nil
+	}
+	return parseLoginItems(string(out))
+}
+
+// parseLoginItems reads AppleScript's "name1, name2, path1, path2".
+func parseLoginItems(out string) []Item {
+	parts := strings.Split(strings.TrimSpace(out), ", ")
+	if len(parts) < 2 || len(parts)%2 != 0 {
+		return nil
+	}
+	n := len(parts) / 2
+	var items []Item
+	for i := 0; i < n; i++ {
+		name, path := strings.TrimSpace(parts[i]), strings.TrimSpace(parts[n+i])
+		if name == "" {
+			continue
+		}
+		it := Item{Name: name, Path: path, Kind: KindLogin, Enabled: true}
+		if path != "" {
+			if _, err := os.Stat(path); err != nil {
+				it.Missing = true
+			}
+		}
+		items = append(items, it)
+	}
+	return items
 }
 
 // DumpBTM runs `sfltool dumpbtm`; ok is false when it fails or times out.
@@ -336,6 +385,17 @@ func Items(p *UserPolicy, btm string) []Item {
 			items = append(items, it)
 		}
 	}
+	if btm == "" {
+		// Without Background Task Management, the login items System
+		// Events knows still get listed, broken ones included.
+		for _, it := range SystemEventsLoginItems() {
+			key := KindLogin + "|" + it.ID()
+			if !seen[key] {
+				seen[key] = true
+				items = append(items, it)
+			}
+		}
+	}
 	// launchd jobs that Background Task Management does not know about.
 	for _, j := range jobs {
 		if seen["job|"+j.Label] {
@@ -398,8 +458,14 @@ func (it Item) DisableChange() Change {
 		// the list. An app that registers itself (SMAppService) is not there:
 		// then the pane opens and the output says what is left to do, instead
 		// of an AppleScript error.
+		// Each branch says which one ran, and the first checks that the
+		// item is really gone: a run once reported an item removed when
+		// only the pane had opened.
 		c.Command = osascript(`tell application "System Events" to delete login item `+appleScriptString(it.Name)) +
-			" >/dev/null 2>&1 || { " + openSettings(PaneLoginItems) + "; echo " + shellQuote(i18n.T("mac.login_self", it.Name)) + "; }"
+			" >/dev/null 2>&1 && ! " + osascript(`tell application "System Events" to get the name of every login item`) +
+			" 2>/dev/null | tr ',' '\\n' | sed 's/^ *//' | grep -qxF " + shellQuote(it.Name) +
+			" && echo " + shellQuote("removed: "+it.Name+" is no longer in the login items") +
+			" || { " + openSettings(PaneLoginItems) + "; echo " + shellQuote("not removed by omega: "+i18n.T("mac.login_self", it.Name)) + "; }"
 		if it.Path != "" {
 			c.Undo = osascript(`tell application "System Events" to make login item at end with properties {path:` +
 				appleScriptString(it.Path) + `, hidden:false}`)
