@@ -712,14 +712,23 @@ pasar.
 
 Estado: todo lo de arriba está hecho y tiene prueba automática (`go test
 ./...`, también compilado para Linux y Windows y la app con `-tags gui`).
-Comprobado en este Mac con una ejecución real de solo lectura
-(`omega health --dry-run --no-tui`, $0,008): cabecera completa, bloques
-por llamada en paralelo, el rechazo con su motivo, la tarjeta con «chosen
-by nobody», la cifra de espacio libre única y el recuento final. Los pasos
-de topgrade, brew y Mole se probaron con programas falsos y, en este Mac,
-con un `topgrade --dry-run` real, los recibos de Homebrew y la lista por
-defecto de Mole instalada. Repetir `omega full --unattended` en los dos
-Macs queda como comprobación de uso, no como cambio pendiente.
+Comprobado en este Mac con ejecuciones reales:
+- `omega full --unattended --dry-run` (11 etapas, 5 min 46 s, $0,06): cada
+  registro dice versión, equipo, orden y modo «unattended»; las opciones
+  que omega tomó dicen «chosen by omega, automatically (unattended run:
+  nobody chose)»; `mo clean`, `brew cleanup` y `topgrade`, aunque omega
+  los eligió, se rechazaron por solo lectura y no se cambió nada (la
+  prueba `TestDryRunIsNeverLifted` cubre que `--dry-run` no se levante);
+  ningún salto a Sonnet; la cifra de espacio libre es la misma en todas.
+  Dos lecturas que se rechazaban (`mise ls`, `ssh -G`) son ahora de solo
+  lectura.
+- `omega health --dry-run`: bloques por llamada en paralelo, el rechazo
+  con su motivo, la tarjeta y el recuento final.
+
+Los pasos de topgrade, brew y Mole se probaron con programas falsos y, en
+este Mac, con un `topgrade --dry-run` real, los recibos de Homebrew y la
+lista por defecto de Mole instalada. El otro Mac (Mac Studio) no estaba al
+alcance de esta sesión.
 
 ---
 

@@ -366,3 +366,17 @@ func TestQuotedPatternBeforeSudo(t *testing.T) {
 		}
 	}
 }
+
+// Reads the unattended dry run of 23 November was refused.
+func TestReview4MoreReads(t *testing.T) {
+	for _, c := range []string{"mise ls", "mise ls 2>&1 | head -40", "mise current", "ssh -G github.com", "uv python list --only-installed"} {
+		if r := Classify(c); r != Safe {
+			t.Errorf("%s: %v", c, r)
+		}
+	}
+	for _, c := range []string{"mise install node@22", "mise use -g python", "ssh github.com"} {
+		if Classify(c) == Safe {
+			t.Errorf("%s must not be read-only", c)
+		}
+	}
+}

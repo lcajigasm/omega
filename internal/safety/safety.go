@@ -158,6 +158,8 @@ var safePrefixes = []string{
 	"git config -l", "pnpm store path", "pnpm config list", "npm config get", "pipx environment", "pipx --version",
 	"uv cache dir", "uv python list", "uv --version", "rustup toolchain list", "go env", "brew --cache", "brew --repo",
 	"time zsh -i -c exit", "docker context ls", "launchctl list", "tmutil destinationinfo",
+	"mise ls", "mise list", "mise current", "mise outdated", "mise doctor", "mise config ls", "mise --version",
+	"ssh -G",
 	"topgrade --dry-run", "topgrade -n", "topgrade --version", "topgrade --config-reference",
 	"mo --version", "mo clean --dry-run", "mo optimize --dry-run", "mo uninstall --dry-run", "mo history",
 	"mo --help", "mo help",
