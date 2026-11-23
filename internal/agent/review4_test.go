@@ -234,9 +234,9 @@ func TestReadOnlyResultsAreKeptForTheSession(t *testing.T) {
 	step := &llm.Reply{Calls: []llm.ToolCall{call("1", "disk_usage", map[string]any{"path": "/tmp"})}}
 	s := runScript(t, Options{AutoYes: true}, Approve, nil, nil, step, step,
 		&llm.Reply{Calls: []llm.ToolCall{call("2", "run_command", map[string]any{"command": "brew cleanup", "reason": "r"})}}, step)
-	du := 0
+	du := 0 // disk_usage is du, or PowerShell on Windows
 	for _, c := range s.ran {
-		if strings.HasPrefix(c, "du ") {
+		if strings.HasPrefix(c, "du ") || strings.HasPrefix(c, "Get-ChildItem") {
 			du++
 		}
 	}
