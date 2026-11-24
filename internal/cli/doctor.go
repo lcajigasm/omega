@@ -309,42 +309,6 @@ func doctorProvider(w io.Writer, cfg *config.Config) int {
 	return doctorModels(w, cfg, info, models)
 }
 
-// localModels probes a local OpenAI-compatible /models endpoint. up is false
-// only when the server cannot be reached or answers 5xx, matching the old
-// reachability probe. A body that is not a model list leaves ids empty.
-func localModels(base string) (ids []string, up bool) {
-	c := http.Client{Timeout: 700 * time.Millisecond}
-	resp, err := c.Get(strings.TrimRight(base, "/") + "/models")
-	if err != nil {
-		return nil, false
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode >= 500 {
-		return nil, false
-	}
-	if resp.StatusCode >= 400 {
-		return nil, true
-	}
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-	if err != nil {
-		return nil, true
-	}
-	var out struct {
-		Data []struct {
-			ID string `json:"id"`
-		} `json:"data"`
-	}
-	if json.Unmarshal(body, &out) != nil {
-		return nil, true
-	}
-	for _, m := range out.Data {
-		if id := strings.TrimSpace(m.ID); id != "" {
-			ids = append(ids, id)
-		}
-	}
-	return ids, true
-}
-
 // explicitModels lists model names the user typed. auto and the built-in
 // defaults are left out: doctor only checks a name that would be sent as is.
 func explicitModels(cfg *config.Config, provider string) []string {
