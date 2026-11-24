@@ -30,9 +30,9 @@ Cada punto dice qué pasa, dónde está en el código y qué tiene que pasar.
 
 **Estado (24 de noviembre, segunda pasada):** todos los puntos están
 implementados. Bajo cada uno, la línea **Hecho:** resume el cambio y, cuando
-lo hay, lo que se dejó distinto de lo pedido y por qué. Las capturas de
-`docs/assets` están regeneradas con los glifos nuevos salvo `sudo.png`, que
-necesita root y `runuser` (Linux) y la regenera el flujo `captures.yml`.
+lo hay, lo que se dejó distinto de lo pedido y por qué. Todas las capturas
+de `docs/assets`, `sudo.png` incluida, están regeneradas con los glifos nuevos
+por el flujo `captures.yml` sobre esta rama.
 
 ---
 
@@ -676,7 +676,7 @@ todo lo que se escapa de `AlwaysConfirm` se ejecuta sin nadie delante.
     - un `glyphs.go` central con `●`, `└` y `»`;
     - una variante ASCII con TERM=dumb u `OMEGA_ASCII=1`;
     - regenerar las capturas y `pilot_test.go:65`.
-  **Hecho:** `internal/ui/glyphs.go` (●, └, »…) con variante ASCII (`TERM=dumb`, `OMEGA_ASCII=1`). Capturas de terminal (`scripts/capture.sh`) y de la app (`scripts/capture_gui.mjs`) regeneradas con los glifos nuevos; `sudo.png` necesita root y `runuser`, así que la regenera `captures.yml`.
+  **Hecho:** `internal/ui/glyphs.go` (●, └, »…) con variante ASCII (`TERM=dumb`, `OMEGA_ASCII=1`). Capturas de terminal (`scripts/capture.sh`) y de la app (`scripts/capture_gui.mjs`), `sudo.png` incluida, regeneradas con los glifos nuevos por `captures.yml` sobre esta rama.
 - [x] **G2. La marca de la app no es una sola**: «✻ omega» en TUI, menú,
   guía y piloto, y «Ω» en los informes de texto y en la mascota.
   - Debe: una constante `brand` y elegir una.
