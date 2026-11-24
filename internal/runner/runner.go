@@ -577,15 +577,17 @@ func Configure(env []string, prefix string) {
 // the interface. onLine receives each line of output.
 func Run(ctx context.Context, command string, timeout time.Duration, onLine func(string)) Result {
 	start := time.Now()
+	// The login environment is read once, by the first command; its time
+	// does not count against that command's timeout.
+	envOnce.Do(func() {
+		redactEnv()
+		scanEnv(loginEnv())
+	})
 	if timeout > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, timeout)
 		defer cancel()
 	}
-	envOnce.Do(func() {
-		redactEnv()
-		scanEnv(loginEnv())
-	})
 	name, args := shellInvocation(command)
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Stdin = nil

@@ -30,6 +30,10 @@ func stableLook(t *testing.T) {
 	t.Setenv("OMEGA_REDUCED_MOTION", "")
 	t.Setenv("NO_COLOR", "")
 	setGlyphs(false)
+	// The snapshots are of the Mac texts; elsewhere a few say "machine".
+	os := i18n.OS
+	i18n.OS = "darwin"
+	t.Cleanup(func() { i18n.OS = os })
 	i18n.Init("en")
 }
 

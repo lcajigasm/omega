@@ -67,8 +67,10 @@ jobs:
         run: |
           set -euo pipefail
           docker run --rm omega:ci --version | grep -q 'omega version ci'
-          docker run --rm -e OMEGA_LANG=en omega:ci steps | tee steps.txt
-          grep -Eq '✓ apt +dangerous' steps.txt
+          docker run --rm -e OMEGA_LANG=en omega:ci steps
+          # The table is for people; the checks read --json.
+          docker run --rm omega:ci steps --json > steps.json
+          jq -e '.[] | select(.id == "apt" and .risk_id == "dangerous" and .available)' steps.json >/dev/null
           # The apt steps call sudo, which the image has for that.
           docker run --rm -e OMEGA_LANG=en omega:ci steps run --yes apt-outdated apt-clean
 
@@ -110,21 +112,30 @@ jobs:
         run: |
           set -euo pipefail
           export XDG_CONFIG_HOME="$RUNNER_TEMP/omega-config" XDG_STATE_HOME="$RUNNER_TEMP/omega-state" OMEGA_LANG=en
-          ./omega steps | tee steps.txt
+          ./omega steps
+          # The table is for people; the checks read --json.
+          ./omega steps --json > steps.json
+          # step ID RISK AVAILABLE: listed with that risk, detected or not.
+          step() {
+            jq -e --arg id "$1" --arg risk "$2" --argjson ok "$3" \
+              '.[] | select(.id == $id and .risk_id == $risk and .available == $ok)' steps.json >/dev/null \
+              || { echo "step $1 is not listed as $2 (available=$3)"; exit 1; }
+          }
           # The Ubuntu catalogue: apt is detected, with the right risk.
-          grep -Eq '✓ disk +read-only' steps.txt
-          grep -Eq '✓ apt-outdated +read-only' steps.txt
-          grep -Eq '✓ apt +dangerous' steps.txt
-          grep -Eq '✓ apt-clean +dangerous' steps.txt
-          grep -Eq '✓ apt-autoremove +dangerous' steps.txt
-          grep -Eq '✓ journal-size +read-only' steps.txt
-          grep -Eq '✓ journal-vacuum +dangerous' steps.txt
-          grep -Eq ' trash +dangerous' steps.txt
+          step disk read-only true
+          step apt-outdated read-only true
+          step apt dangerous true
+          step apt-clean dangerous true
+          step apt-autoremove dangerous true
+          step journal-size read-only true
+          step journal-vacuum dangerous true
+          jq -e '.[] | select(.id == "trash" and .risk_id == "dangerous")' steps.json >/dev/null
           # Other distributions' managers are listed but not detected.
-          grep -Eq '^    (dnf|pacman|zypper) +dangerous' steps.txt
-          if grep -Eq '✓ (dnf|pacman|zypper) ' steps.txt; then echo "a package manager that is not installed shows as available"; exit 1; fi
+          step dnf dangerous false
+          step pacman dangerous false
+          step zypper dangerous false
           # Mac-only steps are not in the Linux catalogue at all.
-          if grep -Eq ' (macos|macos-check|mas|brew-greedy|xcode-derived|simulators|mole-clean|mole-update) ' steps.txt; then
+          if jq -e '.[] | select(.id | IN("macos","macos-check","mas","brew-greedy","xcode-derived","simulators","mole-clean","mole-update"))' steps.json >/dev/null; then
             echo "a Mac-only step is listed on Linux"; exit 1
           fi
           # Read-only steps run for real.
@@ -197,17 +208,20 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $env:XDG_CONFIG_HOME = "$env:RUNNER_TEMP\omega-config"; $env:XDG_STATE_HOME = "$env:RUNNER_TEMP\omega-state"; $env:OMEGA_LANG = 'en'
           function Check($ok, $what) { if (-not $ok) { throw $what } }
-          $steps = (./omega.exe steps | Out-String)
-          $steps
+          ./omega.exe steps
+          # The table is for people; the checks read --json.
+          $steps = (./omega.exe steps --json | Out-String) | ConvertFrom-Json
+          function Step($id) { $steps | Where-Object { $_.id -eq $id } }
           # The Windows catalogue, each step with the right risk.
-          Check ($steps -match '✓ disk +read-only') 'disk is not listed as available'
-          Check ($steps -match ' winget +dangerous') 'winget is not in the catalogue'
-          Check ($steps -match ' scoop +normal') 'scoop is not in the catalogue'
-          Check ($steps -match '✓ temp-files +dangerous') 'temp-files is not listed as available'
-          Check ($steps -match '✓ recycle-bin +dangerous') 'the Recycle Bin step is not listed as available'
-          Check ($steps -match '✓ system-logs +read-only') 'system-logs is not listed as available'
+          Check ((Step 'disk').risk_id -eq 'read-only' -and (Step 'disk').available) 'disk is not listed as available'
+          Check ((Step 'winget').risk_id -eq 'dangerous') 'winget is not in the catalogue'
+          Check ((Step 'scoop').risk_id -eq 'normal') 'scoop is not in the catalogue'
+          Check ((Step 'temp-files').risk_id -eq 'dangerous' -and (Step 'temp-files').available) 'temp-files is not listed as available'
+          Check ((Step 'recycle-bin').risk_id -eq 'dangerous' -and (Step 'recycle-bin').available) 'the Recycle Bin step is not listed as available'
+          Check ((Step 'system-logs').risk_id -eq 'read-only' -and (Step 'system-logs').available) 'system-logs is not listed as available'
           # Nothing from macOS, Linux or a POSIX shell.
-          Check (-not ($steps -match ' (macos|mas|brew|apt|dnf|journal-vacuum|xcode-derived|mole-clean|shell-startup|omz) ')) 'a step of another system is listed on Windows'
+          $foreign = 'macos','mas','brew','apt','dnf','journal-vacuum','xcode-derived','mole-clean','shell-startup','omz'
+          Check (-not ($steps | Where-Object { $foreign -contains $_.id })) 'a step of another system is listed on Windows'
           # Read-only steps run for real, in PowerShell.
           $out = (./omega.exe steps run disk system-logs | Out-String); $out
           Check ($LASTEXITCODE -eq 0) 'the read-only steps failed'

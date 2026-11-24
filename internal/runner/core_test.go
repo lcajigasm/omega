@@ -43,7 +43,9 @@ func TestTimeoutTerminatesBeforeKilling(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("POSIX signals")
 	}
-	res := Run(context.Background(), `trap 'echo got-term; exit 3' TERM; sleep 30 & wait`, 500*time.Millisecond, nil)
+	// The login shell reads its profile before the trap is set: on a busy
+	// machine that can take most of a second.
+	res := Run(context.Background(), `trap 'echo got-term; exit 3' TERM; sleep 30 & wait`, 3*time.Second, nil)
 	if !res.TimedOut || !strings.Contains(res.Output, "got-term") {
 		t.Fatalf("the command was not told to stop: %+v", res)
 	}
