@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"testing"
@@ -563,6 +564,9 @@ func TestUninstallRefusesAnotherAppsInternalName(t *testing.T) {
 func TestScanReportsWhatItCouldNotRead(t *testing.T) {
 	if _, _, err := FindDuplicates(context.Background(), filepath.Join(t.TempDir(), "missing"), ScanOptions{}); err == nil {
 		t.Error("a missing folder gave no error")
+	}
+	if runtime.GOOS == "windows" {
+		t.Skip("chmod 0 does not stop reading a folder on Windows")
 	}
 	if os.Getuid() == 0 {
 		t.Skip("root reads everything")

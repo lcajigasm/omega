@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -106,6 +107,9 @@ func TestHelperRunByHandGetsNothing(t *testing.T) {
 
 // M7: the wrapper finds bash and sudo where the system keeps them.
 func TestWrapperFindsSudoOnPath(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("sudo and its POSIX paths")
+	}
 	old := lookPath
 	defer func() { lookPath = old }()
 	lookPath = func(string) (string, error) { return "/run/wrappers/bin/sudo", nil }

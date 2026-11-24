@@ -73,6 +73,10 @@ func TestConfirmKeysFollowTheLanguage(t *testing.T) {
 func TestCtrlCCancelsThenLeaves(t *testing.T) {
 	m := testModel(t)
 	stableLook(t)
+	// Without an agent whose turn can be stopped alone, the first ctrl+c
+	// stops the whole run (a turn of the test agent may or may not be
+	// running, which would make this depend on timing).
+	m.ag = nil
 	cancelled := 0
 	m.cancel = func() { cancelled++ }
 	reply := make(chan agent.Decision, 1)
@@ -296,5 +300,17 @@ func TestWantTUIRespectsTheFlagAndTERM(t *testing.T) {
 	t.Setenv("TERM", "dumb")
 	if WantTUI(false) {
 		t.Error("TERM=dumb wants the screen")
+	}
+}
+
+// When ctrl+c stops only the turn while a card waits, the card goes and the
+// screen must not try to draw it again (it panicked on a nil card).
+func TestFooterWithoutTheCardItWaitedFor(t *testing.T) {
+	m := testModel(t)
+	stableLook(t)
+	m.width, m.height = 80, 30
+	for _, st := range []state{stConfirm, stChoice} {
+		m.state, m.pending, m.picker = st, nil, nil
+		_ = m.footerView()
 	}
 }

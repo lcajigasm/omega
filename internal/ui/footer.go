@@ -278,21 +278,21 @@ func (m *model) footerView() string {
 	}
 	keyLine := hintLine(m.width, m.sessionHints()...)
 	var top string
-	switch m.state {
-	case stConfirm:
+	switch {
+	case m.state == stConfirm && m.pending != nil:
 		top = m.confirmView()
-	case stChoice:
+	case m.state == stChoice && m.picker != nil:
 		m.picker.setHeight(m.height)
 		top = m.picker.View(m.width)
-	case stPassword:
+	case m.state == stPassword:
 		top = m.passwordView()
-	case stIdle:
+	case m.state == stIdle:
 		top = inputStyle.Width(m.width - 2).Render(m.input.View())
 		if menu := m.menuView(); menu != "" {
 			return m.withSearchBar(top + "\n" + menu + "\n" + m.statusBlock())
 		}
 		return m.withSearchBar(top + "\n" + m.statusBlock() + "\n" + keyLine)
-	case stDone:
+	case m.state == stDone:
 		return m.withSearchBar(m.statusBlock() + "\n" + keyLine)
 	default:
 		if m.thinking {

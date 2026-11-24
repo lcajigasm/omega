@@ -544,6 +544,9 @@ func (m *model) interrupt() tea.Cmd {
 		// stays, waiting for what the user types next. Otherwise the whole
 		// run stops and the transcript stays up until the user leaves.
 		if m.ag != nil && m.ag.CancelTurn() {
+			// The card, picker or password prompt is gone: show the turn
+			// winding down until the agent waits for input again.
+			m.state = stRunning
 			m.note(i18n.T("uix.turn_cancelled"), mutedStyle)
 			m.follow = true
 			m.refresh()
