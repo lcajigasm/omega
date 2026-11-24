@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
@@ -104,13 +103,8 @@ func pickModel(cfg *config.Config, info llm.Info, flagModel, task string) (model
 
 // probeLocal reports whether a local OpenAI-compatible server answers.
 func probeLocal(baseURL string) bool {
-	c := http.Client{Timeout: 700 * time.Millisecond}
-	resp, err := c.Get(strings.TrimRight(baseURL, "/") + "/models")
-	if err != nil {
-		return false
-	}
-	resp.Body.Close()
-	return resp.StatusCode < 500
+	_, up := localModels(baseURL)
+	return up
 }
 
 func priceBadge(provider, model string) string {
