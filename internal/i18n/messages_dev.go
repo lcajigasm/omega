@@ -4,39 +4,15 @@ package i18n
 // session panel and the home screen. Same order as messages: en, es, fr, de, pt.
 var devMessages = map[string][]string{
 	// ---- omega --help: command groups and the way to ask ----
-	"help.g.run":    {"Maintenance:", "Mantenimiento:", "Maintenance :", "Wartung:", "Manutenção:"},
-	"help.g.tools":  {"Your apps, tools and AI agents:", "Tus apps, herramientas y agentes de IA:", "Vos apps, outils et agents d'IA :", "Deine Apps, Werkzeuge und KI-Agenten:", "As tuas apps, ferramentas e agentes de IA:"},
-	"help.g.system": {"Disk, network and security:", "Disco, red y seguridad:", "Disque, réseau et sécurité :", "Festplatte, Netzwerk und Sicherheit:", "Disco, rede e segurança:"},
-	"help.g.setup":  {"Setup and history:", "Configuración e historial:", "Configuration et historique :", "Einrichtung und Verlauf:", "Configuração e histórico:"},
-	"help.g.help":   {"Help:", "Ayuda:", "Aide :", "Hilfe:", "Ajuda:"},
-	"cmd.assist": {
-		"Configuration assistants for Claude, ChatGPT/Codex, Grok, Docker, Cursor and other tools",
-		"Asistentes de configuración para Claude, ChatGPT/Codex, Grok, Docker, Cursor y otras herramientas",
-		"Assistants de configuration pour Claude, ChatGPT/Codex, Grok, Docker, Cursor et d'autres outils",
-		"Konfigurationsassistenten für Claude, ChatGPT/Codex, Grok, Docker, Cursor und andere Werkzeuge",
-		"Assistentes de configuração para Claude, ChatGPT/Codex, Grok, Docker, Cursor e outras ferramentas",
-	},
-	"cmd.disk_limits": {
-		"Limit how much disk Claude, Docker, Codex, Cursor, Homebrew and other tools may take",
-		"Limita cuánto disco pueden ocupar Claude, Docker, Codex, Cursor, Homebrew y otras herramientas",
-		"Limiter le disque que Claude, Docker, Codex, Cursor, Homebrew et d'autres outils peuvent occuper",
-		"Begrenzen, wie viel Speicher Claude, Docker, Codex, Cursor, Homebrew und andere Werkzeuge belegen dürfen",
-		"Limita quanto disco podem ocupar o Claude, Docker, Codex, Cursor, Homebrew e outras ferramentas",
-	},
-	"cmd.docs": {
-		"Read omega's manual, search it, or ask it a question in your own words",
-		"Lee el manual de omega, búscalo o hazle una pregunta con tus palabras",
-		"Lire le manuel d'omega, le chercher ou lui poser une question avec vos mots",
-		"omegas Handbuch lesen, durchsuchen oder ihm eine Frage in deinen Worten stellen",
-		"Lê o manual do omega, pesquisa-o ou faz-lhe uma pergunta com as tuas palavras",
-	},
-	"cmd.mcp": {
-		"Run omega as an MCP server so AI agents can use its commands",
-		"Ejecuta omega como servidor MCP para que los agentes de IA usen sus comandos",
-		"Lancer omega comme serveur MCP pour que les agents d'IA utilisent ses commandes",
-		"omega als MCP-Server starten, damit KI-Agenten seine Befehle nutzen",
-		"Executa o omega como servidor MCP para que os agentes de IA usem os seus comandos",
-	},
+	"help.g.run":      {"Maintenance:", "Mantenimiento:", "Maintenance :", "Wartung:", "Manutenção:"},
+	"help.g.tools":    {"Your apps, tools and AI agents:", "Tus apps, herramientas y agentes de IA:", "Vos apps, outils et agents d'IA :", "Deine Apps, Werkzeuge und KI-Agenten:", "As tuas apps, ferramentas e agentes de IA:"},
+	"help.g.system":   {"Disk, network and security:", "Disco, red y seguridad:", "Disque, réseau et sécurité :", "Festplatte, Netzwerk und Sicherheit:", "Disco, rede e segurança:"},
+	"help.g.setup":    {"Setup and history:", "Configuración e historial:", "Configuration et historique :", "Einrichtung und Verlauf:", "Configuração e histórico:"},
+	"help.g.help":     {"Help:", "Ayuda:", "Aide :", "Hilfe:", "Ajuda:"},
+	"cmd.assist":      {"Configuration assistants for Claude, Docker, Cursor…", "Asistentes de configuración: Claude, Docker, Cursor…", "Assistants de configuration : Claude, Docker, Cursor…", "Konfigurationsassistenten: Claude, Docker, Cursor…", "Assistentes de configuração: Claude, Docker, Cursor…"},
+	"cmd.disk_limits": {"Limit the disk AI apps and dev tools may take", "Limitar el disco que ocupan apps de IA y herramientas", "Limiter le disque des apps d'IA et outils de dev", "Plattenplatz von KI-Apps und Dev-Tools begrenzen", "Limitar o disco das apps de IA e ferramentas de dev"},
+	"cmd.docs":        {"Read, search or ask omega's manual", "Leer, buscar o preguntar al manual de omega", "Lire, chercher ou interroger le manuel d'omega", "omegas Handbuch lesen, durchsuchen oder fragen", "Ler, pesquisar ou perguntar ao manual do omega"},
+	"cmd.mcp":         {"Run omega as an MCP server for AI agents", "Ejecutar omega como servidor MCP para agentes de IA", "Lancer omega en serveur MCP pour les agents d'IA", "omega als MCP-Server für KI-Agenten starten", "Executar o omega como servidor MCP para agentes"},
 	"help.ask": {
 		"Not sure which command? Ask in your own words: omega docs ask \"how do I limit Docker's disk?\"\nThe manual, offline: omega docs search <words> · Every command and option: omega man",
 		"¿No sabes qué comando usar? Pregunta con tus palabras: omega docs ask \"¿cómo limito el disco de Docker?\"\nEl manual, sin conexión: omega docs search <palabras> · Todos los comandos y opciones: omega man",
@@ -45,20 +21,8 @@ var devMessages = map[string][]string{
 		"Não sabes que comando usar? Pergunta com as tuas palavras: omega docs ask \"como limito o disco do Docker?\"\nO manual, sem ligação: omega docs search <palavras> · Todos os comandos e opções: omega man",
 	},
 	// ---- omega mac permissions / apps ----
-	"cmd.mac_permissions": {
-		"Remove privacy permissions left behind by binaries and apps that are gone",
-		"Quita los permisos de privacidad que dejaron binarios y apps que ya no existen",
-		"Retirer les autorisations de confidentialité laissées par des binaires et apps disparus",
-		"Datenschutz-Berechtigungen entfernen, die verschwundene Programme und Apps hinterlassen haben",
-		"Remove as permissões de privacidade deixadas por binários e apps que já não existem",
-	},
-	"cmd.mac_apps": {
-		"Review apps you no longer open, Intel-only apps and what removed apps left behind",
-		"Revisa las apps que ya no abres, las que solo son Intel y los restos de apps eliminadas",
-		"Passer en revue les apps que vous n'ouvrez plus, les apps Intel et les restes d'apps supprimées",
-		"Apps prüfen, die du nicht mehr öffnest, reine Intel-Apps und Reste entfernter Apps",
-		"Revê as apps que já não abres, as que são só Intel e os restos de apps removidas",
-	},
+	"cmd.mac_permissions": {"Remove permissions left by apps that are gone", "Quitar permisos de apps que ya no existen", "Retirer les autorisations d'apps disparues", "Berechtigungen verschwundener Apps entfernen", "Remover permissões de apps que já não existem"},
+	"cmd.mac_apps":        {"Unused apps, Intel-only apps and leftovers", "Apps sin usar, apps solo Intel y restos", "Apps inutilisées, apps Intel et restes", "Ungenutzte Apps, reine Intel-Apps und Reste", "Apps sem uso, apps só Intel e restos"},
 	"mac.no_tcc": {
 		"Your privacy database could not be read: only system-wide permissions are listed. Give your terminal Full Disk Access (System Settings → Privacy & Security → Full Disk Access) to see the rest.",
 		"No se ha podido leer tu base de datos de privacidad: solo se listan los permisos de todo el sistema. Da Acceso total al disco a tu terminal (Ajustes del Sistema → Privacidad y seguridad → Acceso total al disco) para ver el resto.",
@@ -145,13 +109,7 @@ var devMessages = map[string][]string{
 	},
 
 	// ---- omega dev ----
-	"cmd.dev": {
-		"Review, install and tune your languages and command-line developer tools (AI-guided)",
-		"Revisa, instala y optimiza tus lenguajes y herramientas de desarrollo de consola (guiado por IA)",
-		"Passe en revue, installe et optimise vos langages et outils de développement en ligne de commande (guidé par IA)",
-		"Prüft, installiert und optimiert deine Sprachen und Entwickler-Werkzeuge für die Kommandozeile (KI-geführt)",
-		"Revê, instala e otimiza as tuas linguagens e ferramentas de desenvolvimento de consola (guiado por IA)",
-	},
+	"cmd.dev": {"Your languages and developer tools (AI-guided)", "Tus lenguajes y herramientas de desarrollo (con IA)", "Vos langages et outils de développement (avec IA)", "Deine Sprachen und Entwickler-Tools (mit KI)", "As tuas linguagens e ferramentas de dev (com IA)"},
 	"cmd.dev_long": {
 		`Without a subcommand, the AI reviews your development setup: version managers that overlap, commands
 shadowed on PATH, runtimes past their end of life, old versions piling up, configuration worth tuning,
@@ -194,13 +152,7 @@ pastas de compilação esquecidas e ferramentas em falta. Pergunta com cartões 
   omega dev install       escolhe ferramentas do catálogo do omega (ou indica-as: omega dev install fzf mise)
   omega dev activate      acrescenta a ~/.zshrc ou ~/.bashrc as linhas em falta das ferramentas instaladas`,
 	},
-	"cmd.dev_status": {
-		"Installed languages and tools, what installed each one, and what stands out (no AI)",
-		"Lenguajes y herramientas instalados, quién instaló cada uno y qué llama la atención (sin IA)",
-		"Langages et outils installés, ce qui a installé chacun et ce qui ressort (sans IA)",
-		"Installierte Sprachen und Werkzeuge, wer sie installiert hat und was auffällt (ohne KI)",
-		"Linguagens e ferramentas instaladas, quem instalou cada uma e o que chama a atenção (sem IA)",
-	},
+	"cmd.dev_status": {"Installed languages and tools, and what stands out", "Lenguajes y herramientas instalados, y lo llamativo", "Langages et outils installés, et ce qui ressort", "Installierte Sprachen und Tools, und was auffällt", "Linguagens e ferramentas instaladas, e o que se destaca"},
 	"cmd.dev_install": {
 		"Install developer tools from omega's catalogue",
 		"Instala herramientas de desarrollo del catálogo de omega",
@@ -208,13 +160,7 @@ pastas de compilação esquecidas e ferramentas em falta. Pergunta com cartões 
 		"Entwickler-Werkzeuge aus omegas Katalog installieren",
 		"Instala ferramentas de desenvolvimento do catálogo do omega",
 	},
-	"cmd.dev_activate": {
-		"Add the shell lines installed tools still need to ~/.zshrc or ~/.bashrc",
-		"Añade a ~/.zshrc o ~/.bashrc las líneas que aún necesitan las herramientas instaladas",
-		"Ajouter à ~/.zshrc ou ~/.bashrc les lignes dont les outils installés ont encore besoin",
-		"Shell-Zeilen, die installierte Werkzeuge noch brauchen, in ~/.zshrc oder ~/.bashrc eintragen",
-		"Acrescenta a ~/.zshrc ou ~/.bashrc as linhas de que as ferramentas instaladas ainda precisam",
-	},
+	"cmd.dev_activate": {"Add the shell lines installed tools still need", "Añadir las líneas de shell que faltan a las herramientas", "Ajouter les lignes de shell qui manquent aux outils", "Fehlende Shell-Zeilen der Tools eintragen", "Acrescentar as linhas de shell que faltam às ferramentas"},
 	"dev.reading": {
 		"Looking at your development setup…",
 		"Mirando tu entorno de desarrollo…",
@@ -394,13 +340,7 @@ pastas de compilação esquecidas e ferramentas em falta. Pergunta com cartões 
 	"panel.activity": {"ACTIVITY", "ACTIVIDAD", "ACTIVITÉ", "AKTIVITÄT", "ATIVIDADE"},
 	"panel.none":     {"nothing yet", "nada todavía", "rien pour l'instant", "noch nichts", "nada ainda"},
 
-	"cmd.menu": {
-		"Home screen: everything omega can do, started with Enter",
-		"Pantalla de inicio: todo lo que omega sabe hacer, a un Enter",
-		"Écran d'accueil : tout ce qu'omega sait faire, lancé avec Entrée",
-		"Startbildschirm: alles, was omega kann, mit Enter gestartet",
-		"Ecrã inicial: tudo o que o omega sabe fazer, à distância de um Enter",
-	},
+	"cmd.menu":        {"Home screen: everything omega does, one Enter away", "Pantalla de inicio: todo lo que hace omega, a un Enter", "Écran d'accueil : tout omega, à une touche Entrée", "Startbildschirm: alles von omega, einen Enter entfernt", "Ecrã inicial: tudo o que o omega faz, a um Enter"},
 	"menu.g.maintain": {"MAINTENANCE", "MANTENIMIENTO", "MAINTENANCE", "WARTUNG", "MANUTENÇÃO"},
 	"menu.g.mac":      {"YOUR MAC", "TU MAC", "VOTRE MAC", "DEIN MAC", "O TEU MAC"},
 	"menu.g.dev":      {"DEVELOPMENT", "DESARROLLO", "DÉVELOPPEMENT", "ENTWICKLUNG", "DESENVOLVIMENTO"},
@@ -410,24 +350,6 @@ pastas de compilação esquecidas e ferramentas em falta. Pergunta com cartões 
 	"menu.ago_hours":  {"%d hours ago", "hace %d horas", "il y a %d heures", "vor %d Stunden", "há %d horas"},
 	"menu.ago_days":   {"%d days ago", "hace %d días", "il y a %d jours", "vor %d Tagen", "há %d dias"},
 	"menu.no_match":   {"Nothing matches %q", "Nada coincide con %q", "Rien ne correspond à %q", "Nichts passt zu %q", "Nada corresponde a %q"},
-	"menu.hint": {
-		"↑↓ move · enter open or run · → options · type to search everything · q quit",
-		"↑↓ mover · enter abrir o ejecutar · → opciones · escribe para buscar en todo · q salir",
-		"↑↓ déplacer · entrée ouvrir ou lancer · → options · tapez pour chercher partout · q quitter",
-		"↑↓ bewegen · Enter öffnen oder starten · → Optionen · tippen sucht überall · q beenden",
-		"↑↓ mover · enter abrir ou executar · → opções · escreve para procurar em tudo · q sair",
-	},
-	"menu.hint_sub": {
-		"↑↓ move · enter open or run · ← or esc back · type to search everything",
-		"↑↓ mover · enter abrir o ejecutar · ← o esc volver · escribe para buscar en todo",
-		"↑↓ déplacer · entrée ouvrir ou lancer · ← ou échap retour · tapez pour chercher partout",
-		"↑↓ bewegen · Enter öffnen oder starten · ← oder Esc zurück · tippen sucht überall",
-		"↑↓ mover · enter abrir ou executar · ← ou esc voltar · escreve para procurar em tudo",
-	},
-	"menu.hint_ask": {
-		"type the value · enter run · esc back", "escribe el valor · enter ejecutar · esc volver", "tapez la valeur · entrée lancer · échap retour",
-		"Wert eintippen · Enter starten · Esc zurück", "escreve o valor · enter executar · esc voltar",
-	},
 	"menu.g.models":   {"MODELS AND KEYS", "MODELOS Y CLAVES", "MODÈLES ET CLÉS", "MODELLE UND SCHLÜSSEL", "MODELOS E CHAVES"},
 	"menu.g.state":    {"STATE AND HISTORY", "ESTADO E HISTORIAL", "ÉTAT ET HISTORIQUE", "ZUSTAND UND VERLAUF", "ESTADO E HISTÓRICO"},
 	"menu.g.settings": {"SETTINGS", "AJUSTES", "RÉGLAGES", "EINSTELLUNGEN", "DEFINIÇÕES"},
@@ -459,7 +381,6 @@ pastas de compilação esquecidas e ferramentas em falta. Pergunta com cartões 
 		"Steps omega never runs, separated by commas", "Pasos que omega nunca ejecuta, separados por comas", "Étapes qu'omega n'exécute jamais, séparées par des virgules",
 		"Schritte, die omega nie ausführt, durch Kommas getrennt", "Passos que o omega nunca executa, separados por vírgulas",
 	},
-	"menu.hint_filter": {"enter run · esc clear", "enter ejecutar · esc borrar", "entrée lancer · échap effacer", "Enter starten · Esc löschen", "enter executar · esc limpar"},
 	"menu.no_key": {
 		"No API key for the configured provider yet: run omega setup",
 		"Aún no hay clave de API para el proveedor configurado: ejecuta omega setup",

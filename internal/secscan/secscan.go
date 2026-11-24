@@ -6,6 +6,7 @@ package secscan
 import (
 	"bufio"
 	"fmt"
+	"github.com/lcajigasm/omega/internal/i18n"
 	"github.com/lcajigasm/omega/internal/runner"
 	"io"
 	"os"
@@ -13,6 +14,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"slices"
 	"strings"
 )
 
@@ -216,31 +218,111 @@ var secretPatterns = []struct {
 	{"Private Key Block", regexp.MustCompile(`-----BEGIN (RSA|EC|OPENSSH|DSA) PRIVATE KEY-----`)},
 }
 
-// ScanSecrets scans shell history files and dotfiles for leaked credentials.
-// A file that could not be read to its end is an error: "no secrets found"
-// would not be true of it.
-func ScanSecrets() ([]SecretFinding, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return nil, err
-	}
+// SecretScan is what audit secrets read and found.
+type SecretScan struct {
+	Scanned  []string        `json:"scanned"` // the files read
+	Findings []SecretFinding `json:"findings"`
+}
 
-	targets := []string{
+// historyFiles are the command histories looked through: the shells'
+// (zsh, bash, sh, fish, PowerShell), atuin's database, and the REPLs where
+// keys get pasted (python, node, psql, mysql).
+func historyFiles(home string) (text, binary []string) {
+	data := os.Getenv("XDG_DATA_HOME")
+	if !filepath.IsAbs(data) {
+		data = filepath.Join(home, ".local", "share")
+	}
+	text = []string{
 		filepath.Join(home, ".zsh_history"),
 		filepath.Join(home, ".bash_history"),
 		filepath.Join(home, ".history"),
 		filepath.Join(home, ".sh_history"),
+		filepath.Join(data, "fish", "fish_history"),
+		filepath.Join(home, ".python_history"),
+		filepath.Join(home, ".node_repl_history"),
+		filepath.Join(home, ".psql_history"),
+		filepath.Join(home, ".mysql_history"),
 		filepath.Join(home, "AppData", "Roaming", "Microsoft", "Windows", "PowerShell", "PSReadLine", "ConsoleHost_history.txt"),
 	}
+	// atuin keeps its history in an SQLite file; the commands are stored
+	// as plain text inside it.
+	binary = []string{filepath.Join(data, "atuin", "history.db")}
+	return text, binary
+}
 
-	var findings []SecretFinding
-	for _, file := range targets {
-		found, err := scanFile(file)
-		findings = append(findings, found...)
+// ScanSecrets scans the command histories (see historyFiles) for leaked
+// credentials. A file that could not be read to its end is an error: "no
+// secrets found" would not be true of it.
+func ScanSecrets() ([]SecretFinding, error) {
+	scan, err := ScanHistories()
+	return scan.Findings, err
+}
+
+// ScanHistories is ScanSecrets, also saying which files it read.
+func ScanHistories() (SecretScan, error) {
+	scan := SecretScan{Scanned: []string{}, Findings: []SecretFinding{}}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return scan, err
+	}
+	text, binary := historyFiles(home)
+	for _, file := range append(text, binary...) {
+		if fi, err := os.Stat(file); err != nil || fi.IsDir() {
+			continue
+		}
+		var found []SecretFinding
+		if slices.Contains(binary, file) {
+			found, err = scanBinary(file)
+		} else {
+			found, err = scanFile(file)
+		}
+		scan.Scanned = append(scan.Scanned, file)
+		scan.Findings = append(scan.Findings, found...)
 		if err != nil {
-			return findings, fmt.Errorf("%s was not read to the end: %w", file, err)
+			return scan, fmt.Errorf("%s was not read to the end: %w", file, err)
 		}
 	}
+	return scan, nil
+}
+
+// scanBinary looks for secrets in the runs of printable text of a file
+// that is not text (a database). LineNum is 0: lines mean nothing there.
+func scanBinary(file string) ([]SecretFinding, error) {
+	data, err := os.ReadFile(file)
+	if err != nil {
+		return nil, err
+	}
+	var findings []SecretFinding
+	seen := map[string]bool{}
+	start := -1
+	flush := func(end int) {
+		if start < 0 || end-start < 8 {
+			start = -1
+			return
+		}
+		run := string(data[start:end])
+		start = -1
+		for _, sp := range secretPatterns {
+			if sp.re.MatchString(run) {
+				snippet := maskSnippet(run)
+				if !seen[snippet] { // atuin keeps a command more than once
+					seen[snippet] = true
+					findings = append(findings, SecretFinding{File: file, Type: sp.name, Snippet: snippet})
+				}
+				break
+			}
+		}
+	}
+	for i, b := range data {
+		if b >= 0x20 && b < 0x7f || b == '\t' {
+			if start < 0 {
+				start = i
+			}
+			continue
+		}
+		flush(i)
+	}
+	flush(len(data))
 	return findings, nil
 }
 
@@ -342,19 +424,19 @@ func AuditPrivacy() (*PrivacyAudit, error) {
 func telemetry() []string {
 	switch goos {
 	case "darwin":
-		const where = "System Settings › Privacy & Security › Analytics & Improvements"
+		where := i18n.T("privacy.mac_where")
 		out, err := output("/usr/bin/defaults", "read", "/Library/Application Support/CrashReporter/DiagnosticMessagesHistory.plist", "AutoSubmit")
 		switch strings.TrimSpace(string(out)) {
 		case "1":
-			return []string{"Share Mac Analytics is on: diagnostics and usage data are sent to Apple (" + where + ")"}
+			return []string{i18n.T("privacy.mac_on", where)}
 		case "0":
 			if err == nil {
-				return []string{"Share Mac Analytics is off (" + where + ")"}
+				return []string{i18n.T("privacy.mac_off", where)}
 			}
 		}
-		return []string{"The Mac Analytics setting could not be read; see " + where}
+		return []string{i18n.T("privacy.mac_unknown", where)}
 	case "windows":
-		return []string{"Windows diagnostic data is not checked by omega; see Settings › Privacy & security › Diagnostics & feedback"}
+		return []string{i18n.T("privacy.windows")}
 	}
 	data, err := os.ReadFile(popconFile)
 	if err != nil {
@@ -363,12 +445,12 @@ func telemetry() []string {
 	for _, line := range strings.Split(string(data), "\n") {
 		if key, value, ok := strings.Cut(strings.TrimSpace(line), "="); ok && key == "PARTICIPATE" {
 			if strings.EqualFold(strings.Trim(value, `"' `), "yes") {
-				return []string{"popularity-contest is on: the list of installed packages is sent to the distribution"}
+				return []string{i18n.T("privacy.popcon_on")}
 			}
-			return []string{"popularity-contest is installed and switched off"}
+			return []string{i18n.T("privacy.popcon_off")}
 		}
 	}
-	return []string{"popularity-contest is installed; its setting could not be read from " + popconFile}
+	return []string{i18n.T("privacy.popcon_unknown", popconFile)}
 }
 
 func dirSizeMB(path string) int64 {

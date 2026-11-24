@@ -9,9 +9,11 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 
@@ -151,6 +153,7 @@ func setupCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "setup",
 		Short: i18n.T("cmd.setup"),
+		Long:  i18n.T("cmd.setup_more"),
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := config.Load()
@@ -187,7 +190,9 @@ func setupCmd() *cobra.Command {
 				}
 				opts = append(opts, ui.Option{ID: p.Name, Label: p.Label, Detail: p.KeyURL, Badge: status})
 			}
-			ids, err := ui.Pick(i18n.T("setup.providers"), "", opts, false, tty, os.Stdin, os.Stdout)
+			// The picker draws a screen only where one can be drawn; elsewhere it
+			// asks by number.
+			ids, err := ui.Pick(i18n.T("setup.providers"), "", opts, false, ui.WantTUI(false), os.Stdin, os.Stdout)
 			if errors.Is(err, ui.ErrCancelled) {
 				return nil
 			}
@@ -251,7 +256,8 @@ func setupCmd() *cobra.Command {
 // ---- auth ----
 
 func authCmd() *cobra.Command {
-	c := &cobra.Command{Use: "auth", Short: i18n.T("cmd.auth")}
+	c := &cobra.Command{Use: "auth", Short: i18n.T("cmd.auth"), Long: i18n.T("cmd.auth_more"),
+		Example: "  omega auth status\n  omega auth set anthropic\n  omega auth status --json"}
 	c.AddCommand(
 		&cobra.Command{
 			Use: "set <provider>", Short: i18n.T("cmd.auth_set"), Args: cobra.ExactArgs(1),
@@ -291,33 +297,87 @@ func authCmd() *cobra.Command {
 				return secrets.Delete(args[0])
 			},
 		},
-		&cobra.Command{
-			Use: "status", Short: i18n.T("cmd.auth_status"), Args: cobra.NoArgs,
-			Run: func(cmd *cobra.Command, args []string) {
-				for _, p := range llm.Providers {
-					key, src, err := secrets.Get(p.Name)
-					if err != nil {
-						fmt.Printf("  %-12s —\n", p.Name)
-						continue
-					}
-					warn := ""
-					if keyLooksWrong(key) {
-						warn = "  ⚠ " + i18n.T("auth.looks_wrong", p.Name)
-					}
-					fmt.Printf("  %-12s %s (%s)%s\n", p.Name, secrets.Mask(key), secrets.Describe(src), warn)
-				}
-			},
-		},
+		authStatusCmd(),
 	)
+	return c
+}
+
+// keyStatus is one provider's key as `omega auth status --json` gives it.
+// The key itself is never in it, only its masked form.
+type keyStatus struct {
+	Provider   string `json:"provider"`
+	Set        bool   `json:"set"`
+	Source     string `json:"source,omitempty"`
+	Masked     string `json:"masked,omitempty"`
+	LooksWrong bool   `json:"looks_wrong,omitempty"`
+}
+
+func authStatusCmd() *cobra.Command {
+	var asJSON bool
+	c := &cobra.Command{
+		Use: "status", Short: i18n.T("cmd.auth_status"), Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			var list []keyStatus
+			for _, p := range llm.Providers {
+				key, src, err := secrets.Get(p.Name)
+				if err != nil {
+					list = append(list, keyStatus{Provider: p.Name})
+					continue
+				}
+				list = append(list, keyStatus{Provider: p.Name, Set: true, Source: secrets.Describe(src),
+					Masked: secrets.Mask(key), LooksWrong: keyLooksWrong(key)})
+			}
+			w := cmd.OutOrStdout()
+			if asJSON {
+				return writeJSON(w, list)
+			}
+			for _, k := range list {
+				if !k.Set {
+					fmt.Fprintf(w, "  %-12s —\n", k.Provider)
+					continue
+				}
+				warn := ""
+				if k.LooksWrong {
+					warn = "  ⚠ " + i18n.T("auth.looks_wrong", k.Provider)
+				}
+				fmt.Fprintf(w, "  %-12s %s (%s)%s\n", k.Provider, k.Masked, k.Source, warn)
+			}
+			return nil
+		},
+	}
+	c.Flags().BoolVar(&asJSON, "json", false, i18n.T("flag.json"))
 	return c
 }
 
 // ---- models ----
 
+// modelsCmd is `omega models`, the old name of `omega model list`: it
+// still works and is no longer listed.
 func modelsCmd() *cobra.Command {
-	var refresh bool
+	c := modelListCmd()
+	c.Use = "models [provider] [filter]"
+	c.Hidden = true
+	return c
+}
+
+// modelListCmd is `omega model list`: the models of a provider with their
+// score and price.
+func modelListCmd() *cobra.Command {
+	var refresh, asJSON bool
 	c := &cobra.Command{
-		Use: "models [provider] [filter]", Short: i18n.T("cmd.models"), Long: i18n.T("cmd.models_long"), Args: cobra.MaximumNArgs(2),
+		Use: "list [provider] [filter]", Short: i18n.T("cmd.models"), Long: i18n.T("cmd.models_long"), Args: cobra.MaximumNArgs(2),
+		Example:     "  omega model list\n  omega model list openrouter claude\n  omega model list --json",
+		Annotations: map[string]string{"see_also": "omega model, omega config set model, omega setup"},
+		ValidArgsFunction: func(_ *cobra.Command, args []string, _ string) ([]cobra.Completion, cobra.ShellCompDirective) {
+			if len(args) > 0 {
+				return nil, cobra.ShellCompDirectiveNoFileComp
+			}
+			var names []string
+			for _, p := range llm.Providers {
+				names = append(names, p.Name)
+			}
+			return names, cobra.ShellCompDirectiveNoFileComp
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := config.Load()
 			if err != nil {
@@ -348,18 +408,23 @@ func modelsCmd() *cobra.Command {
 			if len(args) == 2 {
 				filter = args[1]
 			}
-			modelsReport(os.Stdout, cfg, info, available, filter)
+			if asJSON {
+				return writeJSON(cmd.OutOrStdout(), modelsList(cfg, info, available, filter))
+			}
+			modelsReport(cmd.OutOrStdout(), cfg, info, available, filter)
 			return nil
 		},
 	}
 	c.Flags().BoolVar(&refresh, "refresh", false, i18n.T("flag.refresh"))
+	c.Flags().BoolVar(&asJSON, "json", false, i18n.T("flag.json"))
 	return c
 }
 
 // ---- config ----
 
 func configCmd() *cobra.Command {
-	c := &cobra.Command{Use: "config", Short: i18n.T("cmd.config")}
+	c := &cobra.Command{Use: "config", Short: i18n.T("cmd.config"),
+		Example: "  omega config show\n  omega config set approval all\n  omega config check\n  omega config edit"}
 	c.AddCommand(
 		&cobra.Command{
 			Use: "show", Short: i18n.T("cmd.config_show"), Args: cobra.NoArgs,
@@ -368,17 +433,21 @@ func configCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				fmt.Println("#", config.Path())
-				return tomlEncode(cfg)
+				if asJSON, _ := cmd.Flags().GetBool("json"); asJSON {
+					return configJSON(cmd.OutOrStdout(), cfg)
+				}
+				fmt.Fprintln(cmd.OutOrStdout(), "#", config.Path())
+				return tomlEncode(cmd.OutOrStdout(), cfg)
 			},
 		},
 		&cobra.Command{
 			Use: "path", Short: i18n.T("cmd.config_path"), Args: cobra.NoArgs,
-			Run: func(cmd *cobra.Command, args []string) { fmt.Println(config.Path()) },
+			Run: func(cmd *cobra.Command, args []string) { fmt.Fprintln(cmd.OutOrStdout(), config.Path()) },
 		},
 		&cobra.Command{
 			Use:   "set <key> <value>",
 			Short: i18n.T("cmd.config_set"),
+			Long:  i18n.T("cmd.config_set_more"),
 			Args:  cobra.ExactArgs(2),
 			RunE: func(cmd *cobra.Command, args []string) error {
 				return SetConfig(args[0], args[1])
@@ -398,7 +467,12 @@ func configCmd() *cobra.Command {
 				if _, problems := customsteps.Load(); len(problems) > 0 {
 					return fmt.Errorf("%s", strings.Join(problems, "\n"))
 				}
-				fmt.Println(i18n.T("config.ok", config.Path()))
+				fmt.Fprintln(cmd.OutOrStdout(), i18n.T("config.ok", config.Path()))
+				// A key omega does not know is a typo more often than not, and
+				// its setting silently stays the default.
+				for _, k := range unknownConfigKeys() {
+					fmt.Fprintln(cmd.OutOrStdout(), "! "+i18n.T("config.unknown_key", k))
+				}
 				return nil
 			},
 		},
@@ -418,6 +492,9 @@ func configCmd() *cobra.Command {
 			},
 		},
 	)
+	if show, _, err := c.Find([]string{"show"}); err == nil {
+		show.Flags().Bool("json", false, i18n.T("flag.json"))
+	}
 	return c
 }
 
@@ -425,44 +502,48 @@ func configCmd() *cobra.Command {
 
 func stepsCmd() *cobra.Command {
 	var asJSON bool
+	var sf stepFilter
 	c := &cobra.Command{
 		Use: "steps", Short: i18n.T("cmd.steps"), Args: cobra.NoArgs,
+		Example: "  omega steps\n  omega steps --installed --category clean\n  omega steps show brew\n" +
+			"  omega steps run brew-cleanup --dry-run",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if sf.category != "" && !slices.Contains(steps.Categories, sf.category) {
+				return usageErr(cmd, i18n.T("steps.bad_category", sf.category, strings.Join(steps.Categories, ", ")))
+			}
 			if asJSON {
 				list, err := StepList()
 				if err != nil {
 					return err
 				}
-				return writeJSON(cmd.OutOrStdout(), list)
+				keep := []StepInfo{}
+				for _, s := range list {
+					if sf.keep(s.CategoryID, s.Installed) {
+						keep = append(keep, s)
+					}
+				}
+				return writeJSON(cmd.OutOrStdout(), keep)
 			}
 			cfg, err := config.Load()
 			if err != nil {
 				return err
 			}
-			cat := ""
-			for _, s := range steps.Grouped(steps.All) {
-				if s.Category != cat {
-					cat = s.Category
-					fmt.Printf("\n%s\n", i18n.T("cat."+cat))
-				}
-				mark := "✓"
-				switch {
-				case cfg.Skipped(s.ID):
-					mark = "–"
-				case !s.Available():
-					mark = " "
-				}
-				fmt.Printf("  %s %-22s %-10s %s\n", mark, s.ID, ui.RiskName(s.Risk), i18n.TOr("step."+s.ID, s.Name))
-			}
-			fmt.Println(i18n.T("steps.legend"))
+			writeSteps(cmd.OutOrStdout(), cfg, sf)
 			return nil
 		},
 	}
 	c.Flags().BoolVar(&asJSON, "json", false, i18n.T("flag.steps_json"))
+	c.Flags().BoolVar(&sf.installed, "installed", false, i18n.T("flag.steps_installed"))
+	c.Flags().StringVar(&sf.category, "category", "", i18n.T("flag.steps_category"))
+	_ = c.RegisterFlagCompletionFunc("category", func(*cobra.Command, []string, string) ([]cobra.Completion, cobra.ShellCompDirective) {
+		return steps.Categories, cobra.ShellCompDirectiveNoFileComp
+	})
 
 	var r stepsRun
 	run := &cobra.Command{
 		Use: "run <id>...", Short: i18n.T("cmd.steps_run"), Args: cobra.MinimumNArgs(1),
+		Example:           "  omega steps run brew-cleanup\n  omega steps run trash npm-cache --dry-run",
+		ValidArgsFunction: completeSteps,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := config.Load()
 			if err != nil {
@@ -473,7 +554,7 @@ func stepsCmd() *cobra.Command {
 			}
 			var su sudoSession
 			defer su.close()
-			r.cfg, r.out, r.find = cfg, os.Stdout, steps.Find
+			r.cfg, r.out, r.find = cfg, cmd.OutOrStdout(), steps.Find
 			r.tty = stdinIsTerminal()
 			r.confirm = askYesNo
 			r.sudo = su.need
@@ -483,8 +564,74 @@ func stepsCmd() *cobra.Command {
 	}
 	run.Flags().BoolVarP(&r.yes, "yes", "y", false, i18n.T("flag.steps_yes"))
 	run.Flags().BoolVarP(&r.dryRun, "dry-run", "n", false, i18n.T("flag.steps_dry"))
-	c.AddCommand(run)
+	c.AddCommand(run, stepsShowCmd())
 	return c
+}
+
+// stepFilter narrows `omega steps`.
+type stepFilter struct {
+	installed bool
+	category  string
+}
+
+func (f stepFilter) keep(category string, installed bool) bool {
+	return (!f.installed || installed) && (f.category == "" || f.category == category)
+}
+
+// writeSteps lists the catalogue by category: whether each step is here,
+// what it does to the machine and what it is.
+func writeSteps(w io.Writer, cfg *config.Config, sf stepFilter) {
+	r := ui.NewReport(w)
+	installed, total := 0, 0
+	for _, s := range steps.All {
+		total++
+		if s.Available() {
+			installed++
+		}
+	}
+	r.Title("omega steps", i18n.T("steps.count", installed, total))
+	byCat := map[string][]steps.Step{}
+	var cats []string
+	for _, s := range steps.Grouped(steps.All) {
+		if !sf.keep(s.Category, s.Available()) {
+			continue
+		}
+		if _, ok := byCat[s.Category]; !ok {
+			cats = append(cats, s.Category)
+		}
+		byCat[s.Category] = append(byCat[s.Category], s)
+	}
+	idW, nameW := 0, 0
+	for _, s := range steps.All {
+		idW = max(idW, len(s.ID))
+		nameW = max(nameW, lipgloss.Width(i18n.TOr("step."+s.ID, s.Name)))
+	}
+	for _, cat := range cats {
+		list := byCat[cat]
+		r.Section(i18n.T("cat."+cat), len(list))
+		var rows [][]string
+		var marks []ui.Mark
+		for _, s := range list {
+			mark := ui.MarkOK
+			name := i18n.TOr("step."+s.ID, s.Name)
+			risk := r.StepRisk(s.Risk.String())
+			id := s.ID
+			switch {
+			case cfg.Skipped(s.ID):
+				mark = ui.MarkSkip
+				id, name = r.Faint(id), r.Faint(name+" · "+i18n.T("doctor.skipped"))
+			case !s.Available():
+				mark = ui.MarkOff
+				id, name, risk = r.Faint(id), r.Faint(name), ""
+			}
+			rows = append(rows, []string{id, name, risk})
+			marks = append(marks, mark)
+		}
+		r.Table([]ui.Column{{Min: idW}, {Min: nameW}, {}}, rows, marks)
+	}
+	r.Blank()
+	r.Line(r.Muted(i18n.T("steps.legend2", r.Glyph(ui.MarkOK), r.Glyph(ui.MarkSkip), r.Glyph(ui.MarkOff))))
+	r.Hint(i18n.T("steps.hint"))
 }
 
 // stepsRun is one `omega steps run`: the flags, who answers and how a
@@ -510,47 +657,51 @@ func (r stepsRun) run(ids []string) error {
 	if err != nil {
 		return err
 	}
+	rep := ui.NewReport(r.out)
 	failed, skipped := 0, 0
 	for _, id := range ids {
 		s, ok := r.find(id)
 		if !ok {
-			return fmt.Errorf("%s", i18n.T("steps.unknown", id))
+			return usageErr(nil, i18n.T("steps.unknown", id))
 		}
+		name := i18n.TOr("step."+s.ID, s.Name)
 		if !s.Available() {
-			fmt.Fprintln(r.out, i18n.T("steps.not_installed", id))
+			fmt.Fprintln(r.out, rep.Glyph(ui.MarkOff)+" "+i18n.T("steps.not_installed", id))
 			continue
 		}
 		if r.dryRun {
-			fmt.Fprintln(r.out, i18n.T("steps.would_run", id, s.Command))
+			fmt.Fprintln(r.out, rep.Glyph(ui.MarkInfo)+" "+i18n.T("steps.would_run", id, s.Command))
 			continue
 		}
 		if needsAnswer(r.cfg, s, r.yes) {
 			if !r.tty {
 				skipped++
-				fmt.Fprintln(r.out, i18n.T("steps.skipped", id))
+				fmt.Fprintln(r.out, rep.Glyph(ui.MarkWarn)+" "+i18n.T("steps.skipped", id))
 				continue
 			}
-			if !r.confirm(i18n.T("steps.confirm", i18n.TOr("step."+s.ID, s.Name), s.Command)) {
+			if !r.confirm(i18n.T("steps.confirm", name, s.Command)) {
 				continue
 			}
 		}
-		fmt.Fprintf(r.out, "\n$ %s\n", s.Command)
+		fmt.Fprintln(r.out)
+		fmt.Fprintln(r.out, rep.Accent("▸ ")+rep.Bold(s.ID)+"  "+rep.Muted(name))
+		fmt.Fprintln(r.out, "  "+rep.Faint("$ "+rep.Clip(s.Command, 4)))
 		if err := r.sudo(s.Command); err != nil {
 			return err
 		}
-		res := r.exec(context.Background(), s.Command, timeout, func(l string) { fmt.Fprintln(r.out, "  "+l) })
+		res := r.exec(context.Background(), s.Command, timeout, func(l string) { fmt.Fprintln(r.out, "  "+rep.Faint("│")+" "+l) })
 		if res.ExitCode != 0 {
 			failed++
-			fmt.Fprintln(r.out, i18n.T("steps.failed", id, res.ExitCode))
+			fmt.Fprintln(r.out, "  "+rep.Glyph(ui.MarkErr)+" "+rep.Err(i18n.T("steps.failed", id, res.ExitCode)))
 		} else {
-			fmt.Fprintf(r.out, "✓ %s (%s)\n", id, res.Duration.Round(time.Second))
+			fmt.Fprintln(r.out, "  "+rep.Glyph(ui.MarkOK)+" "+id+rep.Faint(" · "+ui.Duration(res.Duration)))
 		}
 	}
 	if failed > 0 {
-		return fmt.Errorf("%s", i18n.T("steps.failed_summary", failed))
+		return fmt.Errorf("%s", i18n.N("steps.failed_summary", failed))
 	}
 	if skipped > 0 {
-		return fmt.Errorf("%s", i18n.T("steps.skipped_summary", skipped))
+		return fmt.Errorf("%s", i18n.N("steps.skipped_summary", skipped))
 	}
 	return nil
 }
@@ -558,26 +709,117 @@ func (r stepsRun) run(ids []string) error {
 // ---- notes ----
 
 func notesCmd() *cobra.Command {
+	var last int
+	var grep string
+	var asJSON bool
 	c := &cobra.Command{
 		Use: "notes", Short: i18n.T("cmd.notes"), Args: cobra.NoArgs,
-		Run: func(cmd *cobra.Command, args []string) {
+		Example:     "  omega notes\n  omega notes --last 50\n  omega notes --grep docker\n  omega notes compact",
+		Annotations: map[string]string{"see_also": "omega history, omega logs, omega pending"},
+		RunE: func(cmd *cobra.Command, args []string) error {
 			b, err := os.ReadFile(config.NotesPath())
-			if err != nil || len(b) == 0 {
-				fmt.Println(i18n.T("notes.empty"))
-				return
+			if err != nil && !errors.Is(err, os.ErrNotExist) {
+				return err
 			}
-			fmt.Print(string(b))
+			if asJSON {
+				return writeJSON(cmd.OutOrStdout(), pickNotes(parseNotes(string(b)), last, grep))
+			}
+			if len(b) == 0 {
+				fmt.Fprintln(cmd.OutOrStdout(), i18n.T("notes.empty"))
+				return nil
+			}
+			writeNotes(cmd.OutOrStdout(), string(b), last, grep)
+			return nil
 		},
 	}
+	c.Flags().IntVarP(&last, "last", "n", 15, i18n.T("flag.notes_last"))
+	c.Flags().StringVar(&grep, "grep", "", i18n.T("flag.notes_grep"))
+	c.Flags().BoolVar(&asJSON, "json", false, i18n.T("flag.json"))
+	c.AddCommand(notesCompactCmd())
 	c.AddCommand(&cobra.Command{
 		Use: "clear", Short: i18n.T("cmd.notes_clear"), Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if stdinIsTerminal() && !askYesNo(i18n.T("notes.clear_ask", config.NotesPath())) {
+				return nil
+			}
 			err := os.Remove(config.NotesPath())
 			if os.IsNotExist(err) {
 				return nil
+			}
+			if err == nil {
+				fmt.Fprintln(cmd.OutOrStdout(), i18n.T("notes.cleared"))
 			}
 			return err
 		},
 	})
 	return c
+}
+
+// noteLine is "- 2026-10-27: text", with the date the model sometimes
+// wrote again in front of the text.
+var noteLine = regexp.MustCompile(`^-\s*(\d{4}-\d{2}-\d{2}):\s*(?:\d{4}-\d{2}-\d{2}(?:\s*\(\d+\))?\s*[:—–-]?\s*)?(.*)$`)
+
+// note is one line of notes.md: the day it was written and its text.
+type note struct {
+	Day  string `json:"day,omitempty"`
+	Text string `json:"text"`
+}
+
+// parseNotes reads the notes, oldest first. Never nil.
+func parseNotes(text string) []note {
+	notes := []note{}
+	for _, l := range strings.Split(strings.TrimSpace(text), "\n") {
+		if m := noteLine.FindStringSubmatch(l); m != nil {
+			notes = append(notes, note{m[1], m[2]})
+		} else if t := strings.TrimSpace(strings.TrimPrefix(l, "-")); t != "" {
+			notes = append(notes, note{"", t})
+		}
+	}
+	return notes
+}
+
+// pickNotes keeps the notes that contain grep, and of those the last ones.
+func pickNotes(notes []note, last int, grep string) []note {
+	if grep != "" {
+		keep := []note{}
+		for _, n := range notes {
+			if strings.Contains(strings.ToLower(n.Text), strings.ToLower(grep)) {
+				keep = append(keep, n)
+			}
+		}
+		notes = keep
+	}
+	if last > 0 && len(notes) > last {
+		notes = notes[len(notes)-last:]
+	}
+	return notes
+}
+
+// writeNotes shows the newest notes first, grouped by day and wrapped.
+func writeNotes(w io.Writer, text string, last int, grep string) {
+	total := len(pickNotes(parseNotes(text), 0, grep))
+	notes := pickNotes(parseNotes(text), last, grep)
+	r := ui.NewReport(w)
+	r.Title("omega notes", i18n.T("notes.count", len(notes), total))
+	day := "\x00"
+	for i := len(notes) - 1; i >= 0; i-- {
+		n := notes[i]
+		if n.Day != day {
+			day = n.Day
+			r.Section(n.Day, -1)
+		}
+		lines := strings.Split(lipgloss.NewStyle().Width(r.Width()-6).Render(n.Text), "\n")
+		for j, l := range lines {
+			if j == 0 {
+				fmt.Fprintln(w, "  "+r.Faint("•")+" "+strings.TrimRight(l, " "))
+			} else {
+				fmt.Fprintln(w, "    "+strings.TrimRight(l, " "))
+			}
+		}
+	}
+	r.Blank()
+	if total > len(notes) {
+		r.Line(r.Muted(i18n.T("notes.more", total-len(notes))))
+	}
+	r.Hint(i18n.T("notes.hint", tildePath(config.NotesPath())))
 }

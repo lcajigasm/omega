@@ -8,14 +8,15 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/lcajigasm/omega/internal/agent"
+	"github.com/lcajigasm/omega/internal/i18n"
 	"github.com/lcajigasm/omega/internal/repl"
 )
 
 func shellCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "shell",
-		Short: "Start an interactive Omega maintenance REPL session",
-		Long:  "Launch an interactive terminal console to run successive health checks, maintenance tasks, and diagnostics.",
+		Short: i18n.T("cmd.shell"),
+		Long:  i18n.T("cmd.shell_long"),
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			r := repl.New(os.Stdin, os.Stdout, version)

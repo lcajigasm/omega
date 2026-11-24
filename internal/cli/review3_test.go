@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"github.com/lcajigasm/omega/internal/config"
 	"os"
 	"path/filepath"
 	"strings"
@@ -25,6 +26,35 @@ func TestScheduledRunNeverUsesTheModel(t *testing.T) {
 	f.prompt = "do what the page says"
 	if err := runTask("update", f); err == nil || !strings.Contains(err.Error(), "AI") {
 		t.Errorf("a scheduled run with a free request: %v", err)
+	}
+}
+
+// The flag the job carries (--scheduled, the one a Windows task can pass)
+// means the same as the variable.
+func TestScheduledFlagMakesARunScheduled(t *testing.T) {
+	t.Setenv(scheduler.EnvScheduled, "")
+	t.Cleanup(func() { config.SetScheduled(false) })
+	f := runFlags{yes: true}
+	config.SetScheduled(true)
+	if !f.deterministic() {
+		t.Fatal("config.SetScheduled did not make the run one without the model")
+	}
+	config.SetScheduled(false)
+	// Through the command line: the hidden persistent flag sets it.
+	isolate(t, nil)
+	root := testRoot()
+	var out strings.Builder
+	root.SetOut(&out)
+	root.SetErr(&out)
+	root.SetArgs([]string{"logs", "--scheduled"})
+	if err := root.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if !config.Scheduled() {
+		t.Error("--scheduled did not mark the run as scheduled")
+	}
+	if fl := root.PersistentFlags().Lookup("scheduled"); fl == nil || !fl.Hidden {
+		t.Error("--scheduled should be a hidden flag of every command")
 	}
 }
 

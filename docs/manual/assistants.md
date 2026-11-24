@@ -153,4 +153,9 @@ answer in your language with the commands to type. It answers from the manual
 only. Without a key it prints the matching sections instead. `omega docs
 search` understands a few words in Spanish, French and German.
 
-`omega man` writes a man page with every command, its options and examples.
+`omega man` shows the man page, with every command, its options, examples and
+exit statuses: through `man` at a terminal, as troff source anywhere else
+(`omega man > omega.1`). `omega man --output DIR` writes `DIR/omega.1`. The
+page is in English whatever the language; `omega --help` and every command's
+help are in yours, with the options grouped and a "See also" line where
+another command covers the rest.

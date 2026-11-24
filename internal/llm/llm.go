@@ -136,9 +136,26 @@ var LiveContext func(provider, model string) (int64, bool)
 // the hosted models omega suggests.
 const defaultCompactAt = 90_000
 
+// longMargin is how far under a long-prompt price threshold the history is
+// compacted: the next request adds the reply and the tool results, so
+// compacting exactly at the threshold would already pay the higher rate.
+const longMargin = 10_000
+
 // CompactAt is the number of input tokens in one request from which the
-// history should be compacted: 70% of the model's context window.
+// history should be compacted: 70% of the model's context window, or
+// under the size from which the model's price rises (Claude Haiku 5.5 costs
+// five times as much above 100k tokens), whichever comes first.
 func CompactAt(provider, model string) int64 {
+	at := windowCompactAt(provider, model)
+	if p, ok := PriceFor(provider, model); ok && p.LongAbove > 0 && p.LongFactor > 1 {
+		if long := p.LongAbove - longMargin; long > 0 && long < at {
+			at = long
+		}
+	}
+	return at
+}
+
+func windowCompactAt(provider, model string) int64 {
 	if LiveContext != nil {
 		if w, ok := LiveContext(provider, model); ok && w > 0 {
 			return w * 7 / 10

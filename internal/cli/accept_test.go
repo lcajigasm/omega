@@ -56,7 +56,7 @@ func TestUnknownWordSuggestsTheNearestCommand(t *testing.T) {
 	root := testRoot()
 	for word, want := range map[string]string{
 		"menuu": "omega menu", "cofig": "omega config", "updte": "omega update", "docter": "omega doctor",
-		"anlyze": "omega analyze", "model": "omega models", "perm": "",
+		"anlyze": "omega analyze", "model": "omega model", "histry": "omega history", "perm": "",
 	} {
 		got := strings.Join(suggest(root, word), ", ")
 		if want != "" && !strings.Contains(got, want) {
@@ -77,7 +77,7 @@ func TestShortcutsExpandToRealCommands(t *testing.T) {
 	root.InitDefaultCompletionCmd()
 	for word, want := range map[string]string{
 		"perms": "mac permissions", "permisos": "mac permissions", "undo": "mac undo", "install": "dev install",
-		"historial": "logs", "ajustes": "config show", "status": "doctor", "claves": "auth status", "inicio": "menu",
+		"historial": "history", "ajustes": "config show", "status": "doctor", "claves": "auth status", "inicio": "menu",
 	} {
 		if got := strings.Join(expandShortcut(root, []string{word}), " "); got != want {
 			t.Errorf("%q expands to %q, want %q", word, got, want)
@@ -168,7 +168,8 @@ func TestMenuOffersEveryCommand(t *testing.T) {
 	var walk func(c *cobra.Command)
 	walk = func(c *cobra.Command) {
 		for _, sub := range c.Commands() {
-			if sub.Hidden || sub.Name() == "help" || sub.Name() == "menu" {
+			// The shell's completion is set up once, not run from a menu.
+			if sub.Hidden || sub.Name() == "help" || sub.Name() == "menu" || sub.Name() == "completion" {
 				continue
 			}
 			path := strings.TrimPrefix(sub.CommandPath(), "omega ")
@@ -205,7 +206,7 @@ func TestMenuOffersEveryCommand(t *testing.T) {
 			}
 		}
 	}
-	for _, want := range []string{"update --dry-run", "config set language es", "config set approval never", "auth set anthropic", "mac permissions", "dev activate", "logs view", "notes clear", "models --refresh"} {
+	for _, want := range []string{"update --dry-run", "config set language es", "config set approval never", "auth set anthropic", "mac permissions", "dev activate", "logs view", "notes clear", "model list --refresh", "history"} {
 		if !offered[want] {
 			t.Errorf("the menu lacks `omega %s`", want)
 		}

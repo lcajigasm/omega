@@ -3,7 +3,6 @@ package ui
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"strings"
 	"sync"
@@ -184,7 +183,11 @@ func RunGuide(info GuideInfo, stages []GuideStage, run StageRunner) (results []S
 	hostMu.Lock()
 	defer hostMu.Unlock()
 	m := newGuideModel(info, stages, run)
-	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion())
+	opts := []tea.ProgramOption{tea.WithAltScreen()}
+	if mouseWanted() {
+		opts = append(opts, tea.WithMouseCellMotion())
+	}
+	p := tea.NewProgram(m, opts...)
 	m.g.send = p.Send
 	host.Store(m.g)
 	_, err = p.Run()
@@ -292,7 +295,7 @@ func (m *model) finishGuide() {
 	}
 	m.state = stSummary
 	m.header.Task = "full"
-	m.add(&entry{kind: enNote, text: strings.Join(SummaryLines(m.g.stages, m.g.results()), "\n"), style: lipgloss.NewStyle().MaxWidth(max(40, m.tw()-1))})
+	m.add(&entry{kind: enNote, text: strings.Join(summaryLines(m.g.stages, m.g.results(), m.tw()-1), "\n"), style: lipgloss.NewStyle()})
 }
 
 // guideAfter looks at an agent event once the session has handled it.
@@ -372,7 +375,7 @@ func (m *model) guideUpdate(msg tea.Msg) (cmd tea.Cmd, handled bool) {
 			r.Status = StageFailed
 			r.Note = strings.TrimSpace(msg.err.Error())
 			if r.Note != "" {
-				m.note(m.wrapPlain("! "+r.Note), errStyle)
+				m.note(m.wrapPlain(gl.Error+" "+r.Note), errStyle)
 			}
 		default:
 			r.Status = StageDone
@@ -522,13 +525,9 @@ func (m *model) planKey(msg tea.KeyMsg) tea.Cmd {
 	g := m.g
 	switch msg.String() {
 	case "up", "k", "shift+tab":
-		if g.cursor > 0 {
-			g.cursor--
-		}
+		g.cursor = wrap(g.cursor, -1, len(g.stages))
 	case "down", "j", "tab":
-		if g.cursor < len(g.stages)-1 {
-			g.cursor++
-		}
+		g.cursor = wrap(g.cursor, 1, len(g.stages))
 	case "home", "g":
 		g.cursor = 0
 	case "end", "G":
@@ -564,324 +563,4 @@ func (m *model) planKey(msg tea.KeyMsg) tea.Cmd {
 		return tea.Quit
 	}
 	return nil
-}
-
-// ---------- views ----------
-
-// stageMark is the sign of a stage on the route.
-func (m *model) stageMark(i int) string {
-	g := m.g
-	switch g.res[i].Status {
-	case StageDone:
-		return okStyle.Render("✓")
-	case StageFailed:
-		return errStyle.Render("✗")
-	case StageStopped:
-		return warnStyle.Render("■")
-	case StageSkipped:
-		return faintStyle.Render("↷")
-	case StageRunning:
-		return titleStyle.Render(spinFrames[m.frame%len(spinFrames)])
-	}
-	if !g.stages[i].Selected {
-		return faintStyle.Render("↷")
-	}
-	return mutedStyle.Render("·")
-}
-
-// StatusWord is the localized name of a stage outcome.
-func StatusWord(status string) string { return i18n.T("full.st_" + status) }
-
-func riskWord(risk string) string {
-	switch risk {
-	case "read-only":
-		return okStyle.Render(i18n.T("full.risk_readonly"))
-	case "dangerous":
-		return warnStyle.Render(i18n.T("full.risk_dangerous"))
-	}
-	return mutedStyle.Render(i18n.T("full.risk_normal"))
-}
-
-// fieldCol is the width of the label column of a field.
-const fieldCol = 14
-
-// field is a labelled paragraph: the label in a column, the text wrapped
-// beside it.
-func field(label, text string, width int) string {
-	const col = fieldCol
-	w := width - col
-	if w < 20 {
-		w = 20
-	}
-	lines := strings.Split(lipgloss.NewStyle().Width(w).Render(text), "\n")
-	var b strings.Builder
-	for i, l := range lines {
-		if i == 0 {
-			b.WriteString(faintStyle.Render(lipgloss.NewStyle().Width(col).Render(label)))
-		} else {
-			b.WriteString("\n" + strings.Repeat(" ", col))
-		}
-		b.WriteString(strings.TrimRight(l, " "))
-	}
-	return b.String()
-}
-
-// paintStage is the heading a stage opens in the transcript.
-func (m *model) paintStage(e *entry) string {
-	s := m.g.stages[e.stage]
-	w := max(40, m.tw()-2)
-	head := " " + i18n.T("full.stage", e.ord, e.of) + " · " + s.Title + " "
-	fill := w - lipgloss.Width(head) - 2
-	if fill < 2 {
-		fill = 2
-	}
-	var b strings.Builder
-	b.WriteString(titleStyle.Render("━━"+head) + lipgloss.NewStyle().Foreground(accentDim).Render(strings.Repeat("━", fill)) + "\n")
-	b.WriteString(field(i18n.T("full.what"), s.What, w) + "\n")
-	b.WriteString(field(i18n.T("full.why"), s.Why, w) + "\n")
-	b.WriteString(faintStyle.Render(lipgloss.NewStyle().Width(fieldCol).Render(i18n.T("full.alone"))) + cmdStyle.Render(s.Command) + "  " + riskWord(s.Risk))
-	if e.text != "" {
-		b.WriteString("\n" + strings.Repeat(" ", fieldCol) + faintStyle.Render(truncate(e.text, w-fieldCol)))
-	}
-	return b.String()
-}
-
-// planView is the first screen: every stage, what it does and why, and
-// which ones will run.
-func (m *model) planView() string {
-	g := m.g
-	w := min(max(m.width, 60), 110)
-	inner := w - 4
-	var b strings.Builder
-	b.WriteString(" " + titleStyle.Render("✻ omega full") + mutedStyle.Render(" "+g.info.Version+" · "+i18n.T("full.title")) + "\n")
-	intro := i18n.T("full.plan_intro")
-	if len(g.info.Flags) > 0 {
-		intro += " " + i18n.T("full.plan_flags", strings.Join(g.info.Flags, ", "))
-	}
-	b.WriteString(lipgloss.NewStyle().Foreground(muted).Width(w-2).PaddingLeft(1).Render(intro) + "\n\n")
-
-	titleW := 0
-	for _, s := range g.stages {
-		titleW = max(titleW, lipgloss.Width(s.Title))
-	}
-	for i, s := range g.stages {
-		pointer := "  "
-		if i == g.cursor {
-			pointer = titleStyle.Render("❯ ")
-		}
-		box := mutedStyle.Render("◻")
-		st := g.res[i].Status
-		switch {
-		case st != StagePending && st != StageSkipped:
-			box = m.stageMark(i)
-		case s.Selected && st == StagePending:
-			box = riskStyle(s.Risk).Render("◼")
-		}
-		title := lipgloss.NewStyle().Width(titleW).Render(s.Title)
-		if i == g.cursor {
-			title = cmdStyle.Render(title)
-		}
-		tail := faintStyle.Render(s.Command)
-		if st != StagePending {
-			tail = mutedStyle.Render(StatusWord(st))
-		}
-		row := fmt.Sprintf(" %s%s %s  %s   %s", pointer, box, faintStyle.Render(fmt.Sprintf("%2d", i+1)), title, tail)
-		b.WriteString(truncateANSI(row, w) + "\n")
-	}
-
-	s := g.stages[g.cursor]
-	var card strings.Builder
-	card.WriteString(titleStyle.Render(s.Title) + mutedStyle.Render("  "+s.Command) + "\n")
-	card.WriteString(field(i18n.T("full.what"), s.What, inner) + "\n")
-	card.WriteString(field(i18n.T("full.why"), s.Why, inner) + "\n")
-	card.WriteString(faintStyle.Render(lipgloss.NewStyle().Width(fieldCol).Render(i18n.T("full.risk"))) + riskWord(s.Risk))
-	b.WriteString("\n" + cardStyle.Width(w-2).Render(card.String()) + "\n")
-
-	total, settled := g.chosen()
-	count := i18n.T("full.plan_count", total-settled, len(g.stages))
-	keys := i18n.T("full.plan_keys")
-	if g.planBack {
-		keys = i18n.T("full.plan_keys_back")
-	}
-	b.WriteString(" " + mutedStyle.Render(count) + "\n " + faintStyle.Render(keys))
-	return b.String()
-}
-
-// outcomeLine says how a stage ended, for the card between two stages.
-func (m *model) outcomeLine(i int) string {
-	g := m.g
-	r, s := g.res[i], g.stages[i]
-	var parts []string
-	switch r.Status {
-	case StageDone:
-		parts = append(parts, okStyle.Render("✓ ")+cmdStyle.Render(s.Title)+" "+mutedStyle.Render(i18n.T("full.finished", humanDuration(r.Duration))))
-	case StageFailed:
-		line := errStyle.Render("✗ ") + cmdStyle.Render(s.Title) + " " + errStyle.Render(StatusWord(StageFailed))
-		if r.Note != "" {
-			line += mutedStyle.Render(" · " + truncate(firstSentence(r.Note), 60))
-		}
-		parts = append(parts, line)
-	case StageStopped:
-		parts = append(parts, warnStyle.Render("■ ")+cmdStyle.Render(s.Title)+" "+mutedStyle.Render(StatusWord(StageStopped)))
-	default:
-		parts = append(parts, faintStyle.Render("↷ ")+cmdStyle.Render(s.Title)+" "+mutedStyle.Render(StatusWord(r.Status)))
-	}
-	if r.CostKnown && r.Cost > 0 {
-		parts = append(parts, mutedStyle.Render(fmt.Sprintf("$%.4f", r.Cost)))
-	}
-	return strings.Join(parts, mutedStyle.Render(" · "))
-}
-
-// betweenView is the card between two stages: how the last one ended,
-// what comes next and why, and what the user can do about it.
-func (m *model) betweenView() string {
-	g := m.g
-	inner := m.width - 6
-	var b strings.Builder
-	retry := false
-	if g.last >= 0 {
-		b.WriteString(m.outcomeLine(g.last) + "\n\n")
-		retry = g.res[g.last].Status == StageFailed || g.res[g.last].Status == StageStopped
-	}
-	total, _ := g.chosen()
-	s := g.stages[g.next]
-	b.WriteString(titleStyle.Render(i18n.T("full.next")) + mutedStyle.Render(" · "+i18n.T("full.stage", g.ordinal(g.next), total)+" · ") +
-		cmdStyle.Render(s.Title) + faintStyle.Render("  "+s.Command) + "\n")
-	b.WriteString(field(i18n.T("full.what"), s.What, inner) + "\n")
-	b.WriteString(field(i18n.T("full.why"), s.Why, inner) + "\n")
-	b.WriteString(faintStyle.Render(lipgloss.NewStyle().Width(fieldCol).Render(i18n.T("full.risk"))) + riskWord(s.Risk) + "\n\n")
-	keys := i18n.T("full.between_keys")
-	if retry {
-		keys = i18n.T("full.between_keys_retry")
-	}
-	b.WriteString(truncateANSI(keys, inner))
-	return cardStyle.Width(m.width - 2).Render(b.String())
-}
-
-// guideFooter is the footer while the guided run, not a session, has the
-// keyboard.
-func (m *model) guideFooter() (string, bool) {
-	switch m.state {
-	case stBetween:
-		return m.betweenView() + "\n" + m.statusBar(), true
-	case stSummary:
-		return m.statusBar() + "\n" + faintStyle.Render("  "+i18n.T("full.hint_summary")), true
-	}
-	if m.ag == nil || m.state == stDone {
-		top := ""
-		if m.g.cur >= 0 {
-			glyph := titleStyle.Render(spinFrames[m.frame%len(spinFrames)])
-			top = glyph + " " + m.shimmer(m.g.stages[m.g.cur].Title+"…") + " " + faintStyle.Render(humanDuration(time.Since(m.g.began)))
-		}
-		return top + "\n" + m.statusBar() + "\n" + faintStyle.Render("  "+i18n.T("full.hint_stage")), true
-	}
-	return "", false
-}
-
-// topRows is the height of what sits above the transcript: the route on
-// one line when the panel, which shows it in full, has no room.
-func (m *model) topRows() int {
-	if m.g != nil && !m.panelShown() {
-		return 1
-	}
-	return 0
-}
-
-// routeStrip is the route on one line.
-func (m *model) routeStrip() string {
-	g := m.g
-	total, settled := g.chosen()
-	var marks strings.Builder
-	for i := range g.stages {
-		if g.res[i].Status == StagePending && !g.stages[i].Selected {
-			continue
-		}
-		marks.WriteString(m.stageMark(i))
-	}
-	s := " " + titleStyle.Render("✻ omega full") + "  " + marks.String() + "  " + mutedStyle.Render(fmt.Sprintf("%d/%d", settled, total))
-	if g.cur >= 0 {
-		s += mutedStyle.Render(" · ") + cmdStyle.Render(g.stages[g.cur].Title)
-	}
-	return truncateANSI(s, m.width)
-}
-
-// routeLines is the route for the session panel: every stage and how it went.
-func (m *model) routeLines(inner int) []string {
-	g := m.g
-	total, settled := g.chosen()
-	head := titleStyle.Render(i18n.T("full.route"))
-	count := fmt.Sprintf("%d/%d", settled, total)
-	gap := inner - lipgloss.Width(head) - lipgloss.Width(count)
-	if gap < 1 {
-		gap = 1
-	}
-	lines := []string{head + strings.Repeat(" ", gap) + mutedStyle.Render(count)}
-	for i, s := range g.stages {
-		name := truncate(s.Title, max(10, inner-2))
-		switch {
-		case i == g.cur:
-			name = cmdStyle.Render(name)
-		case m.state == stBetween && i == g.next:
-			name = titleStyle.Render(name)
-		case g.res[i].Status == StageSkipped || (g.res[i].Status == StagePending && !s.Selected):
-			name = faintStyle.Render(name)
-		case g.res[i].Status == StagePending:
-			name = mutedStyle.Render(name)
-		}
-		lines = append(lines, m.stageMark(i)+" "+name)
-	}
-	return append(lines, "")
-}
-
-// SummaryLines says what happened to every stage of a guided run, and what
-// it adds up to.
-func SummaryLines(stages []GuideStage, res []StageResult) []string {
-	lines := []string{titleStyle.Render("━━ " + i18n.T("full.summary"))}
-	titleW := 0
-	for _, s := range stages {
-		titleW = max(titleW, lipgloss.Width(s.Title))
-	}
-	count := map[string]int{}
-	var took time.Duration
-	var cost float64
-	costOK := false
-	for i, s := range stages {
-		r := res[i]
-		count[r.Status]++
-		took += r.Duration
-		if r.CostKnown {
-			cost += r.Cost
-			costOK = true
-		}
-		mark := faintStyle.Render("·")
-		switch r.Status {
-		case StageDone:
-			mark = okStyle.Render("✓")
-		case StageFailed:
-			mark = errStyle.Render("✗")
-		case StageStopped:
-			mark = warnStyle.Render("■")
-		case StageSkipped:
-			mark = faintStyle.Render("↷")
-		}
-		line := fmt.Sprintf("  %s %s  %s", mark, lipgloss.NewStyle().Width(titleW).Render(s.Title), mutedStyle.Render(StatusWord(r.Status)))
-		if r.Duration >= time.Second {
-			line += faintStyle.Render(" · " + humanDuration(r.Duration))
-		}
-		if r.Status == StageFailed || r.Status == StageStopped || r.Status == StagePending {
-			line += faintStyle.Render("  → " + s.Command)
-		}
-		lines = append(lines, line)
-		if r.Note != "" {
-			lines = append(lines, "      "+errStyle.Render(truncate(firstSentence(r.Note), 90)))
-		}
-	}
-	total := i18n.T("full.total", count[StageDone], count[StageFailed]+count[StageStopped], count[StageSkipped], count[StagePending])
-	if took >= time.Second {
-		total += " · " + humanDuration(took)
-	}
-	if costOK {
-		total += fmt.Sprintf(" · $%.4f", cost)
-	}
-	return append(lines, "", "  "+mutedStyle.Render(total))
 }

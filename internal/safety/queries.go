@@ -201,6 +201,25 @@ func queryTool(p string) (risk Risk, ok bool) {
 		return safe(status)
 	case "sed":
 		return safe(sedReadOnly(args))
+	case "crontab":
+		// -l prints the table (of another user with -u); -r, -e and a file
+		// replace or remove it.
+		return safe(len(args) > 0 && args[len(args)-1] == "-l" && (len(args) == 1 || (len(args) == 3 && args[0] == "-u")))
+	case "gh":
+		// gh auth status says who is signed in; with -t or --show-token it
+		// prints the token as well.
+		if len(args) >= 2 && args[0] == "auth" && args[1] == "status" {
+			for _, a := range args[2:] {
+				// A host name is the value of --hostname; --jq and --template
+				// run a program of their own over the answer.
+				name, _, _ := strings.Cut(a, "=")
+				if strings.HasPrefix(a, "-") && !has("--active -a --hostname -h", name) {
+					return Dangerous, true
+				}
+			}
+			return Safe, true
+		}
+		return Safe, false
 	case "memory_pressure":
 		// -Q asks for the current level; the rest simulate pressure.
 		return safe(len(args) == 1 && args[0] == "-Q")

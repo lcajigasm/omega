@@ -30,16 +30,16 @@ var goos = runtime.GOOS
 type ArtifactDir struct {
 	Path    string    `json:"path"`
 	Type    string    `json:"type"` // "node_modules", "target", ".venv", etc.
-	SizeMB  int64     `json:"size_mb"`
+	Size    int64     `json:"size"` // bytes
 	ModTime time.Time `json:"mod_time"`
 	DaysOld int       `json:"days_old"`
 }
 
 // DuplicateGroup represents a group of identical files sharing the same SHA-256 hash.
 type DuplicateGroup struct {
-	Hash   string   `json:"hash"`
-	SizeMB float64  `json:"size_mb"`
-	Paths  []string `json:"paths"`
+	Hash  string   `json:"hash"`
+	Size  int64    `json:"size"` // bytes, of each file
+	Paths []string `json:"paths"`
 }
 
 // AppArtifacts holds all files and directories discovered for an application.
@@ -55,8 +55,8 @@ type AppArtifacts struct {
 
 // LargeFile holds details for a large file.
 type LargeFile struct {
-	Path   string  `json:"path"`
-	SizeMB float64 `json:"size_mb"`
+	Path string `json:"path"`
+	Size int64  `json:"size"` // bytes
 }
 
 // artifactRule says what a folder name is taken for, and what has to be true
@@ -267,7 +267,7 @@ func FindArtifacts(roots []string, daysOld int) []ArtifactDir {
 				results = append(results, ArtifactDir{
 					Path:    shown,
 					Type:    rule.kind + " (" + name + ")",
-					SizeMB:  dirSizeMB(path),
+					Size:    dirSize(path),
 					ModTime: active,
 					DaysOld: int(time.Since(active).Hours() / 24),
 				})
@@ -278,7 +278,7 @@ func FindArtifacts(roots []string, daysOld int) []ArtifactDir {
 
 	// Sort largest first
 	sort.Slice(results, func(i, j int) bool {
-		return results[i].SizeMB > results[j].SizeMB
+		return results[i].Size > results[j].Size
 	})
 
 	return results
@@ -289,30 +289,99 @@ func PruneArtifact(path string) error {
 	return os.RemoveAll(path)
 }
 
-// FindDuplicates scans dir and detects identical files based on size and SHA-256 hash.
-func FindDuplicates(dir string, minSizeMB int64) ([]DuplicateGroup, error) {
-	if minSizeMB <= 0 {
-		minSizeMB = 1 // default minimum 1MB to avoid hashing tiny files
+// ScanOptions say how FindDuplicates and FindLargeFiles walk a folder.
+type ScanOptions struct {
+	MinBytes int64 // files smaller than this are left out
+	// Skip lists folders not to go into (absolute paths). A folder that is
+	// the scanned one, or holds it, is gone into all the same.
+	Skip []string
+	// Progress, when set, is called now and then with the folders and
+	// files seen so far.
+	Progress func(dirs, files int)
+}
+
+// ScanStats say what a walk saw and what it could not.
+type ScanStats struct {
+	Dirs       int      `json:"dirs"`
+	Files      int      `json:"files"`
+	Unreadable []string `json:"unreadable,omitempty"` // folders that could not be read
+	Skipped    []string `json:"skipped,omitempty"`    // folders left out on purpose
+	// Interrupted is a walk stopped by its context: what was found up to
+	// then is returned.
+	Interrupted bool `json:"interrupted,omitempty"`
+}
+
+// walk visits the files of dir. A dir that cannot be read at all is an
+// error; a folder inside it that cannot be read (macOS privacy settings,
+// another user's) is counted in Unreadable and passed over.
+func walk(ctx context.Context, dir string, opts ScanOptions, visit func(path string, info fs.FileInfo)) (ScanStats, error) {
+	var st ScanStats
+	fi, err := os.Stat(dir)
+	if err != nil {
+		return st, err
 	}
-	minBytes := minSizeMB * 1024 * 1024
-
-	bySize := make(map[int64][]string)
-
-	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() {
+	if !fi.IsDir() {
+		return st, fmt.Errorf("%s is not a folder", dir)
+	}
+	if _, err := os.ReadDir(dir); err != nil {
+		return st, err
+	}
+	root, _ := filepath.Abs(dir)
+	skip := map[string]bool{}
+	for _, p := range opts.Skip {
+		p = filepath.Clean(p)
+		if p != root && !strings.HasPrefix(root, p+string(filepath.Separator)) {
+			skip[p] = true
+		}
+	}
+	err = filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if ctx.Err() != nil {
+			st.Interrupted = true
+			return filepath.SkipAll
+		}
+		if err != nil {
+			if d != nil && d.IsDir() || path == dir {
+				st.Unreadable = append(st.Unreadable, path)
+			}
 			return nil
 		}
-		if info.Size() >= minBytes {
-			bySize[info.Size()] = append(bySize[info.Size()], path)
+		if d.IsDir() {
+			if abs, aerr := filepath.Abs(path); aerr == nil && skip[abs] {
+				st.Skipped = append(st.Skipped, path)
+				return filepath.SkipDir
+			}
+			st.Dirs++
+		} else if d.Type().IsRegular() {
+			st.Files++
+			if info, ierr := d.Info(); ierr == nil {
+				visit(path, info)
+			}
+		}
+		if opts.Progress != nil && (st.Dirs+st.Files)%500 == 0 {
+			opts.Progress(st.Dirs, st.Files)
 		}
 		return nil
 	})
+	return st, err
+}
+
+// FindDuplicates finds identical files in dir: same size first, then the
+// same SHA-256. Files under opts.MinBytes (1 MB when 0) are left out.
+func FindDuplicates(ctx context.Context, dir string, opts ScanOptions) ([]DuplicateGroup, ScanStats, error) {
+	if opts.MinBytes <= 0 {
+		opts.MinBytes = 1 << 20 // hashing tiny files says little and takes long
+	}
+	bySize := make(map[int64][]string)
+	st, err := walk(ctx, dir, opts, func(path string, info fs.FileInfo) {
+		if info.Size() >= opts.MinBytes {
+			bySize[info.Size()] = append(bySize[info.Size()], path)
+		}
+	})
 	if err != nil {
-		return nil, err
+		return nil, st, err
 	}
 
 	var duplicates []DuplicateGroup
-
 	// Hash only files with duplicate sizes
 	for size, files := range bySize {
 		if len(files) < 2 {
@@ -320,6 +389,10 @@ func FindDuplicates(dir string, minSizeMB int64) ([]DuplicateGroup, error) {
 		}
 		byHash := make(map[string][]string)
 		for _, f := range files {
+			if ctx.Err() != nil {
+				st.Interrupted = true
+				break
+			}
 			h, err := hashFile(f)
 			if err == nil {
 				byHash[h] = append(byHash[h], f)
@@ -327,20 +400,21 @@ func FindDuplicates(dir string, minSizeMB int64) ([]DuplicateGroup, error) {
 		}
 		for h, matching := range byHash {
 			if len(matching) > 1 {
-				duplicates = append(duplicates, DuplicateGroup{
-					Hash:   h,
-					SizeMB: float64(size) / (1024 * 1024),
-					Paths:  matching,
-				})
+				sort.Strings(matching)
+				duplicates = append(duplicates, DuplicateGroup{Hash: h, Size: size, Paths: matching})
 			}
 		}
 	}
 
 	sort.Slice(duplicates, func(i, j int) bool {
-		return duplicates[i].SizeMB > duplicates[j].SizeMB
+		wi := duplicates[i].Size * int64(len(duplicates[i].Paths)-1)
+		wj := duplicates[j].Size * int64(len(duplicates[j].Paths)-1)
+		if wi != wj {
+			return wi > wj
+		}
+		return duplicates[i].Paths[0] < duplicates[j].Paths[0]
 	})
-
-	return duplicates, nil
+	return duplicates, st, nil
 }
 
 func hashFile(path string) (string, error) {
@@ -357,41 +431,23 @@ func hashFile(path string) (string, error) {
 	return hex.EncodeToString(hasher.Sum(nil)), nil
 }
 
-// FindLargeFiles returns files larger than minSizeMB in dir.
-func FindLargeFiles(dir string, minSizeMB int64, limit int) ([]LargeFile, error) {
-	if minSizeMB <= 0 {
-		minSizeMB = 100
+// FindLargeFiles returns the files of dir of opts.MinBytes or more (100 MB
+// when 0), largest first, all of them: the caller decides how many to show.
+func FindLargeFiles(ctx context.Context, dir string, opts ScanOptions) ([]LargeFile, ScanStats, error) {
+	if opts.MinBytes <= 0 {
+		opts.MinBytes = 100 << 20
 	}
-	if limit <= 0 {
-		limit = 20
-	}
-	minBytes := minSizeMB * 1024 * 1024
-
 	var files []LargeFile
-	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() {
-			return nil
+	st, err := walk(ctx, dir, opts, func(path string, info fs.FileInfo) {
+		if info.Size() >= opts.MinBytes {
+			files = append(files, LargeFile{Path: path, Size: info.Size()})
 		}
-		if info.Size() >= minBytes {
-			files = append(files, LargeFile{
-				Path:   path,
-				SizeMB: float64(info.Size()) / (1024 * 1024),
-			})
-		}
-		return nil
 	})
 	if err != nil {
-		return nil, err
+		return nil, st, err
 	}
-
-	sort.Slice(files, func(i, j int) bool {
-		return files[i].SizeMB > files[j].SizeMB
-	})
-
-	if len(files) > limit {
-		files = files[:limit]
-	}
-	return files, nil
+	sort.Slice(files, func(i, j int) bool { return files[i].Size > files[j].Size })
+	return files, st, nil
 }
 
 // ErrAppName is returned for a name too short to stand for one application.
@@ -716,7 +772,7 @@ func moveUnique(path, dir string) (string, error) {
 	return "", fmt.Errorf("no free name for %s in %s", base, dir)
 }
 
-func dirSizeMB(path string) int64 {
+func dirSize(path string) int64 {
 	var total int64
 	_ = filepath.Walk(path, func(_ string, info os.FileInfo, err error) error {
 		if err == nil && info != nil && !info.IsDir() {
@@ -724,5 +780,7 @@ func dirSizeMB(path string) int64 {
 		}
 		return nil
 	})
-	return total / (1024 * 1024)
+	return total
 }
+
+func dirSizeMB(path string) int64 { return dirSize(path) / (1024 * 1024) }

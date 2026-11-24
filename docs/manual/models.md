@@ -34,9 +34,9 @@ until another model beats it by more than 10%, so two models that trade places
 by a decimal do not alternate.
 
 ```bash
-omega models                   # every model: score, price, and the two picks
-omega models --refresh         # read the catalogue again now
-omega models openrouter flash  # another provider, filtered
+omega model list               # every model: score, price, and the two picks
+omega model list --refresh     # read the catalogue again now
+omega model list openrouter flash  # another provider, filtered
 ```
 
 ```text

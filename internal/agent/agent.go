@@ -83,26 +83,40 @@ type Options struct {
 
 // Agent drives one maintenance session.
 type Agent struct {
-	opts    Options
-	chat    llm.Chat
-	events  chan Event
-	input   chan string
-	log     *os.File
-	usage   llm.Usage
-	cost    float64
-	started time.Time
-	real    bool // commands run on this machine (not a test or demo)
-	ctx     context.Context
+	opts Options
+	chat llm.Chat
+	// turnCancel stops the running turn (CancelTurn); nil between turns.
+	turnCancel context.CancelFunc
+	events     chan Event
+	input      chan string
+	log        *os.File
+	usage      llm.Usage
+	cost       float64
+	started    time.Time
+	real       bool // commands run on this machine (not a test or demo)
+	ctx        context.Context
 
 	// Changed by the UI, or by a tool that fails, while the run goes on.
-	mu        sync.Mutex
-	mode      Mode
-	exitCode  int
-	model     string
+	mu       sync.Mutex
+	mode     Mode
+	exitCode int
+	model    string
+	// The automatic switch to the stronger model: escalated while the run
+	// is on it, calm counts the turns since without a failure, picked is
+	// set once the user chose a model (no automatic switch after that) and
+	// noSwitch once the provider refused one.
 	escalated bool
+	calm      int
+	toolFails int // tool calls that ended in a failure
+	picked    bool
+	noSwitch  bool
 	costKnown bool
-	nextModel string   // model the user picked, applied before the next turn
-	notes     []string // messages for the model about what the user changed
+	// guessCost is what turns of a model with no known price would cost at
+	// llm.CautiousPrice; it only counts toward --max-cost.
+	guessCost  float64
+	warnedCost bool
+	nextModel  string   // model the user picked, applied before the next turn
+	notes      []string // messages for the model about what the user changed
 
 	// What the web brought into this session. webSeen are the addresses
 	// web_search returned and userHosts the sites the user named: fetch_url
@@ -128,6 +142,16 @@ type Agent struct {
 	// --yes or --force to it afterwards is asked about every time.
 	refusedConfirm map[string]bool
 	results        map[string]cachedResult // read-only results kept for the session
+	lastCall       uint64                  // numbers the shell calls, for the transcript (under mu)
+}
+
+// nextCall numbers a tool call: two identical commands of one batch run
+// at the same time and must not share their place in the transcript.
+func (a *Agent) nextCall() uint64 {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.lastCall++
+	return a.lastCall
 }
 
 // New creates an agent for the given provider.
@@ -140,7 +164,7 @@ func New(p llm.Provider, opts Options) *Agent {
 		opts.Provider = p.Name()
 	}
 	notes, _ := os.ReadFile(config.NotesPath())
-	sys := systemPrompt(string(notes), opts.Config.SkipSteps, opts.ReadOnly) + runModePrompt(opts) + pendingPrompt()
+	sys := systemPrompt(promptNotes(string(notes), maxPromptNotes), opts.Config.SkipSteps, opts.ReadOnly) + runModePrompt(opts) + pendingPrompt()
 	a := &Agent{
 		opts:    opts,
 		model:   opts.Model,
@@ -182,6 +206,11 @@ func (a *Agent) emit(e Event) {
 	// mark that reorders text would read as something else on the card and
 	// in the transcript.
 	e.Command, e.Reason = visible(e.Command), visible(e.Reason)
+	if e.Kind == EvToolEnd && (e.Failed || e.ExitCode != 0) {
+		a.mu.Lock()
+		a.toolFails++
+		a.mu.Unlock()
+	}
 	a.writeLog(e)
 	a.events <- e
 }
@@ -297,12 +326,24 @@ func (a *Agent) Run(ctx context.Context, task string) {
 		a.noteUserText(text)
 		text = a.applyChanges(text)
 		a.emit(Event{Kind: EvThinking, Stats: a.stats()})
-		reply, err := a.chat.Send(ctx, text, results)
+		tctx, tcancel := a.startTurn(ctx)
+		reply, err := a.chat.Send(tctx, text, results)
 		if err != nil {
+			stopped := tctx.Err() != nil
+			a.endTurn(tcancel)
 			if ctx.Err() != nil {
 				a.setExit(ExitCancelled)
 				a.emit(Event{Kind: EvDone, Text: i18n.T("agent.cancelled"), Stats: a.stats()})
 				return
+			}
+			if stopped {
+				// The user stopped this turn, not the session: the message
+				// was rolled back, and the next one goes with what they type.
+				a.writeLog(Event{Kind: EvError, Text: "turn cancelled by the user"})
+				if !a.waitInput(ctx, &text) {
+					return
+				}
+				continue
 			}
 			// The conversation no longer fits in the model's window: drop
 			// the old tool outputs and send the same message again, once.
@@ -348,12 +389,21 @@ func (a *Agent) Run(ctx context.Context, task string) {
 			a.mu.Lock()
 			a.costKnown = false
 			a.mu.Unlock()
+			// The real price is unknown, but a cost limit must still
+			// hold: it counts at a cautious price, and says so once.
+			if a.opts.MaxCost > 0 {
+				a.guessCost += llm.CautiousPrice.Cost(reply.Usage)
+				if !a.warnedCost {
+					a.warnedCost = true
+					a.emit(Event{Kind: EvError, Text: i18n.T("agent.cost_unknown", model, a.opts.MaxCost)})
+				}
+			}
 		}
 		a.emit(Event{Kind: EvUsage, Stats: a.stats()})
-		if a.opts.MaxCost > 0 && a.cost >= a.opts.MaxCost {
+		if a.opts.MaxCost > 0 && a.cost+a.guessCost >= a.opts.MaxCost {
 			// The run was cut short: whatever was left to do was not done.
 			a.setExit(ExitError)
-			a.emit(Event{Kind: EvDone, Text: fmt.Sprintf("Reached cost budget limit of $%.2f", a.opts.MaxCost), Stats: a.stats()})
+			a.emit(Event{Kind: EvDone, Text: i18n.T("agent.cost_limit", a.opts.MaxCost), Stats: a.stats()})
 			return
 		}
 		// Every turn resends the whole history. Before it outgrows the
@@ -366,6 +416,7 @@ func (a *Agent) Run(ctx context.Context, task string) {
 		}
 
 		if len(reply.Calls) == 0 {
+			a.endTurn(tcancel)
 			results, text = nil, ""
 			if !a.waitInput(ctx, &text) {
 				return
@@ -374,7 +425,93 @@ func (a *Agent) Run(ctx context.Context, task string) {
 		}
 
 		text = ""
-		results = a.executeAll(ctx, reply.Calls)
+		before := a.failures()
+		results = a.executeAll(tctx, reply.Calls)
+		cancelled := tctx.Err() != nil && ctx.Err() == nil
+		a.endTurn(tcancel)
+		a.settle(a.failures() > before)
+		if cancelled {
+			// What ran was stopped by the user: the results say so, and
+			// they go to the model with the user's next words instead of
+			// starting another turn on its own.
+			a.writeLog(Event{Kind: EvError, Text: "turn cancelled by the user"})
+			if !a.waitInput(ctx, &text) {
+				return
+			}
+		}
+	}
+}
+
+// startTurn gives one turn its own context, so CancelTurn can stop it
+// without ending the session.
+func (a *Agent) startTurn(ctx context.Context) (context.Context, context.CancelFunc) {
+	tctx, cancel := context.WithCancel(ctx)
+	a.mu.Lock()
+	a.turnCancel = cancel
+	a.mu.Unlock()
+	return tctx, cancel
+}
+
+func (a *Agent) endTurn(cancel context.CancelFunc) {
+	a.mu.Lock()
+	a.turnCancel = nil
+	a.mu.Unlock()
+	cancel()
+}
+
+// CancelTurn stops the model's reply or the commands of the current turn
+// and leaves the session waiting for the user, as ctrl+c in a shell stops
+// the command and keeps the shell. It reports whether a turn was running.
+// A turn is stopped once: a second ctrl+c before it has wound down finds
+// nothing to stop, so the caller ends the session as the user meant.
+func (a *Agent) CancelTurn() bool {
+	a.mu.Lock()
+	cancel := a.turnCancel
+	a.turnCancel = nil
+	a.mu.Unlock()
+	if cancel == nil {
+		return false
+	}
+	cancel()
+	return true
+}
+
+// calmTurns is how many turns in a row without a failed call bring the run
+// back from the stronger model to the one it started with.
+const calmTurns = 4
+
+// failures counts the calls that failed so far.
+func (a *Agent) failures() int {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.toolFails
+}
+
+// settle returns to the starting model once the run has gone calmTurns
+// turns on the stronger one without a failure: what it was needed for is
+// done, and routine work goes back to the cheaper model.
+func (a *Agent) settle(failed bool) {
+	a.mu.Lock()
+	if !a.escalated || a.picked {
+		a.mu.Unlock()
+		return
+	}
+	if failed {
+		a.calm = 0
+		a.mu.Unlock()
+		return
+	}
+	a.calm++
+	back := a.calm >= calmTurns && a.opts.Model != "" && a.model != a.opts.Model
+	a.mu.Unlock()
+	if !back {
+		return
+	}
+	if a.switchModel(a.opts.Model, fmt.Sprintf("%d turns without a failure", calmTurns)) {
+		a.mu.Lock()
+		a.escalated, a.calm = false, 0
+		a.mu.Unlock()
+		a.emit(Event{Kind: EvModel, Text: a.opts.Model, Stats: a.stats()})
 	}
 }
 
@@ -504,6 +641,9 @@ func (a *Agent) applyChanges(text string) string {
 	a.nextModel, a.notes = "", nil
 	a.mu.Unlock()
 	if next != "" && next != a.currentModel() {
+		a.mu.Lock()
+		a.picked = true // no automatic switch after this
+		a.mu.Unlock()
 		a.switchModel(next, "picked by the user")
 	}
 	if len(notes) == 0 {
@@ -522,10 +662,10 @@ func (a *Agent) applyChanges(text string) string {
 // of its other endpoint): the run then goes on with the model it had, and
 // says so.
 func (a *Agent) switchModel(model, why string) bool {
-	a.mu.Lock()
-	a.escalated = true // picked or tried once: no automatic switch after this
-	a.mu.Unlock()
 	if err := llm.SwitchModel(a.chat, model); err != nil {
+		a.mu.Lock()
+		a.noSwitch = true // the provider cannot: no automatic switch after this
+		a.mu.Unlock()
 		a.emit(Event{Kind: EvError, Text: err.Error()})
 		return false
 	}
@@ -544,22 +684,29 @@ func (a *Agent) switchModel(model, why string) bool {
 	return true
 }
 
-// escalate switches to the stronger model once, the first time something
-// fails, so routine work stays on the cheap model. A model the user picked
-// in the meantime wins.
+// escalate switches to the stronger model when something fails, so
+// routine work stays on the cheap model; settle switches back after a few
+// calm turns. A model the user picked wins.
 func (a *Agent) escalate(why string) {
 	a.mu.Lock()
-	picked := a.nextModel != ""
+	picked := a.picked || a.nextModel != ""
 	model := a.opts.Escalate
-	if picked || a.escalated || model == "" || model == a.model {
+	if picked || a.escalated || a.noSwitch || model == "" || model == a.model {
+		if a.escalated {
+			a.calm = 0
+		}
 		a.mu.Unlock()
 		return
 	}
-	a.escalated = true
+	a.escalated, a.calm = true, 0
 	a.mu.Unlock()
 	if a.switchModel(model, why) {
 		a.emit(Event{Kind: EvModel, Text: model, Stats: a.stats()})
+		return
 	}
+	a.mu.Lock()
+	a.escalated = false
+	a.mu.Unlock()
 }
 
 // authorize applies the approval policy and asks the user when needed.

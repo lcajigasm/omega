@@ -35,20 +35,25 @@ func skillsCmd() *cobra.Command {
 	}
 	c := &cobra.Command{
 		Use:   "skills",
-		Short: "Manage the skills of your AI coding agents",
-		Long: "Lists the skills installed for Claude Code, Codex, Gemini CLI, opencode, Cursor and GitHub Copilot,\n" +
-			"says which agent can see each one, and installs, shares, updates and removes them.",
+		Short: i18n.T("cmd.skills"),
+		Long:  i18n.T("cmd.skills_long"),
+		Example: "  omega skills\n" +
+			"  omega skills install anthropics/skills --skill pdf\n" +
+			"  omega skills audit\n" +
+			"  omega skills sync --dry-run\n" +
+			"  omega skills update --check\n" +
+			"  omega skills remove pdf --from cursor",
 		Args: cobra.NoArgs,
 		RunE: list,
 	}
-	c.Flags().BoolVar(&asJSON, "json", false, "print the inventory as JSON")
+	c.Flags().BoolVar(&asJSON, "json", false, i18n.T("flag.tools_json"))
 
-	listCmd := &cobra.Command{Use: "list", Short: "List the installed skills and the agents that see them", Args: cobra.NoArgs, RunE: list}
-	listCmd.Flags().BoolVar(&asJSON, "json", false, "print the inventory as JSON")
+	listCmd := &cobra.Command{Use: "list", Short: i18n.T("cmd.skills_list"), Args: cobra.NoArgs, RunE: list}
+	listCmd.Flags().BoolVar(&asJSON, "json", false, i18n.T("flag.tools_json"))
 
 	audit := &cobra.Command{
 		Use:   "audit",
-		Short: "Find broken links, invalid SKILL.md files, copies that differ and skills an agent cannot see",
+		Short: i18n.T("cmd.skills_audit"),
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			inv, err := skills.Scan()
@@ -63,58 +68,65 @@ func skillsCmd() *cobra.Command {
 	var opts skills.InstallOptions
 	install := &cobra.Command{
 		Use:   "install <folder | git-url | owner/repo>",
-		Short: "Install the skills of a folder or a git repository for every agent",
-		Long: "Copies the skills found in a folder, a git repository, a GitHub link to a folder or owner/repo.\n" +
-			"The files are copied once, to the location most agents read; the others get a link.",
-		Args: cobra.ExactArgs(1),
+		Short: i18n.T("cmd.skills_install"),
+		Long:  i18n.T("cmd.skills_install_long"),
+		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return skillInstall(cmd.OutOrStdout(), args[0], opts)
 		},
 	}
-	install.Flags().StringSliceVar(&opts.Only, "skill", nil, "install only this skill of the source (repeatable)")
-	install.Flags().StringSliceVar(&opts.To, "to", nil, "install only for these agents: claude, codex, gemini, opencode, cursor, copilot")
-	install.Flags().BoolVar(&opts.Copy, "copy", false, "copy to every location instead of linking")
-	install.Flags().BoolVar(&opts.Force, "force", false, "replace a skill that is already installed")
+	install.Flags().StringSliceVar(&opts.Only, "skill", nil, i18n.T("flag.skills_skill"))
+	install.Flags().StringSliceVar(&opts.To, "to", nil, i18n.T("flag.skills_to"))
+	install.Flags().BoolVar(&opts.Copy, "copy", false, i18n.T("flag.skills_copy_all"))
+	install.Flags().BoolVar(&opts.Force, "force", false, i18n.T("flag.skills_force_install"))
 
 	var from string
 	var yes bool
 	remove := &cobra.Command{
 		Use:   "remove <skill>",
-		Short: "Remove a skill: links are deleted, folders go to the trash",
+		Short: i18n.T("cmd.skills_remove"),
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return skillRemove(cmd.OutOrStdout(), args[0], from, func(q string) bool { return yes || i18n.IsYes(ask(q, "n")) })
 		},
 	}
-	remove.Flags().StringVar(&from, "from", "", "remove it only from this location: shared, claude, gemini, opencode, cursor, copilot")
-	remove.Flags().BoolVarP(&yes, "yes", "y", false, "do not ask")
+	remove.Flags().StringVar(&from, "from", "", i18n.T("flag.skills_from"))
+	remove.Flags().BoolVarP(&yes, "yes", "y", false, i18n.T("flag.tools_yes"))
 
 	var copyAll, dry bool
 	sync := &cobra.Command{
 		Use:   "sync [skill...]",
-		Short: "Make every skill visible to every installed agent",
-		Long: "Links each skill into the locations of the agents that cannot see it.\n" +
-			"Nothing is overwritten: a skill whose copies differ is reported and left alone.",
+		Short: i18n.T("cmd.skills_sync"),
+		Long:  i18n.T("cmd.skills_sync_long"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return skillSync(cmd.OutOrStdout(), args, copyAll, dry)
 		},
 	}
-	sync.Flags().BoolVar(&copyAll, "copy", false, "copy instead of linking")
-	sync.Flags().BoolVar(&dry, "dry-run", false, "say what would be done and do nothing")
+	sync.Flags().BoolVar(&copyAll, "copy", false, i18n.T("flag.skills_copy"))
+	sync.Flags().BoolVar(&dry, "dry-run", false, i18n.T("flag.tools_dry"))
 
 	var check, force bool
 	update := &cobra.Command{
 		Use:   "update [skill...]",
-		Short: "Update the skills omega installed from where they came from",
+		Short: i18n.T("cmd.skills_update"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return skillUpdate(cmd.OutOrStdout(), args, check, force)
 		},
 	}
-	update.Flags().BoolVar(&check, "check", false, "only say which skills have a newer version")
-	update.Flags().BoolVar(&force, "force", false, "also replace skills edited on this machine")
+	update.Flags().BoolVar(&check, "check", false, i18n.T("flag.skills_check"))
+	update.Flags().BoolVar(&force, "force", false, i18n.T("flag.skills_force_update"))
 
 	c.AddCommand(listCmd, audit, install, remove, sync, update)
 	return c
+}
+
+// skillCount and problemCount are "1 skill", "3 skills", translated.
+func skillCount(n int) string {
+	return plural(n, i18n.T("skills.w_skill"), i18n.T("skills.w_skills"))
+}
+
+func problemCount(n int) string {
+	return plural(n, i18n.T("skills.w_problem"), i18n.T("skills.w_problems"))
 }
 
 func plural(n int, one, many string) string {
@@ -141,9 +153,9 @@ func installPlaces(s skills.Skill) string {
 		p := in.Location
 		switch {
 		case in.Broken:
-			p += " (broken link)"
+			p += " (" + i18n.T("skills.broken_link") + ")"
 		case in.Link != "":
-			p += " (link)"
+			p += " (" + i18n.T("skills.link") + ")"
 		}
 		parts = append(parts, p)
 	}
@@ -151,7 +163,7 @@ func installPlaces(s skills.Skill) string {
 }
 
 func writeSkillList(w io.Writer, inv *skills.Inventory) {
-	fmt.Fprintln(w, "\nAgents")
+	fmt.Fprintln(w, "\n"+i18n.T("skills.agents"))
 	for _, a := range inv.Agents {
 		var dirs []string
 		for _, id := range a.Reads {
@@ -160,14 +172,14 @@ func writeSkillList(w io.Writer, inv *skills.Inventory) {
 			}
 		}
 		if !a.Installed {
-			fmt.Fprintf(w, "  · %-20s not installed\n", a.Name)
+			fmt.Fprintf(w, "  · %-20s %s\n", a.Name, i18n.T("skills.not_installed"))
 			continue
 		}
-		fmt.Fprintf(w, "  ✓ %-20s %-10s reads %s\n", a.Name, plural(a.Skills, "skill", "skills"), strings.Join(dirs, ", "))
+		fmt.Fprintf(w, "  ✓ %-20s %-10s %s\n", a.Name, skillCount(a.Skills), i18n.T("skills.reads", strings.Join(dirs, ", ")))
 	}
-	fmt.Fprintf(w, "\nSkills (%d)\n", len(inv.Skills))
+	fmt.Fprintf(w, "\n%s (%d)\n", i18n.T("skills.skills"), len(inv.Skills))
 	if len(inv.Skills) == 0 {
-		fmt.Fprintln(w, "  None installed. `omega skills install <folder | git-url | owner/repo>` adds one.")
+		fmt.Fprintln(w, "  "+i18n.T("skills.none"))
 		return
 	}
 	for _, s := range inv.Skills {
@@ -178,9 +190,9 @@ func writeSkillList(w io.Writer, inv *skills.Inventory) {
 			}
 			fmt.Fprintf(w, "    %s\n", d)
 		}
-		fmt.Fprintf(w, "    in: %s\n", installPlaces(s))
+		fmt.Fprintf(w, "    %s\n", i18n.T("skills.in", installPlaces(s)))
 		if s.Origin != nil {
-			fmt.Fprintf(w, "    from: %s\n", s.Origin.Source)
+			fmt.Fprintf(w, "    %s\n", i18n.T("skills.from", s.Origin.Source))
 		}
 		for _, f := range s.Findings {
 			mark := "⚠"
@@ -199,10 +211,14 @@ func writeSkillList(w io.Writer, inv *skills.Inventory) {
 	}
 	fmt.Fprintln(w)
 	if problems > 0 {
-		fmt.Fprintf(w, "%s. `omega skills audit` lists them.\n", plural(problems, "problem", "problems"))
+		fmt.Fprintln(w, i18n.T("skills.problems_hint", problemCount(problems)))
 	}
 	if hidden > 0 {
-		fmt.Fprintf(w, "%s not visible to every agent. `omega skills sync` shares them.\n", plural(hidden, "skill is", "skills are"))
+		if hidden == 1 {
+			fmt.Fprintln(w, i18n.T("skills.hidden_one"))
+		} else {
+			fmt.Fprintln(w, i18n.T("skills.hidden_many", hidden))
+		}
 	}
 }
 
@@ -224,11 +240,11 @@ func writeSkillAudit(w io.Writer, inv *skills.Inventory) {
 		}
 	}
 	if problems+notes == 0 {
-		fmt.Fprintf(w, "✓ %s checked, nothing to report.\n", plural(len(inv.Skills), "skill", "skills"))
+		fmt.Fprintln(w, "✓ "+i18n.T("skills.audit_clean", skillCount(len(inv.Skills))))
 		return
 	}
-	fmt.Fprintf(w, "\n%s checked: %s, %s.\n", plural(len(inv.Skills), "skill", "skills"),
-		plural(problems, "problem", "problems"), plural(notes, "note", "notes"))
+	fmt.Fprintln(w, "\n"+i18n.T("skills.audit_summary", skillCount(len(inv.Skills)), problemCount(problems),
+		plural(notes, i18n.T("skills.w_note"), i18n.T("skills.w_notes"))))
 }
 
 func skillInstall(w io.Writer, source string, opts skills.InstallOptions) error {
@@ -239,13 +255,13 @@ func skillInstall(w io.Writer, source string, opts skills.InstallOptions) error 
 			fmt.Fprintf(w, "    %s\n", skills.Tilde(p))
 		}
 		for _, p := range d.Skipped {
-			fmt.Fprintf(w, "    ⚠ %s left alone: a link to a folder outside the skills locations\n", skills.Tilde(p))
+			fmt.Fprintf(w, "    ⚠ %s\n", i18n.T("skills.left_alone", skills.Tilde(p)))
 		}
 	}
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(w, "\n%s installed. Agents already running see them after a restart.\n", plural(len(done), "skill", "skills"))
+	fmt.Fprintln(w, "\n"+i18n.T("skills.installed", skillCount(len(done))))
 	return nil
 }
 
@@ -263,14 +279,14 @@ func skillSync(w io.Writer, names []string, copyAll, dry bool) error {
 	}
 	if len(actions) == 0 {
 		if len(skipped) == 0 {
-			fmt.Fprintln(w, "✓ Every installed agent already sees every skill.")
+			fmt.Fprintln(w, "✓ "+i18n.T("skills.all_visible"))
 		}
 		return nil
 	}
 	var failed int
 	for _, a := range actions {
 		if dry {
-			fmt.Fprintf(w, "  would link %s → %s\n", skills.Tilde(a.Path), skills.Tilde(a.Source))
+			fmt.Fprintln(w, "  "+i18n.T("skills.would_link", skills.Tilde(a.Path), skills.Tilde(a.Source)))
 			continue
 		}
 		linked, err := skills.Apply(a, copyAll)
@@ -281,11 +297,11 @@ func skillSync(w io.Writer, names []string, copyAll, dry bool) error {
 		case linked:
 			fmt.Fprintf(w, "✓ %s → %s\n", skills.Tilde(a.Path), skills.Tilde(a.Source))
 		default:
-			fmt.Fprintf(w, "✓ %s (copy of %s)\n", skills.Tilde(a.Path), skills.Tilde(a.Source))
+			fmt.Fprintln(w, "✓ "+i18n.T("skills.copy_of", skills.Tilde(a.Path), skills.Tilde(a.Source)))
 		}
 	}
 	if failed > 0 {
-		return fmt.Errorf("%d of %d could not be shared", failed, len(actions))
+		return fmt.Errorf("%s", i18n.T("skills.sync_failed", failed, len(actions)))
 	}
 	return nil
 }
@@ -294,8 +310,9 @@ func skillUpdate(w io.Writer, names []string, check, force bool) error {
 	results, err := skills.Update(context.Background(), names, check, force)
 	marks := map[string]string{skills.Updated: "✓", skills.Current: "·", skills.Available: "↑",
 		skills.Modified: "⚠", skills.Failed: "⚠", skills.Untracked: "·"}
-	words := map[string]string{skills.Updated: "updated", skills.Current: "up to date", skills.Available: "a newer version is available",
-		skills.Modified: "not updated", skills.Failed: "failed", skills.Untracked: "not tracked"}
+	words := map[string]string{skills.Updated: i18n.T("skills.st_updated"), skills.Current: i18n.T("skills.st_current"),
+		skills.Available: i18n.T("skills.st_available"), skills.Modified: i18n.T("skills.st_modified"),
+		skills.Failed: i18n.T("skills.st_failed"), skills.Untracked: i18n.T("skills.st_untracked")}
 	failed := 0
 	for _, r := range results {
 		line := fmt.Sprintf("%s %s: %s", marks[r.State], r.Skill, words[r.State])
@@ -311,10 +328,10 @@ func skillUpdate(w io.Writer, names []string, check, force bool) error {
 		return err
 	}
 	if len(results) == 0 {
-		fmt.Fprintln(w, "No skill was installed with omega, so there is nothing to update.")
+		fmt.Fprintln(w, i18n.T("skills.nothing_to_update"))
 	}
 	if failed > 0 {
-		return fmt.Errorf("%s could not be updated", plural(failed, "skill", "skills"))
+		return fmt.Errorf("%s", i18n.T("skills.update_failed", skillCount(failed)))
 	}
 	return nil
 }
@@ -329,25 +346,25 @@ func skillRemove(w io.Writer, name, from string, confirm func(question string) b
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(w, "Removing %s:\n", name)
+	fmt.Fprintln(w, i18n.T("skills.removing", name))
 	for _, in := range installs {
-		kind := "folder, to the trash"
+		kind := i18n.T("skills.folder_trash")
 		if in.Link != "" {
-			kind = "link"
+			kind = i18n.T("skills.link")
 		}
 		fmt.Fprintf(w, "  %s  (%s)\n", skills.Tilde(in.Path), kind)
 	}
-	if !confirm("Remove it?") {
-		fmt.Fprintln(w, "Nothing was removed.")
+	if !confirm(i18n.T("skills.ask_remove")) {
+		fmt.Fprintln(w, i18n.T("skills.not_removed"))
 		return nil
 	}
 	kept, err := skills.Remove(name, installs)
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(w, "✓ %s removed.\n", name)
+	fmt.Fprintln(w, "✓ "+i18n.T("skills.removed", name))
 	for _, k := range kept {
-		fmt.Fprintf(w, "  The folder is in %s\n", skills.Tilde(k))
+		fmt.Fprintln(w, "  "+i18n.T("skills.folder_in", skills.Tilde(k)))
 	}
 	return nil
 }

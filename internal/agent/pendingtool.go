@@ -29,11 +29,20 @@ func toolPending(_ context.Context, a *Agent, in map[string]any) (string, error)
 	action := getString(in, "action")
 	start := time.Now()
 	cmd := strings.TrimSpace("pending " + action + " " + getString(in, "id"))
+	if action == "add" || action == "resolve" {
+		// The list outlives the run; a dry run leaves it as it is.
+		if why, denied := a.readOnlyDenial("pending", cmd, "the pending item"); denied {
+			return why, nil
+		}
+	}
 	a.emit(Event{Kind: EvToolStart, Tool: "pending", Command: cmd, Risk: safety.Safe})
 	out, err := pendingAction(action, getString(in, "id"), getString(in, "text"), getString(in, "area"), time.Now())
 	a.quiet("pending", cmd, start, out, err)
 	if err != nil {
 		return "", explained(err)
+	}
+	if action == "add" || action == "resolve" {
+		a.forget()
 	}
 	return out, nil
 }

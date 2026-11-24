@@ -3,13 +3,7 @@ package i18n
 // Messages of the guided run (omega full) and of the health review. Same
 // order as messages: en, es, fr, de, pt.
 var fullMessages = map[string][]string{
-	"cmd.full": {
-		"Everything omega can do, stage by stage in one interface: choose the stages, see what each does and why, skip, repeat or stop",
-		"Todo lo que omega sabe hacer, etapa a etapa en una sola interfaz: elige las etapas, mira qué hace cada una y por qué, salta, repite o para",
-		"Tout ce qu'omega sait faire, étape par étape dans une seule interface : choisissez les étapes, voyez ce que fait chacune et pourquoi, sautez, répétez ou arrêtez",
-		"Alles, was omega kann, Etappe für Etappe in einer Oberfläche: Etappen wählen, sehen, was jede tut und warum, überspringen, wiederholen oder aufhören",
-		"Tudo o que o omega sabe fazer, etapa a etapa numa só interface: escolhe as etapas, vê o que cada uma faz e porquê, salta, repete ou para",
-	},
+	"cmd.full": {"Everything omega does, stage by stage, in one screen", "Todo lo que hace omega, etapa a etapa, en una pantalla", "Tout ce que fait omega, étape par étape, sur un écran", "Alles, was omega tut, Etappe für Etappe", "Tudo o que o omega faz, etapa a etapa, num ecrã"},
 	"cmd.full_long": {
 		"A guided run that leaves the machine better than it found it, in one interface from start to end. It opens on the plan: every stage that applies here (omega's own setup, a read-only report, health and security, updates, cleanup, Docker, tool configuration, the developer setup, on a Mac what runs outside your apps, the repair of topgrade and Mole, and what earlier runs left undone), each with what it does and why. Untick the ones you do not want. The stages then run one after another on the same screen, with the route always in view; between two stages a card says how the last one went and what comes next, and you go on, skip it, repeat one that failed, change the plan or stop. It ends with what was done, skipped and failed. `omega` alone is still the quick, unattended maintenance.",
 		"Un recorrido guiado que deja el equipo mejor de lo que lo encontró, en una sola interfaz de principio a fin. Empieza por el plan: todas las etapas que aplican aquí (la instalación de omega, un informe de solo lectura, salud y seguridad, actualizaciones, limpieza, Docker, configuración de herramientas, el entorno de desarrollo, en un Mac lo que corre fuera de tus apps, la reparación de topgrade y Mole, y lo que dejaron sin hacer las ejecuciones anteriores), cada una con qué hace y por qué. Desmarca las que no quieras. Las etapas se ejecutan una tras otra en la misma pantalla, con el recorrido siempre a la vista; entre dos etapas una tarjeta dice cómo fue la anterior y qué viene ahora, y tú sigues, la saltas, repites una que falló, cambias el plan o paras. Acaba con lo que se hizo, se saltó y falló. `omega` a secas sigue siendo el mantenimiento rápido y desatendido.",
@@ -60,20 +54,6 @@ var fullMessages = map[string][]string{
 		"actions: %d done · %d failed · %d denied", "acciones: %d hechas · %d fallidas · %d rechazadas", "actions : %d faites · %d échouées · %d refusées",
 		"Aktionen: %d erledigt · %d fehlgeschlagen · %d abgelehnt", "ações: %d feitas · %d falhadas · %d recusadas",
 	},
-	"pilot.hint": {
-		"Nobody needs to answer anything: every stage runs on its own · ctrl+c stops the run",
-		"No hace falta responder nada: cada etapa se ejecuta sola · ctrl+c detiene la ejecución",
-		"Personne n'a rien à répondre : chaque étape se lance seule · ctrl+c arrête l'exécution",
-		"Niemand muss etwas beantworten: jede Etappe läuft von selbst · ctrl+c hält den Lauf an",
-		"Ninguém precisa de responder a nada: cada etapa corre sozinha · ctrl+c para a execução",
-	},
-	"pilot.stopping": {
-		"Stopping: the step that is running is ending · ctrl+c again leaves now",
-		"Parando: el paso en curso está terminando · ctrl+c otra vez sale ya",
-		"Arrêt : l'étape en cours se termine · ctrl+c à nouveau quitte tout de suite",
-		"Wird gestoppt: der laufende Schritt endet gerade · ctrl+c noch einmal beendet sofort",
-		"A parar: o passo em curso está a terminar · ctrl+c outra vez sai já",
-	},
 	"pilot.bye_ok": {
 		"All done: no stage failed.", "Todo hecho: ninguna etapa falló.", "Tout est fait : aucune étape n'a échoué.",
 		"Alles erledigt: keine Etappe ist gescheitert.", "Tudo feito: nenhuma etapa falhou.",
@@ -117,24 +97,10 @@ var fullMessages = map[string][]string{
 	"full.flag_yes":   {"approvals answered yes", "las aprobaciones se responden que sí", "les approbations reçoivent oui", "Freigaben werden mit Ja beantwortet", "as aprovações respondem-se que sim"},
 	"full.flag_demo":  {"demo, nothing real runs", "demostración, no se ejecuta nada real", "démonstration, rien de réel ne s'exécute", "Demo, nichts Echtes läuft", "demonstração, nada real corre"},
 	"full.plan_count": {"%d of %d stages will run", "se ejecutarán %d de %d etapas", "%d étapes sur %d seront lancées", "%d von %d Etappen laufen", "vão correr %d de %d etapas"},
-	"full.plan_keys": {
-		"↑/↓ move · space tick or untick · a all · enter start · q leave",
-		"↑/↓ mover · espacio marcar o desmarcar · a todas · enter empezar · q salir",
-		"↑/↓ déplacer · espace cocher ou décocher · a toutes · entrée démarrer · q quitter",
-		"↑/↓ bewegen · Leertaste an/aus · a alle · Enter starten · q beenden",
-		"↑/↓ mover · espaço marcar ou desmarcar · a todas · enter começar · q sair",
-	},
-	"full.plan_keys_back": {
-		"↑/↓ move · space tick or untick · a all · enter back to the run",
-		"↑/↓ mover · espacio marcar o desmarcar · a todas · enter volver al recorrido",
-		"↑/↓ déplacer · espace cocher ou décocher · a toutes · entrée retour au parcours",
-		"↑/↓ bewegen · Leertaste an/aus · a alle · Enter zurück zum Durchlauf",
-		"↑/↓ mover · espaço marcar ou desmarcar · a todas · enter voltar ao percurso",
-	},
-	"full.what":  {"What it does", "Qué hace", "Ce que ça fait", "Was es tut", "O que faz"},
-	"full.why":   {"Why", "Por qué", "Pourquoi", "Warum", "Porquê"},
-	"full.risk":  {"Risk", "Riesgo", "Risque", "Risiko", "Risco"},
-	"full.alone": {"On its own", "Por separado", "Seule", "Einzeln", "À parte"},
+	"full.what":       {"What it does", "Qué hace", "Ce que ça fait", "Was es tut", "O que faz"},
+	"full.why":        {"Why", "Por qué", "Pourquoi", "Warum", "Porquê"},
+	"full.risk":       {"Risk", "Riesgo", "Risque", "Risiko", "Risco"},
+	"full.alone":      {"On its own", "Por separado", "Seule", "Einzeln", "À parte"},
 	"full.risk_readonly": {
 		"read-only: it changes nothing", "solo lectura: no cambia nada", "lecture seule : ne change rien", "nur lesen: ändert nichts", "só leitura: não muda nada",
 	},

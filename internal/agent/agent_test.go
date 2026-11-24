@@ -271,7 +271,7 @@ func TestProposeActionsLiftsReadOnly(t *testing.T) {
 	p := &scriptedProvider{replies: []*llm.Reply{
 		{Calls: []llm.ToolCall{call("1", "propose_actions", map[string]any{
 			"question": "Clean?", "multiple": true,
-			"options": []map[string]any{{"id": "a", "label": "A"}, {"id": "b", "label": "B"}},
+			"options": []map[string]any{{"id": "a", "label": "A", "risk": "normal", "recommended": true}, {"id": "b", "label": "B", "risk": "read-only", "recommended": true}},
 		})}},
 		{Calls: []llm.ToolCall{call("2", "run_command", map[string]any{"command": "touch /dev/null", "reason": "r"})}},
 		{Text: "done"},
@@ -402,14 +402,14 @@ func TestUserChangesApplyBeforeNextTurn(t *testing.T) {
 	}
 }
 
-// An unattended run waits for nobody: every safe option offered is taken
+// An unattended run waits for nobody: every recommended safe option is taken
 // (and said to be taken by omega, not by the user), and an action that
 // always needs a person is skipped instead of asked.
 func TestUnattendedTakesEveryOptionAndSkipsAlwaysAsk(t *testing.T) {
 	p := &scriptedProvider{replies: []*llm.Reply{
 		{Calls: []llm.ToolCall{call("1", "propose_actions", map[string]any{
 			"question": "Clean?", "multiple": true,
-			"options": []map[string]any{{"id": "a", "label": "A"}, {"id": "b", "label": "B"}},
+			"options": []map[string]any{{"id": "a", "label": "A", "risk": "normal", "recommended": true}, {"id": "b", "label": "B", "risk": "read-only", "recommended": true}},
 		})}},
 		{Calls: []llm.ToolCall{call("2", "run_command", map[string]any{"command": "brew cleanup", "reason": "r"})}},
 		{Calls: []llm.ToolCall{call("3", "run_command", map[string]any{"command": "docker volume prune -f", "reason": "r"})}},

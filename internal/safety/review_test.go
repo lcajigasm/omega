@@ -122,8 +122,8 @@ func TestSecretsAndQueriesThroughEveryDoor(t *testing.T) {
 		{"loginctl list-sessions", Safe},
 		{"loginctl show-user ana", Safe},
 		{"loginctl session-status", Safe},
-		{"loginctl terminate-user $USER", Dangerous},
-		{"loginctl kill-session 3", Dangerous},
+		{"loginctl terminate-user $USER", Blocked}, // fifth review, A3: it logs the user out
+		{"loginctl kill-session 3", Blocked},
 		{"loginctl lock-sessions", Dangerous},
 		{"loginctl enable-linger ana", Dangerous},
 		{"hostnamectl", Safe},

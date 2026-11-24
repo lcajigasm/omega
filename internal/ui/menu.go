@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"fmt"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -177,14 +176,10 @@ func (m *menuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.filter == "" {
 				m.back()
 			}
-		case "up", "ctrl+p":
-			if len(rows) > 0 {
-				*cursor = (*cursor - 1 + len(rows)) % len(rows)
-			}
-		case "down", "ctrl+n":
-			if len(rows) > 0 {
-				*cursor = (*cursor + 1) % len(rows)
-			}
+		case "up", "shift+tab":
+			*cursor = wrap(*cursor, -1, len(rows))
+		case "down":
+			*cursor = wrap(*cursor, 1, len(rows))
 		case "home", "pgup":
 			*cursor = 0
 		case "end", "pgdown":
@@ -247,30 +242,42 @@ func (m *menuModel) updateAsking(msg tea.KeyMsg) tea.Cmd {
 }
 
 func (m *menuModel) View() string {
-	w := min(max(m.width-2, 40), 108)
+	w := min(max(m.width-2, 20), 108)
+	compact := m.width > 0 && m.width < compactWidth
 	var b strings.Builder
-	b.WriteString(titleStyle.Render("✻ omega") + mutedStyle.Render(" "+m.info.Version) + "  " + mutedStyle.Render(i18n.T("ui.welcome_tagline")) + "\n\n")
+	b.WriteString(titleStyle.Render(gl.Brand) + mutedStyle.Render(" "+m.info.Version))
+	if !compact {
+		b.WriteString("  " + mutedStyle.Render(i18n.T("ui.welcome_tagline")))
+	}
+	b.WriteString("\n\n")
+	labelCol := 10
+	if compact {
+		labelCol = 0
+	}
 	row := func(k, v string) {
-		b.WriteString(faintStyle.Render(lipgloss.NewStyle().Width(10).Render(k)) + v + "\n")
+		if labelCol > 0 {
+			b.WriteString(faintStyle.Render(pad(k, labelCol)))
+		}
+		b.WriteString(truncateANSI(v, max(10, w-labelCol-6)) + "\n")
 	}
 	if m.total > 0 {
-		bar := min(28, w-44)
-		if bar < 8 {
-			bar = 8
-		}
+		bar := max(8, min(28, w-44))
 		row(i18n.T("menu.disk"), gauge(1-float64(m.free)/float64(m.total), bar)+"  "+
-			mutedStyle.Render(i18n.T("panel.free", humanBytes(m.free), humanBytes(m.total))))
+			mutedStyle.Render(i18n.T("panel.free", size(m.free), size(m.total))))
 	}
 	if m.info.Model != "" {
-		row(i18n.T("ui.label_model"), m.info.Provider+mutedStyle.Render(" · ")+cmdStyle.Render(m.info.Model))
+		row(i18n.T("ui.label_model"), m.info.Provider+mutedStyle.Render(" "+gl.Sep+" ")+cmdStyle.Render(m.info.Model))
 	}
 	if m.info.LastRun != "" {
 		row(i18n.T("menu.last_run"), mutedStyle.Render(m.info.LastRun))
 	}
 	for _, n := range m.info.Notes {
-		b.WriteString(warnStyle.Render("! ") + mutedStyle.Render(truncate(n, w-4)) + "\n")
+		b.WriteString(warnStyle.Render(gl.Error+" ") + mutedStyle.Render(truncate(n, w-8)) + "\n")
 	}
-	head := welcomeStyle.Width(w).Render(strings.TrimRight(b.String(), "\n"))
+	head := strings.TrimRight(b.String(), "\n")
+	if !compact {
+		head = welcomeStyle.Width(w).Render(head)
+	}
 
 	rows, cursor := m.rows()
 	// Where the user is: omega › config › set language.
@@ -283,9 +290,12 @@ func (m *menuModel) View() string {
 		labelW = max(labelW, lipgloss.Width(it.Label))
 	}
 	labelW = min(labelW+4, max(20, w/2))
+	if compact {
+		labelW = w - 2 // the label takes the line; the detail goes
+	}
 	var lines []string
 	if len(crumbs) > 0 && m.filter == "" {
-		lines = append(lines, "  "+faintStyle.Render("‹ ")+mutedStyle.Render(strings.Join(crumbs, faintStyle.Render("  ›  "))), "")
+		lines = append(lines, "  "+faintStyle.Render(gl.Back+" ")+mutedStyle.Render(strings.Join(crumbs, faintStyle.Render("  "+gl.Crumb+"  "))), "")
 	}
 	cursorLine := 0
 	group := ""
@@ -302,17 +312,20 @@ func (m *menuModel) View() string {
 		mark := "  "
 		switch {
 		case len(it.Children) > 0:
-			mark = " ›"
+			mark = " " + gl.Crumb
 		case it.Ask != "":
-			mark = " …"
+			mark = " " + gl.Ellipsis
 		case len(it.Options) > 0:
 			mark = " +"
 		}
-		label := lipgloss.NewStyle().Width(labelW).Render(truncate(it.Label, labelW-3) + mark)
-		detail := truncate(it.Detail, max(10, w-labelW-6))
+		label := pad(truncate(it.Label, labelW-3)+mark, labelW)
+		detail := ""
+		if !compact {
+			detail = truncate(it.Detail, max(10, w-labelW-6))
+		}
 		if n == *cursor {
 			cursorLine = len(lines)
-			lines = append(lines, titleStyle.Render("❯ "+label)+detail)
+			lines = append(lines, titleStyle.Render(gl.Pointer+" "+label)+detail)
 		} else {
 			lines = append(lines, "  "+cmdStyle.Render(label)+mutedStyle.Render(detail))
 		}
@@ -320,31 +333,46 @@ func (m *menuModel) View() string {
 	if len(rows) == 0 {
 		lines = append(lines, "  "+mutedStyle.Render(i18n.T("menu.no_match", m.filter)))
 	}
-	// Keep the highlighted row on screen when the list is taller than the terminal.
-	room := m.height - lipgloss.Height(head) - 4
-	if room < 3 {
-		room = 3
-	}
-	if len(lines) > room {
-		start := min(max(0, cursorLine-room/2), len(lines)-room)
-		lines = lines[start : start+room]
-	}
-	hint := i18n.T("menu.hint")
+
+	var hints []hint
 	switch {
 	case m.asking != nil:
 		ask := "  " + titleStyle.Render(m.asking.Label) + "\n  " + mutedStyle.Render(m.asking.Ask+": ") + m.value + "█"
-		return head + "\n\n" + ask + "\n\n" + faintStyle.Render("  "+i18n.T("menu.hint_ask"))
+		return head + "\n\n" + ask + "\n\n" + hintLine(m.width, hint{action: i18n.T("uix.type_value")},
+			hk("enter", "uix.run").must(), hk("esc", "uix.back").must())
 	case m.filter != "":
-		hint = fmt.Sprintf("/%s  ·  %s", m.filter, i18n.T("menu.hint_filter"))
+		hints = []hint{hint{key: "/" + m.filter}.must(), hk("↑↓", "uix.move"), hk("enter", "uix.run").must(), hk("esc", "uix.clear").must()}
 	case len(m.stack) > 1:
-		hint = i18n.T("menu.hint_sub")
+		hints = []hint{hk("↑↓", "uix.move"), hk("enter", "uix.open_run"), hk("←/esc", "uix.back").must(), hint{action: i18n.T("uix.type_search")}}
+	default:
+		hints = []hint{hk("↑↓", "uix.move"), hk("enter", "uix.open_run"), hk("→", "uix.options"), hint{action: i18n.T("uix.type_search")}, hk("q", "uix.quit").must()}
 	}
-	return head + "\n\n" + strings.Join(lines, "\n") + "\n\n" + faintStyle.Render("  "+hint)
+	keyLine := hintLine(m.width, hints...)
+
+	// Keep the highlighted row on screen when the list is taller than the
+	// terminal, and say what is out of sight.
+	room := max(3, m.height-lipgloss.Height(head)-3-lipgloss.Height(keyLine))
+	if len(lines) > room {
+		start := min(max(0, cursorLine-room/2), len(lines)-room)
+		end := start + room
+		view := append([]string(nil), lines[start:end]...)
+		if start > 0 {
+			view[0] = "  " + moreAbove(start)
+		}
+		if end < len(lines) {
+			view[len(view)-1] = "  " + moreBelow(len(lines)-end)
+		}
+		lines = view
+	}
+	return head + "\n\n" + strings.Join(lines, "\n") + "\n\n" + keyLine
 }
 
 // RunMenu shows the home screen and returns the command line of the row
 // the user started. ok is false when they left without starting anything.
 func RunMenu(info MenuInfo, items []MenuItem) (args []string, ok bool, err error) {
+	// Resolve the background query first: its reply would arrive as Esc,
+	// and Esc on the top level leaves the home screen.
+	lipgloss.HasDarkBackground()
 	m := newMenu(info, items)
 	m.free, m.total = diskSpace("/")
 	final, err := tea.NewProgram(m, tea.WithAltScreen()).Run()

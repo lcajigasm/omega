@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/lcajigasm/omega/internal/agent"
 	"github.com/lcajigasm/omega/internal/config"
@@ -119,5 +120,53 @@ func TestRunCheckLeavesTheStepsOut(t *testing.T) {
 	}
 	if slices.ContainsFunc(c.Lines, func(l string) bool { return strings.Contains(l, steps.All[0].ID) }) {
 		t.Errorf("the steps are listed: %v", c.Lines)
+	}
+}
+
+func TestGUIRoutines(t *testing.T) {
+	isolate(t, nil)
+	a, b := steps.All[0].ID, steps.All[1].ID
+	if rs, err := Routines(); err != nil || len(rs.Routines) != 0 || rs.Default != "" {
+		t.Fatalf("no routines yet: %+v %v", rs, err)
+	}
+	if err := SaveRoutine("", []string{a, b}, []string{b, "x-not-in-routine"}, 0, nil); err == nil {
+		t.Fatal("an unknown step was accepted")
+	}
+	if err := SaveRoutine("", []string{a, b}, []string{b}, 0, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := SaveRoutine("weekly", []string{b}, []string{a}, 25, []string{"fri", "mon"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := SaveRoutine("weekly", []string{b}, nil, 0, []string{"someday"}); err == nil {
+		t.Error("a bad day was saved")
+	}
+	for _, bad := range []func() error{
+		func() error { return SaveRoutine("bad name", []string{a}, nil, 0, nil) },
+		func() error { return SaveRoutine("x", nil, nil, 0, nil) },
+		func() error { return SaveRoutine("x", []string{a}, nil, -1, nil) },
+	} {
+		if bad() == nil {
+			t.Error("a bad routine was saved")
+		}
+	}
+	h := customHistory{}
+	h.add(a, customRecord{When: time.Now(), Took: 3 * time.Second, OK: true, Freed: 3 << 30})
+	if err := h.save(); err != nil {
+		t.Fatal(err)
+	}
+	rs, err := Routines()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rs.Default != config.DefaultRoutine || len(rs.Routines) != 2 || rs.Routines[0].Name != config.DefaultRoutine || !rs.Routines[0].Default {
+		t.Fatalf("routines: %+v", rs)
+	}
+	def, weekly := rs.Routines[0], rs.Routines[1]
+	if len(def.Steps) != 2 || def.Steps[0].ID != a || def.Steps[0].LastRun != "3s" || def.Steps[0].Freed != 3<<30 || def.Steps[0].RiskID == "" || !def.Steps[1].Stops {
+		t.Errorf("default: %+v", def)
+	}
+	if weekly.OnlyBelowFreeGB != 25 || len(weekly.StopOnFail) != 0 || weekly.Options == "" || weekly.Default || !slices.Equal(weekly.Days, []string{"mon", "fri"}) || len(def.Days) != 0 {
+		t.Errorf("weekly (a stop for a step outside the routine is dropped): %+v", weekly)
 	}
 }

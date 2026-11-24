@@ -1,1266 +1,926 @@
-# TODO: cuarta revisión de omega (60 ejecuciones reales, 19–23 nov 2026)
+# TODO: quinta revisión de omega (la CLI a fondo y sus interfaces)
 
-Revisión del 23 de noviembre de 2026 sobre `main` en `5a5d546` (v0.30.0), a
-partir de las 60 transcripciones de `~/Desktop/Runs` (19, 22 y 23 de
-noviembre; 54 con Haiku y 6 con Sonnet; 12 cambian a Sonnet a mitad; $2,97
-en total). Las ejecuciones vienen de **dos Macs** que escriben en la misma
-carpeta (un Mac mini de 228 GB con `~/Dev/doctorSIM` y un Mac Studio de
-460 GB con `~/Dev/Deudafix`); el registro no dice cuál es cuál.
+Revisión del 24 de noviembre de 2026 sobre `main` en `0537a89` (v0.31.0).
+Las cuatro revisiones anteriores (13, 19 y 23 de noviembre) tenían todos sus
+puntos cerrados; su texto sigue en el historial de git
+(`git show 0537a89:TODO.md`).
 
-Los criterios son los de las revisiones anteriores. Un P0 hace algo que el
-usuario no ha aprobado, borra datos o deja rota una función principal. Un
-P1 da un resultado equivocado, engaña, cuesta tiempo o dinero sin motivo, o
-impide revisar lo que pasó.
-Cada punto dice qué pasó (con la ejecución, `AAAA-MM-DD_HHMMSS.log:línea`
-cuando ayuda), la causa en el código cuando se ha encontrado, y qué tiene que
-pasar.
+Esta vez no se parte de ejecuciones reales, sino de leer el código y probar
+la CLI. La revisión se hizo en tres partes:
+
+1. la superficie de órdenes, opciones, ayudas, errores y salidas;
+2. el núcleo: agente, política de seguridad, proveedores, ejecución y
+   estado;
+3. la interfaz de terminal: TUI, tarjetas y salida de texto.
+
+Se ejecutaron las órdenes que solo leen. Las que borran o cambian algo se
+revisaron leyendo su código. Las afirmaciones sobre la política salen de
+pruebas de sondeo reales contra `safety.Classify` y `safety.AlwaysConfirm`.
+
+Criterios, los de siempre:
+
+- **P0:** hace algo que el usuario no ha aprobado, borra datos o deja rota
+  una función principal.
+- **P1:** da un resultado equivocado, engaña, cuesta tiempo o dinero sin
+  motivo, o impide revisar lo que pasó.
+- **P2:** fricción o incoherencia.
+- **P3:** pulido.
+
+Cada punto dice qué pasa, dónde está en el código y qué tiene que pasar.
+
+**Estado (24 de noviembre, segunda pasada):** todos los puntos están
+implementados. Bajo cada uno, la línea **Hecho:** resume el cambio y, cuando
+lo hay, lo que se dejó distinto de lo pedido y por qué. Las capturas de
+`docs/assets` están regeneradas con los glifos nuevos salvo `sudo.png`, que
+necesita root y `runuser` (Linux) y la regenera el flujo `captures.yml`.
+
+---
+
+## Hecho en la primera pasada
+
+- [x] **Modo `omega custom`: tu rutina, sin IA.**
+  - `omega custom --set` abre un editor a pantalla completa con dos zonas:
+    arriba la rutina, numerada y en orden de ejecución; debajo, los pasos
+    instalados que aún no están en ella, por categoría.
+  - Teclas del editor:
+    - espacio: añadir o quitar;
+    - ⇧↑/⇧↓ o J/K: reordenar;
+    - `c`: vaciar; `u`: deshacer;
+    - enter: guardar; esc: salir (pregunta si hay cambios sin guardar).
+  - Abajo se ve el comando, el riesgo y el motivo del paso bajo el cursor.
+  - `omega custom --set id…` fija la rutina sin editor, para scripts.
+  - `omega custom` la ejecuta aquí, paso a paso, con las reglas de
+    aprobación de `omega steps run`, y termina con una tabla de resultados.
+    Nunca llama a un modelo.
+  - Otras opciones: `--show`, `--dry-run`, `-y` y `--clear`.
+  - La rutina se guarda en `~/.config/omega/custom.toml`. Los pasos que
+    faltan en una máquina se conservan para las demás que compartan el
+    fichero.
+  - Código: `internal/ui/routine.go`, `internal/cli/custom.go`,
+    `internal/config/custom.go`.
+  - Pruebas: `internal/ui/routine_test.go`, `internal/cli/custom_test.go`.
+- [x] **Recomendación de la IA dentro del editor.**
+  - Con `i` se pide al modelo configurado una rutina: pasos, orden, un motivo
+    por paso y un resumen. Solo envía la lista de pasos instalados (id,
+    categoría, riesgo, descripción), el sistema operativo y la rutina
+    actual, y solo cuando se pulsa `i`.
+  - La respuesta se valida: se descartan ids inventados y repetidos.
+  - Se muestra frente a la rutina actual (lo que añade, lo que dejaría
+    fuera). `a` la adopta, aunque sigue siendo editable. `esc` mantiene la
+    rutina propia y conserva los motivos como notas ✦.
+- [x] **Un aspecto común para las órdenes de una sola salida**
+  (`internal/ui/report.go`):
+  - título `Ω  omega <orden> · contexto` y secciones en el color de acento;
+  - marcas ✓ ! ✗ · – › ▸ con color;
+  - tablas alineadas por columnas visibles, no por bytes;
+  - texto ajustado al ancho del terminal;
+  - sin color al redirigir la salida, con NO_COLOR o con TERM=dumb.
+
+  Ya lo usan:
+  - `steps`: columnas alineadas entre categorías, recuento, una leyenda con
+    los mismos glifos y una pista hacia `custom`;
+  - `logs`: fecha, tarea, modelo, coste y estado de cada ejecución, leídos
+    de la cabecera y del cierre del registro, en vez de «16464 B»;
+  - `pending`;
+  - `notes`;
+  - `doctor`;
+  - `models`;
+  - `custom`.
+- [x] **Riesgo en palabras cortas y exactas**: «solo lee», «cambia» y «pide
+  permiso». Antes `steps` decía «peligroso» de `docker-start` y de cualquier
+  caché.
+- [x] **`omega pending`:**
+  - el estado sale traducido (abierto, pospuesto hasta…, descartado, hecho);
+  - el texto se ajusta al terminal, sin columnas fijas de 28 caracteres;
+  - por defecto solo se ven los activos, y `--all` muestra el resto;
+  - en `done|dismiss|snooze|reopen` basta con el principio del id, así que
+    el ejemplo de la ayuda (`time-machine`) ya funciona;
+  - los textos nuevos se recortan sin partir caracteres UTF-8, en el límite
+    de palabra y con «…» (`pending.clip`). Antes era `s[:300]`.
+- [x] **`omega notes`:**
+  - las más recientes primero, agrupadas por día y ajustadas;
+  - `--last N` (15 por defecto) y `--grep texto`;
+  - `notes clear` pregunta antes de borrar y dice que lo hizo;
+  - `remember` ya no guarda la fecha dos veces («2026-10-27: 2026-10-27
+    full run») y comprueba los errores de escritura y de cierre, así que ya
+    no dice «saved» con el disco lleno.
+- [x] **`omega doctor`:**
+  - cada comprobación lleva su marca (✓ ! ✗ ›) y la etiqueta en negrita;
+  - los 82 pasos se ven en una rejilla de 3–4 columnas, no en 82 líneas;
+  - el resumen del recorrido guiado ya no filtra líneas del texto a mano:
+    llama al informe sin la lista de pasos.
+- [x] **`omega models`:** la tabla se alinea sola. Antes la cabecera «entrada
+  $/M» no cabía en `%9s` y se descuadraba.
+- [x] **Menú de inicio:**
+  - incluye `custom` y sus variantes (`--set`, `--show`, `--dry-run`);
+  - al volver de una orden dice si terminó bien (✓) o con qué código salió
+    (✗), antes de «Enter vuelve al menú».
+- [x] **Arreglos de la TUI:**
+  - glamour respeta el perfil de color del terminal (NO_COLOR, 256 colores)
+    y no pasa de 110 columnas de prosa en pantallas anchas;
+  - la barra de disco se lee sin color (━ usado, ─ libre);
+  - el resumen final no deja un « · » colgando cuando no se conoce el coste,
+    porque se construye por partes;
+  - el coste se formatea igual en todas las pantallas (`ui.FormatCost`):
+    cuatro decimales por debajo de $0,10 y dos por encima;
+  - las zonas clicables de la tarjeta de confirmación se miden en columnas:
+    en es/fr/pt se desplazaban con «sí» o «à»;
+  - el borrado del filtro del picker corta por runas («ñ», «é»);
+  - el menú de inicio y el piloto resuelven el color de fondo antes de
+    arrancar Bubble Tea. La respuesta OSC 11 llegaba como Esc y podía cerrar
+    el menú nada más abrirlo;
+  - `truncate` mide columnas (`ansi.Truncate`): los caracteres anchos ya no
+    desbordan el panel.
+- [x] **Texto plano (`--no-tui`):**
+  - un éxito de menos de 1 s también imprime `⎿ ✓`;
+  - una herramienta denegada sin argumento ya no sale como «System()»;
+  - el recorrido guiado ya no ofrece `[p] cambiar el plan`, que en texto no
+    existe;
+  - las duraciones usan el mismo formato que la TUI (`1m05s`).
+- [x] `--debug` (no hace nada) y `--offline` (engaña: los pasos siguen
+  usando la red) se ocultan de la ayuda; siguen funcionando.
+- [x] El manual documenta `omega custom` (`docs/manual/tasks.md`,
+  `docs/manual/reference.md`) junto con las opciones nuevas de `notes` y
+  `pending`.
+
+---
 
 ## P0
 
-### A. Decisiones que nadie tomó
+### A. Lo que se ejecuta sin la aprobación prometida
 
-- [x] **A1. En `--unattended`, `propose_actions` elige todas las opciones,
-  también las que se excluyen entre sí, y le dice al modelo que las eligió
-  el usuario.** Es el «selector que devuelve todas las opciones» que
-  aparece en 9 ejecuciones (19_185015, 19_185202, 19_190346, 19_190543,
-  19_191120, 19_112126, 22_150146, 22_150714, 23_082253). Llegaron a la vez
-  «aplicar ControlMaster» y «no cambiar nada», tres dueños para ⌥Space, y en
-  19_191120 «borrar los 80 volúmenes activos de Docker (~87 GB)», propuesto
-  por el propio agente. En 22_150146 el agente actuó sobre la respuesta:
-  `rm -rf` de `node_modules` y de `~/.cargo/registry/src` y `mo purge --yes`
-  (4,17 GB). Los resúmenes dicen «las que elegiste», y el usuario no eligió
-  nada.
-  Causa: `toolProposeActions` (`internal/agent/tools.go:802`) toma todas
-  las opciones cuando `a.opts.Unattended` y contesta `The user selected:`.
-  Debe:
-  - con `multiple=false`, no elegir ninguna (o solo la marcada como
-    recomendada) y decirlo;
-  - no tomar nunca una opción de «no cambiar nada» ni una de riesgo alto o
-    irreversible;
-  - contestar «elegido automáticamente (ejecución desatendida); nadie
-    eligió», para que el modelo no lo atribuya al usuario;
-  - rechazar en la capa de la herramienta una respuesta de elección única
-    con más de un id, también en la TUI y en la app.
-  Ahora: en desatendido, una pregunta de elección única solo toma la opción
-  marcada `recommended` (nueva en la herramienta), y ninguna si no hay una;
-  una de varias toma las que no son `dangerous` ni de «no cambiar nada». La
-  respuesta dice «UNATTENDED RUN: nobody saw this card and nobody chose» y
-  pide no atribuirlo al usuario. Una tarjeta de elección única que vuelve
-  con varias respuestas no se ejecuta. Pruebas en
-  `internal/agent/review4_test.go`.
-- [x] **A2. El agente no sabe en qué modo está y a veces decide ignorarlo.**
-  Las ejecuciones guiadas se tratan como desatendidas, y al revés:
-  - «lo elegiste, pero en esta ejecución desatendida… se ha saltado»
-    (19_111855:117, 19_185353:61, 22_145951:46, 23_082014:36);
-  - 23_082253:7: «la salida dice 'UNATTENDED RUN', pero tú pediste una
-    revisión guiada, así que sigo tus instrucciones y no las restricciones
-    de ese texto».
+Contexto: `omega full --unattended` pone `f.yes = true`
+(`internal/cli/full.go:428`). Eso activa `ModeAuto`, y entonces
+`authorize` (`internal/agent/agent.go:592-603`) aprueba sin preguntar todo lo
+Dangerous que no sea `AlwaysConfirm`. Por eso, con `--yes` o en desatendido,
+todo lo que se escapa de `AlwaysConfirm` se ejecuta sin nadie delante.
 
-  El agente desobedece así una barrera de omega por su cuenta.
-  Debe: un modo único y explícito por sesión. Va en el prompt y en cada
-  rechazo, y se ve en la cabecera del registro (ver C1). El prompt
-  desatendido prohíbe expresamente reinterpretarlo. Si no hay nadie
-  delante, no se ofrecen tarjetas que luego se van a rechazar.
-  Ahora: el prompt lleva una línea «Run mode (set by omega;
-  authoritative…)» construida con las opciones de la sesión (desatendido,
-  etapa guiada, interactivo, no interactivo), el texto desatendido prohíbe
-  reinterpretarlo, y el modo va en la cabecera del registro. En desatendido
-  no se toma ninguna opción peligrosa, así que no se ofrecen tarjetas que
-  luego se rechacen.
-- [x] **A3. `run_command` deja pasar lo que los pasos del catálogo no.**
-  Mientras `docker builder prune` se bloquea en 9 ejecuciones, pasan sin
-  tarjeta ni registro de aprobación:
-  - `rm -rf ~/Library/Application Support/Claude/vm_bundles` (11 GB,
-    definitivo, 19_184014:394, 23_081643:204);
-  - `rm -rf` de cachés de Spotify, que perdió las descargas sin conexión
-    (22_145619:124, 23_081220:160, 19_190020:135), de Chrome,
-    `codex-runtimes` y `ms-playwright-go`;
-  - `git worktree remove` en 15 worktrees (19_105805:14835), en otros 3
-    (19_184730:220) y en 2 más (23_080707:775), esta última en una
-    ejecución que había dicho «Solo haré lecturas»;
-  - `sudo socketfilterfw --setstealthmode on` (19_184355:114);
-  - `brew reinstall --cask --force alfred`, `brew uninstall --cask --force`;
-  - `git config --global --unset maintenance.repo` (19_191120:85), después
-    de diagnosticar mal el remoto como inaccesible;
-  - `go env -w GOFLAGS=…` (22_150034:202);
-  - `sudo mas upgrade` (23_081230:162).
+- [x] **A1. Los borrados en `$HOME` con ruta relativa o tras un `cd` no
+  piden confirmación siempre.**
+  - Dónde: `alwaysAsks` (`internal/safety/ask.go:30-34`, `:162`) mira cada
+    segmento por separado y no sigue los `cd`. `cdTarget` solo lo usa
+    `wipesAnywhere`.
+  - Sondeo: todos estos dan Dangerous con `always=false`:
+    - `cd ~ && rm -rf Documents`, `cd ~/Documents && rm -rf *`,
+      `(cd ~/Documents && rm -rf x)`;
+    - `rm -rf node_modules`, `rm -rf ./*`, `echo ~/Documents | xargs rm -rf`;
+    - `cd ~/Documents && find . -delete`, `git clean -fdx`.
+  - En cambio, la ruta absoluta equivalente sí pregunta siempre. Es el mismo
+    caso que el incidente de `node_modules` de la cuarta revisión, que el
+    arreglo de entonces no cubre.
+  - Debe:
+    - llevar el directorio de trabajo de un segmento al siguiente (`cd`,
+      `pushd`, subshell) reutilizando `cdTarget`/`rebase`;
+    - si el directorio es desconocido o está en `$HOME`, tratar como
+      «confirmar siempre» `rm`, `find -delete`, `git clean` y `xargs rm` con
+      ruta relativa.
+  **Hecho:** `alwaysAsks` sigue `cd`/`pushd`/subshells entre segmentos; con directorio desconocido o en `$HOME`, `rm`, `find -delete`, `xargs rm` y `git clean` con ruta relativa preguntan siempre (`internal/safety/ask_home.go`).
+- [x] **A2. Tampoco preguntan siempre los borrados no recursivos ni las
+  sobrescrituras en `$HOME`.**
+  - Sondeo, todos con `always=false`: `rm -f ~/Documents/*.pdf`,
+    `rm -f ~/.zshrc`, `find ~/Documents -name '*.pdf' -delete`,
+    `rsync -a --delete /tmp/empty/ ~/Documents/`,
+    `: > ~/Documents/thesis.tex`, `truncate -s0 …`, `shred -u …`.
+  - Ni las operaciones de git que pierden trabajo: `git reset --hard`,
+    `git clean -fdx`, `git stash clear`, `git push --force`,
+    `git checkout -- .`.
+  - Debe:
+    - en `alwaysAsks`, tratar todo eso como un borrado recursivo cuando
+      apunta a `$HOME` fuera de las cachés de `regenerable`;
+    - en `gitAsks`, añadir `reset --hard`, `clean -f*`, `stash drop|clear`,
+      `push --force*` y `checkout -- .`.
+  **Hecho:** también `rm` no recursivo, `rsync --delete`, `shred`, `truncate`, `tee` y `>` hacia `$HOME`; `gitAsks` añade `reset --hard`, `clean -f`, `stash drop|clear`, `push --force`, `checkout -- .`, `restore` y `branch -D`.
+- [x] **A3. Reiniciar, apagar o cerrar la sesión solo está prohibido en el
+  prompt** (`internal/agent/prompt.go:322`, `:347`); la política no lo
+  aplica.
+  - Sondeo: todos estos dan Dangerous con `always=false`:
+    - `shutdown -r now`, `reboot`, `systemctl poweroff`, `launchctl reboot`;
+    - `osascript … shut down`;
+    - `softwareupdate --install --all --restart`;
+    - `kill -9 -1`, `killall -9 loginwindow`;
+    - `Restart-Computer -Force`, `shutdown /r /t 0`.
+  - Debe: bloquearlos, incluido `softwareupdate … --restart|-R`. Si no, al
+    menos «confirmar siempre».
+  **Hecho:** bloqueados (Blocked) en `internal/safety/power.go`; `softwareupdate --list` sigue siendo Safe.
+- [x] **A4. Se puede sacar una clave privada empaquetándola.**
+  - `tar -cf - ~/.ssh | base64` y `zip -r - ~/.ssh` dan Dangerous, mientras
+    que `cat`, `xxd` o `cp` de `~/.ssh/id_rsa` dan Blocked.
+  - Con `--yes`, el modelo y el registro reciben la clave en base64, y
+    `pemMask` no la reconoce.
+  - Dónde: `leaksIn`/`recursiveReader` (`internal/safety/secret.go:685-760`)
+    no conocen los archivadores.
+  - Debe: tratar `tar`, `zip`, `7z`, `cpio`, `pax`, `ditto -c` y `rsync`
+    sobre una ruta secreta como lectores recursivos (Blocked).
+  **Hecho:** `tar`, `zip`, `7z`, `pax`, `cpio`, `ditto -c` y `rsync` sobre rutas secretas dan Blocked (`internal/safety/archive.go`). Efecto conocido: empaquetar todo `~` también queda bloqueado.
+- [x] **A5. Borrar VMs, clústeres, modelos o el crontab no se trata como
+  `docker system prune --volumes`.**
+  - `always=false` en `colima delete`, `limactl delete`, `orb delete`,
+    `multipass purge`, `vagrant destroy -f`, `minikube delete --all`,
+    `kind delete clusters --all`, `ollama rm`, `conda env remove`,
+    `crontab -r` y `security delete-generic-password`.
+  - Y en los destructivos remotos: `gh repo delete --yes`,
+    `aws s3 rm --recursive`, `kubectl delete`,
+    `terraform destroy -auto-approve`.
+  - El criterio es incoherente: `podman machine rm` sí pregunta siempre.
+  - Debe: ampliar `containerDeletes`/`alwaysAsks` con estos verbos.
+  **Hecho:** `internal/safety/ask_destroy.go` cubre VMs, clústeres, modelos, `crontab -r`, `security delete-*` y los destructivos de gh, aws, kubectl, helm, terraform/tofu, pulumi y gcloud/az.
+- [x] **A6. En Windows, la tarea programada vacía la Papelera de
+  reciclaje.**
+  - `config.Skipped` (`internal/config/config.go:237`) solo excluye el id
+    `trash`, pero en Windows el paso se llama `recycle-bin`
+    (`internal/steps/steps.go:546`).
+  - `windowsTaskArgs` (`internal/scheduler/scheduler.go:231`) no pone
+    `OMEGA_SCHEDULED=1`, porque `schtasks /TR` no lleva variables de
+    entorno.
+  - Resultado: el `clean --yes --no-ai` semanal ejecuta
+    `Clear-RecycleBin -Force`, aunque `Describe` promete lo contrario.
+  - Debe:
+    - un flag `--scheduled` en los argumentos de la tarea en vez de la
+      variable de entorno;
+    - que `Skipped` cubra `trash` y `recycle-bin`;
+    - una prueba por sistema.
+  **Hecho:** flag oculta `--scheduled` en launchd, systemd y schtasks (`scheduler.FlagScheduled`), `config.Scheduled()`, y `Skipped` excluye `trash` y `recycle-bin`. Las tareas de Windows creadas por versiones anteriores se actualizan solas: al arrancar, `scheduler.UpgradeTask` lee la tarea con `schtasks /Query /XML` y, si tiene los argumentos antiguos, le añade `--scheduled` con `schtasks /Change` (una sola vez, con marca en el directorio de registros); mientras tanto `IsLegacyRun` trata esa ejecución como programada.
+- [x] **A7. `dev_activate` escribe en `~/.zshrc` sin confirmar siempre.**
+  - Llama a `authorize(..., Dangerous, false)` (`internal/agent/omega.go:171`).
+  - `write_file` sobre el mismo fichero sí pregunta siempre
+    (`sensitiveWrite`, `tools.go:886`).
+  - Debe: `always=true`, y denegarlo en desatendido.
+  **Hecho:** `dev_activate` pregunta siempre y se deniega en desatendido.
+- [x] **A8. `omega_settings set` y `notes forget` cambian estado duradero
+  sin nadie delante** (`internal/agent/omega.go:460`, `:387`, con
+  `Dangerous, false`).
+  - En desatendido el modelo puede cambiar `model`, apagar `security` con
+    `skip_steps`, tocar `command_timeout` o borrar notas.
+  - Contradice a `sensitiveCommand` (`tools.go:659-665`): la configuración
+    de omega «se pregunta siempre».
+  - Debe: `always=true`, y denegarlo en desatendido.
+  **Hecho:** `omega_settings set` y `notes forget` preguntan siempre y se deniegan en desatendido.
+- [x] **A9. Los pasos del catálogo esquivan el `AlwaysConfirm` de su propio
+  comando.**
+  - `toolRunStep` pasa solo `s.AlwaysConfirm` (`tools.go:554`), y
+    `needsAnswer` exime a los pasos integrados
+    (`internal/cli/deterministic.go:255`).
+  - En estos pasos el catálogo dice `false` y `safety.AlwaysConfirm(cmd)`
+    dice `true`:
+    - `mole-purge` (`mo purge --yes`);
+    - `omz`;
+    - `macos` (sudo);
+    - los pasos apt, dnf, pacman, snap y journal con sudo.
+  - Consecuencia: el `clean` programado en el Mac ejecuta `mole-purge` sin
+    nadie delante, es decir, borra `node_modules`, `.venv` y `target`.
+  - Afecta también a `omega custom` y a `omega steps run`, que comparten
+    `needsAnswer`.
+  - Debe: `always = s.AlwaysConfirm || safety.AlwaysConfirm(s.Command)` en
+    el agente y en `needsAnswer`, y marcar `mole-purge` como
+    `AlwaysConfirm`.
+  **Hecho:** el agente y `needsAnswer` usan `s.AlwaysConfirm || safety.AlwaysConfirm(cmd)`; `mole-purge` es AlwaysConfirm. En la CLI, los pasos integrados que solo preguntan por `sudo` siguen exentos cuando hay sesión de sudo, para que la actualización programada funcione; en el agente, `omz` y `macos` preguntan siempre.
+- [x] **A10. En desatendido, `propose_actions` con varias opciones sigue
+  tomando casi todo.**
+  - `autoChoose` (`tools.go:1122-1129`) toma toda opción cuyo `risk` no sea
+    `dangerous`, y ese campo es opcional y lo pone el modelo.
+  - Unido a `mac_change` (`internal/agent/mac.go:128-135`, `app-remove:` y
+    `disable:` con `always=false`), una desinstalación de app que no se
+    puede deshacer se ejecuta sola.
+  - Debe:
+    - tomar solo las opciones `recommended=true` cuyo `risk` explícito sea
+      `read-only` o `normal`;
+    - denegar en desatendido `app-remove`, `disable` y `perm-reset-all`.
+  **Hecho:** `autoChoose` solo toma opciones `recommended` con riesgo explícito `read-only`/`normal`; `mac_change` deniega `app-remove`, `disable` y `perm-reset-all` en desatendido.
 
-  Debe:
-  - pedir siempre aprobación para `rm -rf` sobre `~/Library` y `~/Dev`,
-    `git worktree remove`, `git config --global`, `go env -w`,
-    `defaults write`, `brew … --force` y `sudo …`, igual que el paso
-    equivalente;
-  - en una ejecución desatendida, saltarlos;
-  - los borrados van a la Papelera de omega, no con `rm -rf`, y antes se
-    comprueba que la app no está abierta;
-  - los cambios persistentes de configuración pasan por `mac_change` o el
-    asistente, con copia y `undo`.
-  Ahora: `safety.AlwaysConfirm` (`internal/safety/ask.go`) pregunta siempre
-  por `rm -r` de datos de apps y de contenido del usuario (no de cachés
-  regenerables, Papelera ni temporales; la caché de Spotify sí pregunta),
-  `git worktree remove`, `git config --global` que escribe, `go env -w/-u`,
-  `defaults write/delete`, `brew … --force`/`--zap`, cualquier `sudo`
-  (salvo `-n true`, `-v`, `-k`, `-l`) y `mo purge`. En desatendido se
-  saltan. El prompt pide mover a la Papelera tras comprobar que la app no
-  está abierta, y aplicar ajustes duraderos con `write_file`, `mac_change`
-  o el asistente. Cada aprobación queda en el registro con quién la dio.
-- [x] **A4. El agente se salta la confirmación de otra herramienta.**
-  `mo purge` contestó «Purge requires confirmation… --yes to confirm» y el
-  agente lo relanzó con `--yes` sin preguntar (22_150146:163-172). Debe:
-  añadir `--yes`, `-f` o `--force` después de que la herramienta se negara
-  es «confirmar siempre». `mo purge` pasa a ser un paso del catálogo con su
-  propia propuesta.
-  Ahora: si la salida de un comando pide una confirmación propia («--yes to
-  confirm», «requires confirmation»), añadir después `--yes`, `-y` o
-  `--force` a ese programa es «confirmar siempre», también con `--yes` de
-  omega; `mo purge` y `mo` con `--yes` preguntan siempre.
-- [x] **A5. El agente ofrece opciones catastróficas.** Llegó a proponer
-  borrar volúmenes de Docker en uso con datos de Postgres (19_191120:104);
-  con A1, se habrían «elegido». Debe: «confirmar siempre» para
-  `docker volume rm` o `prune` sobre volúmenes en uso, y el prompt prohíbe
-  proponerlo como una opción más.
-  Ahora: `docker volume rm/prune`, contenedores y `system prune` siguen en
-  «confirmar siempre», y el prompt prohíbe ofrecer borrar volúmenes en uso
-  o contenedores parados con datos fuera de un volumen con nombre.
-- [x] **A6. `brew upgrade` se lanzó con 3–7 GB libres y llenó el disco.**
-  Salieron 13.063 líneas «No space left on device», `exit=1` tras 1 min
-  59 s, y un registro de 2,5 MB que costó $0,38, cien veces una ejecución
-  normal (19_105805:536-14545). Debe:
-  - antes de `brew`, `brew-greedy` y `topgrade`, comparar el espacio libre
-    con lo que se va a descargar (`brew upgrade --dry-run` da tamaños) o con
-    un mínimo, por ejemplo 10 GB;
-  - por debajo, no ejecutar y decir por qué;
-  - si aparece «No space left on device», cortar el paso en lugar de dejar
-    que siga.
-  Ahora: `brew`, `brew-greedy`, `topgrade`, `mas` y `macos` empiezan
-  comprobando el espacio libre del volumen de datos (`omega_space` en
-  `internal/steps/shell.go`): con menos de 10 GB (`OMEGA_MIN_FREE_GB`)
-  dicen cuánto queda y qué hacer, y salen con 1 sin ejecutar nada.
-  Cualquier orden que dé 20 errores «No space left on device» se detiene y
-  la respuesta dice que el disco está lleno.
+### B. Órdenes de la CLI que hacen daño o engañan
+
+- [x] **B1. `omega net kill <puerto>` mata con `kill -9` sin confirmar ni
+  decir qué proceso es** (`internal/netdiag/netdiag.go:293-317`,
+  `internal/cli/net.go:89-104`).
+  - Debe:
+    - mostrar «PID 673 ControlCenter en :5000»;
+    - pedir confirmación, o `--yes`;
+    - enviar SIGTERM, esperar unos segundos y solo después SIGKILL, como
+      hace `agents kill`.
+  **Hecho:** muestra PID, proceso y puerto, pide confirmación o `--yes`, SIGTERM, espera 3 s y luego SIGKILL; en Windows `taskkill` y después `/F`.
+- [x] **B2. `omega git status` y `git clean` dan por fusionadas las ramas
+  según la rama actual, no la de por defecto**
+  (`internal/gitops/gitops.go:159`, `:166`).
+  - Solo protegen `main`, `master` y `develop`.
+  - En `~/Dev/doctorSIM/www`, con HEAD en una rama de feature, propone
+    borrar `develop2`, `release/fiscal-panel-prod-10253`,
+    `backup-develop2-…` y 317 ramas en total.
+  - Debe:
+    - comparar con `origin/HEAD` o con la rama por defecto;
+    - proteger `release/*`, `develop*`, `backup*` y la rama upstream de
+      cada worktree;
+    - avisar cuando HEAD no es la rama por defecto;
+    - tener `--dry-run`.
+  **Hecho:** comparación con la rama por defecto, ramas protegidas (`develop*`, `release*`, `backup*`, worktrees y sus upstream), aviso si HEAD no es la de por defecto, `--dry-run`/`--yes` y una sola pregunta con `ui.Pick`.
+
+---
 
 ## P1
 
-### B. Política y modos
+### C. Resultados equivocados o engañosos
 
-- [x] **B1. Los pasos `health`, `security` y `system-logs` «están
-  bloqueados»** según el agente (19_111023, 19_184355:63, 19_185142:64,
-  22_145320:48, 23_080934:48, 23_081159:47). Al bloquearlos, el agente
-  rehace sus comandos uno a uno con `run_command`, en 6 ejecuciones y unas
-  10 llamadas cada vez. En el código actual el paso pasa con su riesgo
-  `Safe`, así que no se ha podido reproducir el bloqueo, y el registro no
-  dice el motivo (ver C2).
-  Lo que sí falla: el clasificador da «peligroso» a los comandos de esos
-  pasos sueltos, así que por `run_command` piden aprobación:
-  - `sed 's/^ *//'`
-  - `memory_pressure -Q`
-  - `softwareupdate --schedule`
-  - `socketfilterfw --getglobalstate`
-  - `/usr/bin/log show`
-  - `echo $(…)`
-  - `for …; do echo …; done`
+- [x] **C1. `disk duplicates` sobre una carpeta que no existe dice «No
+  duplicate files found» y sale con 0.**
+  - Causa: `filepath.Walk` ignora todos los errores
+    (`internal/cleaner/cleaner.go:301-304`).
+  - Debe: validar la carpeta, como `disk large`, y decir qué carpetas no se
+    pudieron leer (TCC en `~/Downloads`).
+  **Hecho:** valida la carpeta, sale con 1 si no existe y cuenta las carpetas ilegibles.
+- [x] **C2. `net ping` muestra «404 OK».** Cualquier respuesta HTTP cuenta
+  como OK (`internal/cli/net.go:43-46`). En macOS además lista «Ubuntu
+  Mirrors».
+  - Debe: decir «alcanzable (HTTP 404)» o usar URLs que den 200, y filtrar
+    los destinos por sistema.
+  **Hecho:** «alcanzable (HTTP 404)»; destinos filtrados por sistema; comprobaciones en paralelo.
+- [x] **C3. `agents list` invita a matar cuando no hay nada que matar.**
+  - Dice «Left behind: 0 processes … holding 0 B» y, debajo, «… 57 MB» por
+    grupo, porque la cabecera excluye los daemons compartidos y el grupo los
+    incluye.
+  - Cierra con «`omega agents kill` ends them all» (`agents.go:331-347`).
+  - Debe:
+    - no dar la pista si no hay nada;
+    - usar el mismo criterio de memoria en cabecera y grupos;
+    - agrupar en una línea los 30 `git fsmonitor--daemon` iguales.
+  **Hecho:** sin pista si no hay nada; mismo criterio de memoria; daemons compartidos agrupados («29 × git fsmonitor--daemon»).
+- [x] **C4. El paso `brew` (y `brew-greedy`) falla con `pipefail` cuando no
+  queda nada que actualizar** (`internal/steps/shell.go:80`, `:86`).
+  - `… | grep -vxF "$gone" | xargs -r …`: si grep no deja ninguna línea,
+    sale con 1. Pasa siempre que hay un cask «gone» o de sudo y nada más
+    pendiente.
+  - Además dispara la escalada a Sonnet.
+  - Debe: `{ grep -vxF "$gone" || true; }`, con una prueba de la tubería.
+  **Hecho:** `{ grep -vxF "$gone" || true; }`, con prueba bajo `pipefail` en bash y zsh.
+- [x] **C5. `disk_usage` sale con 1 en cuanto hay una carpeta ilegible**
+  (`tools.go:708`, `du … | sort | head` con `pipefail`).
+  - En macOS ocurre siempre. Al no cachearse, el escaneo de 1-2 min se
+    repite, y el modelo lo toma por un fallo.
+  - Debe: ignorar el código de salida de `du`.
+  **Hecho:** `{ du … || true; } | sort | head`.
+- [x] **C6. La caché de la sesión devuelve resultados viejos después de un
+  cambio hecho fuera de `runShell`.**
+  - `forget()` solo se llama allí (`tools.go:234-237`). Tras reescribir
+    `topgrade.toml` con `write_file`, `run_step topgrade-preview` contesta
+    «nothing has changed since» (`tools.go:313`).
+  - Al conceder un permiso de macOS, `regainAccess` (`access.go:124`) solo
+    limpia `macInv`.
+  - Debe: llamar a `a.forget()` en todo handler que escribe y antes de
+    `rerun()`.
+  **Hecho:** `forget()` en todo lo que escribe y antes de `rerun()` en `regainAccess`.
+- [x] **C7. Los pasos de `steps.d` imponen el riesgo que declaran.**
+  - `risk = "read-only"` con un `rm -rf` dentro se ejecuta en `--dry-run`,
+    en solo lectura y en `analyze`/`health`
+    (`internal/customsteps/customsteps.go:90-116`,
+    `deterministic.go:338`).
+  - Debe: para los pasos no integrados, `risk = max(declarado,
+    Classify(cmd))`.
+  **Hecho:** el riesgo es el mayor entre el declarado y `safety.Classify(cmd)`.
+- [x] **C8. `audit secrets` promete «dotfiles» y solo lee historiales de
+  bash y zsh** (`secscan.go:228-234`).
+  - No lee el historial de fish ni el de atuin, que esta máquina usa.
+  - Sale con 0 aunque encuentre fugas.
+  - Debe: decir lo que revisa de verdad o ampliar las fuentes, y salir con
+    un código distinto de 0 si encuentra algo.
+  **Hecho:** lee también fish, atuin y los historiales de python, node, psql y mysql; dice qué leyó; sale con 1 si encuentra algo (`--no-fail`).
+- [x] **C9. `rollback` dice «Inspect and restore» y solo lista.**
+  - Si no hay instantáneas sale vacío, sin decirlo.
+  - En Linux lanza `sudo snapper list` con 5 s de límite, y puede quedarse
+    esperando la contraseña (`rollback.go:15`, `customsteps.go:225-240`).
+  **Hecho:** `rollback` lista con `tmutil`, `snapper` (con `sudo -n`, sin esperar contraseña) o `Get-ComputerRestorePoint`, dice «No hay instantáneas» y tiene `--json`.
+- [x] **C10. `--max-cost` deja de funcionar en silencio cuando el precio del
+  modelo es desconocido** (`agent.go:338-357`): modelos custom, una
+  escalada a un modelo sin precio, el catálogo apagado.
+  - Debe: avisar al empezar y cortar por tokens o por `--max-turns`.
+  **Hecho:** con precio desconocido, `--max-cost` cuenta a `llm.CautiousPrice` ($10/$50 por millón), avisa una vez y corta (`internal/agent/costlimit_test.go`).
 
-  Debe: averiguar el rechazo con el motivo registrado, y que esos
-  comandos sean de solo lectura. Hace falta una prueba de que cada paso de
-  categoría `Check` se clasifica `Safe`.
-  Ahora: cada comando de los pasos `Check` se clasifica de solo lectura,
-  con prueba que los copia literalmente (`TestReview4CheckStepsReadOnly`):
-  `sed` sin escritura, `memory_pressure -Q`, `softwareupdate --schedule`,
-  `socketfilterfw --get…`, `log show`, `$(…)` y bucles `for/while` con
-  cuerpo de solo lectura. Un `$'` dentro de comillas ya no se toma por
-  ANSI-C (era lo que hacía peligroso `system-logs`). Los rechazos se
-  registran con su motivo (C2), así que un bloqueo futuro se verá.
-- [x] **B2. Lecturas bloqueadas en modo desatendido:** el plist de un
-  agente de inicio (19_185142:250) y un `grep` de `~/.zshrc`
-  (19_190418:154). Debe: leer no es cambiar; solo se bloquean los
-  ficheros secretos de siempre.
-  Ahora: `plutil -p`, `launchctl print/list`, `grep`/`cat` de `~/.zshrc` y
-  de Oh My Zsh, `defaults read`, `lipo -archs`, `xcode-select -p`, `pgrep`,
-  `docker info/system df`, `brew uses`, `git worktree list`, `git
-  rev-list`… son de solo lectura y `PersonalSetup` no los marca.
-- [x] **B3. `docker builder prune` (y `image prune` de imágenes colgantes)
-  bloqueado en 9 ejecuciones.** Es caché que se regenera, y el paso
-  `containers` de topgrade hace `docker image prune -f` sin preguntar
-  (19_185256:189, 23_082342:151). Debe: una sola política para Docker. La
-  caché de build y las imágenes colgantes son de riesgo normal; volúmenes,
-  contenedores parados e imágenes sin registro, «confirmar siempre».
-  Ahora: `docker builder prune` e `image prune` sin `-a` (caché y
-  colgantes) ya no son «confirmar siempre» (siguen pidiendo aprobación como
-  peligrosos); `-a`, volúmenes, contenedores y `system prune` sí.
-- [x] **B4. `remember` falla y dice que funcionó.**
-  - El límite de 400 caracteres devuelve error, pero el registro pone
-    `[remember exit=0]` (19_105805:15128, 19_185142:218, 23_080707:843,
-    23_082106:194) y el resumen dice «Nota guardada» o culpa a la
-    aprobación.
-  - Tras leer la web la nota pide aprobación, y en desatendido no se guarda
-    (`toolRemember`, `tools.go:701`). Parece aleatorio, y el agente no lo
-    entiende.
+### D. Coste y robustez
 
-  Debe:
-  - el límite en la descripción de la herramienta;
-  - `exit≠0` en el registro para cualquier error de herramienta;
-  - el rechazo por web, explicado en el resumen con esas palabras.
-  Ahora: el límite de 400 caracteres está en la descripción de `remember`;
-  el error dice «not saved… Write it again, shorter»; cualquier herramienta
-  que falla deja `[tool FAILED]` en el registro; el rechazo tras leer la
-  web pide decir en el resumen que no se guardó por eso.
-- [x] **B5. `mac_change` y `mac_policy` rechazan lo que el usuario
-  eligió** («ha rechazado los cambios que elegiste», 19_185202:13;
-  19_112126:25) y el resumen manda a «usar `omega mac`», que es lo que se
-  estaba usando. Debe: decir el motivo real del rechazo y no proponer en
-  ese modo lo que se va a rechazar.
-  Ahora: el rechazo explica que solo ocurre en ejecuciones desatendidas y
-  que el usuario puede aplicarlo con `omega mac` en una sesión con alguien
-  delante; en desatendido no se ofrecen esos cambios (A1).
-- [x] **B6. En desatendido se abren paneles de Ajustes**
-  (`open x-apple.systempreferences:…Time-Machine…`, `Privacy_AllFiles`;
-  19_111023, 19_184355:105, 23_080934:139, 23_082213:10). Debe: en
-  desatendido, `open` de una URL de Ajustes se convierte en un enlace del
-  resumen.
-  Ahora: en desatendido, `open x-apple.systempreferences:…` no se ejecuta y
-  la respuesta da el enlace para el resumen.
+- [x] **D1. Con Haiku 5.5 se paga ×5 entre 100k y 140k tokens antes de
+  compactar.**
+  - `CompactAt` es 140k para `claude-*` (`internal/llm/llm.go:151-153`),
+    pero `longPrompt` multiplica por 5 a partir de 100k
+    (`pricing.go:29-31`).
+  - Debe: `CompactAt = min(70 % de la ventana, LongAbove − margen)`.
+  **Hecho:** `CompactAt` = mínimo entre el 70 % de la ventana y el umbral de precio largo menos 10k (90 000 con Haiku 5.5).
+- [x] **D2. El cliente de Anthropic no tiene límite de tiempo**
+  (`internal/llm/anthropic.go:26`); el de OpenAI tiene 10 min.
+  - Una conexión colgada bloquea para siempre una ejecución programada.
+  - Debe: `option.WithRequestTimeout(10*time.Minute)` por intento.
+  **Hecho:** `WithRequestTimeout(10m)` por intento; un tiempo agotado no se reintenta.
+- [x] **D3. La escalada de modelo es para siempre y salta también con un
+  Ctrl-C o un tiempo agotado.**
+  - `escalate` deja `escalated = true` (`agent.go:550-563`), y `runShell`
+    escala con exit −1 (`tools.go:261`).
+  - Debe: no escalar por cancelación ni por tiempo agotado, y volver al
+    modelo rápido tras N turnos sin fallos.
+  **Hecho:** no escala por cancelación ni tiempo agotado; vuelve al modelo inicial tras 4 turnos sin fallos.
+- [x] **D4. Los proveedores compatibles con OpenAI no cuentan la caché.**
+  - `oaResponse` ignora `prompt_tokens_details.cached_tokens`
+    (`openai.go:150-153`, `:230`).
+  - Con OpenRouter→Claude no se envía `cache_control`, así que cada turno
+    reenvía el historial sin caché y `--max-cost` corta antes de tiempo.
+  **Hecho:** `cached_tokens` como `CacheRead`; `cache_control` en el sistema y el último mensaje de usuario solo para OpenRouter con `anthropic/*`, con el formato y los campos que documenta OpenRouter (bloques con `cache_control` en mensajes de sistema y de usuario; `prompt_tokens_details.cached_tokens` y `cache_write_tokens`).
+- [x] **D5. `list_steps` devuelve unos 24 KB (~6k tokens) en cada llamada**
+  (`tools.go:501-525`): todos los pasos, instalados o no, con su comando
+  completo.
+  - Debe: por defecto solo los disponibles y sin comando; `detail=true`
+    para uno concreto.
+  **Hecho:** por defecto solo pasos disponibles y sin comando; `id`, `all` y `detail` para más.
+- [x] **D6. Las notas se inyectan enteras en cada system prompt**
+  (`agent.go:142`, `prompt.go:443-450`). Aquí ya son 93 notas, muchas
+  repetidas («Worktree agents-v3.7 pendiente» aparece en 15).
+  - Debe:
+    - meter solo las N más recientes, o hasta ~4 KB;
+    - no guardar una nota igual a otra (normalizada y sin fecha);
+    - una orden `omega notes compact` que proponga fusionar las repetidas.
+  **Hecho:** el prompt lleva como mucho ~4 KB de notas, las más nuevas primero; `remember` no repite notas; `omega notes compact` (N4).
+- [x] **D7. Los pendientes nunca caducan** (`pending.go:174-197`).
+  - Los `done` y `dismissed` se acumulan, y un `open` de hace meses sigue en
+    el prompt.
+  - Debe:
+    - borrar los `done` de más de 30 días;
+    - pasar a `stale` los `open` que nadie ha visto en 30 días;
+    - limitar la lista del prompt.
+  **Hecho:** `done` de más de 30 días se borran, `open` sin ver en 30 días pasan a `stale`, y el prompt muestra 15 con «+N more».
+- [x] **D8. Ctrl-C y los tiempos agotados matan con SIGKILL al instante**
+  (`internal/runner/session_unix.go:18`). Deja `apt`, `dpkg`, `brew` o
+  `softwareupdate` a medias, con bloqueos.
+  - Debe: SIGTERM al grupo, una espera de unos segundos y luego SIGKILL.
+  - Afecta también a `omega custom`.
+  **Hecho:** SIGTERM al grupo, 5 s y luego SIGKILL (Windows igual que antes).
+- [x] **D9. `--dry-run` y el modo solo lectura siguen escribiendo notas y
+  pendientes** (`tools.go:971-982`, `pendingtool.go:56-83`).
+  **Hecho:** en solo lectura o `--dry-run` no se guardan notas ni pendientes, y la herramienta lo dice.
+- [x] **D10. Hay fuentes de texto no confiable que no marcan la sesión como
+  «tainted».**
+  - `run_history` devuelve 12 KB de transcripciones antiguas que incluyen
+    texto de páginas web (`omega.go:267`, `log.go:551`).
+  - Un `curl` aprobado tampoco la marca.
+  **Hecho:** `run_history` y los `curl`/`wget`/`gh api`/`iwr` aprobados marcan la sesión.
+- [x] **D11. `effort = "High"` se valida en minúsculas pero se envía tal
+  cual** (`config.go:135` frente a `root.go:403`, `model.go:288`). La API
+  probablemente responde 400.
+  - Debe: normalizar el valor al cargar la configuración.
+  **Hecho:** `effort` se pasa a minúsculas al cargar y al validar.
+- [x] **D12. Las claves desconocidas de `config.toml` se ignoran sin
+  avisar** (`config.go:97` descarta `Undecoded()`). Una errata como
+  `aproval = "all"` deja la política por defecto sin que nadie lo sepa.
+  - Debe: avisar en `config check` y en `doctor`.
+  **Hecho:** `config.UnknownKeys()`; avisan `config check` y `doctor`; `disk_budgets` se valida.
+- [x] **D13. `write_file` no es atómico** (`tools.go:911`): con el disco
+  lleno deja el fichero truncado.
+  - Debe: escribir en un temporal y renombrar.
+  **Hecho:** temporal en el mismo directorio, fsync y rename; conserva permisos, sigue el symlink y mantiene `.omega-bak`.
 
-### C. El registro de la ejecución
+---
 
-- [x] **C1. La cabecera no dice lo necesario.** Solo tiene la fecha, el
-  proveedor y el modelo. Falta:
-  - la versión de omega (que se actualizó a sí misma a mitad de
-    19_105805:14181);
-  - el equipo (nombre, modelo, disco): dos Macs escriben en la misma
-    carpeta;
-  - la orden y la tarea (`omega full --unattended`, la etapa, o la pregunta
-    del usuario);
-  - el modo (guiado, desatendido, solo lectura, automático) y si hay
-    `--sudo`.
-  Ahora: la cabecera lleva, tras la primera línea de siempre: `version`,
-  `host` (nombre, modelo, disco y libre), `command` con la tarea, y `mode`
-  (desatendido/etapa guiada/interactivo, solo lectura o automático,
-  política de aprobación, sudo). La primera entrada es la tarea (`> …`).
-- [x] **C2. Los rechazos no se registran.** `authorize` y `toolRemember`
-  emiten `EvDenied`, pero `writeLog` (`internal/agent/log.go:157`) no tiene
-  ese caso. Ningún «bloqueado por la política», «solo lectura» o «necesita
-  una persona» deja rastro en las 60 ejecuciones, y no se puede saber qué
-  pasó en B1. Debe: `[run_step:health DENEGADO: <motivo>]`.
-  Ahora: `writeLog` escribe `EvDenied` como `[tool DENIED] comando` con
-  `reason:`.
-- [x] **C3. Las preguntas y las respuestas no se registran.** Ni la
-  pregunta de `propose_actions` o `ask`, ni las opciones, ni lo que volvió,
-  ni si lo eligió una persona o el modo desatendido (A1). Las aprobaciones
-  automáticas tampoco. Debe: registrar la pregunta, las opciones y los ids
-  devueltos, con quién decidió.
-  Ahora: se registran la pregunta y las opciones (`? choice`), la respuesta
-  y quién la dio (`? answer: … — chosen by the user / omega, automatically
-  / nobody`), y cada aprobación (`[tool approved by the user]`, `[…
-  approved without asking (…)]`).
-- [x] **C4. Las herramientas que no son de shell solo dejan
-  `[tool exit=0 0s]`:** `system_info`, `read_file`, `fetch_url`,
-  `web_search`, `dev_inventory`, `mac_inventory`, `run_history` y
-  `remember` (sin el texto de la nota). Los resúmenes citan datos que no
-  están en ningún sitio («16 GB de RAM», «zsh arranca en 166 ms», «Go
-  1.27.4»). Debe: una línea con los argumentos y un resumen del resultado
-  (líneas, bytes, primeras líneas, el texto de la nota).
-  Ahora: las herramientas que no son de shell dejan `[tool returned N
-  lines]` con sus primeras 15 líneas; `remember` deja el texto de la nota.
-- [x] **C5. La salida de las llamadas en paralelo se mezcla línea a
-  línea.** Todas las cabeceras `$` salen primero y la salida de cuatro pasos
-  después, intercalada, con `[run_step:disk]` cerrando en mitad de
-  topgrade. En 23_082106 eso llevó a leer mal `brew uses openjdk@25` y a
-  proponer desinstalarlo. Debe: guardar la salida de cada llamada y
-  escribirla en bloque bajo su propia cabecera, o prefijar cada línea con
-  un id.
-  Ahora: dentro de un lote en paralelo, la salida de cada llamada se guarda
-  y se escribe en bloque bajo su propia cabecera al terminar.
-- [x] **C6. `read_file`, `fetch_url` y `web_search` se escriben como
-  `$ /ruta` o `$ https://…`,** como si fueran comandos. Debe: `read_file
-  /ruta`, `fetch_url …`, `web_search «…»`.
-  Ahora: solo `run_command`, `run_step:*`, `disk_usage` y `mac_change` se
-  escriben con `$`; el resto con `» tool argumentos`.
-- [x] **C7. El cambio de modelo no dice por qué** (`[model
-  claude-sonnet-5-5]`), y el coste final no se reparte por modelo. Tampoco
-  se dice por qué termina una sesión: 22_143904:905 acaba con
-  `mole-clean exit=-1` y sin resumen. Debe: el motivo (paso que falló,
-  cancelación, tiempo agotado, presupuesto) y un resumen parcial aunque
-  la sesión se corte.
-  Ahora: `[model X: motivo]` (paso que falló o elección del usuario); el
-  final reparte el coste por modelo, dice el motivo (cancelado,
-  presupuesto) y cuenta las herramientas que funcionaron y las que
-  fallaron, aunque no haya resumen; `exit=-1` dice «stopped: timed out or
-  cancelled».
-- [x] **C8. La salida sin límite infla el registro y los tokens.** Además
-  de A6, entran enteros:
-  - la tabla de `brew upgrade` dos veces (unas 530 líneas);
-  - avisos de rdoc «already initialized constant» (`gem update`);
-  - avisos de Spotlight de `mas`;
-  - el `topgrade.toml` y el `clean-list.txt` comentados;
-  - `docker system df -v` con 90 volúmenes.
+## P2: coherencia de la CLI
 
-  Debe:
-  - colapsar líneas repetidas con el mismo prefijo;
-  - recortar con cabeza, cola y líneas de error, tanto para el modelo como
-    para el registro;
-  - filtros por paso: `gem update --no-document` y `MAS_NO_AUTO_INDEX=1`
-    o equivalente.
-  Ahora: las líneas repetidas con la misma forma se pliegan («… N more
-  lines like the one above») para el registro y para el modelo; cada
-  llamada escribe como mucho 300 líneas, luego solo errores (30) y las 40
-  últimas. Los filtros por paso (`gem --no-document`, avisos de `mas`)
-  están en los pasos.
+### E. Idioma
 
-### D. Pasos que fallan o mienten
+- [x] **E1. El modo sin IA está entero en inglés** (`deterministic.go:277-545`).
+  - Ejemplos: «⚡ Omega Deterministic Mode: Update», «Running the safe
+    cleanups…», «skipped: needs a confirmation at a terminal», «No problems
+    found.», «💡 Run 'omega update'…».
+  - También el `Summary` del JSON y el aviso «omega: running without AI»
+    (`root.go:602`).
+  - Es lo que ve cualquier ejecución programada.
+  **Hecho:** modo sin IA y `Summary` del JSON traducidos.
+- [x] **E2. Unas 15 órdenes tienen ayuda y salida solo en inglés**: `audit`,
+  `privacy`, `schedule`, `uninstall`, `disk`, `git`, `net`, `rollback`,
+  `shell`, `quick`, `man`, `skills`, `assist`, `agents`, `export` y
+  `bootstrap`. Ninguna llama a `i18n.T`.
+  - En `omega --help` conviven «quick  One-click safe maintenance» y «fix
+    Diagnosticar…».
+  **Hecho:** todas las órdenes de herramientas pasan por i18n (`messages_tools.go`). Los textos de las comprobaciones de `assist` (Title/Why) siguen en inglés.
+- [x] **E3. Las plantillas de cobra siguen en inglés**: «Usage:», «Flags:»,
+  «Available Commands:», «help for X», «Help about any command». Y también
+  sus errores: «unknown flag», «accepts at most 1 arg(s)».
+  - Debe:
+    - traducir las plantillas con `SetUsageTemplate`/`SetHelpTemplate`;
+    - traducir los errores con `SetFlagErrorFunc` y validadores propios;
+    - terminar cada error con «omega X --help».
+  **Hecho:** plantillas de ayuda, errores de opciones y de argumentos traducidos, con sugerencia y «omega X --help» (`internal/cli/cobrahelp.go`).
+- [x] **E4. 47 de los 122 pasos no tienen nombre traducido**: «Stale project
+  build folders», «Shell startup time», «Go module cache», «Old gem
+  versions»…
+  - Faltan claves `step.<id>`, por ejemplo para `dev-artifacts`,
+    `shell-startup`, `go-modcache`, `gem-cleanup`, `ios-device-support`,
+    `xcode-derived`, `yarn-cache` y `mise-prune`.
+  **Hecho:** 34 pasos con nombre traducido y una prueba que lo exige.
+- [x] **E5. No hay plurales.** Salen «visto en 1 ejecuciones», «30
+  registro(s)», «1 unpushed commit(s)» y «comprobación(es) fallida(s)».
+  - Debe: `i18n.N(key, n)` con formas `one` y `other`.
+  - Esta pasada evitó el problema en los textos nuevos («ejecuciones: 1»,
+    «fallos: 2»), pero los antiguos siguen igual.
+  **Hecho:** `i18n.N` con formas `.one`; sin «(s)» en los textos.
+- [x] **E6. Hay textos fijos en inglés dentro del agente**: «Reached cost
+  budget limit» (`agent.go:356`) y los errores de `ParseFor`
+  (`pending.go:220`) y de `pending.Resolve`.
+  **Hecho:** `agent.cost_limit`, `ParseFor`, `Resolve` y `Set` traducidos.
+- [x] **E7. El sistema de i18n se apoya en mapas sueltos**
+  (`messages*.go`, 5 idiomas por clave) sin comprobar los `%` de formato.
+  - Una traducción con un `%d` de menos o de más imprime `%!d(MISSING)`.
+  - Debe: una prueba que compare los verbos de formato de los 5 idiomas.
+  **Hecho:** prueba que compara los verbos de formato (también con índices `%[2]s`) entre idiomas y entre `.one` y su base.
 
-- [x] **D1. Ningún comando corre con `pipefail`.** `topgrade … | tail
-  -150` sale con 0 con «Brew Cask: FALLIDO» (19_111309); `mo purge … |
-  tail -4; rm -rf …` sigue tras el rechazo (22_150146:161); `pgrep … | head;
-  echo exit=$?` fue la comprobación previa al `rm -rf vm_bundles`
-  (19_184014:387). Causa: `runner.go:105` usa `$SHELL -lc` sin
-  `pipefail`. Debe: `set -o pipefail` delante (también en zsh), y el prompt
-  advierte de que `| tail` oculta el código.
-  Ahora: el intérprete corre con `pipefail` (zsh `setopt pipefail`, bash/sh
-  `set -o pipefail` si existe) y el prompt advierte de `| tail` y de `echo
-  exit=$?` tras una tubería.
-- [x] **D2. zsh aborta con un glob sin coincidencias** (`no matches found:
-  /Applications/MySQL*`, 19_185555:83; 19_190543:26 mató un bucle y salió
-  con 0). Debe: `setopt nullglob` o `nonomatch` en el prefijo del
-  intérprete, o `/bin/bash` para `run_command`.
-  Ahora: zsh corre con `setopt no_nomatch`: un patrón sin coincidencias
-  queda literal, como en bash.
-- [x] **D3. Un paso que sale con `≠0` hace subir el modelo a Sonnet**
-  (`runShell`, `tools.go:228`). Eso pasa aunque el fallo sea benigno:
-  - `brew-doctor` con solo un aviso de `icu4c@78` deprecado;
-  - `system-logs` con salida completa;
-  - `helm-repos` sin repositorios;
-  - `docker-df` con Docker apagado.
+### F. Órdenes, opciones y ayudas
 
-  Es lo que encarece 12 ejecuciones (las 4 con Sonnet son el 79 % del coste
-  del 19 por la tarde). Debe: corregir esos pasos (abajo) y subir de modelo
-  solo ante un fallo que lo justifique, nunca por un aviso o por una
-  herramienta ausente.
-  Ahora: solo sube de modelo un paso que falla por algo que un modelo mejor
-  puede arreglar: Docker parado, nada que actualizar, avisos, disco lleno o
-  sin sudo no lo hacen (`benignFailure`). La documentación lo dice.
-- [x] **D4. `system-logs` sale con 1 o 0 según la última tubería**
-  (19_185142:54, 22_144919:284, 23_080934:38). Debe: `|| true` por sección
-  y un código calculado a propósito.
-  Ahora: la orden de macOS termina en `; true` (la de Linux ya lo hacía), y
-  sus comandos son de solo lectura (B1).
-- [x] **D5. `brew-doctor` sale con 1 con solo avisos de fórmulas
-  deprecadas.** Debe: «aviso», no «fallo».
-  Ahora: un código 1 (solo avisos) pasa a 0 con «(brew doctor found
-  warnings: they are advice, not a failure)»; cualquier otro código se
-  conserva.
-- [x] **D6. `docker-df` falla con Docker apagado** (4 ejecuciones) y el
-  agente lanza `docker-start` u `open -a Docker && sleep 40`, y deja
-  Docker abierto. Debe: comprobar `docker info`, decir «Docker no está en
-  marcha» con salida 0 y medir `Docker.raw` sin arrancarlo.
-  Ahora: `docker system df` o «Docker is not running; measured the disk
-  image without starting it», y el tamaño de `Docker.raw`; sale con 0 y
-  nunca arranca Docker.
-- [x] **D7. `helm-repos`, `pnpm update -g` y `uv tool upgrade` fallan o
-  hacen ruido sin nada instalado** («Error: no repositories found», «Es lo
-  de siempre»), aunque ambos `topgrade.toml` desactivan helm por eso.
-  Debe: `Available()` comprueba que hay algo que actualizar.
-  Ahora: `helm-repos`, `pnpm` y `uv` solo están disponibles cuando hay algo
-  que actualizar (`helm repo list`, `pnpm ls -g`, `uv tool list`, una vez
-  por proceso y con 5 s de límite).
-- [x] **D8. `topgrade` desatendido falla en el primer paso por sudo, y la
-  vista previa dice que todo va bien.** Sin credenciales, `pre_sudo` o
-  `sudo_loop` hacen `sudo -v` y fallan con «Failed to elevate
-  permissions» (19_105805:14854, 22_143904:314). La vista previa simula
-  `sudo -v` y da «Sudo OK» (19_112246, 22_150932:262), y los consejos de
-  configuración alaban `pre_sudo=false` sin ver `sudo_loop = true`.
-  Debe:
-  - sin sudo, lanzar topgrade con `--disable` de los pasos que lo piden;
-  - la vista previa avisa «esta configuración necesita sudo y esta
-    ejecución no lo tiene»;
-  - `config_hints` conoce `sudo_loop`.
-  Ahora: topgrade ejecuta `sudo -v` aunque se le pase `--disable`
-  (comprobado con topgrade 17.17), así que, si la configuración tiene
-  `pre_sudo` o `sudo_loop = true`, el paso usa un `--config` temporal que
-  incluye la del usuario y sus ficheros de `topgrade.d` y apaga los dos al
-  final; los pasos que necesitan sudo lo piden al ayudante de omega o
-  fallan solos. La vista previa avisa de que esa configuración falla sin
-  sudo. `config_hints` explica `pre_sudo` y `sudo_loop`.
-- [x] **D9. Casks que necesitan sudo o cuya app ya no está** (naps2, obs,
-  busycal, mysqlworkbench, Alfred 5→6) hacen fallar `brew` y `brew-greedy`
-  una ejecución tras otra (`brew-greedy` tardó 3 min 14 s sabiendo que uno
-  fallaría, 19_185555). Debe: antes del paso, detectar los casks sin app
-  o que piden sudo, apartarlos y proponer su arreglo
-  (`uninstall --force` o reinstalar) o `--sudo`.
-  Ahora: `brew` y `brew-greedy` leen el recibo de cada cask: dicen cuáles
-  están instalados sin su app, con la orden para arreglarlos (`brew
-  reinstall --cask` o desinstalar), y los dejan fuera. Los que se instalan
-  con un `.pkg` o un instalador propio (piden la contraseña de
-  administrador) se dejan fuera y se nombran cuando la ejecución no puede
-  contestar a sudo: el agente pone `OMEGA_SUDO` (`yes` con `--sudo`, `ask`
-  con alguien delante, `no` si nadie) en el entorno de las órdenes. Pruebas
-  con un Caskroom falso en sh, bash y zsh.
-- [x] **D10. Mole pide sudo por `/dev/tty` sin terminal** («/dev/tty:
-  Device not configured», 22_144919:355, 23_080718:372). Debe: lanzarlo
-  sin TTY en modo no interactivo, o con el ayudante de sudo de omega.
-  Ahora: los pasos de Mole corren con `</dev/null`, se filtran las líneas
-  «/dev/tty: Device not configured» y se conserva el código de Mole.
-- [x] **D11. `mo purge` sin selección:** «No items selected», y el agente
-  concluye que «no hay artefactos», mientras `mo clean --dry-run` dice
-  «Build artifacts · 883 MB · mo purge» (23_081220:155, 23_082519:21).
-  Debe: un paso `mole-purge` con la opción no interactiva que seleccione,
-  y una pista de que «No items selected» no significa «nada que limpiar».
-  Ahora: pasos `mole-purge-preview` (`mo purge --dry-run`, solo lectura) y
-  `mole-purge` (`mo purge --yes`, artefactos de proyectos sin cambios en 7
-  días; «confirmar siempre» por A4), y `config_hints` explica que «No items
-  selected» no quiere decir «nada que limpiar».
-- [x] **D12. La vista previa de topgrade falla en `containers` con Docker
-  apagado** (23_080707:168), porque el `pre_command` que lo arranca solo se
-  simula. Debe: en vista previa, saltar `containers` si `docker info`
-  falla.
-  Ahora: con `docker` instalado y `docker info` fallando, la vista previa
-  añade `--disable containers` y dice por qué.
-- [x] **D13. `mac_inventory` agota 90 s en `sfltool dumpbtm` y sale con
-  0** (6 ejecuciones; en el otro Mac tarda 6 s). Los ítems de inicio
-  nunca se revisan y el elemento roto «Alfred 5» se repite cada día.
-  Debe: menos tiempo de espera, un estado «no disponible» visible, no
-  repetir el intento en la misma sesión, y otra fuente (plists de BTM,
-  System Events).
-  Ahora: `sfltool dumpbtm` espera 20 s, un fallo se recuerda 6 horas y no
-  se reintenta, y los ítems de inicio salen de System Events cuando falla
-  (incluidos los rotos, cuya app ya no está). El informe dice que no se
-  reintente.
-- [x] **D14. `mac_inventory`:** `kMDItemLastUsedDate` es nulo para todas
-  las apps (22_150714) y la comprobación de Rosetta del agente
-  (`arch -x86_64 /usr/bin/true`) no mide nada. Debe: otra fuente de último
-  uso y `lipo -archs` sobre el ejecutable para «solo Intel».
-  Ahora: sin fecha de Spotlight, la fecha es la del último cambio de los
-  ficheros propios de la app (preferencias, contenedor, estado guardado) y
-  se dice que es una estimación; «solo Intel» ya se miraba con la
-  arquitectura del ejecutable.
-- [x] **D15. `mac_change` no dice si funcionó.** `osascript … >/dev/null
-  2>&1 || { open …; }` no imprime qué rama se ejecutó, y el resumen afirmó
-  «Shottr ya no se abre al iniciar sesión» sin comprobarlo (19_112126:15).
-  Debe: informar de la rama y volver a leer el estado.
-  Ahora: la orden de quitar un ítem de inicio comprueba después que ya no
-  está y dice qué rama se ejecutó; si solo se abrió el panel, no se
-  registra como hecho y el modelo debe darlo como pendiente.
-- [x] **D16. `dev-artifacts`:**
-  - escanea `~/Dev` y `~/dev` como dos raíces en un disco que no distingue
-    mayúsculas, y cuenta todo dos veces (22_150146:27);
-  - `-mtime +60` sobre la carpeta no indica abandono;
-  - sin resultados no imprime nada (el agente adivina);
-  - discrepa de Mole: 0 frente a 883 MB.
+- [x] **F1. `omega fix` hereda opciones que no puede usar** (`fix.go:47`):
+  `--no-ai`, `--json`, `--format`, `--fail-on-*`, `-q` y `-v` hacen fallar
+  la orden.
+  - Además describe `fix` de tres formas distintas (`messages.go:44`,
+    `cmd.fix`, `fix.go:20` en inglés).
+  **Hecho:** `fix` solo registra opciones del agente; descripción única que documenta `omega fix -` y `--log`.
+- [x] **F2. Las opciones globales «with --no-ai: …» salen en todas las
+  ayudas sin agrupar.**
+  - `-v` es «verbose» solo sin IA.
+  - `--max-cost` y `--max-turns` no dicen que 0 significa sin límite.
+  - Debe: dos bloques, «Opciones del agente» y «Opciones sin IA», y un aviso
+    si se usan con IA.
+  **Hecho:** bloques «Opciones del agente» y «Opciones sin IA»; 0 = sin límite; aviso si se usa una opción sin IA con IA.
+- [x] **F3. Los códigos de salida no están documentados.**
+  - `--fail-on-outdated` y `--fail-on-warning` salen con 2.
+  - Los errores de uso salen con 1, igual que un fallo
+    (`deterministic.go:222-239`).
+  - `--fail-on-critical` significa «falla cualquier paso».
+  - Debe: 0 correcto, 1 fallo, 2 avisos y 64 uso, documentados en `--help`
+    y en el man, y aclarar `--fail-on-critical`.
+  **Hecho:** 0, 1, 2 y 64, documentados en la ayuda, el man y el manual.
+- [x] **F4. Errores de escritura sin buena respuesta.**
+  - Las subórdenes mal escritas no tienen sugerencia: `omega config sett` →
+    `unknown command "sett"` (`group()`, `root.go:196-200`).
+  - `omega dsk` sugiere `disk`, pero sigue con «este omega no tiene… actualízalo
+    con brew upgrade».
+  - `omega help foo` imprime la ayuda raíz y sale con 0.
+  - Debe:
+    - usar `suggest()` en todos los niveles;
+    - el texto de «actualiza» solo cuando no hay nada parecido;
+    - `help foo` debe fallar.
+  **Hecho:** sugerencias en todos los niveles; «actualiza omega» solo sin sugerencia; `help foo` sale con 64.
+- [x] **F5. `update`, `clean`, `analyze`, `health` y `tune` son palabras de
+  la raíz, no órdenes**: `omega health --help` muestra la ayuda raíz.
+  - Debe: convertirlas en órdenes con su propia ayuda, como `full`, `quick`
+    y `fix`.
+  **Hecho:** `update`, `clean`, `analyze`, `health` y `tune` son órdenes con su ayuda.
+- [x] **F6. Hay conceptos duplicados o mal nombrados.**
+  - Para el modelo hay cuatro sitios: `model`, `models`, `config set model`
+    y `setup`.
+  - El historial se reparte en tres: `logs`, `pending` y `notes`.
+  - El atajo `install` lleva a `dev install`, mientras que `uninstall`
+    desinstala apps.
+  - El atajo `backup` lleva a `export`, que no es una copia de seguridad.
+  - Debe:
+    - `models` como `model list`, o al menos «Ver también» en cada ayuda;
+    - un `omega history` que reúna logs, pending y notes;
+    - quitar el atajo `backup`.
+  **Hecho:** `omega model list` (con `models` oculto), «Ver también», sin atajo `backup`, y `omega history` (N3).
+- [x] **F7. Solo `pending` y `custom` tienen ejemplos (`Example:`)**.
+  - Les faltan a `net`, `git`, `disk`, `audit`, `schedule`, `rollback`,
+    `uninstall`, `logs`, `config`, `steps run`, `model`, `models` y
+    `export`.
+  **Hecho:** ejemplos en todas las órdenes de la lista y alguna más.
+- [x] **F8. Los `Short` demasiado largos rompen la columna de `omega
+  --help`**: `full` tiene unos 150 caracteres, y también `mac`, `assist` y
+  `auth`.
+  - Debe: 60 caracteres como máximo; el resto, en el Long.
+  **Hecho:** todos los Short caben en 60 columnas en los 5 idiomas, con prueba.
+- [x] **F9. La completion de la shell es pobre.**
+  - Está oculta (`completion.go:20`).
+  - Usa bash v1 y no tiene descripciones.
+  - No completa valores: `--provider`, `--effort`, `--format`,
+    `schedule install --task`, los ids de `pending`, `logs view` o
+    `steps run`. Esta pasada sí añadió la completion de ids a
+    `custom --set`.
+  - Debe: `GenBashCompletionV2`, más `RegisterFlagCompletionFunc` y
+    `ValidArgsFunction` donde haga falta.
+  **Hecho:** completion visible, bash V2 con descripciones y valores para opciones e ids.
+- [x] **F10. `omega man` escribe `./man/omega.1` en el directorio actual**,
+  aunque el pie de cada ayuda lo presenta como «Todos los comandos y
+  opciones».
+  - Debe: mostrarlo (`man -l` o stdout), y escribir el fichero solo con
+    `--output`.
+  **Hecho:** `omega man` muestra la página; `--output DIR` la escribe; siempre en inglés; incluye EXIT STATUS.
+- [x] **F11. Falta `--json` en casi todo.**
+  - Lo tienen `steps`, `doctor`, `agents`, `skills`, `assist` y
+    `disk limits`.
+  - Les falta a `logs`, `pending`, `notes`, `net`, `audit`, `privacy`,
+    `git status`, `disk large|duplicates|artifacts`, `docker`,
+    `schedule status`, `rollback`, `models`, `auth status`, `config show` y
+    `custom --show`.
+  **Hecho:** `--json` en todas las órdenes de la lista.
+- [x] **F12. Órdenes lentas sin señal de progreso.**
+  - `disk large` (por defecto `~`) pasa más de 90 s sin decir nada.
+  - `git status` tarda 49 s con un solo «Scanning dev directories…».
+  - Debe:
+    - un contador o spinner en stderr, y `[3/11] www…` por repositorio;
+    - Ctrl-C con resultados parciales;
+    - saltar `~/Library` y las carpetas de nube por defecto.
+  **Hecho:** progreso en stderr (solo en terminal), Ctrl-C con resultados parciales, y `disk large` salta `~/Library` y la nube salvo con `--all`.
+- [x] **F13. Listas sin límite.** `git status` imprime en una sola línea de
+  unos 15 000 caracteres las 317 ramas fusionadas.
+  - Debe: mostrar 10, «y 307 más», y ofrecer `--all`.
+  **Hecho:** 10 ramas por repositorio, «y N más» y `--all`.
+- [x] **F14. `disk artifacts` pregunta «¿Borrar todos?» sin dejar elegir**
+  (`disk.go:139-152`).
+  - Debe: `ui.Pick`, como `docker`, más `--dry-run` y `--yes`.
+  **Hecho:** `ui.Pick`, confirmación final con el tamaño, `--dry-run`, `--yes` y `--json`.
+- [x] **F15. `disk duplicates` y `disk large` esconden su carpeta por
+  defecto** (`~/Downloads` y `~`).
+  - El mínimo de 1 MB es fijo.
+  - `large` recorta a 25 resultados sin avisar (`disk.go:89`).
+  **Hecho:** carpeta por defecto documentada, `--min`, `--limit` y aviso de recorte.
+- [x] **F16. `net ports` corta los nombres de proceso** («ControlCe»,
+  «DropboxFi») porque `lsof` va sin `+c 0` (`netdiag.go:207`).
+  - La columna «Protocol» siempre dice TCP y no ordena por puerto.
+  **Hecho:** `lsof +c 0`, orden por puerto, protocolo real y `--udp`.
+- [x] **F17. `export` sobrescribe sin preguntar** (`blueprint.go:152`) y no
+  admite `-` para escribir a stdout.
+  **Hecho:** pregunta antes de sobrescribir, `--force`, y `-` escribe a stdout.
+- [x] **F18. `schedule status` no dice qué se ejecuta, cuándo ni cómo fue
+  la última vez.**
+  - Debe: mostrar tarea, intervalo, próxima ejecución, último resultado y
+    registro.
+  - Además, las ayudas de `install` empiezan en mayúscula y están en inglés.
+  **Hecho:** tarea, intervalo, próxima ejecución, último resultado y registro.
+- [x] **F19. `docker` en modo no interactivo y con Docker parado sale con 0
+  sin decir nada útil**, y no tiene un modo de solo listar (`--list` o
+  `--json`).
+  **Hecho:** mensaje claro y salida 1 con Docker parado sin terminal; `--list` y `--json`.
+- [x] **F20. Unidades de tamaño inconsistentes.**
+  - Hay tres `humanBytes`: `ui/panel.go`, `cli/docker.go` (decimal, 1e9) y
+    `assist.Human`.
+  - Más `ui.Bytes`, añadido en esta pasada.
+  - Debe: un único formateador, y coma decimal en español.
+  **Hecho:** un único `ui.Bytes` (con coma decimal en es/fr/de/pt); quitados los demás formateadores.
+- [x] **F21. `steps` no tiene filtros ni detalle**: faltan `--installed`,
+  `--category` y `omega steps show <id>`, que mostraría el comando completo,
+  qué hace, el riesgo y cómo instalarlo.
+  **Hecho:** `steps --installed`, `--category` y `steps show <id>` (N2).
+- [x] **F22. Varias órdenes escriben con `fmt.Print` en vez de
+  `cmd.OutOrStdout()`**: `man`, `uninstall`, `config show|path` y
+  `steps run`. Así no se pueden probar ni reutilizar desde la app.
+  **Hecho:** todas escriben en `cmd.OutOrStdout()`.
 
-  Debe: deduplicar raíces por inodo, usar la fecha del último fichero del
-  proyecto e imprimir «0 carpetas».
-  Ahora: las raíces se deduplican por inodo, un proyecto está abandonado
-  solo si ningún fichero cambió en 60 días (sin contar carpetas de
-  compilación ni `.git`), y sin resultados imprime «0 stale build folders
-  found».
-- [x] **D17. `read_file` de un fichero que no existe sale con 0**
-  (19_190418:13-22). Debe: error.
-  Ahora: un fallo de `read_file` se registra como `[read_file FAILED]
-  motivo`.
+---
 
-### E. Lo que el agente dice y no es verdad
+## P2: interfaz de terminal
 
-- [x] **E1. El espacio libre sale de `df -h /`,** que en macOS es el
-  volumen de sistema sellado (`systemInfoCommand`, `tools.go:239`). Cada
-  ejecución da una cifra distinta (13, 17, 28, 29, 32, 36, 40 GB) y mezcla
-  GB y GiB, y el agente se contradice («no tiene sentido», 19_111524:302).
-  Debe: `system_info` da el libre del contenedor APFS
-  (`/System/Volumes/Data`, más lo purgable) en una sola unidad, y el
-  prompt dice que se use esa cifra antes y después.
-  Ahora: `system_info` mide el volumen de datos (`/System/Volumes/Data`) y
-  da una línea «FREE SPACE: N GB free of M GB (decimal GB)» que el prompt
-  manda usar antes y después; el registro da la misma cifra en la cabecera.
-- [x] **E2. Datos de notas o de ejecuciones anteriores presentados como
-  medidos ahora:**
-  - «`_wt` de Deudafix ~53 GB», «datos Postgres», «la imagen
-    php74-apcu-10400 sigue ahí» con `Images 0` en la misma ejecución
-    (23_082439:20 y :78);
-  - «mo clean liberó 5,46 GB en la última pasada» (era otra);
-  - «topgrade actualizó 47 paquetes» (falló; fue `brew`);
-  - «usa `omega --sudo`» justo después de que sudo funcionara.
+### G. Coherencia visual
 
-  Debe:
-  - las notas llevan fecha y ejecución, y el prompt las presenta como «a
-    comprobar»;
-  - `run_history` da los pasos con su código de salida, para que el modelo
-    no confunda topgrade con brew;
-  - una nota caduca cuando lo medido la contradice.
-  Ahora: el prompt dice que lo que dice una nota o una ejecución anterior
-  es una pista que se mide de nuevo o se cita con su fecha; `run_history`
-  da los pasos que fallaron con su código, y los pendientes (G1) se
-  resuelven cuando la medida los desmiente.
-- [x] **E3. El resumen afirma cosas que no se hicieron o no se midieron:**
-  - «comprobado con comandos de solo lectura» sin comandos (19_185015:36);
-  - «Go build ~444 MB» con el `du` fallido;
-  - «go clean liberó 0,4 GB» con la carpeta inexistente;
-  - «brew cleanup: descargas eliminadas» con «Pruned 0 symbolic links»;
-  - «sin Xcode» con `/Applications/Xcode.app` presente (era
-    `xcode-select` apuntando a CLT);
-  - «Contenedores: OK» con el pull de `omega:ci` fallido;
-  - el cambio de ControlMaster en «Hecho» sin escritura.
+- [x] **G1. Los glifos `⏺`, `⎿` y `⏵⏵` se ven mal o como cuadros vacíos**
+  en muchos terminales.
+  - `⏺` sale como emoji naranja pegado al texto en `running.png`,
+    `confirm.png` y `summary.png`.
+  - Dónde: `tui.go:440-478`, `:1076`, `plain.go:72-92`, `pilot.go:745`.
+  - Debe:
+    - un `glyphs.go` central con `●`, `└` y `»`;
+    - una variante ASCII con TERM=dumb u `OMEGA_ASCII=1`;
+    - regenerar las capturas y `pilot_test.go:65`.
+  **Hecho:** `internal/ui/glyphs.go` (●, └, »…) con variante ASCII (`TERM=dumb`, `OMEGA_ASCII=1`). Capturas de terminal (`scripts/capture.sh`) y de la app (`scripts/capture_gui.mjs`) regeneradas con los glifos nuevos; `sudo.png` necesita root y `runuser`, así que la regenera `captures.yml`.
+- [x] **G2. La marca de la app no es una sola**: «✻ omega» en TUI, menú,
+  guía y piloto, y «Ω» en los informes de texto y en la mascota.
+  - Debe: una constante `brand` y elegir una.
+  **Hecho:** una sola marca «Ω omega».
+- [x] **G3. La paleta se usa fuera de su sitio.** Hay `NewStyle().Foreground(…)`
+  creados sobre la marcha en `tui.go:353` (con hex fijos), `tui.go:457`,
+  `panel.go:80`, `picker.go:278`, `guide.go:639` y `pilot.go:692-878`.
+  - `report.go` repite la paleta con su propio renderer.
+  - Debe: un `theme.go` con todos los estilos.
+  **Hecho:** `internal/ui/theme.go` con la paleta y todos los estilos; `report.go` usa la misma paleta.
+- [x] **G4. Las pistas de teclas usan formatos distintos**: «[y] yes
+  [a]…» (corchetes y tres espacios), «enter confirm · esc…», «↑↓» frente a
+  «↑/↓», «ctrl+c cancels» frente a «stops».
+  - Debe: un solo formato, «tecla acción · tecla acción», con la tecla en
+    negrita.
+  **Hecho:** `hintLine`/`cardHints` con un solo formato en todas las pantallas (`internal/ui/hints.go`).
+- [x] **G5. Las pistas tienen poco contraste.** `faint` da unos 2,5:1 sobre
+  blanco y 3:1 sobre negro.
+  - Debe: pistas en `muted` con la tecla en negrita, y `faint` solo para lo
+    decorativo.
+  **Hecho:** pistas en `muted` con la tecla en negrita.
+- [x] **G6. Un mismo atajo significa cosas distintas según la pantalla.**
+  - ctrl+p sube en el menú, cambia de modelo en la sesión y va a la
+    coincidencia anterior en la búsqueda.
+  - La lista del menú da la vuelta al llegar al final y la del picker no.
+  - `q` sale del menú, pero en la sesión inactiva hace falta Esc dos veces.
+  - Debe: un `keymap.go` común (`bubbles/key`).
+  **Hecho:** `keymap.go`; ctrl+p solo cambia de modelo; todas las listas dan la vuelta. Dos cosas se dejan a propósito: `q` no sale de la sesión porque es una letra que se escribe (Esc sale con la entrada vacía), y el menú no usa j/k porque escribir filtra.
+- [x] **G7. Las teclas de confirmación no siguen el idioma**: muestra «[y]»
+  aunque `s`, `o` o `j` también funcionan (`messages.go:522`,
+  `tui.go:855`).
+  **Hecho:** la tecla de «sí» sigue el idioma; `y` vale siempre.
+- [x] **G8. La tarjeta de confirmación tiene el mismo borde para cualquier
+  riesgo** (`tui.go:44`, `:971-979`).
+  - Debe: acento para normal, aviso con «⚠» para dangerous y error para
+    blocked.
+  **Hecho:** borde por riesgo: acento, aviso con ⚠ y error.
 
-  Debe: el prompt exige que cada cifra o «hecho» del resumen salga de una
-  salida de esta sesión, y `dev_inventory` informa de `xcode-select -p`
-  frente a Xcode instalado.
-  Ahora: el prompt exige que cada cifra y cada «hecho» salga de una salida
-  de esta sesión, y `system_info` dice `xcode-select -p` y si Xcode.app
-  está instalado.
-- [x] **E4. Contradicciones dentro del mismo resumen.** Algunos ejemplos:
-  - «Ejecuto lo que sí elegiste» y luego «no he cambiado nada»;
-  - «Análisis hecho, sin cambios» antes de aplicar cuatro acciones;
-  - pendientes repetidos dos veces (19_185353:31 y :61);
-  - «Pendiente de tu parte: macOS no tiene novedades»;
-  - mensajes en inglés en ejecuciones en español (19_184355:63,
-    19_190543:29).
+### H. Funcionamiento
 
-  Debe: un solo bloque final con «Hecho», «Pendiente para ti» y «Avisos»,
-  en el idioma del usuario.
-  Ahora: el prompt pide un solo bloque final (hecho, pendiente para el
-  usuario, avisos), sin resúmenes intermedios, sin repetir, en el idioma
-  del usuario.
-- [x] **E5. Recuentos que no cuadran.**
-  - `ls -d wt-*` (con el alias a eza) da 206 y `git worktree list`
-    da 37.
-  - El glob `wt-*` coge 170 ficheros `.pid`, `.err` y `.json`, con unas
-    380 líneas de `fatal: … Not a directory`.
-  - «1638 commits sin subir» se repite como hecho y probablemente es un
-    `@{u}` mal resuelto.
+- [x] **H1. Enter aprueba un comando peligroso** (`tui.go:855`), y la
+  tarjeta no lo advierte.
+  - Debe: con riesgo Dangerous, Enter no hace nada y se pide `y`; la línea
+    de teclas lo dice.
+  **Hecho:** Enter no aprueba un comando peligroso y la tarjeta lo dice.
+- [x] **H2. ctrl+c en una sesión sale de golpe**, a mitad de un
+  `brew upgrade` (`tui.go:776-778`). El piloto y la guía piden dos pulsaciones.
+  - Debe: la primera cancela la herramienta o el turno; la segunda sale.
+  **Hecho:** el primer ctrl+c para solo el turno con `Agent.CancelTurn()` y la sesión queda esperando; el segundo sale (`internal/agent/cancel_test.go`).
+- [x] **H3. En terminales estrechos los mínimos fijos desbordan**:
+  `picker.go:165` (40), `menu.go:250`, `pilot.go:851`, `guide.go:653` (60) y
+  `field()` (34).
+  - Debe: `min` en vez de `max`, y un modo compacto por debajo de ~50
+    columnas.
+  - El editor de `custom` ya se adapta.
+  **Hecho:** sin mínimos que desborden y modo compacto por debajo de 50 columnas.
+- [x] **H4. Las pistas de teclas se cortan en silencio por la derecha**
+  (`tui.go:1126-1156`, `menu.go:342`, `guide.go:706`, `:776`). En el menú
+  se pierde «q salir».
+  - Debe: un `hintLine(w, …)` que reparta las pistas en líneas o quite
+    primero las menos importantes. El editor de `custom` usa ya
+    `wrapHints`, que se puede reutilizar.
+  **Hecho:** `hintLine` quita primero las pistas opcionales y nunca pierde ayuda y salir.
+- [x] **H5. Con poco ancho, la barra de estado tira toda la parte derecha**:
+  modelo, tokens, coste y tiempo (`tui.go:1099-1102`).
+  - Debe: quitar las partes una a una.
+  **Hecho:** la barra de estado se degrada por pasos y conserva coste y tiempo.
+- [x] **H6. El picker ignora el alto del terminal** (`pickerRows = 10`), y
+  el plan del recorrido guiado no tiene scroll (`guide.go:651-707`).
+  **Hecho:** picker con `min(10, alto-8)` filas; el plan hace scroll.
+- [x] **H7. No se avisa de las líneas nuevas cuando el usuario ha subido**
+  (`tui.go:577`), ni hay `home`/`end`/`G` en la transcripción.
+  - Debe: un aviso «↓ N líneas nuevas · End».
+  **Hecho:** «↓ N líneas nuevas · end», y home/end/g/G.
+- [x] **H8. Faltan indicadores de «hay más».** El picker muestra «… N» solo
+  por abajo, el menú no indica nada y el autocompletado se corta en 6 sin
+  avisar.
+  **Hecho:** indicadores «↑/↓ N más» en picker, menú, autocompletado y plan.
+- [x] **H9. Los badges del picker no están alineados** (`picker.go:212-220`,
+  `model.png`).
+  - Hay que regenerar `card_choice*.snap`.
+  **Hecho:** badges en columna y snapshots regeneradas.
+- [x] **H10. Un paso largo y callado no se distingue de uno colgado.**
+  - Debe: «sin salida desde 45 s» a partir de unos 30 s (`tui.go:483-487`).
+  **Hecho:** «sin salida desde 45 s» a partir de 30 s.
+- [x] **H11. La bienvenida repite lo que ya muestra el panel** (tarea, modo,
+  modelo) y su caja de 78 columnas no se alinea con él.
+  - El modo, además, aparece cortado: «asks before risky ac…».
+  **Hecho:** bienvenida compacta con el panel visible y etiquetas cortas de modo.
+- [x] **H12. El ratón captura la selección de texto** (`WithMouseCellMotion`)
+  y no se dice cómo seleccionar.
+  - Debe: «shift+arrastrar» en la ayuda y `OMEGA_MOUSE=0`.
+  **Hecho:** ayuda con «shift+arrastrar» y `OMEGA_MOUSE=0`.
+- [x] **H13. `--no-tui` no se activa con TERM=dumb en la sesión**
+  (`root.go:630`), aunque la guía sí lo comprueba (`full.go:437`).
+  - `setup` solo comprueba stdin, así que con stdout redirigido escribe
+    escapes en el fichero.
+  - Debe: una sola función `wantTUI()`.
+  **Hecho:** `ui.WantTUI` usado en la sesión, la guía y `setup`.
+- [x] **H14. No hay forma de reducir la animación** (shimmer a 10 fps,
+  mascota, spinner).
+  - Debe: `OMEGA_REDUCED_MOTION`.
+  - De paso, sacar los estilos que `shimmer` crea en cada fotograma.
+  **Hecho:** `OMEGA_REDUCED_MOTION=1` o `NO_COLOR`; estilos del shimmer fuera del fotograma.
+- [x] **H15. Con la búsqueda abierta, la transcripción se pinta tres veces
+  por refresco** (`tui.go:563`, `:570`, `:1180`).
+  - Debe: cachear mientras no cambie.
+  **Hecho:** caché de la transcripción y de la búsqueda.
+- [x] **H16. El resumen de la guía recorta en vez de ajustar**
+  (`guide.go:295`, `:875`), y pinta en rojo las notas de etapas que no
+  fallaron.
+  **Hecho:** las notas se ajustan al ancho y solo se pintan en rojo las etapas que fallaron o se pararon.
+- [x] **H17. La pantalla de arranque («starting…») no tiene estilo**
+  (`tui.go:1202`).
+  **Hecho:** pantalla de arranque con marca y spinner centrados.
 
-  Debe: un inventario de worktrees en `dev_inventory`, o en `omega git`,
-  que dé por cada uno si tiene cambios, commits sin subir, si se puede
-  podar y su tamaño, calculado igual siempre (ver F3).
-  Ahora: la herramienta `machine_facts` (sección `worktrees`) recorre los
-  repositorios de las carpetas de proyectos (sin contar dos veces `~/Dev` y
-  `~/dev`), y da por worktree cambios sin guardar, commits sin subir solo
-  si tiene upstream, si se puede podar, su tamaño y la orden para quitar
-  los limpios.
+---
 
-### F. Trabajo repetido y coste
+## Nuevas funciones
 
-- [x] **F1. Los mismos escaneos lentos en cada ejecución.**
-  - `mo clean --dry-run` tarda entre 34 s y 1 min 23 s, a veces seguido
-    del real.
-  - `disk_usage` de `~` tarda entre 55 s y 1 min 47 s, varias veces por
-    ejecución.
-  - El bucle de 37 worktrees tarda entre 13 y 19 s.
-  - `mac_inventory all` tarda 1 min 30 s.
-  - `mo clean` se ejecutó cuatro veces en 25 minutos.
+- [x] **N1. `omega custom`, siguientes pasos.**
+  - Varias rutinas con nombre: `omega custom semanal`, `--set semanal`, y
+    elegir una por defecto.
+  - Programarla: `omega schedule install --task custom`. La rutina ya es
+    determinista y sin IA, así que encaja con lo desatendido.
+  - Opciones por paso en el editor:
+    - «solo si hay menos de X GB libres»;
+    - «parar si este falla»;
+    - «saltar los lunes».
+  - Exportarla e importarla con `export` y `bootstrap`.
+  - Mostrarla y editarla en la app de escritorio, a través de
+    `internal/cli/guiapi.go`.
+  - Al recomendar, enviar también datos agregados y no personales si el
+    usuario lo acepta: espacio libre, días desde la última ejecución, qué
+    pasos fallaron.
+  - Que el editor muestre cuánto tardó y cuánto liberó cada paso en las
+    últimas ejecuciones.
+  **Hecho:** rutinas con nombre (`--list`, `--default`), `stop_on_fail` (tecla `f`), `only_below_free_gb` (tecla `b`), días de la semana (`--days`, tecla `w`), duración y espacio liberado de la última vez en el editor, tarea programada `custom`, `export`/`bootstrap` llevan `custom.toml`, datos del equipo opcionales para la recomendación (tecla `d`, apagado por defecto) y tarjeta de rutinas en la app de escritorio, probada en la app real (Wails en modo servidor, con sus bindings): reordenar, parar si falla y días quedan en `custom.toml` igual que los escribe `omega custom --set`.
+- [x] **N2. `omega steps show <id>`**: comando completo, qué hace, riesgo,
+  instalación y últimas ejecuciones. Ver F21.
+  **Hecho:** `omega steps show <id> [--json]`.
+- [x] **N3. `omega history`**: una vista de logs, pending y notes en una
+  pantalla, con filtro por tarea y por fecha. Ver F6.
+  **Hecho:** `omega history` con `-n`, `--task`, `--since` y `--json`.
+- [x] **N4. `omega notes compact`**: propone fusionar las notas repetidas y
+  borrar las obsoletas, con una tarjeta para aprobarlo. Ver D6.
+  **Hecho:** `omega notes compact [--dry-run] [-y]`, sin IA y con copia `notes.md.bak`.
+- [x] **N5. `omega logs`**: añadir `--json`, `-n N`, `--task`, `--failed`, y
+  `logs view --tools`, que muestre solo las llamadas y sus resultados.
+  **Hecho:** `logs --json`, `-n`, `--task`, `--failed` y `logs view --tools`.
 
-  Debe:
-  - caché de resultados durante la sesión, y del día para los de solo
-    lectura;
-  - no repetir `mo clean` si se ejecutó hace menos de N horas;
-  - no hacer la vista previa si va a seguir la ejecución real.
-  Ahora: los resultados de pasos de solo lectura y `disk_usage` se guardan
-  15 minutos en la sesión y se devuelven sin repetir, y cualquier cambio
-  los borra; `mole-clean` y `mole-purge` no se repiten en 6 horas salvo
-  `again=true`; el prompt pide no hacer la vista previa justo antes del
-  real.
-- [x] **F2. Llamadas repetidas.** `run_history` se llama 4 o 5 veces
-  seguidas, `docker-df` dos veces con la misma salida, y la misma página
-  de `ssh_config` y las de fin de vida de Python, Node, PHP y Ruby se
-  vuelven a buscar y leer en ejecuciones separadas por 2 s. Debe:
-  `run_history` devuelve las últimas N ejecuciones con sus pendientes, y
-  `fetch_url` y `web_search` guardan caché un día.
-  Ahora: `run_history` sin argumentos da también, de las 3 últimas
-  ejecuciones, la cabecera, lo que falló o se rechazó y el final;
-  `fetch_url` y `web_search` guardan su resultado un día en
-  `~/.local/state/omega/web-cache`.
-- [x] **F3. Comandos improvisados para lo mismo en cada ejecución.** El
-  agente escribe a mano:
-  - el bucle de estado de worktrees;
-  - los `du` de cachés con rutas que no existen (`~/.config/mise`,
-    go-build, uv, pip, pnpm…);
-  - los `cat` de configuraciones que no existen;
-  - `zsh -ic` (que carga starship, eza y zle en un terminal «dumb»);
-  - `head -0`, que no vale en macOS.
+---
 
-  Debe: herramientas con salida estable para cada caso:
-  - estado de worktrees;
-  - rutas reales de caché (`go env`, `uv cache dir`, `npm config get
-    cache`, `brew --cache`);
-  - qué ficheros de configuración conocidos existen;
-  - auditoría de PATH (entradas que no existen, variables vacías como
-    `/pkg/env/global/bin`).
-  Ahora: `machine_facts` da worktrees, rutas reales de caché (`go env`, `uv
-  cache dir`, `npm config get cache`, `brew --cache`…), qué ficheros de
-  configuración conocidos existen y cuáles no, y las entradas de PATH que
-  no existen o salen de una variable vacía. El prompt manda usarla.
-- [x] **F4. Sonnet para trabajos triviales.** 19_112246 y 19_185256
-  arrancan con Sonnet para tres vistas previas ($0,10 cada una, 10 veces
-  Haiku). Debe: Haiku para las tareas de vista previa o revisión de
-  configuración, salvo que el usuario elija otro.
-  Ahora: `fix` arranca con el modelo rápido y sube solo ante un fallo real
-  (D3), como el resto de tareas.
-- [x] **F5. Comprobar el precio de `claude-haiku-5-5`** en
-  `internal/llm/pricing.go:27` (0,10/0,50 por millón, diez veces menos que
-  `claude-haiku-4-5`). Si está mal, todos los costes de Haiku de estos
-  registros están infravalorados.
-  Ahora: el precio (0,10/0,50) es el de la tarifa hasta 100.000 tokens de
-  entrada; por encima todo cuesta cinco veces más y omega no lo sabía.
-  `Price` tiene ahora un tramo por tamaño del prompt y se aplica también
-  con el precio del catálogo en vivo.
+## Mantenibilidad y pruebas
 
-### G. Pendientes que se repiten en cada ejecución
+- [x] **M1. Ficheros demasiado grandes.**
+  - `safety/safety.go` (1470 líneas), `ui/tui.go` (1260), `agent/tools.go`
+    (1240), `ui/pilot.go` (1020) y `safety/secret.go` (920).
+  - Las pruebas se organizan por ronda de revisión (`review3_test.go`,
+    `review4_test.go`) y no por funcionalidad.
+  **Hecho:** `safety.go`, `tools.go`, `tui.go` y `pilot.go` repartidos en ficheros por tema; las pruebas nuevas van en ficheros por funcionalidad. Los `review3/review4_test.go` antiguos no se renombran.
+- [x] **M2. Lógica duplicada.**
+  - `shellQuote` está copiada seis veces (agent, runner, sudo, macos,
+    gitops, scheduler).
+  - `pause()`, en anthropic y en openai.
+  - `wrappers` y `commandSegments` del agente (`tools.go:355-363`, `:697`)
+    rehacen `safety.afterWrappers` y `shellSegments`, con un split que
+    ignora las comillas.
+  - Hay `regexp.MustCompile` dentro de funciones que se llaman mucho
+    (`tools.go:357`, `:681`).
+  **Hecho:** `safety.ShellQuote`/`runner.ShellQuote`, `safety.Segments` y `safety.AfterWrappers` exportados y usados; `pause()` en un sitio; regexp fuera de las funciones calientes.
+- [x] **M3. Código muerto**: `scheduler.Notify` (`scheduler.go:103-126`) no
+  se llama desde ningún sitio.
+  **Hecho:** borrado `scheduler.Notify`.
+- [x] **M4. Recortes que parten UTF-8** en `runner.capture.add`
+  (`runner.go:705`, `:712`) y en `fetch_url` (`web.go:292`).
+  - `maxNote` cuenta bytes: 400 bytes son menos de 400 caracteres en
+    español.
+  - `pending` ya está arreglado en esta pasada.
+  **Hecho:** recortes por runas en runner, `fetch_url`, `run_history` y pendientes; `maxNote` cuenta runas.
+- [x] **M5. Claves que chocan en el registro**: `callKey = tool+command`
+  (`log.go:265`). Dos llamadas iguales en el mismo lote se pisan.
+  **Hecho:** cada llamada lleva su propio id en el registro.
+- [x] **M6. Falsos positivos de la política** que obligan a aprobar
+  lecturas: `crontab -l`, `gh auth status` y `env FOO=1 brew upgrade` salen
+  Dangerous.
+  - Varios pasos Safe (`topgrade-preview`, `mole-*-preview`, `brew-doctor`,
+    `dev-artifacts`) se clasifican Dangerous, así que nunca entran en el
+    lote paralelo.
+  **Hecho:** `crontab -l` y `gh auth status` son Safe; `env X=1 cmd` se juzga por el comando; los pasos integrados Safe entran en el lote paralelo.
+- [x] **M7. El ayudante de sudo tiene rutas fijas** (`#!/bin/bash`,
+  `/usr/bin/sudo`, `internal/sudo/sudo.go:40-51`) y falla en NixOS.
+  **Hecho:** `#!/usr/bin/env bash` y `sudo` buscado en el PATH.
+- [x] **M8. El registro del programador no rota.**
+  - `schedule.log` y `schedule.err` crecen sin límite.
+  - A la unidad de systemd le faltan `Nice` e `IOSchedulingClass=idle`, y al
+    plist `ProcessType=Background`.
+  **Hecho:** `scheduler.RotateLogs()`, `Nice`/`IOSchedulingClass=idle` en systemd, `ProcessType=Background` en launchd. schtasks no admite prioridad con `/TR`.
+- [x] **M9. La caché web no se poda nunca**
+  (`~/.local/state/omega/web-cache`).
+  - Además `fetch_url` pasa al modelo contenido no HTML (PDF, binarios)
+    tal cual.
+  **Hecho:** la caché se poda a 24 h y `fetch_url` rechaza lo que no es texto.
+- [x] **M10. Faltan pruebas de regresión** para:
+  - A1-A10;
+  - el entorno del programador en Windows;
+  - el código de salida de `brew` y de `disk_usage`;
+  - la invalidación de la caché tras `write_file`;
+  - el formato de los `%` en las traducciones (E7).
+  **Hecho:** pruebas para A1–A10, el programador por sistema, `brew` con `pipefail`, `disk_usage`, la caché, los verbos de las traducciones, `CancelTurn` y `--max-cost`.
+- [x] **M11. Las snapshots de la TUI solo cubren cuatro tarjetas** y no ven
+  el color.
+  - Debe: añadir snapshots del menú, el panel, la guía, el editor de
+    `custom` y los informes de texto (`report.go`) a 60, 80 y 120 columnas.
+  **Hecho:** snapshots del menú, la sesión, el plan, el editor de rutinas y `report.go` a 60, 80 y 120 columnas (`go test ./internal/ui -run Snap -update`).
 
-- [x] **G1. Recordatorios con estado.** Estos avisos se repiten en cada
-  ejecución y gastan tokens y atención:
-  - Time Machine sin destino (más de 30 ejecuciones);
-  - worktrees de doctorSIM (más de 15);
-  - Docker prune (9);
-  - «usa `omega --sudo`»;
-  - el ítem de inicio roto «Alfred 5»;
-  - el inicio de sesión de Cursor Agent;
-  - Acceso total al disco;
-  - el conflicto de ⌥Space;
-  - `icu4c@78` deprecado;
-  - ControlMaster.
-
-  Debe:
-  - un registro de pendientes con estado (nuevo, visto, pospuesto hasta,
-    descartado) que el usuario puede marcar;
-  - el resumen da solo lo nuevo o lo que cambió y una línea «N pendientes
-    conocidos (`omega pending`)»;
-  - un pendiente se cierra solo cuando la medida lo desmiente (la imagen
-    de Docker que ya no existe).
-  Ahora: `internal/pending` guarda los pendientes con estado (abierto,
-  pospuesto hasta, descartado, hecho); la herramienta `pending` los anota y
-  resuelve; cada ejecución los recibe en el prompt (los descartados solo
-  por id, para no mencionarlos); `omega pending`, `pending dismiss|snooze
-  <id> 2w|reopen|done` los gestionan. El resumen da en entero solo lo nuevo
-  o cambiado.
-- [x] **G2. Automatizar con aprobación lo que hoy se deja «a mano»:**
-  - ControlMaster en `~/.ssh/config`, con copia; el agente no pudo
-    aplicarlo en 3 ejecuciones;
-  - quitar un ítem de inicio de BTM;
-  - `git worktree remove` por worktree limpio, con su tarjeta;
-  - el enlace a Ajustes de Time Machine y de Acceso total al disco, una
-    vez.
-  Ahora: el prompt pide ofrecer con tarjeta lo que antes se dejaba a mano:
-  ajustes de `~/.ssh/config` con `write_file`, un ítem de inicio con
-  `mac_change`, cada worktree limpio como opción con la orden de
-  `machine_facts`; en desatendido los enlaces a Ajustes van al resumen (B6)
-  y quedan como pendientes.
-- [x] **G3. La imagen de CI de omega (`omega:ci`)** falla en cada `docker
-  pull` de topgrade. Debe: `ignored_containers = ["omega:ci*"]` en el
-  drop-in de omega.
-  Ahora: el asistente de configuración de topgrade (`omega assist
-  topgrade`, `internal/assist/maintenance.go`) tiene la comprobación
-  `topgrade.omega-ci`, que añade `omega:ci*` a `[containers]
-  ignored_containers` en el fichero donde está la lista que cuenta (el
-  principal gana a los de `topgrade.d`), conservando las entradas del
-  usuario y con copia. Tiene además `topgrade.pre-sudo`, que apaga
-  `pre_sudo` y `sudo_loop` donde estén. `config_hints` apunta a las dos.
-- [x] **G4. El drop-in de omega deja `system` (`softwareupdate --install
-  --all`) activo en topgrade.** Puede reiniciar el Mac; el otro Mac lo
-  desactivó a mano por eso. Debe: desactivarlo en el drop-in y dejar
-  macOS al paso `macos-check`.
-  Ahora: los pasos `topgrade` y `topgrade-preview` pasan siempre `--disable
-  system` en macOS, sea cual sea el drop-in; las actualizaciones de macOS
-  quedan en `macos-check`.
-- [x] **G5. Las copias `.omega-bak-*` se acumulan** (6 de `omega.toml` en
-  `~/.config/topgrade.d`). Debe: conservar las N últimas.
-  Ahora: después de cada `write_file` que deja copia se conservan las 3 más
-  recientes de ese fichero (`pruneBackups`).
-- [x] **G6. Mole borró la caché del modelo en el dispositivo de Chrome
-  (4,27 GB)**, que Chrome vuelve a descargar. La vista previa decía
-  1,70 GB y el real fueron 6,90 GB (22_143904:164 y :886). Debe: excluirla
-  y avisar cuando el real difiere mucho de la vista previa.
-  Ahora: el asistente de Mole (`omega assist mole`) tiene la comprobación
-  `mole.chrome-model`: añade `$HOME/Library/Application
-  Support/Google/Chrome/OptGuideOnDeviceModel/*` a
-  `~/.config/mole/whitelist`. Si el fichero no existe, empieza por la lista
-  por defecto de Mole, leída del `lib/core/base.sh` instalado (un fichero
-  propio la sustituye), y si no la encuentra no escribe nada.
-  `config_hints` pide comparar cuando la limpieza real libera mucho más que
-  la vista previa.
-
-### H. Privacidad
-
-- [x] **H1. Configuración sensible enviada entera al modelo y al
-  registro.** Salieron:
-  - `~/.ssh/config` con nombres de host, IPs de producción, usuarios y
-    rutas de claves (23_082036:8-58), leído dos veces;
-  - `git config --global --list` con `user.email`, los ayudantes de
-    credenciales y las rutas de repos (22_150034, 23_082106, 23_082108).
-
-  Debe: resumir o enmascarar esos ficheros (hosts e IPs no, alias sí;
-  correos enmascarados) o leer solo las claves que hacen falta.
-  Ahora: la salida de comandos y `read_file` sobre `~/.ssh/config` oculta
-  `HostName`, `User`, `IdentityFile`, `Proxy*` y los reenvíos, y la de `git
-  config`/`.gitconfig` las direcciones de correo.
-- [x] **H2. La máscara de secretos tapa texto normal.** En 19_105805 la
-  línea `…/get-account-password-policy.rst: Failed to create dir…` sale
-  como `…password-policy.rst: [redacted] to create dir`. La regla de
-  `password: valor` coge un nombre de fichero. Debe: exigir separador de
-  clave real (inicio de línea, comillas o espacio) y añadir una prueba con
-  ese caso.
-  Ahora: una clave tiene que empezar la línea o ir tras un espacio,
-  comilla, `{`, `,`, `(` o `[`, y un nombre que acaba en extensión seguido
-  de `:` no se toma por clave (`TestScrubLeavesFileNamesWithSecretWords`).
+---
 
 ## Cómo comprobarlo
 
-- A1, A3, A4, B1, B4, C2, C3, D1 y D2 tienen prueba unitaria posible en
-  `internal/agent` y `internal/safety`.
-- C5 se comprueba con dos herramientas en paralelo y un registro.
-- A6 y D8 necesitan un `Exec` falso que devuelva «No space left» o el
-  fallo de sudo.
-- Repetir `omega full --unattended` en los dos Macs y comparar los
-  registros nuevos con estos: ningún «elegiste» sin pregunta registrada,
-  ningún rechazo sin línea, la misma cifra de espacio libre en todas las
-  ejecuciones y ningún salto a Sonnet por un aviso.
+- `go test ./...` y `go vet ./...` pasan.
+- Ninguna de estas órdenes modifica nada; muestran la salida nueva:
 
-Estado: todo lo de arriba está hecho y tiene prueba automática (`go test
-./...`, también compilado para Linux y Windows y la app con `-tags gui`).
-Comprobado en este Mac con ejecuciones reales:
-- `omega full --unattended --dry-run` (11 etapas, 5 min 46 s, $0,06): cada
-  registro dice versión, equipo, orden y modo «unattended»; las opciones
-  que omega tomó dicen «chosen by omega, automatically (unattended run:
-  nobody chose)»; `mo clean`, `brew cleanup` y `topgrade`, aunque omega
-  los eligió, se rechazaron por solo lectura y no se cambió nada (la
-  prueba `TestDryRunIsNeverLifted` cubre que `--dry-run` no se levante);
-  ningún salto a Sonnet; la cifra de espacio libre es la misma en todas.
-  Dos lecturas que se rechazaban (`mise ls`, `ssh -G`) son ahora de solo
-  lectura.
-- `omega health --dry-run`: bloques por llamada en paralelo, el rechazo
-  con su motivo, la tarjeta y el recuento final.
+  ```bash
+  make build
+  ./bin/omega steps
+  ./bin/omega doctor
+  ./bin/omega logs
+  ./bin/omega pending
+  ./bin/omega notes
+  ./bin/omega models
+  ```
 
-Los pasos de topgrade, brew y Mole se probaron con programas falsos y, en
-este Mac, con un `topgrade --dry-run` real, los recibos de Homebrew y la
-lista por defecto de Mole instalada. El otro Mac (Mac Studio) no estaba al
-alcance de esta sesión.
+- Para probar `custom` sin tocar la configuración real:
 
----
+  ```bash
+  XDG_CONFIG_HOME=$(mktemp -d) ./bin/omega custom --set
+  ```
 
-# TODO: tercera revisión de omega (seguridad de la CLI y de la app)
-
-Revisión del 14 de noviembre de 2026 sobre `main` en `f737762` (v0.26.1),
-solo de seguridad: qué puede hacer omega, o el modelo a través de omega, sin
-que el usuario lo haya aprobado; qué secreto puede salir; y qué puede hacer
-con omega otro programa, una página web o una carpeta que no es de fiar.
-
-Los criterios son los de la revisión anterior (más abajo): un P0 ejecuta algo
-sin la aprobación que omega promete, filtra un secreto o borra datos en un
-uso normal. Cada P0 dice qué pasaba y qué pasa ahora, y está marcado porque
-el cambio está hecho y tiene una prueba; lo que no la tiene lo dice.
-
-## P0
-
-### A. Comandos que se ejecutan sin la aprobación prometida
-
-- [x] **A1. Un comentario falso esconde un comando.**
-  `ls \ # ; rm -rf ~/Documents` se clasificaba como solo lectura: para el
-  shell `\ ` es un espacio dentro de una palabra y `#` no empieza un
-  comentario; para omega sí. Lo mismo con un retorno de carro delante de `#`.
-  Ahora: `#` solo es comentario donde lo es para el shell.
-- [x] **A2. Opciones largas abreviadas escriben ficheros.**
-  `sort --out=$HOME/.zshenv` (abreviatura de `--output`) era de solo lectura,
-  y ese fichero se ejecuta con el siguiente comando. También
-  `sort --compress-prog`, `file --compil`, `date --se=…`, `pip list --log`.
-  Ahora: una opción larga cuenta también por su abreviatura.
-- [x] **A3. awk y jq leen el entorno o ejecutan código.**
-  `awk 'BEGIN{f="sys" "tem"; @f("…")}'` (gawk), `@include`, `ENVIRON`,
-  `ARGV`, y `jq -n 'env[]|explode'` eran de solo lectura.
-  Ahora: piden aprobación.
-- [x] **A4. La tarea programada era el agente con todo aprobado.**
-  `omega schedule install` creaba `omega <tarea> --yes --no-tui`, que con una
-  clave guardada arranca el modelo en modo automático, cada semana y sin
-  nadie delante, aunque el mensaje de instalación describía los pasos
-  integrados. Ahora: una ejecución programada son los pasos integrados y
-  nunca el modelo, también en las tareas instaladas por una versión anterior
-  (lo decide `OMEGA_SCHEDULED`, no solo el `--no-ai` que se añade).
-- [x] **A5. `steps.d` no pasaba por la política de seguridad.**
-  Un fichero ahí podía sustituir un paso de omega (`id = "disk"`) y ejecutar
-  comandos de la lista de «nunca» (`rm -rf --no-preserve-root /`,
-  `curl … | sh`) sin preguntar; los ganchos, igual; y se leía aunque
-  cualquier usuario del equipo pudiera escribirlo.
-  Ahora: un comando bloqueado se deja fuera y se dice, un paso propio no
-  puede llevar el id de uno de omega, y no se lee un fichero (o una carpeta
-  `steps.d`) que otro usuario pueda escribir o que sea de otro usuario.
-  El riesgo declarado en el fichero (`risk = …`) se sigue respetando: es la
-  configuración del propio usuario.
-- [x] **A6. En modo automático, un comando podía cambiar lo que omega hará
-  después.** Con `--yes` o tras «aprobar todo» se ejecutaban sin tarjeta
-  `omega config set approval never`, un `sed` sobre `config.toml` (por
-  ejemplo, para cambiar `base_url`, que es a donde se envía la clave),
-  `echo … >> ~/.zshenv`, `cp x ~/Library/LaunchAgents/…`.
-  `write_file` ya preguntaba siempre por esos ficheros; `run_command` no.
-  Ahora: un comando que nombra un fichero de arranque del shell, un
-  elemento de inicio, una tarea programada, la configuración, las notas o
-  el estado de omega, o que ejecuta `omega`, se pregunta siempre, y en una
-  ejecución desatendida se salta. Límite: mira el texto del comando; una
-  ruta construida con variables (`d=~/.config/omeg; … ${d}a/…`) no se ve.
-- [x] **A7. La tarjeta podía no mostrar lo que se iba a ejecutar.**
-  Un comando con una secuencia de escape, un retorno de carro o una marca
-  Unicode de derecha a izquierda se lee distinto de lo que ejecuta el shell.
-  Ahora: `run_command` rechaza un comando con caracteres de control o
-  invisibles, y lo que la interfaz muestra de cualquier herramienta los
-  escribe como `<U+202E>`. Las secuencias OSC (título, portapapeles,
-  enlaces) se quitan de la salida de los comandos.
-- [x] **A8. Una carpeta con su propio `.git/config` ejecutaba un programa.**
-  `omega git status`, `omega git clean`, `omega disk artifacts` y cualquier
-  `git status` del agente (solo lectura) ejecutan `core.fsmonitor` del
-  repositorio. Un `git clone` no trae ese fichero; una carpeta descomprimida
-  o copiada sí. Ahora: git se llama siempre con `core.fsmonitor=false`.
-  Queda por cerrar: los filtros `clean`/`smudge` y `diff.external` de un
-  repositorio así (ver P1).
-- [x] **A9. La lista de «nunca» se saltaba con comillas.**
-  `dd of="/dev/disk0"`, `csrutil 'disable'`, `tmutil 'delete'`,
-  `curl … | /bin/sh`, `| env sh`, `| sudo -E bash` solo pedían aprobación,
-  así que con `--yes` se ejecutaban. Ahora: bloqueados. `omega mac undo`
-  desde el agente ejecutaba el comando del diario sin clasificarlo: ahora
-  pasa por la misma política.
-
-### B. Secretos
-
-- [x] **B1. La contraseña de sudo se podía leer.** El ayudante que responde
-  a sudo está en el entorno de todos los comandos; ejecutarlo a mano
-  devolvía la contraseña, y un `| rev` evitaba la máscara
-  (`find "$TMPDIR" -name 'askp*' -exec {} x \; | rev`). Sin contraseña
-  guardada, hacía aparecer la tarjeta de contraseña de omega para un comando
-  que no era sudo. Ahora: omega solo responde cuando quien pregunta es un
-  proceso iniciado por sudo (un proceso `sudo` que corre como root); a
-  cualquier otro no le contesta ni pregunta al usuario.
-- [x] **B2. Ficheros de credenciales legibles con comandos de solo
-  lectura.** `grep -r '' ~/.config/gh`, `~/.docker`, `~/.claude`;
-  `grep -r '' ~/.s*`; `cat ~/.netr[!x]`, `~/.config/gh/**/hosts.yml`;
-  `cat ~/.ss${Z}h/id_r${Z}sa` (variable sin definir); `cat $KUBECONFIG`,
-  `$GOOGLE_APPLICATION_CREDENTIALS`, `$DOCKER_CONFIG/config.json`; la copia
-  `.omega-bak-…` que `write_file` deja de un fichero secreto; y ficheros
-  que no estaban en la lista (claves de age/sops, `.s3cfg`, doctl, Vercel,
-  Fly, Firebase, tokens de servidores MCP, `~/.zsh_sessions`).
-  Ahora: bloqueados.
-- [x] **B3. Las claves de los ficheros de arranque del shell, a trozos.**
-  `cut -c 27-40 ~/.zshenv`, `grep -o . ~/.zshrc`, `tail -c 20 ~/.zshenv`
-  eran de solo lectura y ninguna máscara reconoce una clave partida.
-  Ahora: esos ficheros solo se leen sin preguntar con programas que
-  imprimen líneas enteras (`cat`, `grep`, `head -n`…), donde la máscara
-  funciona.
-- [x] **B4. Las credenciales del entorno, a trozos.**
-  `printenv 'GH_TOK'EN | cut -c1-10`, `env | grep --only .`,
-  `env | head --byte=30`. Ahora: bloqueado o con aprobación.
-- [x] **B5. La máscara de la salida solo conocía `NOMBRE=valor`.**
-  No ocultaba `password = "…"`, `oauth_token: …`, `"access_token": "…"`,
-  `Authorization: Bearer …`, ni un token reconocible por su forma
-  (`ghp_…`, `github_pat_…`, `sk-…`, `xoxb-…`, `AKIA…`…), ni un bloque
-  `BEGIN … PRIVATE KEY`. Ahora sí.
-
-### C. Lo que sale del equipo y lo que queda para después
-
-- [x] **C1. `fetch_url` enviaba lo que el modelo quisiera, sin preguntar.**
-  En cualquier modo, también en solo lectura: tras leer un fichero, una
-  página podía pedirle `https://sitio/?d=<lo leído>`. Ahora: sin preguntar
-  solo se leen la documentación oficial que omega conoce, los resultados de
-  su propia búsqueda en esa sesión y los sitios que el usuario nombra;
-  cualquier otra dirección pide aprobación antes incluso de resolver el
-  nombre, y en solo lectura o sin nadie delante no se pide: se rechaza.
-- [x] **C2. `remember` dejaba instrucciones para todas las ejecuciones
-  futuras.** Sin aprobación, sin límite, y las notas se añadían a las
-  instrucciones del modelo tal cual. Ahora: una nota escrita después de
-  leer la web pide aprobación siempre (también con `--yes`) y enseña el
-  texto; es una línea de 400 caracteres como mucho, sin caracteres de
-  control; las notas se presentan al modelo como datos que no puede
-  obedecer; y el fichero es solo del usuario.
-
-### D. App de escritorio
-
-- [x] **D1. Un enlace podía llevar la ventana entera a otra página.**
-  El menú del sistema sobre un enlace («Abrir enlace»), un clic central o
-  un fichero soltado en la ventana cargan la página dentro de la app, donde
-  puede hacerse pasar por omega y, según el sistema, llamar a sus
-  funciones. Ahora: esos gestos no hacen nada sobre un enlace, y las
-  funciones de la app rechazan una llamada cuyo origen es otra página.
-  Límite: en macOS el webview no dice el origen de la llamada (comprobado en
-  la ventana nativa), así que ahí la protección es que la ventana no navega.
-- [x] **D2. Un enlace decía una dirección y abría otra.** Ahora el enlace
-  muestra el sitio al que va cuando su texto no es la dirección.
-- [x] **D3. «Exportar» sobrescribía cualquier fichero del usuario** sin
-  preguntar (`~/.ssh/id_ed25519` incluido). Ahora solo escribe un fichero
-  nuevo o sustituye una exportación anterior.
-
-### E. Otros
-
-- [x] **E1. `omega uninstall "Google Chrome"` seleccionaba los datos de
-  Chrome Canary** (y los de cualquier app cuyo identificador empieza por el
-  de otra), y una app con identificador `com` seleccionaba todo `com.*`.
-- [x] **E2. `omega audit secrets` enseñaba parte del secreto** (la segunda
-  mitad de un token de Slack, la contraseña de `curl -u`).
-- [x] **E3. Menores:** el paso `temp-files` de Windows vaciaba la carpeta
-  actual si `TEMP` no estaba definida; tres instaladores de `omega dev
-  install` usaban `curl` sin `-f` ni `--proto '=https'`; `skills install`
-  dependía de la configuración de git para rechazar `ext::`.
-
-## Sin prueba automática
-
-- B1 en Linux: la comprobación lee `/proc` y solo se ha probado su lectura
-  con datos de ejemplo; el camino completo con un sudo que pide contraseña
-  está probado en macOS. Con `/proc` montado con `hidepid`, omega no podrá
-  reconocer a sudo y no responderá.
-- D1 y D2: comprobado en la ventana nativa de macOS que las llamadas de la
-  propia app siguen pasando; el rechazo de una página ajena y el menú sobre
-  un enlace no se han ejecutado en una ventana.
-- E3 (Windows) solo se compila.
-
-## P1 pendientes de esta revisión
-
-- [x] **Modo automático y código opaco.** Con `--yes`, `… | base64 -d | sh`,
-  `sh fichero`, `python3 -c …` o `docker run -v ~:/h …` solo son
-  «peligrosos» y se ejecutan; lo mismo `gh auth token`, `gcloud auth
-  print-access-token`, `security -i`. Hace falta una segunda clase de
-  «preguntar siempre». La clave del proveedor se retira por nombre pero su
-  valor no está registrado en la máscara.
-  Ahora: «confirmar siempre» (`internal/safety/ask.go`) cubre lo que se
-  entuba a un intérprete, `sh`/`bash` con un fichero y `source`,
-  `python`/`node`/`perl`/`ruby`/`php` con `-c`/`-e` o un fichero,
-  `osascript` con «do shell script», `pwsh -EncodedCommand`, `docker
-  run`/`create` que monta `/`, `~` o `$HOME` o es `--privileged`, y los que
-  imprimen credenciales (`gh auth token`, `gcloud auth print-*-token`, `az
-  … get-access-token`, `security -i`, `security find-*-password -w`). El
-  valor de la clave del proveedor se registra en la máscara
-  (`runner.Redact`) al crear el proveedor.
-- [x] **sudo.** Un ayudante falso puesto con `SUDO_ASKPASS` bajo un sudo
-  real aún puede recibir la contraseña; requiere un comando con `sudo`
-  aprobado.
-  Ahora: un comando que ejecuta sudo y además cambia el entorno (una
-  asignación, `sudo VAR=…`, `export`, `eval`, `source`…) se bloquea, y el
-  preámbulo del intérprete vuelve a poner `SUDO_ASKPASS` después de leer
-  los ficheros de arranque, así que una línea de `~/.zshenv` no lo
-  sustituye.
-- [x] **Borrados del directorio personal no bloqueados:** `rm -rf ~usuario`,
-  `rm -rf $PWD`, `rm -rf /Users/l*`, `mv ~ /tmp/x`, `rsync --delete … ~/`,
-  `git -C ~ clean -fdx`, y herramientas de disco que no están en la lista
-  (`mke2fs`, `sgdisk --zap-all`, `shred /dev/…`, `asr restore --erase`).
-  Ahora: bloqueados `rm -rf ~usuario`, `$PWD`/`$OLDPWD`, los patrones que
-  alcanzan una carpeta personal o la raíz (`/Users/l*`, `/home/*`), `mv ~
-  …`, `rsync --del… … ~/`, `git -C ~ clean -f…` y `cd ~ && git clean -fdx`,
-  y las herramientas `mke2fs`, `mkswap`, `sgdisk --zap-all/-Z/-o`, `shred
-  /dev/…`, `asr … --erase`. La carpeta de otro usuario escrita entera (`rm
-  -rf /home/bea`) sigue siendo «peligrosa» a propósito, como dicen las
-  pruebas anteriores.
-- [x] **«Preguntar siempre» no reconoce** `podman system reset`,
-  `docker compose down --volumes=true`, `docker.exe …`, `docker service rm`.
-  Ahora: reconoce `podman system reset`, `podman machine reset`, `docker
-  service|secret|config|node rm`, `swarm leave`, `compose down
-  --volumes=true` (no `=false`) y `docker.exe`.
-- [x] **Windows:** `ipconfig /release`, `net use * /delete`, `net start`,
-  una ruta UNC (`dir \\host\share` envía el hash NTLM) y familias enteras
-  de verbos `Get-…` son de solo lectura; `Get-ChildItem ~\.ssh |
-  Get-Content` lee las claves.
-  Ahora: `ipconfig` solo es de solo lectura solo o con `/all` o
-  `/displaydns`, `net use`/`net start`… sin más argumentos; una ruta UNC
-  hace peligroso el comando; los `Get-` son una lista permitida
-  (`Get-Credential`, `Get-Secret`, `Get-AzAccessToken` ya no),
-  `-AsPlainText` cuenta como escritura; listar una carpeta de secretos
-  hacia un lector (`Get-ChildItem ~\.ssh | Get-Content`, `ls ~/.ssh | xargs
-  cat`) se bloquea.
-- [x] **git en carpetas no fiables:** filtros `clean`/`smudge`,
-  `diff.external` y `textconv` del `.git/config` del repositorio.
-  Ahora: `runner.UntrustedGitConfig` reconoce un repositorio (o worktree)
-  cuyo `.git/config` nombra un filtro `clean`/`smudge`/`process`, un
-  `textconv` o un programa de diff o merge (Git LFS aparte), y `omega git`,
-  `omega disk artifacts` y `machine_facts` no lo miran y lo dicen;
-  `fsmonitor` ya estaba apagado. `diff.external` no se puede vaciar sin que
-  `git diff` falle; omega no ejecuta diffs en esas carpetas.
-- [x] **`write_file`:** la tarjeta de un fichero nuevo no enseña su
-  contenido; faltan en «preguntar siempre» `~/.aws/config`
-  (`credential_process`), `~/.kube/config`, ejecutables existentes.
-  `~/.gitconfig` queda fuera a propósito.
-  Ahora: la tarjeta de un fichero nuevo enseña su contenido (principio y
-  final si es largo), y escribir `~/.aws/config`, cualquier cosa bajo
-  `~/.kube/` o un fichero ejecutable que ya existe se pregunta siempre.
-- [x] **`mac_policy` cambia `mac.toml` sin aprobación** y `mac_change
-  disable:` es «normal».
-  Ahora: `mac_policy` pide aprobación (en desatendido no se guarda nada) y
-  `mac_change disable:` es «peligroso».
-- [x] **`propose_actions` levanta el modo de solo lectura** con cualquier
-  elección, y en una ejecución desatendida se eligen todas.
-  Ahora: elegir en la tarjeta pasa a «preguntar» (no a automático aunque
-  hubiera `--yes`), así que cada orden que cambia algo sigue pasando por su
-  tarjeta; en desatendido ya no se toman todas (A1 de la cuarta revisión).
-- [x] **`omega uninstall Code`** (sin app con ese nombre) ofrece los datos
-  de Visual Studio Code.
-  Ahora: si ninguna app se llama así pero una instalada usa ese nombre por
-  dentro (el ejecutable o el nombre corto de su paquete, como `Code` en
-  Visual Studio Code), se rechaza con el nombre de esa app.
-- [x] **`fetch_url`:** rangos que el filtro no cubre (NAT64, 6to4,
-  `198.18.0.0/15`); con un proxy solo queda la comprobación previa.
-  Ahora: se rechazan también 198.18.0.0/15, los rangos de documentación y
-  reservados, NAT64 (`64:ff9b::/96`, `64:ff9b:1::/48`), 6to4 (`2002::/16`)
-  y Teredo. Con un proxy sigue sin poder mirarse la dirección final: queda
-  la comprobación previa del nombre.
-- [x] **Comandos de solo lectura que no terminan:** `mdfind -live`,
-  `tail --foll`, `pmset -g pslog`.
-  Ahora: no son de solo lectura `tail`/`journalctl`/`docker logs` con
-  `--follow` abreviado, `mdfind -live`, `pmset -g
-  pslog/rawlog/thermlog/assertionslog`, `log stream`, `fs_usage`,
-  `powermetrics`, `tcpdump`, `iostat` con intervalo y sin `-c`, y `ping`
-  sin `-c`.
-- [x] **Ficheros y límites:** `config.toml` y `mac.toml` son legibles por
-  otros usuarios; las respuestas del proveedor se leen sin límite; no hay
-  tope de llamadas por turno; la unidad de systemd no escapa `%` ni `$`.
-  Ahora: `config.toml` y `mac.toml` se escriben con permisos 0600; una
-  respuesta de un proveedor compatible con OpenAI se lee hasta 32 MB; un
-  turno ejecuta como mucho 16 llamadas y las demás se contestan sin
-  ejecutar; la ruta de omega en la unidad de systemd escapa `%`, `$`, `\` y
-  `"`.
-- [x] **App:** `RunTool` no se puede cancelar; `Browser.OpenURL` acepta
-  esquemas que no son http(s) si los pide un script de la página.
-- [x] **Publicación:** fijar por commit las acciones `docker/*`, añadir
-  atestación de procedencia a los archivos, hash SRI al reproductor de
-  asciinema de la web; `omega net audit` imprime las credenciales de un
-  proxy.
-  Ahora: la app tiene `StopTool` y el botón de una herramienta en marcha la
-  para (`cli.RunToolContext`: la orden recibe el contexto y la ventana queda
-  libre al momento). Una llamada `Browser.OpenURL` que no es http(s) se
-  rechaza en el mismo filtro que protege `/wails/runtime`, también enviada
-  en trozos (`internal/gui/guard.go`, con prueba). En `release.yml` las
-  acciones `docker/*` van fijadas por commit, y el trabajo `publish` firma
-  la procedencia de los archivos (`actions/attest-build-provenance`,
-  comprobable con `gh attestation verify`). La web carga el reproductor de
-  asciinema con `integrity` (sha384) y `crossorigin`. `omega net audit`
-  muestra un proxy como `http://***@host:3128`.
-
----
-
-# Segunda revisión (13 de noviembre de 2026)
-
-Revisión del 13 de noviembre de 2026 sobre `main` en `163b7eb` (v0.25.0),
-después de corregir los 30 P0 de la primera (v0.25.0).
-
-Un P0 es un defecto que, en un uso normal, borra datos del usuario, deja
-ejecutar un comando sin la aprobación que omega promete, filtra un secreto,
-o deja una función principal rota. Un P1 da un resultado equivocado, un
-mensaje que engaña, un código de salida incorrecto o un cuelgue.
-
-Cada punto dice qué pasaba y qué tiene que pasar. Se marca cuando el cambio
-está hecho y tiene una prueba; lo que no la tiene lo dice.
-
-## P0
-
-### A. Pérdida de datos
-
-- [x] **A1. La Papelera de omega sobrescribe lo que ya tenía** (regresión de
-  la v0.25.0). El nombre en caso de choque era la hora al milisegundo: dos
-  elementos con el mismo nombre en el mismo milisegundo acababan en uno.
-  `omega uninstall` con 30 ficheros `com.foo.Bar.plist` dejaba 7 en la
-  Papelera y perdía 23; `omega skills remove` con tres copias de una skill
-  dejaba dos carpetas mezcladas.
-  Debe: un nombre libre cada vez (`foo`, `foo 2`…), copiar solo cuando la
-  Papelera está en otro volumen, y no borrar nunca una carpeta de la
-  Papelera que no haya creado esa misma llamada.
-- [x] **A2. `omega bootstrap <fichero>` ejecuta texto del fichero y cambia la
-  configuración sin preguntar.** Un nombre de paquete
-  `--help; touch ~/X` se ejecutaba tal cual, `approval = "never"` se
-  restauraba desde el fichero, y siempre terminaba con «completado».
-  Debe: validar los nombres, enseñar el plan y preguntar (o `--yes`),
-  `--dry-run`, no restaurar nunca `approval` ni la URL del proveedor, copia
-  de la configuración anterior, y error si algo falla.
-- [x] **A3. Una pregunta libre con `--no-ai`, `--offline` o `--json` lanza el
-  mantenimiento completo.** `omega --json qué ocupa mi disco` descartaba la
-  pregunta y ejecutaba actualización, limpieza y análisis.
-  Debe: error diciendo que una pregunta libre necesita la IA.
-- [x] **A4. Con un `config.toml` ilegible, el modo sin IA usa los valores por
-  defecto** e ignora `skip_steps`: ejecuta los pasos que el usuario había
-  quitado. Lo mismo al caer a modo sin IA por un `--provider` mal escrito.
-  Debe: devolver el error; caer a modo sin IA solo cuando falta la clave.
-- [x] **A5. La tarea programada vacía la Papelera cada semana,** que es
-  donde omega deja lo que quita para poder devolverlo.
-  Debe: una ejecución programada no vacía la Papelera, y `schedule install`
-  dice qué hace la tarea.
-
-### B. Comandos que se ejecutan sin la aprobación prometida
-
-- [x] **B1. Un comentario `#` esconde un comando.**
-  `echo hi # "⏎rm -rf dir # "` se clasificaba como solo lectura.
-  Debe: un `#` sin comillas al empezar una palabra llega hasta el fin de línea.
-- [x] **B2. Las opciones se miran en el texto, pero el shell quita comillas y
-  expande.** `find . "-delete"`, `find . ${TERM:+-delete}`,
-  `find . -{delete,delete}`, `sort "-o" ~/.zshenv`, `rg '--pre' sh`,
-  `git log "--output=…"` pasaban como solo lectura.
-  Debe: mirar las palabras como las ve el shell; una expansión con operador
-  o de llaves en un comando «de solo lectura» es peligrosa.
-- [x] **B3. `<comando> <palabra> help` o `version` es «solo lectura»:**
-  `rm foo help` borraba los dos ficheros.
-  Debe: solo `--help`, `-h`, `--version`, o `help`/`version` como único
-  argumento.
-- [x] **B4. Prefijos de solo lectura con una cola que cambia cosas:**
-  `git remote -v add evil URL`, `softwareupdate -l -i -a -R`,
-  `mdutil -s -E /`. Debe: solo las opciones permitidas detrás.
-- [x] **B5. PowerShell:** `Get-ChildItem | ForEach-Object Delete`,
-  `Get-Process x | % Kill`, `dir | where { del $_ }`,
-  `ls | sort { del $_ }`. Debe: peligroso.
-- [x] **B6. `omega steps run <id> --yes` se salta «confirmar siempre»**
-  (`docker volume prune -a -f` sin terminal).
-  Debe: la misma regla que el modo sin IA; sin terminal se salta y sale con 1.
-- [x] **B7. `approval = "all"` no se respeta en modo sin IA.**
-  Debe: preguntar cada paso que no sea de solo lectura; sin terminal, saltarlo.
-- [x] **B8. App: una imagen Markdown en el texto del modelo puede llamar a
-  las funciones de la app sin un clic.** La CSP de la v0.25.0 dejaba cargar
-  imágenes propias, y `/wails/runtime?…` es una dirección propia: con ella
-  se podía aprobar un comando, pasar a modo automático o cambiar el
-  proveedor.
-  Debe: una imagen se muestra como su texto, la CSP no deja cargar ninguna
-  por dirección, y las funciones de la app solo responden a POST.
-
-### C. Secretos
-
-- [x] **C1. La sustitución por `[redacted]` se salta con comandos de solo
-  lectura:** `echo ${GITHUB_TOKEN:0:10} ${GITHUB_TOKEN:10}` o
-  `printenv GITHUB_TOKEN | grep -o .`.
-  Debe: un comando que nombra una variable secreta no se ejecuta.
-- [x] **C2. Secretos que nunca se registran:** nombres como `STRIPE_KEY`,
-  `DB_PASS`, `MYSQL_PWD`, URLs con contraseña (`postgres://u:pw@host`), y
-  todo lo que solo exporta el fichero de arranque del shell (el caso normal
-  en la app, que no hereda el entorno del terminal).
-  Debe: registrarlos, y ocultar el valor de cualquier línea `NOMBRE=valor`
-  con nombre de secreto.
-
-## P1
-
-### D. Seguridad
-
-- [x] **D1. Ficheros de credenciales legibles sin preguntar:** historiales
-  del shell, `~/.pgpass`, `~/.claude/.credentials.json`, `~/.codex/auth.json`,
-  `~/.kube/*`, `~/.azure/*`, cookies del navegador, `/etc/shadow`…
-- [x] **D2. El ayudante de sudo no estaba cubierto por el bloqueo** (ruta
-  `omega-sudo-…/askpass`).
-- [x] **D3. «Confirmar siempre» no reconocía** `docker --context x system
-  prune`, `docker compose down -v`, `docker volume remove`, `podman`…
-- [x] **D4. `write_file` promete aprobación siempre y no la exige** en modo
-  automático; lee el fichero antes de pedirla (se cuelga con una tubería);
-  y la vista previa corta en 40 líneas sin avisar.
-- [x] **D5. `echo hi >&2file` crea un fichero sin preguntar.**
-- [x] **D6. Comandos «de solo lectura» que no terminan** (`tail -f`,
-  `top -l 0`, `cat /dev/zero`…) retienen la sesión 45 minutos.
-- [x] **D7. Huecos en la lista de «nunca»:** la carpeta personal por ruta
-  absoluta, `cd ~ && rm -rf *`, `diskutil apfs eraseVolume`, `newfs_*`,
-  `Remove-Item -Path:C:\ -Recurse`…
-- [x] **D8. La clave de API pasa por los argumentos de `security`** (visible
-  en `ps`).
-- [x] **D9. El clasificador pregunta por comandos corrientes de solo
-  lectura** (`cd x && git status`, `awk`, `cut`, `git diff`, `lsof -i`,
-  `docker logs`, `echo "a -> b"`…) y bloquea `fdesetup status`, `nvram -p`
-  o `man mkfs`.
-
-### E. Sesión y proveedores
-
-- [x] **E1. Un proceso en segundo plano hace «fallar» el comando** tras 5 s.
-- [x] **E2. En Windows, cancelar mata PowerShell y no a sus hijos.**
-- [x] **E3. Una respuesta vacía del modelo deja el historial inválido**
-  (Anthropic y OpenAI), y un resultado vacío de herramienta también.
-- [x] **E4. No hay compactación del historial:** una sesión larga muere con
-  «prompt too long».
-- [x] **E5. OpenCode: cambiar de modelo entre familias sigue usando el
-  formato equivocado.**
-- [x] **E6. Dos sesiones en el mismo segundo se pisan el registro;** parar
-  por presupuesto sale con 0; un tiempo de espera de 10 minutos se
-  reintenta cuatro veces.
-
-### F. CLI
-
-- [x] **F1. Ctrl+C en una pregunta de `--no-tui` se cuelga** (elección,
-  confirmación, contraseña).
-- [x] **F2. Los ganchos (`hooks`) se ejecutan con `--dry-run`, nunca con
-  `--no-ai`,** y sus fallos se pierden.
-- [x] **F3. `omega full --json` mezcla texto y dos documentos JSON;**
-  `dev --no-ai`, `mac --json`, `fix --json` anuncian opciones que fallan.
-- [x] **F4. Un subcomando desconocido sale con 0** en `net`, `audit`, `git`,
-  `disk`, `schedule`, `completion`, `auth`, `config`.
-- [x] **F5. Opciones y argumentos que se ignoran:** `--format yaml`,
-  `--effort bogus`, `--max-turns -3`, `net ports abc`, `disk large /noexiste`.
-- [x] **F6. Pasos propios: un `steps.d/*.toml` con un error se descarta en
-  silencio,** y una categoría mal escrita deja el paso invisible.
-- [x] **F7. `config set` sustituye un `config.toml` enlazado por un fichero
-  normal;** `config edit` falla con `EDITOR="code -w"`.
-- [x] **F8. Textos de ayuda que no son verdad** (`--model`, `omega man`,
-  `quick` dice «tu equipo está sano» sin haberlo mirado).
-- [x] **F9. `quick` cuenta avisos como paquetes pendientes** e ignora
-  `skip_steps`; el informe JSON da duraciones a cero y `steps_run: null`.
-- [x] **F10. Las preguntas sí/no solo aceptan `y`:** `s`, `sí`, `oui`, `ja`
-  eran un «no» silencioso.
-- [x] **F11. `omega setup` sin terminal sale con 0 sin configurar nada;**
-  `completion install` en Windows instala la de bash.
-- [x] **F12. `omega steps --json` y `omega doctor --json`** (no existían).
-
-### G. Ficheros y sistema
-
-- [x] **G1. `disk artifacts` da por inactivos proyectos que se editan hoy**
-  (no miraba carpetas profundas y paraba a las 5.000 entradas), y dice
-  «✓ borrado» cuando el borrado falló.
-- [x] **G2. `omega uninstall Mail` selecciona los datos de la app del
-  sistema;** `uninstall Desktop`, los de Figma y GitHub Desktop.
-- [x] **G3. `skills install --force` y `skills update` sustituyen una
-  carpeta fuera de las ubicaciones de skills** (un enlace a un clon pierde
-  su `.git`).
-- [x] **G4. `omega mac undo` dice ✓ sin restaurar** (el comando terminaba en
-  `; true`), y una restauración a medias no se puede terminar.
-- [x] **G5. `schedule install` dice «instalado» cuando launchd rechazó la
-  tarea;** el registro iba a `/tmp`; con Homebrew en Linux la ruta dejaba
-  de existir tras actualizar.
-- [x] **G6. `net flush` dice que vació la caché sin haberlo hecho;**
-  `net ports` y `net kill` incluyen procesos UDP; `net audit` da por
-  sospechoso el `/etc/hosts` de fábrica.
-- [x] **G7. `audit secrets` no detecta claves `sk-proj-…`,** se para en una
-  línea larga y enseña hasta 31 caracteres de la clave; `audit ssh` da
-  falsos positivos con enlaces y rutas entre comillas.
-- [x] **G8. `omega privacy` no lee ningún ajuste** («telemetría activa» era
-  un texto fijo) y `--clean` dice ✓ cuando falla.
-- [x] **G9. `git status` omite sin avisar los repos que tardan más de 3 s;**
-  `git clean` ofrece ramas de un worktree y dice «borrado» sin borrar.
-- [x] **G10. En Windows la batería sale como «0,0 % de capacidad».**
-- [x] **G11. Código sin uso que borraría datos si se conectara**
-  (archivos de Xcode, `vssadmin delete shadows /all`): eliminado.
-
-### H. App de escritorio
-
-- [x] **H1. Recargar la ventana (⌘R) deja la sesión huérfana:** la app
-  parece libre, no deja empezar otra y no hay forma de parar la que sigue.
-  Debe: sin «Recargar» en el menú, y una ventana que se vuelve a dibujar
-  muestra la sesión y sigue.
-- [x] **H2. Cerrar la ventana con una sesión en marcha la mata sin avisar.**
-  Debe: preguntar.
-- [x] **H3. Los errores llegan en inglés sin traducir** y el aviso de «no se
-  pudo iniciar» siempre manda a configurar.
-- [x] **H4. «Detener» durante el arranque no da señal de vida.**
-- [x] **H5. Foco y lectores de pantalla:** tras responder una tarjeta el
-  foco se pierde; una tarjeta nueva no se anuncia.
-- [x] **H6. La CSP solo cubría imágenes.** Debe: `default-src 'self'`.
-- [x] **H7. Menores:** el estado dice «Trabajando…» con un comando aún en
-  curso; la salida recortada no lo dice; una contraseña escrita y no
-  enviada se queda en pantalla.
-
-### I. Publicación
-
-- [x] **I1. La imagen de contenedor se publica aunque el release falle**
-  (los trabajos `image` y `publish` no dependían uno del otro).
-- [x] **I2. El trabajo `publish` no se puede relanzar** tras un fallo a
-  medias (`gh release create` falla porque ya existe).
-- [x] **I3. Todos los trabajos del release tenían permiso de escritura.**
-- [x] **I4. La nota del cask decía que el `xattr` hace falta «una vez»:**
-  hace falta tras cada `brew upgrade --cask`. La nota de
-  `lcajigasm/homebrew-tap` la escribe su propio script y queda por cambiar
-  allí.
-- [x] **I5. La documentación prometía «avisos de escritorio»** que nada envía.
-
-## Sin prueba automática
-
-H1 a H7 se comprobaron en la app en modo servidor (recarga, foco, CSP) y la
-CSP y el arranque de sesión también en la ventana nativa de macOS; el menú
-y el aviso al cerrar no se han ejecutado. E2 y G10 (Windows) solo se
-compilan. I1 a I3 se prueban al publicar.
-
-## Fuera de esta ronda
-
-- Traducir las descripciones de 14 comandos y la salida del modo sin IA,
-  que siguen en inglés.
-- Fijar las acciones de GitHub por commit en vez de por etiqueta, y
-  comprobar la suma de `vhs`, `agg` y `ttyd` en `captures.yml`.
-- Firmar y notarizar la app de macOS (quita el `xattr` de raíz).
-- `approval = "never"` no se aplica en modo sin IA (los pasos peligrosos
-  siguen pidiendo `--yes` o una respuesta). Es deliberado.
-- `fetch_url` no pide aprobación para una dirección pública, y `remember`
-  escribe notas sin aprobación: una página puede influir en sesiones
-  futuras.
-- Un enlace Markdown puede mostrar un texto y abrir otra dirección.
-- `full --json` se rechaza; falta un documento agregado.
-- Las herramientas de la app (`RunTool`) no se pueden cancelar.
+  Dentro del editor:
+  - espacio, ⇧↑/⇧↓ y enter para montar y guardar la rutina;
+  - `i` para pedir la recomendación (necesita una clave configurada);
+  - después, `omega custom --show` y `omega custom --dry-run`.
+- Sin color: `NO_COLOR=1 ./bin/omega steps` y `./bin/omega logs | cat` no
+  deben tener escapes.
+- Para los P0 de la política: cada caso de A1-A5 es una entrada de tabla
+  para `safety.Classify` y `safety.AlwaysConfirm`, con `want always=true`.

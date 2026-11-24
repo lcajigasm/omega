@@ -62,11 +62,11 @@ func TestPilotScreen(t *testing.T) {
 	for _, want := range []string{
 		"Stage 2 of 3", "Update", "omega update", // the stage it is on
 		"Plan I will update Homebrew first, then the npm globals.", // what it says, without the Markdown
-		"Bash(brew upgrade)", "⎿ ==> Upgrading 4 outdated packages", // what is running now
+		"Bash(brew upgrade)", "└ ==> Upgrading 4 outdated packages", // what is running now
 		"ROUTE", "1/3", "✓ Check omega", "Clean up", // the route
 		"DONE SO FAR", "actions: 2 done · 1 failed · 1 denied", "✓ Remember(pipx needs Python 3.13)", // the summary so far
 		"✓ Bash(brew update)", "✗ Bash(softwareupdate -ia)", "exit 2", "⊘ Bash(docker volume prune -f) · Unattended run: this ne…", "denied",
-		"── Check omega", "── Update", "$0.0123", "claude-haiku-5-5", "( > )   ( < )", `/~~~\`, ".-=========-.", "ctrl+c stops the run",
+		"── Check omega", "── Update", "$0.0123", "claude-haiku-5-5", "( > )   ( < )", `/~~~\`, ".-=========-.", "ctrl+c stop the run",
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("the screen does not show %q:\n%s", want, got)
@@ -88,7 +88,7 @@ func TestPilotScreen(t *testing.T) {
 	if _, cmd := m.Update(key("ctrl+c")); cmd != nil || !cancelled || !m.host.stop.Load() {
 		t.Errorf("ctrl+c: cancelled %v, stop %v, cmd %v", cancelled, m.host.stop.Load(), cmd)
 	}
-	if got := screen(m.View(), 100, 30); !strings.Contains(got, "ctrl+c again leaves now") || !strings.Contains(got, "( - )   ( - )") {
+	if got := screen(m.View(), 100, 30); !strings.Contains(got, "ctrl+c again to leave now") || !strings.Contains(got, "( - )   ( - )") {
 		t.Errorf("stopping is not shown:\n%s", got)
 	}
 	if _, cmd := m.Update(key("ctrl+c")); cmd == nil {

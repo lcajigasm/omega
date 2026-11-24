@@ -31,7 +31,7 @@ const maxResponse = 32 << 20
 
 func newOpenAICompat(name string, opts Options) *openAICompat {
 	opts.BaseURL = strings.TrimRight(opts.BaseURL, "/")
-	return &openAICompat{name: name, opts: opts, http: &http.Client{Timeout: 10 * time.Minute}}
+	return &openAICompat{name: name, opts: opts, http: &http.Client{Timeout: requestTimeout}}
 }
 
 func (p *openAICompat) Name() string { return p.name }
@@ -148,9 +148,72 @@ type oaResponse struct {
 		FinishReason string          `json:"finish_reason"`
 	} `json:"choices"`
 	Usage struct {
-		PromptTokens     int64 `json:"prompt_tokens"`
-		CompletionTokens int64 `json:"completion_tokens"`
+		PromptTokens        int64 `json:"prompt_tokens"`
+		CompletionTokens    int64 `json:"completion_tokens"`
+		PromptTokensDetails struct {
+			// CachedTokens of the prompt were read from the cache. OpenRouter
+			// adds CacheWriteTokens, written to it. Both are counted in
+			// prompt_tokens.
+			CachedTokens     int64 `json:"cached_tokens"`
+			CacheWriteTokens int64 `json:"cache_write_tokens"`
+		} `json:"prompt_tokens_details"`
 	} `json:"usage"`
+}
+
+// usage splits the prompt into uncached, read and written tokens.
+func (r oaResponse) usage() Usage {
+	u := r.Usage
+	read, write := u.PromptTokensDetails.CachedTokens, u.PromptTokensDetails.CacheWriteTokens
+	in := u.PromptTokens - read - write
+	if in < 0 {
+		in = 0
+	}
+	return Usage{InputTokens: in, OutputTokens: u.CompletionTokens, CacheRead: read, CacheWrite: write}
+}
+
+// cachesExplicitly reports a model that caches only where the request says
+// so: Claude through OpenRouter. OpenAI's own models cache by themselves.
+func (c *openAIChat) cachesExplicitly() bool {
+	return c.p.name == "openrouter" && strings.HasPrefix(strings.ToLower(c.model), "anthropic/")
+}
+
+// withCacheControl returns the messages to send with two cache breakpoints,
+// in OpenRouter's format (a text part with "cache_control": {"type":
+// "ephemeral"}): on the system prompt, and on the last message, so each
+// turn reads the history the turn before wrote. The history itself is left
+// as it is.
+func withCacheControl(msgs []any) []any {
+	out := append([]any(nil), msgs...)
+	mark := func(i int) {
+		m, ok := out[i].(map[string]any)
+		if !ok {
+			return
+		}
+		text, ok := m["content"].(string)
+		if !ok || text == "" {
+			return
+		}
+		cp := make(map[string]any, len(m))
+		for k, v := range m {
+			cp[k] = v
+		}
+		cp["content"] = []any{map[string]any{"type": "text", "text": text, "cache_control": map[string]any{"type": "ephemeral"}}}
+		out[i] = cp
+	}
+	if len(out) > 0 {
+		if m, ok := out[0].(map[string]any); ok && m["role"] == "system" {
+			mark(0)
+		}
+	}
+	// The last user message: tool results stay plain strings, the shape
+	// every OpenAI-compatible endpoint takes for them.
+	for i := len(out) - 1; i > 0; i-- {
+		if m, ok := out[i].(map[string]any); ok && m["role"] == "user" {
+			mark(i)
+			break
+		}
+	}
+	return out
 }
 
 func (c *openAIChat) Send(ctx context.Context, text string, results []ToolResult) (*Reply, error) {
@@ -168,7 +231,11 @@ func (c *openAIChat) Send(ctx context.Context, text string, results []ToolResult
 		added++
 	}
 
-	body := map[string]any{"model": c.model, "messages": c.messages}
+	msgs := c.messages
+	if c.cachesExplicitly() {
+		msgs = withCacheControl(msgs)
+	}
+	body := map[string]any{"model": c.model, "messages": msgs}
 	if len(c.tools) > 0 {
 		body["tools"] = c.tools
 	}
@@ -227,7 +294,7 @@ func (c *openAIChat) Send(ctx context.Context, text string, results []ToolResult
 	}
 	c.messages = append(c.messages, hist)
 
-	reply := &Reply{Usage: Usage{InputTokens: resp.Usage.PromptTokens, OutputTokens: resp.Usage.CompletionTokens}}
+	reply := &Reply{Usage: resp.usage()}
 	if msg.Content != nil {
 		reply.Text = *msg.Content
 	}
@@ -288,7 +355,7 @@ func (c *openAIChat) post(ctx context.Context, body map[string]any) ([]byte, err
 	var retryAfter string
 	for attempt := 0; attempt < 4; attempt++ {
 		if attempt > 0 {
-			if err := c.p.pause(ctx, retryWait(attempt, retryAfter)); err != nil {
+			if err := pause(ctx, c.p.after, retryWait(attempt, retryAfter)); err != nil {
 				return nil, err
 			}
 		}
@@ -323,19 +390,6 @@ func (c *openAIChat) post(ctx context.Context, body map[string]any) ([]byte, err
 		retryAfter = resp.Header.Get("Retry-After")
 	}
 	return nil, lastErr
-}
-
-func (p *openAICompat) pause(ctx context.Context, d time.Duration) error {
-	after := p.after
-	if after == nil {
-		after = time.After
-	}
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-after(d):
-		return nil
-	}
 }
 
 func apiError(status int, body []byte) error {

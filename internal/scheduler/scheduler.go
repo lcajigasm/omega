@@ -1,9 +1,9 @@
 // Package scheduler manages automated maintenance scheduling using native OS daemons
-// (launchd on macOS, systemd --user on Linux, and Task Scheduler on Windows). Notify
-// can post a desktop notification; nothing calls it yet.
+// (launchd on macOS, systemd --user on Linux, and Task Scheduler on Windows).
 package scheduler
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -40,13 +40,19 @@ var (
 
 // EnvScheduled is set to "1" in the environment of the job the schedule
 // runs. A run that sees it is unattended and repeats by itself: it must not
-// empty the Trash, which is where omega puts what it removes.
+// empty the Trash, which is where omega puts what it removes. The Task
+// Scheduler of Windows passes no environment, so the job also carries
+// FlagScheduled, which says the same.
 const EnvScheduled = "OMEGA_SCHEDULED"
+
+// FlagScheduled is the flag of the scheduled command that marks the run as
+// scheduled, on every system.
+const FlagScheduled = "--scheduled"
 
 // taskFlags are the flags of the scheduled command. --no-ai: nobody is
 // looking when it runs, so it is the built-in steps, never the model with
 // its approvals answered yes.
-const taskFlags = "--yes --no-tui --no-ai"
+const taskFlags = "--yes --no-tui --no-ai " + FlagScheduled
 
 // Describe says what the scheduled task does, for the message shown when
 // it is installed.
@@ -58,6 +64,7 @@ func Describe(task string) string {
 		"full":    "updates the software, runs the cleanup steps and analyzes the system",
 		"analyze": "reports on the state of the system and changes nothing",
 		"health":  "runs the health checks and changes nothing",
+		"custom":  "runs your default routine (omega custom)",
 	}[task]
 	if what == "" {
 		return ""
@@ -100,36 +107,6 @@ const (
 	windowsTaskName     = "OmegaMaintenance"
 )
 
-// Notify sends a native desktop notification to the user.
-func Notify(ctx context.Context, title, message string) error {
-	switch goos {
-	case "darwin":
-		script := "osascript -e " + sq(fmt.Sprintf(`display notification "%s" with title "%s"`,
-			escapeAppleScript(message), escapeAppleScript(title)))
-		_ = run(ctx, script, 3*time.Second)
-		return nil
-	case "windows":
-		script := fmt.Sprintf(`[reflection.assembly]::loadwithpartialname('System.Windows.Forms'); `+
-			`$notify = new-object system.windows.forms.notifyicon; `+
-			`$notify.icon = [system.drawing.systemicons]::Information; `+
-			`$notify.visible = $true; `+
-			`$notify.showballoontip(10, '%s', '%s', [system.windows.forms.tooltipicon]::Info)`,
-			strings.ReplaceAll(title, "'", "''"), strings.ReplaceAll(message, "'", "''"))
-		_ = run(ctx, script, 5*time.Second)
-		return nil
-	default: // Linux
-		if runner.Has("notify-send") {
-			_ = run(ctx, "notify-send -- "+sq(title)+" "+sq(message), 3*time.Second)
-		}
-		return nil
-	}
-}
-
-func escapeAppleScript(s string) string {
-	s = strings.ReplaceAll(s, `\`, `\\`)
-	return strings.ReplaceAll(s, `"`, `\"`)
-}
-
 // Validate checks a schedule before anything is written: a task omega does
 // not have, or 25:00, would install a job that fails every time it runs.
 func Validate(interval, task string, hour, minute int) error {
@@ -139,9 +116,9 @@ func Validate(interval, task string, hour, minute int) error {
 		return fmt.Errorf("interval %q: use daily, weekly or monthly", interval)
 	}
 	switch task {
-	case "quick", "update", "clean", "full", "analyze", "health":
+	case "quick", "update", "clean", "full", "analyze", "health", "custom":
 	default:
-		return fmt.Errorf("task %q: use quick, update, clean, full, analyze or health", task)
+		return fmt.Errorf("task %q: use quick, update, clean, full, analyze, health or custom", task)
 	}
 	if hour < 0 || hour > 23 {
 		return fmt.Errorf("hour %d: use 0 to 23", hour)
@@ -156,9 +133,6 @@ func Validate(interval, task string, hour, minute int) error {
 func xmlEscape(s string) string {
 	return strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;").Replace(s)
 }
-
-// sq quotes a path for sh.
-func sq(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'" }
 
 // Install registers background maintenance with the operating system.
 func Install(interval, task string, hour, minute int) error {
@@ -253,9 +227,54 @@ func LogDir() string {
 	return filepath.Join(config.StateDir(), "logs")
 }
 
+// Log rotation: a log over rotateAbove is cut to its last keepBytes.
+var (
+	rotateAbove int64 = 5 << 20
+	keepBytes   int64 = 1 << 20
+)
+
+// RotateLogs keeps schedule.log and schedule.err in LogDir from growing
+// without end: one over 5 MB is cut to its last 1 MB, from the start of a
+// line. Install calls it, and so should the start of a scheduled run. A
+// file that cannot be read or written is left as it is.
+func RotateLogs() {
+	for _, name := range []string{"schedule.log", "schedule.err"} {
+		_ = rotate(filepath.Join(LogDir(), name))
+	}
+}
+
+func rotate(path string) error {
+	fi, err := os.Stat(path)
+	if err != nil || fi.Size() <= rotateAbove {
+		return err
+	}
+	// In place, not a new file renamed over it: the scheduled run that
+	// calls this already writes to the file launchd opened for it.
+	f, err := os.OpenFile(path, os.O_RDWR, 0)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	buf := make([]byte, keepBytes)
+	n, err := f.ReadAt(buf, fi.Size()-keepBytes)
+	if err != nil && n == 0 {
+		return err
+	}
+	buf = buf[:n]
+	if i := bytes.IndexByte(buf, '\n'); i >= 0 {
+		buf = buf[i+1:]
+	}
+	head := fmt.Sprintf("[omega: older lines removed on %s]\n", time.Now().Format(time.RFC3339))
+	if err := f.Truncate(0); err != nil {
+		return err
+	}
+	_, err = f.WriteAt(append([]byte(head), buf...), 0)
+	return err
+}
+
 // launchdLoaded asks launchd whether it has the job.
 func launchdLoaded() bool {
-	return run(context.Background(), "launchctl print "+sq(launchdJob())+" >/dev/null 2>&1", 5*time.Second).ExitCode == 0
+	return run(context.Background(), "launchctl print "+runner.ShellQuote(launchdJob())+" >/dev/null 2>&1", 5*time.Second).ExitCode == 0
 }
 
 func installMacLaunchAgent(omegaPath, interval, task string, hour, minute int) error {
@@ -271,6 +290,7 @@ func installMacLaunchAgent(omegaPath, interval, task string, hour, minute int) e
 	if err := os.Chmod(logs, 0o700); err != nil {
 		return err
 	}
+	RotateLogs()
 
 	content := fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -285,19 +305,24 @@ func installMacLaunchAgent(omegaPath, interval, task string, hour, minute int) e
         <string>--yes</string>
         <string>--no-tui</string>
         <string>--no-ai</string>
+        <string>%s</string>
     </array>
     <key>EnvironmentVariables</key>
     <dict>
         <key>%s</key>
         <string>1</string>
     </dict>
+    <key>ProcessType</key>
+    <string>Background</string>
+    <key>LowPriorityIO</key>
+    <true/>
     <key>StartCalendarInterval</key>%s
     <key>StandardOutPath</key>
     <string>%s</string>
     <key>StandardErrorPath</key>
     <string>%s</string>
 </dict>
-</plist>`, macLaunchAgentLabel, xmlEscape(omegaPath), task, EnvScheduled, macCalendar(interval, hour, minute),
+</plist>`, macLaunchAgentLabel, xmlEscape(omegaPath), task, FlagScheduled, EnvScheduled, macCalendar(interval, hour, minute),
 		xmlEscape(filepath.Join(logs, "schedule.log")), xmlEscape(filepath.Join(logs, "schedule.err")))
 
 	if err := os.WriteFile(plistPath, []byte(content), 0o644); err != nil {
@@ -309,8 +334,8 @@ func installMacLaunchAgent(omegaPath, interval, task string, hour, minute int) e
 	// with status 0. bootstrap says when launchd refuses the job, and
 	// print confirms it is there.
 	ctx := context.Background()
-	had := run(ctx, "launchctl bootout "+sq(launchdJob())+" 2>&1", 10*time.Second).ExitCode == 0
-	load := "launchctl bootstrap " + sq(launchdDomain()) + " " + sq(plistPath) + " 2>&1"
+	had := run(ctx, "launchctl bootout "+runner.ShellQuote(launchdJob())+" 2>&1", 10*time.Second).ExitCode == 0
+	load := "launchctl bootstrap " + runner.ShellQuote(launchdDomain()) + " " + runner.ShellQuote(plistPath) + " 2>&1"
 	res := run(ctx, load, 10*time.Second)
 	if res.ExitCode != 0 && had {
 		// launchd may still be letting go of the old job.
@@ -353,6 +378,8 @@ Description=Omega Scheduled Maintenance
 
 [Service]
 Type=oneshot
+Nice=10
+IOSchedulingClass=idle
 Environment=%s=1
 ExecStart="%s" %s %s
 `, EnvScheduled, systemdQuote(omegaPath), task, taskFlags)
@@ -450,7 +477,7 @@ func Uninstall() error {
 	}
 	switch goos {
 	case "darwin":
-		_ = run(ctx, "launchctl bootout "+sq(launchdJob())+" 2>&1", 10*time.Second)
+		_ = run(ctx, "launchctl bootout "+runner.ShellQuote(launchdJob())+" 2>&1", 10*time.Second)
 		return remove(macPlistPath())
 	case "windows":
 		_ = run(ctx, fmt.Sprintf(`schtasks /Delete /TN "%s" /F`, windowsTaskName), 3*time.Second)

@@ -27,7 +27,7 @@ func devCmd() *cobra.Command {
 	bindRunFlags(c.Flags(), &f)
 	c.Flags().MarkHidden("prompt")
 	c.AddCommand(
-		&cobra.Command{Use: "status", Short: i18n.T("cmd.dev_status"), Args: cobra.NoArgs,
+		&cobra.Command{Use: "status", Short: i18n.T("cmd.dev_status"), Long: i18n.T("cmd.dev_status_more"), Args: cobra.NoArgs,
 			RunE: func(cmd *cobra.Command, args []string) error {
 				fmt.Println(i18n.T("dev.reading"))
 				printDev(devtools.Load(true))
@@ -46,7 +46,7 @@ func devCmd() *cobra.Command {
 			RunE: func(cmd *cobra.Command, args []string) error {
 				return devInstall(args, term.IsTerminal(int(os.Stdin.Fd())))
 			}},
-		&cobra.Command{Use: "activate", Short: i18n.T("cmd.dev_activate"), Args: cobra.NoArgs,
+		&cobra.Command{Use: "activate", Short: i18n.T("cmd.dev_activate"), Long: i18n.T("cmd.dev_activate_more"), Args: cobra.NoArgs,
 			RunE: func(cmd *cobra.Command, args []string) error {
 				installed, _ := devtools.Detect()
 				return devActivate(installed, term.IsTerminal(int(os.Stdin.Fd())))
@@ -193,7 +193,7 @@ func devInstall(names []string, tty bool) error {
 	var su sudoSession
 	defer su.close()
 	for _, t := range tools {
-		fmt.Printf("\n⏺ %s\n  %s\n", t.Name, t.Install)
+		fmt.Printf("\n● %s\n  %s\n", t.Name, t.Install)
 		if ok, err := allowInstaller(t, tty, ask); err != nil {
 			return err
 		} else if !ok {
@@ -209,7 +209,7 @@ func devInstall(names []string, tty bool) error {
 			fmt.Println("  " + i18n.T("mac.failed", res.ExitCode))
 			continue
 		}
-		fmt.Println("  ⎿ ✓")
+		fmt.Println("  └ ✓")
 		done = append(done, t)
 	}
 	if err := devActivate(done, tty); err != nil {

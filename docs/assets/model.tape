@@ -2,7 +2,7 @@
 # scripts/capture.sh serves GET /v1/models on 127.0.0.1:18080 and then runs this tape.
 Output bin/model.gif
 Set Shell bash
-Set FontFamily "DejaVu Sans Mono"
+Set FontFamily "DejaVu Sans Mono, Menlo"
 Set FontSize 15
 Set Width 1280
 Set Height 560

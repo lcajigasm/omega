@@ -4,6 +4,7 @@ package customsteps
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -99,6 +100,12 @@ func Load() (loaded []steps.Step, problems []string) {
 				problems = append(problems, i18n.T("custom.bad_risk", file, def.ID, def.Risk))
 				continue
 			}
+			// A step is at least as risky as its command: "read-only" on an
+			// rm -rf would run it in --dry-run, in read-only mode and in
+			// analyze and health.
+			if r := safety.Classify(def.Command); r > risk {
+				risk = r
+			}
 			category := def.Category
 			if category == "" {
 				category = steps.Clean
@@ -190,6 +197,9 @@ func RunHook(ctx context.Context, name string) error {
 	return nil
 }
 
+// has is a seam the tests replace.
+var has = runner.Has
+
 // CreateSnapshot creates a filesystem restore point before major maintenance.
 func CreateSnapshot(ctx context.Context, desc string) (string, error) {
 	if desc == "" {
@@ -197,22 +207,23 @@ func CreateSnapshot(ctx context.Context, desc string) (string, error) {
 	}
 	switch goos {
 	case "darwin":
-		res := runner.Run(ctx, "tmutil snapshot", 30*time.Second, nil)
+		res := run(ctx, "tmutil snapshot", 30*time.Second, nil)
 		if res.ExitCode != 0 {
 			return "", fmt.Errorf("tmutil snapshot failed: %s", res.Output)
 		}
 		return "APFS local snapshot created successfully: " + strings.TrimSpace(res.Output), nil
 	case "windows":
-		script := fmt.Sprintf(`Checkpoint-Computer -Description "%s" -RestorePointType "MODIFY_SETTINGS"`, desc)
-		res := runner.Run(ctx, script, 30*time.Second, nil)
+		script := fmt.Sprintf(`Checkpoint-Computer -Description '%s' -RestorePointType "MODIFY_SETTINGS"`, strings.ReplaceAll(desc, "'", "''"))
+		res := run(ctx, script, 30*time.Second, nil)
 		if res.ExitCode != 0 {
 			return "", fmt.Errorf("windows checkpoint failed: %s", res.Output)
 		}
 		return "Windows Restore Point created successfully", nil
 	default:
-		if runner.Has("snapper") {
-			cmd := fmt.Sprintf(`sudo snapper create --description "%s"`, desc)
-			res := runner.Run(ctx, cmd, 15*time.Second, nil)
+		if has("snapper") {
+			// -n: without omega's sudo bridge, fail at once instead of
+			// waiting for a password nobody can type.
+			res := run(ctx, "sudo -n snapper create --description "+runner.ShellQuote(desc), 15*time.Second, nil)
 			if res.ExitCode == 0 {
 				return "Btrfs snapper snapshot created successfully", nil
 			}
@@ -221,21 +232,131 @@ func CreateSnapshot(ctx context.Context, desc string) (string, error) {
 	}
 }
 
-// Rollback guides the user or executes restore from the latest snapshot.
-func Rollback(ctx context.Context) (string, error) {
+// Errors of ListSnapshots.
+var (
+	// ErrNoSnapshots: the system keeps snapshots, and there are none.
+	ErrNoSnapshots = errors.New("no snapshots")
+	// ErrNeedsSudo: listing them needs the administrator password, and
+	// omega does not wait for one at a prompt nobody may see.
+	ErrNeedsSudo = errors.New("listing the snapshots needs sudo")
+	// ErrUnsupported: this system has no snapshots omega can list.
+	ErrUnsupported = errors.New("no snapshot support")
+)
+
+// Snapshots are the restore points of this system.
+type Snapshots struct {
+	Kind    string   // "apfs", "snapper" or "windows"
+	List    []string // one line per snapshot, oldest first as the system lists them
+	Restore string   // how to restore one, in the user's language
+}
+
+// ListSnapshots lists the restore points. With none, List is empty and the
+// error is ErrNoSnapshots; ErrNeedsSudo and ErrUnsupported say why there is
+// no list at all. Another error is a listing that failed.
+func ListSnapshots(ctx context.Context) (Snapshots, error) {
 	switch goos {
 	case "darwin":
-		// List available APFS snapshots
-		res := runner.Run(ctx, "tmutil listlocalsnapshots /", 5*time.Second, nil)
-		return "Available APFS snapshots:\n" + res.Output + "\nTo restore, boot into macOS Recovery and select 'Restore From Time Machine'.", nil
-	case "windows":
-		res := runner.Run(ctx, "Get-ComputerRestorePoint | Select-Object SequenceNumber, Description, CreationTime | Out-String", 5*time.Second, nil)
-		return "Available Windows Restore Points:\n" + res.Output + "\nRun 'rstrui.exe' to launch the System Restore wizard.", nil
-	default:
-		if runner.Has("snapper") {
-			res := runner.Run(ctx, "sudo snapper list", 5*time.Second, nil)
-			return "Available snapper snapshots:\n" + res.Output + "\nUse 'snapper undochange <id>..<id>' to rollback changes.", nil
+		snap := Snapshots{Kind: "apfs", Restore: i18n.T("snapshots.restore_apfs")}
+		res := run(ctx, "tmutil listlocalsnapshots /", 10*time.Second, nil)
+		if res.ExitCode != 0 {
+			return snap, fmt.Errorf("tmutil listlocalsnapshots: %s", strings.TrimSpace(res.Output))
 		}
-		return "No snapshot rollbacks available on this system.", nil
+		for _, l := range strings.Split(res.Output, "\n") {
+			l = strings.TrimSpace(l)
+			// The first line is "Snapshots for disk /:".
+			if l == "" || strings.HasSuffix(l, ":") || strings.HasPrefix(l, "[omega") {
+				continue
+			}
+			snap.List = append(snap.List, l)
+		}
+		return done(snap)
+	case "windows":
+		snap := Snapshots{Kind: "windows", Restore: i18n.T("snapshots.restore_windows")}
+		res := run(ctx, "Get-ComputerRestorePoint | ForEach-Object { \"$($_.SequenceNumber)  $($_.ConvertToDateTime($_.CreationTime))  $($_.Description)\" }", 15*time.Second, nil)
+		if res.ExitCode != 0 {
+			return snap, fmt.Errorf("Get-ComputerRestorePoint: %s", strings.TrimSpace(res.Output))
+		}
+		for _, l := range strings.Split(res.Output, "\n") {
+			if l = strings.TrimSpace(l); l != "" && !strings.HasPrefix(l, "[omega") {
+				snap.List = append(snap.List, l)
+			}
+		}
+		return done(snap)
+	default:
+		snap := Snapshots{Kind: "snapper", Restore: i18n.T("snapshots.restore_snapper")}
+		if !has("snapper") {
+			return snap, ErrUnsupported
+		}
+		// snapper lets the users in ALLOW_USERS list without sudo; for the
+		// others sudo -n fails at once when it needs a password.
+		res := run(ctx, "snapper list 2>&1", 10*time.Second, nil)
+		if res.ExitCode != 0 {
+			res = run(ctx, "sudo -n snapper list 2>&1", 10*time.Second, nil)
+		}
+		if res.ExitCode != 0 {
+			out := strings.ToLower(res.Output)
+			if strings.Contains(out, "password is required") || strings.Contains(out, "a terminal is required") ||
+				strings.Contains(out, "sudo:") || strings.Contains(out, "no permissions") {
+				return snap, ErrNeedsSudo
+			}
+			return snap, fmt.Errorf("snapper list: %s", strings.TrimSpace(res.Output))
+		}
+		snap.List = snapperRows(res.Output)
+		return done(snap)
 	}
+}
+
+func done(s Snapshots) (Snapshots, error) {
+	if len(s.List) == 0 {
+		return s, ErrNoSnapshots
+	}
+	return s, nil
+}
+
+// snapperRows reads the table of snapper list: the rows after the rule
+// under the header, without snapshot 0 (the current system).
+func snapperRows(out string) []string {
+	var rows []string
+	body := false
+	for _, l := range strings.Split(out, "\n") {
+		t := strings.TrimSpace(l)
+		if !body {
+			body = strings.Contains(t, "-+-") || strings.Contains(t, "─┼─")
+			continue
+		}
+		f := strings.FieldsFunc(t, func(r rune) bool { return r == '|' || r == '│' })
+		if len(f) == 0 {
+			continue
+		}
+		id := strings.TrimSpace(strings.TrimRight(strings.TrimSpace(f[0]), "*-+"))
+		if id == "" || id == "0" || strings.Trim(id, "0123456789") != "" {
+			continue
+		}
+		rows = append(rows, t)
+	}
+	return rows
+}
+
+// Rollback lists the restore points and says how to restore one. It says so
+// when there are none, and when listing them needs sudo.
+func Rollback(ctx context.Context) (string, error) {
+	snap, err := ListSnapshots(ctx)
+	switch {
+	case errors.Is(err, ErrNoSnapshots):
+		return i18n.T("snapshots.none"), nil
+	case errors.Is(err, ErrUnsupported):
+		return i18n.T("snapshots.unsupported"), nil
+	case errors.Is(err, ErrNeedsSudo):
+		return "", fmt.Errorf("%s", i18n.T("snapshots.needs_sudo"))
+	case err != nil:
+		return "", err
+	}
+	var b strings.Builder
+	b.WriteString(i18n.T("snapshots.available", len(snap.List)))
+	b.WriteString("\n")
+	for _, l := range snap.List {
+		b.WriteString("  " + l + "\n")
+	}
+	b.WriteString(snap.Restore)
+	return b.String(), nil
 }

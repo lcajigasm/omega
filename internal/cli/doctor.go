@@ -19,6 +19,7 @@ import (
 	"github.com/lcajigasm/omega/internal/llm"
 	"github.com/lcajigasm/omega/internal/secrets"
 	"github.com/lcajigasm/omega/internal/steps"
+	"github.com/lcajigasm/omega/internal/ui"
 )
 
 func doctorCmd() *cobra.Command {
@@ -26,6 +27,7 @@ func doctorCmd() *cobra.Command {
 	c := &cobra.Command{
 		Use:   "doctor",
 		Short: i18n.T("cmd.doctor"),
+		Long:  i18n.T("cmd.doctor_more"),
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if !asJSON {
@@ -148,22 +150,29 @@ func versionParts(v string) ([3]int, bool) {
 func doctorVersion(w io.Writer) {
 	mine, ok := versionParts(version)
 	if !ok {
-		fmt.Fprintln(w, i18n.T("doctor.version_unknown", version))
+		doctorLine(w, ui.MarkInfo, i18n.T("doctor.version_unknown", version))
 		return
 	}
 	latest := latestRelease()
 	theirs, ok := versionParts(latest)
 	switch {
 	case !ok:
-		fmt.Fprintln(w, i18n.T("doctor.version_unknown", version))
+		doctorLine(w, ui.MarkInfo, i18n.T("doctor.version_unknown", version))
 	case theirs[0] > mine[0] || (theirs[0] == mine[0] && (theirs[1] > mine[1] || (theirs[1] == mine[1] && theirs[2] > mine[2]))):
-		fmt.Fprintln(w, i18n.T("doctor.version_old", version, latest))
+		doctorLine(w, ui.MarkWarn, i18n.T("doctor.version_old", version, latest))
 	default:
-		fmt.Fprintln(w, i18n.T("doctor.version_ok", version))
+		doctorLine(w, ui.MarkOK, i18n.T("doctor.version_ok", version))
 	}
 }
 
-func runDoctor(w io.Writer) error { return doctorReport(w, true) }
+func runDoctor(w io.Writer) error {
+	ui.NewReport(w).Title("omega doctor", i18n.T("doctor.subtitle"))
+	err := doctorReport(w, true)
+	if err == nil {
+		ui.NewReport(w).Hint(i18n.T("doctor.all_ok"))
+	}
+	return err
+}
 
 // doctorReport writes the checks; withSteps adds the list of steps, which a
 // frontend that draws its own leaves out.
@@ -180,18 +189,23 @@ func doctorCheck(w io.Writer, withSteps bool) (doctorFacts, error) {
 	cfg, err := config.Load()
 	if err != nil {
 		facts.configErr = err.Error()
-		fmt.Fprintln(w, i18n.T("doctor.config_bad", err.Error()))
+		doctorLine(w, ui.MarkErr, i18n.T("doctor.config_bad", err.Error()))
 		if withSteps {
 			fmt.Fprint(w, doctorSteps(config.Default()))
 		}
-		return facts, fmt.Errorf("%s", i18n.T("doctor.failed", 1))
+		return facts, fmt.Errorf("%s", i18n.N("doctor.failed", 1))
 	}
 	if err := cfg.Validate(); err != nil {
 		facts.configErr = err.Error()
-		fmt.Fprintln(w, i18n.T("doctor.config_bad", err.Error()))
+		doctorLine(w, ui.MarkErr, i18n.T("doctor.config_bad", err.Error()))
 		problems++
 	} else {
-		fmt.Fprintln(w, i18n.T("doctor.config_ok", config.Path()))
+		doctorLine(w, ui.MarkOK, i18n.T("doctor.config_ok", config.Path()))
+	}
+	// A key omega does not know is most likely a typo whose setting stays
+	// the default: a warning, not a failure.
+	for _, k := range unknownConfigKeys() {
+		doctorLine(w, ui.MarkWarn, i18n.T("config.unknown_key", k))
 	}
 	facts.provider = cfg.Provider
 	providerProblems := doctorProvider(w, cfg)
@@ -200,14 +214,14 @@ func doctorCheck(w io.Writer, withSteps bool) (doctorFacts, error) {
 	// A step of the user's own that omega left out never runs: say which.
 	_, facts.custom = customsteps.Load()
 	for _, p := range facts.custom {
-		fmt.Fprintln(w, i18n.T("doctor.custom_bad", p))
+		doctorLine(w, ui.MarkErr, i18n.T("doctor.custom_bad", p))
 		problems++
 	}
 	if withSteps {
 		fmt.Fprint(w, doctorSteps(cfg))
 	}
 	if problems > 0 {
-		return facts, fmt.Errorf("%s", i18n.T("doctor.failed", problems))
+		return facts, fmt.Errorf("%s", i18n.N("doctor.failed", problems))
 	}
 	return facts, nil
 }
@@ -218,69 +232,69 @@ var keyStore = secrets.Store
 func doctorProvider(w io.Writer, cfg *config.Config) int {
 	info, ok := llm.Lookup(cfg.Provider)
 	if !ok {
-		fmt.Fprintln(w, i18n.T("doctor.provider_bad", i18n.T("err.unknown_provider", cfg.Provider, providerNames())))
+		doctorLine(w, ui.MarkErr, i18n.T("doctor.provider_bad", i18n.T("err.unknown_provider", cfg.Provider, providerNames())))
 		return 1
 	}
 	if info.Local {
-		fmt.Fprintln(w, i18n.T("doctor.key_local"))
+		doctorLine(w, ui.MarkOK, i18n.T("doctor.key_local"))
 		base := cfg.BaseURLFor(info.Name)
 		if base == "" {
 			base = info.BaseURL
 		}
 		if base == "" {
-			fmt.Fprintln(w, i18n.T("doctor.provider_bad", i18n.T("doctor.no_base")))
+			doctorLine(w, ui.MarkErr, i18n.T("doctor.provider_bad", i18n.T("doctor.no_base")))
 			return 1
 		}
 		ids, up := localModels(base)
 		if !up {
-			fmt.Fprintln(w, i18n.T("doctor.provider_bad", i18n.T("model.unreachable", info.Label, base)))
+			doctorLine(w, ui.MarkErr, i18n.T("doctor.provider_bad", i18n.T("model.unreachable", info.Label, base)))
 			return 1
 		}
-		fmt.Fprintln(w, i18n.T("doctor.provider_ok", info.Label))
+		doctorLine(w, ui.MarkOK, i18n.T("doctor.provider_ok", info.Label))
 		return doctorModels(w, cfg, info, ids)
 	}
 
 	key, src, err := getKey(info.Name)
 	if err != nil {
-		fmt.Fprintln(w, i18n.T("doctor.key_missing", info.Label))
+		doctorLine(w, ui.MarkErr, i18n.T("doctor.key_missing", info.Label))
 		if store := keyStore(); store != "" {
-			fmt.Fprintln(w, i18n.T("doctor.key_store", secrets.Describe(store)))
+			doctorLine(w, ui.MarkInfo, i18n.T("doctor.key_store", secrets.Describe(store)))
 		}
 		return 1
 	}
 	if keyLooksWrong(key) {
-		fmt.Fprintln(w, i18n.T("doctor.key_bad", info.KeyURL))
+		doctorLine(w, ui.MarkErr, i18n.T("doctor.key_bad", info.KeyURL))
 		return 1
 	}
-	fmt.Fprintln(w, i18n.T("doctor.key_ok", secrets.Describe(src)))
+	doctorLine(w, ui.MarkOK, i18n.T("doctor.key_ok", secrets.Describe(src)))
 	if pre := keyPrefix[info.Name]; pre != "" && !strings.HasPrefix(key, pre) {
-		fmt.Fprintln(w, i18n.T("doctor.key_prefix", pre))
+		doctorLine(w, ui.MarkWarn, i18n.T("doctor.key_prefix", pre))
 	}
 
 	p, err := llm.New(info.Name, llm.Options{APIKey: key, BaseURL: cfg.BaseURLFor(info.Name)})
 	if err != nil {
-		fmt.Fprintln(w, i18n.T("doctor.provider_bad", err.Error()))
+		doctorLine(w, ui.MarkErr, i18n.T("doctor.provider_bad", err.Error()))
 		return 1
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	switch err := llm.Verify(ctx, p); {
 	case err == nil:
-		fmt.Fprintln(w, i18n.T("doctor.provider_ok", info.Label))
+		doctorLine(w, ui.MarkOK, i18n.T("doctor.provider_ok", info.Label))
 	case errors.Is(err, llm.ErrUnauthorized):
-		fmt.Fprintln(w, i18n.T("doctor.key_rejected", info.Label))
+		doctorLine(w, ui.MarkErr, i18n.T("doctor.key_rejected", info.Label))
 		return 1
 	default:
-		fmt.Fprintln(w, i18n.T("doctor.provider_bad", err.Error()))
+		doctorLine(w, ui.MarkErr, i18n.T("doctor.provider_bad", err.Error()))
 		return 1
 	}
 	if m := cfg.ModelFor(info.Name); m == "" || m == "auto" {
 		loadModels(cfg, info, p, false)
 		fast, smart := tiers(cfg, info)
 		if live := livePicks(cfg, info.Name); live.Fast != "" {
-			fmt.Fprintln(w, i18n.T("doctor.models_auto", fast, smart, modelStore.Fetched.Local().Format("2006-01-02")))
+			doctorLine(w, ui.MarkOK, i18n.T("doctor.models_auto", fast, smart, modelStore.Fetched.Local().Format("2006-01-02")))
 		} else {
-			fmt.Fprintln(w, i18n.T("doctor.models_builtin", fast, smart))
+			doctorLine(w, ui.MarkOK, i18n.T("doctor.models_builtin", fast, smart))
 		}
 	}
 	want := explicitModels(cfg, info.Name)
@@ -289,7 +303,7 @@ func doctorProvider(w io.Writer, cfg *config.Config) int {
 	}
 	models, err := p.Models(ctx)
 	if err != nil {
-		fmt.Fprintln(w, i18n.T("doctor.provider_bad", err.Error()))
+		doctorLine(w, ui.MarkErr, i18n.T("doctor.provider_bad", err.Error()))
 		return 1
 	}
 	return doctorModels(w, cfg, info, models)
@@ -371,18 +385,31 @@ func doctorModels(w io.Writer, cfg *config.Config, info llm.Info, ids []string) 
 	problems := 0
 	for _, name := range want {
 		if have[name] {
-			fmt.Fprintln(w, i18n.T("doctor.model_ok", name))
+			doctorLine(w, ui.MarkOK, i18n.T("doctor.model_ok", name))
 			continue
 		}
-		fmt.Fprintln(w, i18n.T("doctor.model_missing", name, info.Label))
+		doctorLine(w, ui.MarkWarn, i18n.T("doctor.model_missing", name, info.Label))
 		problems++
 	}
 	return problems
 }
 
+// stepCounts is how many steps are installed here and how many are not.
+func stepCounts(*config.Config) (installed, missing int) {
+	for _, s := range steps.All {
+		if s.Available() {
+			installed++
+		} else {
+			missing++
+		}
+	}
+	return
+}
+
 func doctorSteps(cfg *config.Config) string {
 	installed, missing := 0, 0
-	var b strings.Builder
+	var cells []string
+	width := 0
 	for _, s := range steps.All {
 		mark := "·"
 		if s.Available() {
@@ -391,11 +418,47 @@ func doctorSteps(cfg *config.Config) string {
 		} else {
 			missing++
 		}
-		line := fmt.Sprintf("  %s %s", mark, s.ID)
+		cell := mark + " " + s.ID
 		if cfg.Skipped(s.ID) {
-			line += " (" + i18n.T("doctor.skipped") + ")"
+			cell += " (" + i18n.T("doctor.skipped") + ")"
 		}
-		fmt.Fprintln(&b, line)
+		cells = append(cells, cell)
+		width = max(width, len([]rune(cell)))
 	}
-	return i18n.T("doctor.steps", installed, missing) + "\n" + b.String()
+	// A grid, not one line per step: 80 steps on one screen.
+	cols := max(1, min(4, 96/(width+2)))
+	rows := (len(cells) + cols - 1) / cols
+	var b strings.Builder
+	for r := 0; r < rows; r++ {
+		b.WriteString("   ")
+		for c := 0; c < cols; c++ {
+			i := c*rows + r
+			if i >= len(cells) {
+				break
+			}
+			cell := cells[i]
+			if c < cols-1 {
+				cell += strings.Repeat(" ", width+2-len([]rune(cell)))
+			}
+			b.WriteString(cell)
+		}
+		b.WriteString("\n")
+	}
+	var out strings.Builder
+	for _, l := range strings.Split(b.String(), "\n") {
+		if l = strings.TrimRight(l, " "); l != "" {
+			out.WriteString(l + "\n")
+		}
+	}
+	return "  ✓ " + i18n.T("doctor.steps", installed, missing) + "\n" + out.String()
+}
+
+// doctorLine writes one check with its mark: "✓ key: ok (macOS Keychain)".
+func doctorLine(w io.Writer, m ui.Mark, text string) {
+	r := ui.NewReport(w)
+	label, rest, ok := strings.Cut(text, ":")
+	if ok && len([]rune(label)) <= 14 {
+		text = r.Bold(label+":") + rest
+	}
+	fmt.Fprintln(w, "  "+r.Glyph(m)+" "+text)
 }

@@ -22,7 +22,8 @@ Tasks:
   update    updates only (like topgrade)
   clean     cleanup only (like mo clean)
   analyze   report without changing anything
-  fix       diagnose and fix the topgrade and Mole configuration
+  fix       diagnose an error and fix it: omega fix "…", omega fix - (stdin), --log FILE;
+            with nothing given, why topgrade fails
   tune      review the configuration of your tools and suggest improvements
 
 Examples:
@@ -41,7 +42,8 @@ Tareas:
   update    solo actualizar (como topgrade)
   clean     solo limpiar (como mo clean)
   analyze   informe sin cambiar nada
-  fix       diagnosticar y arreglar la configuración de topgrade y Mole
+  fix       diagnosticar un error y arreglarlo: omega fix "…", omega fix - (stdin), --log FICHERO;
+            sin nada más, por qué falla topgrade
   tune      revisar la configuración de tus herramientas y proponer mejoras
 
 Ejemplos:
@@ -60,7 +62,8 @@ Tâches :
   update    mises à jour uniquement (comme topgrade)
   clean     nettoyage uniquement (comme mo clean)
   analyze   rapport sans rien modifier
-  fix       diagnostiquer et corriger la configuration de topgrade et Mole
+  fix       diagnostiquer une erreur et la corriger : omega fix "…", omega fix - (stdin), --log FICHIER ;
+            sans rien d'autre, pourquoi topgrade échoue
   tune      examiner la configuration de vos outils et proposer des améliorations
 
 Exemples :
@@ -79,7 +82,8 @@ Aufgaben:
   update    nur aktualisieren (wie topgrade)
   clean     nur aufräumen (wie mo clean)
   analyze   Bericht, ohne etwas zu ändern
-  fix       Konfiguration von topgrade und Mole diagnostizieren und reparieren
+  fix       einen Fehler diagnostizieren und beheben: omega fix "…", omega fix - (stdin), --log DATEI;
+            ohne Angabe: warum topgrade fehlschlägt
   tune      Konfiguration deiner Tools prüfen und Verbesserungen vorschlagen
 
 Beispiele:
@@ -98,7 +102,8 @@ Tarefas:
   update    apenas atualizar (como o topgrade)
   clean     apenas limpar (como o mo clean)
   analyze   relatório sem alterar nada
-  fix       diagnosticar e corrigir a configuração do topgrade e do Mole
+  fix       diagnosticar um erro e corrigi-lo: omega fix "…", omega fix - (stdin), --log FICHEIRO;
+            sem mais nada, porque falha o topgrade
   tune      rever a configuração das suas ferramentas e propor melhorias
 
 Exemplos:
@@ -118,11 +123,11 @@ Exemplos:
 	"flag.model": {
 		// No back quotes here: cobra takes a back-quoted word for the name of
 		// the flag's value and prints "--model omega models".
-		"model to use (see: omega models)",
-		"modelo a usar (ver: omega models)",
-		"modèle à utiliser (voir : omega models)",
-		"zu verwendendes Modell (siehe: omega models)",
-		"modelo a usar (ver: omega models)",
+		"model to use (see: omega model list)",
+		"modelo a usar (ver: omega model list)",
+		"modèle à utiliser (voir : omega model list)",
+		"zu verwendendes Modell (siehe: omega model list)",
+		"modelo a usar (ver: omega model list)",
 	},
 	"flag.effort": {
 		"effort for Claude models: low, medium, high, xhigh, max",
@@ -212,13 +217,7 @@ Exemplos:
 	"run.log": {"Run log: %s", "Registro de la ejecución: %s", "Journal d'exécution : %s", "Protokoll des Laufs: %s", "Registo da execução: %s"},
 
 	// ---- setup ----
-	"cmd.setup": {
-		"Wizard: pick a provider, store the API key and choose a model",
-		"Asistente: elegir proveedor, guardar la API key y escoger modelo",
-		"Assistant : choisir un fournisseur, enregistrer la clé API et choisir un modèle",
-		"Assistent: Anbieter wählen, API-Key speichern und Modell auswählen",
-		"Assistente: escolher fornecedor, guardar a API key e escolher modelo",
-	},
+	"cmd.setup":             {"Wizard: provider, API key and model", "Asistente: proveedor, API key y modelo", "Assistant : fournisseur, clé API et modèle", "Assistent: Anbieter, API-Key und Modell", "Assistente: fornecedor, API key e modelo"},
 	"setup.providers":       {"Available providers:", "Proveedores disponibles:", "Fournisseurs disponibles :", "Verfügbare Anbieter:", "Fornecedores disponíveis:"},
 	"setup.no_key":          {"no key", "sin key", "pas de clé", "kein Key", "sem key"},
 	"setup.key_in":          {"key in %s", "key en %s", "clé dans %s", "Key in %s", "key em %s"},
@@ -268,13 +267,7 @@ Exemplos:
 	},
 
 	// ---- auth ----
-	"cmd.auth": {
-		"Manage API keys, kept where the system keeps secrets (macOS Keychain, Windows Credential Manager, Linux keyring or a private file)",
-		"Gestionar las API keys, guardadas donde el sistema guarda secretos (llavero de macOS, Administrador de credenciales de Windows, llavero de Linux o un archivo privado)",
-		"Gérer les clés API, gardées là où le système garde ses secrets (trousseau macOS, Gestionnaire d'identification de Windows, trousseau Linux ou fichier privé)",
-		"API-Keys verwalten, abgelegt wo das System Geheimnisse aufbewahrt (macOS-Schlüsselbund, Windows-Anmeldeinformationsverwaltung, Linux-Schlüsselbund oder private Datei)",
-		"Gerir as API keys, guardadas onde o sistema guarda segredos (porta-chaves do macOS, Gestor de Credenciais do Windows, porta-chaves do Linux ou um ficheiro privado)",
-	},
+	"cmd.auth": {"Manage API keys, kept in the system's secret store", "Gestionar las API keys, en el almacén de secretos", "Gérer les clés API, dans le coffre du système", "API-Keys im Geheimnisspeicher des Systems verwalten", "Gerir as API keys, no cofre de segredos do sistema"},
 	"cmd.auth_set": {
 		"Store a provider's API key", "Guardar la API key de un proveedor", "Enregistrer la clé API d'un fournisseur",
 		"API-Key eines Anbieters speichern", "Guardar a API key de um fornecedor",
@@ -301,13 +294,7 @@ Exemplos:
 	},
 	"cmd.config_show": {"Show the current configuration", "Mostrar la configuración actual", "Afficher la configuration actuelle", "Aktuelle Konfiguration anzeigen", "Mostrar a configuração atual"},
 	"cmd.config_path": {"Print the config file path", "Ruta del archivo de configuración", "Chemin du fichier de configuration", "Pfad der Konfigurationsdatei", "Caminho do ficheiro de configuração"},
-	"cmd.config_set": {
-		"Change a value: provider, model, effort, approval, language, command_timeout, skip_steps",
-		"Cambiar un valor: provider, model, effort, approval, language, command_timeout, skip_steps",
-		"Modifier une valeur : provider, model, effort, approval, language, command_timeout, skip_steps",
-		"Einen Wert ändern: provider, model, effort, approval, language, command_timeout, skip_steps",
-		"Alterar um valor: provider, model, effort, approval, language, command_timeout, skip_steps",
-	},
+	"cmd.config_set":  {"Change one value of the configuration", "Cambiar un valor de la configuración", "Modifier une valeur de la configuration", "Einen Wert der Konfiguration ändern", "Alterar um valor da configuração"},
 	"cmd.config_edit": {"Open the configuration in $EDITOR", "Abrir la configuración en $EDITOR", "Ouvrir la configuration dans $EDITOR", "Konfiguration in $EDITOR öffnen", "Abrir a configuração no $EDITOR"},
 	"config.bad_approval": {
 		"approval must be dangerous, all or never", "approval debe ser dangerous, all o never", "approval doit valoir dangerous, all ou never",
@@ -354,11 +341,11 @@ Exemplos:
 	"steps.confirm": {"%s → `%s`. Run it? y/N", "%s → `%s`. ¿Ejecutar? s/N", "%s → `%s`. L'exécuter ? o/N", "%s → `%s`. Ausführen? j/N", "%s → `%s`. Executar? s/N"},
 	"steps.failed":  {"✗ %s failed (exit %d)", "✗ %s falló (exit %d)", "✗ %s a échoué (exit %d)", "✗ %s fehlgeschlagen (exit %d)", "✗ %s falhou (exit %d)"},
 	"steps.failed_summary": {
-		"%d step(s) failed; try `omega fix` or `omega -p \"...\"` to let the AI diagnose it",
-		"%d paso(s) fallaron; prueba `omega fix` o `omega -p \"...\"` para que la IA lo diagnostique",
-		"%d étape(s) en échec ; essayez `omega fix` ou `omega -p \"...\"` pour que l'IA diagnostique",
-		"%d Schritt(e) fehlgeschlagen; versuche `omega fix` oder `omega -p \"...\"`, damit die KI es diagnostiziert",
-		"%d passo(s) falharam; experimente `omega fix` ou `omega -p \"...\"` para a IA diagnosticar",
+		"%d steps failed; try `omega fix` or `omega -p \"...\"` to let the AI diagnose it",
+		"%d pasos fallaron; prueba `omega fix` o `omega -p \"...\"` para que la IA lo diagnostique",
+		"%d étapes en échec ; essayez `omega fix` ou `omega -p \"...\"` pour que l'IA diagnostique",
+		"%d Schritte fehlgeschlagen; versuche `omega fix` oder `omega -p \"...\"`, damit die KI es diagnostiziert",
+		"%d passos falharam; experimente `omega fix` ou `omega -p \"...\"` para a IA diagnosticar",
 	},
 	"cat.check":   {"CHECKS", "COMPROBACIONES", "VÉRIFICATIONS", "PRÜFUNGEN", "VERIFICAÇÕES"},
 	"cat.update":  {"UPDATES", "ACTUALIZACIONES", "MISES À JOUR", "UPDATES", "ATUALIZAÇÕES"},
@@ -374,11 +361,7 @@ Exemplos:
 	"notes.empty":     {"No notes yet.", "Aún no hay notas.", "Pas encore de notes.", "Noch keine Notizen.", "Ainda não há notas."},
 
 	// ---- pending ----
-	"cmd.pending": {
-		"What earlier runs left for you to do by hand", "Lo que las ejecuciones anteriores te dejaron por hacer a mano",
-		"Ce que les exécutions précédentes vous ont laissé à faire", "Was frühere Läufe für Sie zum Erledigen übrig gelassen haben",
-		"O que as execuções anteriores deixaram para fazer à mão",
-	},
+	"cmd.pending":         {"What earlier runs left for you to do by hand", "Lo que te quedó por hacer a mano", "Ce qui vous reste à faire à la main", "Was du noch von Hand erledigen musst", "O que ficou por fazer à mão"},
 	"cmd.pending_dismiss": {"Stop mentioning an item", "Dejar de mencionar un pendiente", "Ne plus mentionner un élément", "Einen Eintrag nicht mehr erwähnen", "Deixar de mencionar um item"},
 	"cmd.pending_reopen":  {"Mention an item again", "Volver a mencionar un pendiente", "Mentionner à nouveau un élément", "Einen Eintrag wieder erwähnen", "Voltar a mencionar um item"},
 	"cmd.pending_done":    {"Mark an item as done", "Marcar un pendiente como hecho", "Marquer un élément comme fait", "Einen Eintrag als erledigt markieren", "Marcar um item como feito"},
@@ -398,31 +381,21 @@ Exemplos:
 		"List run transcripts", "Listar los registros de ejecución", "Lister les journaux d'exécution",
 		"Ausführungsprotokolle auflisten", "Listar os registos de execução",
 	},
-	"cmd.logs_view": {
-		"Show a run transcript (the latest if omitted)", "Ver un registro (el último si se omite)",
-		"Voir un journal (le dernier si omis)", "Ein Protokoll anzeigen (das letzte, falls keins angegeben ist)",
-		"Ver um registo (o último se for omitido)",
-	},
-	"logs.empty": {"No run logs yet.", "Aún no hay registros.", "Pas encore de journaux.", "Noch keine Protokolle.", "Ainda não há registos."},
+	"cmd.logs_view": {"Show a run transcript (the latest if omitted)", "Ver un registro (el último si se omite)", "Voir un journal (le dernier si omis)", "Ein Protokoll zeigen (sonst das letzte)", "Ver um registo (o último se for omitido)"},
+	"logs.empty":    {"No run logs yet.", "Aún no hay registros.", "Pas encore de journaux.", "Noch keine Protokolle.", "Ainda não há registos."},
 	"logs.missing": {
 		"no log %q", "no existe el registro %q", "aucun journal %q", "kein Protokoll %q", "não existe o registo %q",
 	},
 	"logs.header": {
-		"%d run log(s) in %s (keeping the newest %d)",
-		"%d registro(s) en %s (se conservan los %d más recientes)",
-		"%d journal(aux) dans %s (les %d plus récents sont conservés)",
-		"%d Protokoll(e) in %s (die %d neuesten bleiben erhalten)",
-		"%d registo(s) em %s (ficam os %d mais recentes)",
+		"%d run logs in %s (keeping the newest %d)",
+		"%d registros en %s (se conservan los %d más recientes)",
+		"%d journaux dans %s (les %d plus récents sont conservés)",
+		"%d Protokolle in %s (die %d neuesten bleiben erhalten)",
+		"%d registos em %s (ficam os %d mais recentes)",
 	},
 
 	// ---- doctor ----
-	"cmd.doctor": {
-		"Check config, key, provider and installed steps without spending tokens",
-		"Comprobar configuración, clave, proveedor y pasos instalados sin gastar tokens",
-		"Vérifier la configuration, la clé, le fournisseur et les étapes installées sans dépenser de jetons",
-		"Konfiguration, Schlüssel, Anbieter und installierte Schritte prüfen, ohne Tokens zu verbrauchen",
-		"Verificar a configuração, a chave, o fornecedor e os passos instalados sem gastar tokens",
-	},
+	"cmd.doctor": {"Check config, key, provider and steps (no tokens)", "Comprobar configuración, clave, proveedor y pasos", "Vérifier configuration, clé, fournisseur et étapes", "Konfiguration, Key, Anbieter und Schritte prüfen", "Verificar configuração, chave, fornecedor e passos"},
 	"doctor.config_ok": {
 		"config: ok (%s)", "config: correcta (%s)", "config : valide (%s)", "config: in Ordnung (%s)", "config: correta (%s)",
 	},
@@ -477,8 +450,8 @@ Exemplos:
 	},
 	"doctor.skipped": {"skipped", "omitido", "ignoré", "übersprungen", "omitido"},
 	"doctor.failed": {
-		"%d check(s) failed", "%d comprobación(es) fallida(s)", "%d vérification(s) en échec",
-		"%d Prüfung(en) fehlgeschlagen", "%d verificação(ões) falhada(s)",
+		"%d checks failed", "%d comprobaciones fallidas", "%d vérifications en échec",
+		"%d Prüfungen fehlgeschlagen", "%d verificações falhadas",
 	},
 
 	// ---- interface ----
@@ -486,22 +459,7 @@ Exemplos:
 	"ui.task":      {"task: %s", "tarea: %s", "tâche : %s", "Aufgabe: %s", "tarefa: %s"},
 	"ui.read_only": {"read-only", "solo lectura", "lecture seule", "nur lesen", "só leitura"},
 	"ui.thinking":  {"thinking…  (ctrl+c cancels)", "pensando…  (ctrl+c cancela)", "réflexion…  (ctrl+c annule)", "denke nach…  (Strg+C bricht ab)", "a pensar…  (ctrl+c cancela)"},
-	"ui.hint_running": {
-		"ctrl+c cancels · ? help · ctrl+f search · shift+tab mode · ctrl+p model · ↑/↓ scroll",
-		"ctrl+c cancela · ? ayuda · ctrl+f buscar · shift+tab modo · ctrl+p modelo · ↑/↓ desplazar",
-		"ctrl+c annule · ? aide · ctrl+f chercher · shift+tab mode · ctrl+p modèle · ↑/↓ défiler",
-		"Strg+C bricht ab · ? Hilfe · Strg+F suchen · Shift+Tab Modus · Strg+P Modell · ↑/↓ scrollen",
-		"ctrl+c cancela · ? ajuda · ctrl+f procurar · shift+tab modo · ctrl+p modelo · ↑/↓ deslocar",
-	},
-	"ui.hint_done": {
-		"? help · q quit · ↑/↓ scroll", "? ayuda · q salir · ↑/↓ desplazar", "? aide · q quitter · ↑/↓ défiler",
-		"? Hilfe · q beenden · ↑/↓ scrollen", "? ajuda · q sair · ↑/↓ deslocar",
-	},
-	"ui.hint_help": {
-		"? or esc closes help · ↑/↓ scroll", "? o esc cierra la ayuda · ↑/↓ desplazar", "? ou échap ferme l'aide · ↑/↓ défiler",
-		"? oder Esc schließt die Hilfe · ↑/↓ scrollen", "? ou esc fecha a ajuda · ↑/↓ deslocar",
-	},
-	"ui.press_q": {"Press q to quit.", "Pulsa q para salir.", "Appuyez sur q pour quitter.", "Drücke q zum Beenden.", "Prima q para sair."},
+	"ui.press_q":   {"Press q to quit.", "Pulsa q para salir.", "Appuyez sur q pour quitter.", "Drücke q zum Beenden.", "Prima q para sair."},
 	"ui.placeholder": {
 		"Ask for something else, / commands, ? help, empty Enter or Esc to quit",
 		"Pide algo más, / comandos, ? ayuda, Enter vacío o Esc para salir",
@@ -655,18 +613,11 @@ Exemplos:
 	"ui.running":       {"running · %s", "en curso · %s", "en cours · %s", "läuft · %s", "a decorrer · %s"},
 	"ui.line_one":      {"1 line", "1 línea", "1 ligne", "1 Zeile", "1 linha"},
 	"ui.lines":         {"%d lines", "%d líneas", "%d lignes", "%d Zeilen", "%d linhas"},
-	"ui.hint_idle": {
-		"enter send · / commands · ? help · shift+tab mode · esc clears, again quits",
-		"enter enviar · / comandos · ? ayuda · shift+tab modo · esc borra, otra vez sale",
-		"entrée envoyer · / commandes · ? aide · shift+tab mode · échap efface, encore quitte",
-		"Enter senden · / Befehle · ? Hilfe · Shift+Tab Modus · Esc löscht, nochmal beendet",
-		"enter enviar · / comandos · ? ajuda · shift+tab modo · esc limpa, outra vez sai",
-	},
-	"ui.chosen":       {"Selected: %s", "Seleccionado: %s", "Sélectionné : %s", "Ausgewählt: %s", "Selecionado: %s"},
-	"ui.chosen_none":  {"Nothing selected", "Nada seleccionado", "Rien de sélectionné", "Nichts ausgewählt", "Nada selecionado"},
-	"ui.model_switch": {"Switched to %s to diagnose the failure", "Cambio a %s para diagnosticar el fallo", "Passage à %s pour diagnostiquer l'échec", "Wechsel zu %s, um den Fehler zu diagnostizieren", "Mudança para %s para diagnosticar a falha"},
-	"ui.mode_hint":    {"(shift+tab)", "(shift+tab)", "(shift+tab)", "(Shift+Tab)", "(shift+tab)"},
-	"ui.model_picked": {"Model: %s from the next turn", "Modelo: %s desde el siguiente turno", "Modèle : %s dès le prochain tour", "Modell: %s ab der nächsten Runde", "Modelo: %s a partir do próximo turno"},
+	"ui.chosen":        {"Selected: %s", "Seleccionado: %s", "Sélectionné : %s", "Ausgewählt: %s", "Selecionado: %s"},
+	"ui.chosen_none":   {"Nothing selected", "Nada seleccionado", "Rien de sélectionné", "Nichts ausgewählt", "Nada selecionado"},
+	"ui.model_switch":  {"Switched to %s to diagnose the failure", "Cambio a %s para diagnosticar el fallo", "Passage à %s pour diagnostiquer l'échec", "Wechsel zu %s, um den Fehler zu diagnostizieren", "Mudança para %s para diagnosticar a falha"},
+	"ui.mode_hint":     {"(shift+tab)", "(shift+tab)", "(shift+tab)", "(Shift+Tab)", "(shift+tab)"},
+	"ui.model_picked":  {"Model: %s from the next turn", "Modelo: %s desde el siguiente turno", "Modèle : %s dès le prochain tour", "Modell: %s ab der nächsten Runde", "Modelo: %s a partir do próximo turno"},
 	"ui.model_only": {
 		"%s is the only model for this run; choose others with omega setup", "%s es el único modelo de esta ejecución; elige otros con omega setup",
 		"%s est le seul modèle de cette exécution ; choisissez-en d'autres avec omega setup", "%s ist das einzige Modell dieses Laufs; andere mit omega setup wählen",
@@ -741,21 +692,10 @@ Exemplos:
 		"Docker-Bereinigungen brauchen immer deine Bestätigung", "As limpezas do Docker precisam sempre da sua confirmação",
 	},
 	"ui.confirm_keys_once": {"[y] yes   [n] no", "[y] sí   [n] no", "[y] oui   [n] non", "[y] ja   [n] nein", "[y] sim   [n] não"},
-	"ui.summary_done": {
-		"Done in %s · %s tokens · %s", "Terminado en %s · %s tokens · %s", "Terminé en %s · %s jetons · %s", "Fertig in %s · %s Tokens · %s", "Concluído em %s · %s tokens · %s",
-	},
-	"pick.filter":   {"filter: %s", "filtro: %s", "filtre : %s", "Filter: %s", "filtro: %s"},
-	"pick.no_match": {"no matches", "sin coincidencias", "aucun résultat", "keine Treffer", "sem resultados"},
-	"pick.keys_multi": {
-		"↑↓ move · space select · a all · enter confirm (%d) · esc none", "↑↓ mover · espacio marcar · a todas · enter confirmar (%d) · esc ninguna",
-		"↑↓ déplacer · espace cocher · a tout · entrée valider (%d) · échap aucune", "↑↓ bewegen · Leertaste wählen · a alle · Enter bestätigen (%d) · Esc keine",
-		"↑↓ mover · espaço marcar · a todas · enter confirmar (%d) · esc nenhuma",
-	},
-	"pick.keys_single": {
-		"↑↓ move · type to filter · enter choose · esc cancel", "↑↓ mover · escribe para filtrar · enter elegir · esc cancelar",
-		"↑↓ déplacer · tapez pour filtrer · entrée choisir · échap annuler", "↑↓ bewegen · tippen zum Filtern · Enter wählen · Esc abbrechen",
-		"↑↓ mover · escreva para filtrar · enter escolher · esc cancelar",
-	},
+	"ui.summary_time":      {"Done in %s", "Terminado en %s", "Terminé en %s", "Fertig in %s", "Concluído em %s"},
+	"ui.summary_tokens":    {"%s tokens", "%s tokens", "%s jetons", "%s Tokens", "%s tokens"},
+	"pick.filter":          {"filter: %s", "filtro: %s", "filtre : %s", "Filter: %s", "filtro: %s"},
+	"pick.no_match":        {"no matches", "sin coincidencias", "aucun résultat", "keine Treffer", "sem resultados"},
 	"pick.plain_multi": {
 		"Numbers separated by commas, 'all', or Enter for none: ", "Números separados por comas, 'all', o Enter para ninguno: ", "Numéros séparés par des virgules, 'all', ou Entrée pour aucun : ",
 		"Nummern durch Kommas getrennt, 'all' oder Enter für keine: ", "Números separados por vírgulas, 'all', ou Enter para nenhum: ",
@@ -763,11 +703,7 @@ Exemplos:
 	"pick.plain_single": {"Number, or Enter to cancel: ", "Número, o Enter para cancelar: ", "Numéro, ou Entrée pour annuler : ", "Nummer oder Enter zum Abbrechen: ", "Número, ou Enter para cancelar: "},
 
 	// ---- model selection ----
-	"cmd.model": {
-		"Choose the model: automatic (cheap, stronger on failures) or a fixed one", "Elegir el modelo: automático (barato, más potente si algo falla) o uno fijo",
-		"Choisir le modèle : automatique (économique, plus puissant en cas d'échec) ou fixe", "Modell wählen: automatisch (günstig, stärker bei Fehlern) oder fest",
-		"Escolher o modelo: automático (barato, mais potente se algo falhar) ou fixo",
-	},
+	"cmd.model":   {"Choose the model: automatic or a fixed one", "Elegir el modelo: automático o uno fijo", "Choisir le modèle : automatique ou fixe", "Modell wählen: automatisch oder fest", "Escolher o modelo: automático ou fixo"},
 	"model.title": {"Model for %s", "Modelo para %s", "Modèle pour %s", "Modell für %s", "Modelo para %s"},
 	"model.hint": {
 		"Routine maintenance does not need the biggest model", "El mantenimiento rutinario no necesita el modelo más grande",
@@ -795,11 +731,7 @@ Exemplos:
 	"setup.local_found": {"running on this Mac", "en marcha en este Mac", "actif sur ce Mac", "läuft auf diesem Mac", "a correr neste Mac"},
 
 	// ---- docker ----
-	"cmd.docker": {
-		"Free Docker space: shows what it uses and cleans only what you select", "Liberar espacio de Docker: muestra lo que ocupa y limpia solo lo que elijas",
-		"Libérer l'espace Docker : montre ce qu'il occupe et ne nettoie que ce que vous choisissez", "Docker-Speicher freigeben: zeigt die Belegung und räumt nur Ausgewähltes auf",
-		"Libertar espaço do Docker: mostra o que ocupa e limpa só o que escolher",
-	},
+	"cmd.docker":           {"Free Docker space, cleaning only what you pick", "Liberar espacio de Docker, limpiando lo que elijas", "Libérer l'espace Docker, en nettoyant ce que vous choisissez", "Docker-Platz freigeben, nur was du auswählst", "Libertar espaço do Docker, limpando o que escolheres"},
 	"docker.not_installed": {"Docker is not installed.", "Docker no está instalado.", "Docker n'est pas installé.", "Docker ist nicht installiert.", "O Docker não está instalado."},
 	"docker.not_running": {
 		"Docker is not running. Start Docker Desktop now? y/N", "Docker no está en marcha. ¿Arranco Docker Desktop? s/N", "Docker n'est pas lancé. Démarrer Docker Desktop ? o/N",
@@ -820,8 +752,8 @@ Exemplos:
 	},
 	"docker.reclaimable": {"%s reclaimable", "%s recuperables", "%s récupérables", "%s freigebbar", "%s recuperáveis"},
 	"docker.confirm": {
-		"Run %d cleanup(s)? This cannot be undone. y/N", "¿Ejecutar %d limpieza(s)? No se puede deshacer. s/N", "Lancer %d nettoyage(s) ? C'est irréversible. o/N",
-		"%d Bereinigung(en) ausführen? Das kann nicht rückgängig gemacht werden. j/N", "Executar %d limpeza(s)? Não se pode desfazer. s/N",
+		"Run %d cleanups? This cannot be undone. y/N", "¿Ejecutar %d limpiezas? No se puede deshacer. s/N", "Lancer %d nettoyages ? C'est irréversible. o/N",
+		"%d Bereinigungen ausführen? Das kann nicht rückgängig gemacht werden. j/N", "Executar %d limpezas? Não se pode desfazer. s/N",
 	},
 	"docker.nothing": {"Nothing selected; Docker was not touched.", "Nada seleccionado; Docker no se ha tocado.", "Rien de sélectionné ; Docker n'a pas été modifié.", "Nichts ausgewählt; Docker wurde nicht angefasst.", "Nada selecionado; o Docker não foi tocado."},
 	"docker.freed":   {"Docker now uses %s (was %s).", "Docker ocupa ahora %s (antes %s).", "Docker utilise maintenant %s (avant %s).", "Docker belegt jetzt %s (vorher %s).", "O Docker ocupa agora %s (antes %s)."},
@@ -910,11 +842,11 @@ Exemplos:
 		"– %s ignorado: precisa de confirmação num terminal",
 	},
 	"steps.skipped_summary": {
-		"%d step(s) did not run: they need a yes at a terminal",
-		"%d paso(s) no se ejecutaron: necesitan un sí en un terminal",
-		"%d étape(s) non exécutée(s) : elles demandent un oui dans un terminal",
-		"%d Schritt(e) nicht ausgeführt: sie brauchen ein Ja am Terminal",
-		"%d passo(s) não foram executados: precisam de um sim num terminal",
+		"%d steps did not run: they need a yes at a terminal",
+		"%d pasos no se ejecutaron: necesitan un sí en un terminal",
+		"%d étapes non exécutées : elles demandent un oui dans un terminal",
+		"%d Schritte nicht ausgeführt: sie brauchen ein Ja am Terminal",
+		"%d passos não foram executados: precisam de um sim num terminal",
 	},
 
 	// ---- doctor: json, the user's own steps ----
@@ -1084,8 +1016,8 @@ Exemplos:
 		"settings restored (%s)", "ajustes restaurados (%s)", "réglages restaurés (%s)", "Einstellungen wiederhergestellt (%s)", "definições restauradas (%s)",
 	},
 	"bp.failed": {
-		"bootstrap: %d step(s) failed", "bootstrap: %d paso(s) fallaron", "bootstrap : %d étape(s) en échec",
-		"bootstrap: %d Schritt(e) fehlgeschlagen", "bootstrap: %d passo(s) falharam",
+		"bootstrap: %d steps failed", "bootstrap: %d pasos fallaron", "bootstrap : %d étapes en échec",
+		"bootstrap: %d Schritte fehlgeschlagen", "bootstrap: %d passos falharam",
 	},
 	"bp.done": {"Bootstrap complete.", "Bootstrap terminado.", "Bootstrap terminé.", "Bootstrap abgeschlossen.", "Bootstrap concluído."},
 

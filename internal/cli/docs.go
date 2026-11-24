@@ -229,7 +229,7 @@ func docsCmd(root *cobra.Command) *cobra.Command {
 	}
 	c.AddCommand(&cobra.Command{
 		Use:   "search <words>...",
-		Short: "Search the manual offline",
+		Short: i18n.T("cmd.docs_search"),
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return writeSearch(cmd.OutOrStdout(), strings.Join(args, " "))
@@ -238,7 +238,7 @@ func docsCmd(root *cobra.Command) *cobra.Command {
 	var provider, model string
 	ask := &cobra.Command{
 		Use:   "ask <question>...",
-		Short: "Ask the manual a question; the configured model answers from it",
+		Short: i18n.T("cmd.docs_ask"),
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			q := strings.Join(args, " ")

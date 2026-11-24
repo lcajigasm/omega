@@ -69,7 +69,7 @@ func RunPlain(ctx context.Context, ag *agent.Agent, in io.Reader, interactive bo
 			if arg != "" {
 				arg = "(" + arg + ")"
 			}
-			fmt.Printf("\n%s %s%s\n", titleStyle.Render("⏺"), cmdStyle.Render(name), arg)
+			fmt.Printf("\n%s %s%s\n", titleStyle.Render(gl.Tool), cmdStyle.Render(name), arg)
 			if strings.HasPrefix(e.Tool, "run_step:") {
 				fmt.Println(faintStyle.Render("  " + e.Command))
 			}
@@ -77,26 +77,31 @@ func RunPlain(ctx context.Context, ag *agent.Agent, in io.Reader, interactive bo
 			fmt.Printf("  %s\n", mutedStyle.Render(e.Text))
 		case agent.EvToolEnd:
 			if e.Failed && e.ExitCode != 0 {
-				fmt.Println(errStyle.Render(fmt.Sprintf("  ⎿ ✗ exit %d", e.ExitCode)))
+				fmt.Println(errStyle.Render(fmt.Sprintf("  %s %s exit %d", gl.Result, gl.Cross, e.ExitCode)))
 			} else if e.Failed {
-				fmt.Println(errStyle.Render("  ⎿ ✗"))
+				fmt.Println(errStyle.Render("  " + gl.Result + " " + gl.Cross))
 			} else if e.Duration >= time.Second {
-				fmt.Println(okStyle.Render("  ⎿ ✓ " + humanDuration(e.Duration)))
+				fmt.Println(okStyle.Render("  " + gl.Result + " " + gl.Check + " " + humanDuration(e.Duration)))
+			} else {
+				fmt.Println(okStyle.Render("  " + gl.Result + " " + gl.Check))
 			}
 		case agent.EvDenied:
 			name, arg := toolLabel(e.Tool, e.Command)
-			fmt.Printf("\n%s %s(%s)\n  ⎿ %s · %s\n", warnStyle.Render("⏺"), name, arg, i18n.T("ui.denied"), firstSentence(e.Reason))
+			if arg != "" {
+				arg = "(" + arg + ")"
+			}
+			fmt.Printf("\n%s %s%s\n  %s %s %s %s\n", warnStyle.Render(gl.Tool), name, arg, gl.Result, i18n.T("ui.denied"), gl.Sep, firstSentence(e.Reason))
 		case agent.EvModel:
-			fmt.Println(mutedStyle.Render("\n↑ " + i18n.T("ui.model_switch", e.Text)))
+			fmt.Println(mutedStyle.Render("\n" + gl.Up + " " + i18n.T("ui.model_switch", e.Text)))
 		case agent.EvMode:
-			fmt.Println(mutedStyle.Render("\n⏵ " + i18n.T("ui.mode_lifted")))
+			fmt.Println(mutedStyle.Render("\n" + gl.Lifted + " " + i18n.T("ui.mode_lifted")))
 		case agent.EvConfirm:
 			fmt.Printf("\n%s (%s)\n  %s\n", warnStyle.Render(i18n.T("ui.confirm")), i18n.T("ui.risk", riskLabel(e.Risk)), cmdStyle.Render(e.Command))
 			if e.Reason != "" {
 				fmt.Println(mutedStyle.Render("  " + strings.ReplaceAll(e.Reason, "\n", "\n  ")))
 			}
 			if e.Always {
-				fmt.Println(warnStyle.Render("  ⚠ ") + i18n.T("ui.always_note"))
+				fmt.Println(warnStyle.Render("  "+gl.Warn+" ") + i18n.T("ui.always_note"))
 			}
 			if !interactive {
 				fmt.Println(errStyle.Render(i18n.T("ui.no_tty")))
@@ -170,11 +175,10 @@ func RunPlain(ctx context.Context, ag *agent.Agent, in io.Reader, interactive bo
 			}
 			cost := ""
 			if stats.CostKnown {
-				cost = fmt.Sprintf("$%.4f", stats.Cost)
+				cost = FormatCost(stats.Cost)
 			}
 			fmt.Println()
-			fmt.Println(mutedStyle.Render(i18n.T("ui.summary_done", humanDuration(stats.Elapsed),
-				humanTokens(stats.Usage.Input()+stats.Usage.OutputTokens), cost)))
+			fmt.Println(mutedStyle.Render(summaryLine(stats.Elapsed, stats.Usage.Input()+stats.Usage.OutputTokens, cost)))
 			fmt.Println(mutedStyle.Render(i18n.T("run.log", ag.LogPath())))
 		}
 	}

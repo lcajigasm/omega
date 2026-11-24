@@ -1,0 +1,23 @@
+ Ω omega custom  · choose your routine                                  2 steps
+──────────────────────────────────────────────────────────────────────────────
+ YOUR ROUTINE  runs in this order  · only below 30 GB free
+ ❯  1   brew          Homebrew          changes     stop  1m05s · 2.1 GB
+    2   disk          Disk space        reads only
+
+ ADD  installed steps not in the routine
+   UPDATES
+    ◻   npm           npm               changes
+   CLEANUP
+    ◻   brew-cleanup  Homebrew cleanup  asks first
+
+
+
+
+
+──────────────────────────────────────────────────────────────────────────────
+ brew  Homebrew  · changes  · stops the run if it fails
+ $ brew upgrade
+──────────────────────────────────────────────────────────────────────────────
+  ↑↓ move · space add/remove · shift+↑↓/J/K reorder · c clear · u undo
+  enter save · esc leave · f stop if it fails · b only below N GB free
+  w only on some days

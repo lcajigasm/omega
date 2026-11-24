@@ -1,0 +1,23 @@
+● Step(brew)  brew upgrade                                                            ╭────────────────────────────────╮
+  └  ✓ · 41s · 3 lines  (ctrl+o)                                                      │ SESSION                        │
+                                                                                      │ task     update                │
+▸ ● Bash(rm -rf ~/x)                                                                  │ mode     asks first            │
+  └  denied · outside what omega may delete.                                          │ model    test-model            │
+                                                                                      │ steps    ✓ 1  ⊘ 1              │
+                                                                                      │                                │
+                                                                                      │ TOKENS                         │
+                                                                                      │ ↑0 ↓0                          │
+                                                                                      │                                │
+                                                                                      │ ACTIVITY                       │
+                                                                                      │ ✓ Step brew                41s │
+                                                                                      │ ⊘ Bash rm -rf ~/x              │
+                                                                                      │                                │
+                                                                                      │                                │
+                                                                                      │                                │
+                                                                                      │                                │
+                                                                                      │                                │
+                                                                                      │                                │
+                                                                                      │                                │
+                                                                                      ╰────────────────────────────────╯
+ » asks before risky actions                                                                    test-model · ↑0 ↓0 · 0s
+  ? help · q quit · ↑↓ scroll · ctrl+f search

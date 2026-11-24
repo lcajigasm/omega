@@ -154,19 +154,19 @@ func TestGuideWalksTheStagesInOneInterface(t *testing.T) {
 	}
 	view = screen(m.View(), 120, 40)
 	for _, want := range []string{"config: ok", "key: ok", "✓ Check omega finished in", "Next · Stage 2 of 3 · Clean up", "omega clean",
-		"Frees disk space.", "Old versions pile up.", "[enter] go on", "[s] skip it", "1/3", "✓ Check omega", "↷ Update"} {
+		"Frees disk space.", "Old versions pile up.", "enter go on", "s skip it", "1/3", "✓ Check omega", "↷ Update"} {
 		if !strings.Contains(view, want) {
 			t.Errorf("the card between stages lacks %q:\n%s", want, view)
 		}
 	}
-	if strings.Contains(view, "[r] repeat") {
+	if strings.Contains(view, "r repeat") {
 		t.Error("a stage that went well is not offered again")
 	}
 
 	// A stage that fails says why, and can be repeated.
 	finish(t, m, press(m, "enter"))
 	view = screen(m.View(), 120, 40)
-	for _, want := range []string{"! no API key for anthropic", "✗ Clean up ended with an error", "[r] repeat the last one", "✗ Clean up", "Next · Stage 3 of 3"} {
+	for _, want := range []string{"! no API key for anthropic", "✗ Clean up ended with an error", "r repeat the last one", "✗ Clean up", "Next · Stage 3 of 3"} {
 		if !strings.Contains(view, want) {
 			t.Errorf("after a failure the screen lacks %q:\n%s", want, view)
 		}
@@ -204,7 +204,7 @@ func TestGuideWalksTheStagesInOneInterface(t *testing.T) {
 	}
 	view = screen(m.View(), 120, 40)
 	for _, want := range []string{"What happened", "✓ Check omega", "done", "↷ Update", "skipped", "✗ Clean up", "→ omega clean", "not run",
-		"1 done · 1 failed or stopped · 1 skipped · 1 not run", "enter or q leaves"} {
+		"1 done · 1 failed or stopped · 1 skipped · 1 not run", "enter/q leave"} {
 		if !strings.Contains(view, want) {
 			t.Errorf("the summary lacks %q:\n%s", want, view)
 		}
@@ -305,7 +305,7 @@ func TestGuideCtrlCStopsTheStageNotTheRun(t *testing.T) {
 	if m.g.res[0].Status != StageStopped || m.state != stBetween {
 		t.Fatalf("a stopped stage: %s, state %v", statuses(m), m.state)
 	}
-	if view := screen(m.View(), 120, 40); !strings.Contains(view, "■ Check omega stopped by you") || !strings.Contains(view, "[r] repeat the last one") {
+	if view := screen(m.View(), 120, 40); !strings.Contains(view, "■ Check omega stopped by you") || !strings.Contains(view, "r repeat the last one") {
 		t.Errorf("the card after a stop:\n%s", view)
 	}
 	// Between stages ctrl+c ends the run; on the summary it leaves.

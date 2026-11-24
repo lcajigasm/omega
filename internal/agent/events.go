@@ -87,4 +87,6 @@ type Event struct {
 	Secret   chan string
 	Mode     Mode
 	Stats    Stats
+
+	call uint64 // the shell call it belongs to, for the transcript; 0 for the other tools
 }

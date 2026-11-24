@@ -38,7 +38,7 @@ func TestBridgeAsksThroughOmega(t *testing.T) {
 	helper := filepath.Join(b.dir, "askpass")
 	data, _ := os.ReadFile(helper)
 	exe, _ := os.Executable()
-	os.WriteFile(helper, []byte(strings.Replace(string(data), shellQuote(exe), shellQuote(bin), 1)), 0o700)
+	os.WriteFile(helper, []byte(strings.Replace(string(data), runner.ShellQuote(exe), runner.ShellQuote(bin), 1)), 0o700)
 
 	runner.Configure(b.Env(), b.PathPrefix())
 	defer runner.Configure(nil, "")
@@ -88,11 +88,11 @@ func TestHelperRunByHandGetsNothing(t *testing.T) {
 	helper := filepath.Join(b.dir, "askpass")
 	data, _ := os.ReadFile(helper)
 	exe, _ := os.Executable()
-	os.WriteFile(helper, []byte(strings.Replace(string(data), shellQuote(exe), shellQuote(bin), 1)), 0o700)
+	os.WriteFile(helper, []byte(strings.Replace(string(data), runner.ShellQuote(exe), runner.ShellQuote(bin), 1)), 0o700)
 
 	for _, cmd := range []string{
 		helper + " x | rev",
-		"find " + shellQuote(b.dir) + " -maxdepth 1 -name 'askp*' -type f -exec {} x \\; | rev",
+		"find " + runner.ShellQuote(b.dir) + " -maxdepth 1 -name 'askp*' -type f -exec {} x \\; | rev",
 	} {
 		out, _ := exec.Command("/bin/sh", "-c", cmd).CombinedOutput()
 		if strings.Contains(string(out), "zyx3-rod4bu0rT") || strings.Contains(string(out), secret) {
@@ -101,5 +101,27 @@ func TestHelperRunByHandGetsNothing(t *testing.T) {
 	}
 	if asked.Load() != 0 {
 		t.Errorf("the user was asked for a password %d times by a command that is not sudo", asked.Load())
+	}
+}
+
+// M7: the wrapper finds bash and sudo where the system keeps them.
+func TestWrapperFindsSudoOnPath(t *testing.T) {
+	old := lookPath
+	defer func() { lookPath = old }()
+	lookPath = func(string) (string, error) { return "/run/wrappers/bin/sudo", nil }
+	if got := realSudo(); got != "/run/wrappers/bin/sudo" {
+		t.Errorf("realSudo = %q", got)
+	}
+	lookPath = func(string) (string, error) { return "/tmp/omega-sudo-123/bin/sudo", nil }
+	if got := realSudo(); got != "/usr/bin/sudo" {
+		t.Errorf("another wrapper was taken for sudo: %q", got)
+	}
+	lookPath = func(string) (string, error) { return "", exec.ErrNotFound }
+	if got := realSudo(); got != "/usr/bin/sudo" {
+		t.Errorf("fallback = %q", got)
+	}
+	w := wrapper("/run/wrappers/bin/sudo")
+	if !strings.HasPrefix(w, "#!/usr/bin/env bash\n") || !strings.Contains(w, "exec '/run/wrappers/bin/sudo' -A ") {
+		t.Errorf("wrapper:\n%s", w)
 	}
 }

@@ -3,7 +3,7 @@
 Output docs/assets/demo.gif
 
 Set Shell bash
-Set FontFamily "DejaVu Sans Mono"
+Set FontFamily "DejaVu Sans Mono, Menlo"
 Set FontSize 15
 Set Width 1280
 Set Height 820

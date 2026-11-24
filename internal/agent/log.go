@@ -262,7 +262,15 @@ type callLog struct {
 	hidden   int    // of those, how many were not written
 }
 
-func callKey(e Event) string { return e.Tool + "\x00" + e.Command }
+// callKey is where a call's lines are kept while it runs. Shell calls are
+// numbered: two identical commands of one batch run side by side and would
+// otherwise write into each other's block.
+func callKey(e Event) string {
+	if e.call != 0 {
+		return fmt.Sprintf("#%d", e.call)
+	}
+	return e.Tool + "\x00" + e.Command
+}
 
 // put adds a line to the call's block, or writes it.
 func (a *Agent) put(cl *callLog, line string) {

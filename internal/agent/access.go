@@ -121,7 +121,10 @@ func (a *Agent) regainAccess(ctx context.Context, call llm.ToolCall, service str
 			note = fmt.Sprintf("macOS blocked part of this for lack of the %q permission. The user has just granted it: run it again if its result still matters.", perm)
 			break
 		}
+		// Granting a permission changes what the tools can see: nothing
+		// measured before it may be served from the session's cache.
 		a.macInv = nil
+		a.forget()
 		out, err = rerun()
 		if _, still := blockedAccess(out, err); still {
 			note = fmt.Sprintf("macOS still blocks this after the user turned on %q: the permission takes effect once %s is quit and opened again. "+

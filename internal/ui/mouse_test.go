@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/lcajigasm/omega/internal/agent"
 	"github.com/lcajigasm/omega/internal/safety"
@@ -13,6 +14,8 @@ import (
 func clickAt(view, needle string) (tea.MouseMsg, bool) {
 	for y, line := range strings.Split(stripANSI(view), "\n") {
 		if x := strings.Index(line, needle); x >= 0 {
+			// The terminal reports columns, not bytes: "│" and "·" take one.
+			x = lipgloss.Width(line[:x])
 			return tea.MouseMsg{X: x, Y: y, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress}, true
 		}
 	}
@@ -110,7 +113,7 @@ func TestClickApprovalButtons(t *testing.T) {
 	}
 	m.refresh()
 	view := m.View()
-	msg, ok := clickAt(view, "[n]")
+	msg, ok := clickAt(view, "n no")
 	if !ok {
 		t.Fatalf("deny button missing:\n%s", stripANSI(view))
 	}
@@ -121,7 +124,7 @@ func TestClickApprovalButtons(t *testing.T) {
 			t.Fatalf("decision %v, want deny", d)
 		}
 	default:
-		t.Fatalf("click on [n] sent no decision\n%s", stripANSI(m.View()))
+		t.Fatalf("click on n no sent no decision\n%s", stripANSI(m.View()))
 	}
 	if m.state != stRunning {
 		t.Fatalf("state %v after deny", m.state)
@@ -133,9 +136,9 @@ func TestClickApprovalButtons(t *testing.T) {
 		Reply: reply, Tool: "run_command", Command: "brew upgrade", Risk: safety.Dangerous,
 	}
 	m.refresh()
-	msg, ok = clickAt(m.View(), "[y]")
+	msg, ok = clickAt(m.View(), "y yes")
 	if !ok {
-		t.Fatal("[y] missing")
+		t.Fatal("y yes missing")
 	}
 	m.Update(msg)
 	select {
@@ -144,6 +147,6 @@ func TestClickApprovalButtons(t *testing.T) {
 			t.Fatalf("decision %v, want approve", d)
 		}
 	default:
-		t.Fatal("click on [y] sent no decision")
+		t.Fatal("click on y yes sent no decision")
 	}
 }

@@ -1,77 +1,102 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
 
+	"github.com/lcajigasm/omega/internal/i18n"
 	"github.com/lcajigasm/omega/internal/secscan"
+	"github.com/lcajigasm/omega/internal/ui"
 )
 
 func privacyCmd() *cobra.Command {
-	var clean bool
+	var clean, yes, asJSON bool
 	c := &cobra.Command{
-		Use:   "privacy",
-		Short: "Review OS telemetry settings and browser caches",
-		Long:  "Inspect system diagnostic telemetry and report or clear web browser disk caches.",
-		Args:  cobra.NoArgs,
+		Use:     "privacy",
+		Short:   i18n.T("cmd.privacy"),
+		Long:    i18n.T("cmd.privacy_long"),
+		Example: "  omega privacy\n  omega privacy --json\n  omega privacy --clean",
+		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			audit, err := secscan.AuditPrivacy()
 			if err != nil {
 				return err
 			}
+			w := cmd.OutOrStdout()
+			if asJSON {
+				if audit.BrowserCaches == nil {
+					audit.BrowserCaches = []secscan.BrowserCache{}
+				}
+				if audit.TelemetryFindings == nil {
+					audit.TelemetryFindings = []string{}
+				}
+				return writeJSON(w, audit)
+			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "\n🛡️ System Privacy & Telemetry Review\n\n")
+			r := ui.NewReport(w)
+			r.Title("omega privacy", "")
 			if len(audit.TelemetryFindings) > 0 {
-				fmt.Fprintln(cmd.OutOrStdout(), "Telemetry & Diagnostics:")
+				r.Section(i18n.T("privacy.telemetry"), -1)
 				for _, t := range audit.TelemetryFindings {
-					fmt.Fprintf(cmd.OutOrStdout(), "  • %s\n", t)
+					r.Check(ui.MarkInfo, t, 0, "")
 				}
-				fmt.Fprintln(cmd.OutOrStdout())
 			}
-
-			fmt.Fprintln(cmd.OutOrStdout(), "Browser Caches:")
+			r.Section(i18n.T("privacy.caches"), len(audit.BrowserCaches))
 			if len(audit.BrowserCaches) == 0 {
-				fmt.Fprintln(cmd.OutOrStdout(), "  ✓ No heavy browser caches detected.")
-			} else {
-				var totalMB int64
-				for _, b := range audit.BrowserCaches {
-					fmt.Fprintf(cmd.OutOrStdout(), "  • %-24s %6d MB  (%s)\n", b.Browser, b.SizeMB, b.Path)
-					totalMB += b.SizeMB
+				r.Check(ui.MarkOK, i18n.T("privacy.no_caches"), 0, "")
+				r.Blank()
+				return nil
+			}
+			var total int64
+			var rows [][]string
+			for _, b := range audit.BrowserCaches {
+				size := b.SizeMB << 20
+				total += size
+				rows = append(rows, []string{b.Browser, ui.Bytes(size), r.Muted(tildePath(b.Path))})
+			}
+			r.Table([]ui.Column{{Title: i18n.T("privacy.col_browser")}, {Title: i18n.T("disk.col_size"), Right: true},
+				{Title: i18n.T("disk.col_path"), Wrap: true}}, rows, nil)
+			r.Blank()
+			r.Line(i18n.T("privacy.total", ui.Bytes(total)))
+			if !clean {
+				r.Hint(i18n.T("privacy.hint"))
+				return nil
+			}
+			if !yes {
+				if !stdinIsTerminal() {
+					return errors.New(i18n.T("privacy.need_yes"))
 				}
-				fmt.Fprintf(cmd.OutOrStdout(), "\n  Total browser cache space: %d MB\n", totalMB)
-
-				if clean {
-					if askYesNo("\nClear all detected browser caches? (cookies and logins are kept)") {
-						failed := 0
-						for _, b := range audit.BrowserCaches {
-							// A browser that is open keeps files in use: say what
-							// was not cleared instead of a tick.
-							err := os.RemoveAll(b.Path)
-							if err == nil {
-								err = os.MkdirAll(b.Path, 0755)
-							}
-							if err != nil {
-								failed++
-								fmt.Fprintf(cmd.OutOrStdout(), "  ⚠ %s cache not fully cleared: %v\n", b.Browser, err)
-								continue
-							}
-							fmt.Fprintf(cmd.OutOrStdout(), "  ✓ Cleaned %s cache\n", b.Browser)
-						}
-						if failed > 0 {
-							return fmt.Errorf("%d of %d browser caches could not be cleared; close the browser and try again", failed, len(audit.BrowserCaches))
-						}
-					}
-				} else {
-					fmt.Fprintln(cmd.OutOrStdout(), "\nTip: Run 'omega privacy --clean' to clear browser caches safely.")
+				if !askYesNo(i18n.T("privacy.confirm")) {
+					fmt.Fprintln(w, i18n.T("tools.nothing_done"))
+					return nil
 				}
 			}
-			fmt.Fprintln(cmd.OutOrStdout())
+			failed := 0
+			for _, b := range audit.BrowserCaches {
+				// A browser that is open keeps files in use: say what
+				// was not cleared instead of a tick.
+				err := os.RemoveAll(b.Path)
+				if err == nil {
+					err = os.MkdirAll(b.Path, 0o755)
+				}
+				if err != nil {
+					failed++
+					r.Check(ui.MarkWarn, b.Browser, 0, i18n.T("privacy.not_cleared", err))
+					continue
+				}
+				r.Check(ui.MarkOK, b.Browser, 0, i18n.T("privacy.cleared"))
+			}
+			if failed > 0 {
+				return fmt.Errorf("%s", i18n.T("privacy.failed", failed, len(audit.BrowserCaches)))
+			}
 			return nil
 		},
 	}
-
-	c.Flags().BoolVar(&clean, "clean", false, "Clean detected browser caches")
+	c.Flags().BoolVar(&clean, "clean", false, i18n.T("flag.privacy_clean"))
+	c.Flags().BoolVarP(&yes, "yes", "y", false, i18n.T("flag.tools_yes"))
+	c.Flags().BoolVar(&asJSON, "json", false, i18n.T("flag.tools_json"))
 	return c
 }

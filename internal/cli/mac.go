@@ -31,7 +31,7 @@ func macCmd() *cobra.Command {
 	c.Flags().MarkHidden("prompt")
 
 	section := func(use, short string, run func(inv *macos.Inventory, tty bool) error, sections ...string) *cobra.Command {
-		return &cobra.Command{Use: use, Short: i18n.T(short), Args: cobra.NoArgs,
+		return &cobra.Command{Use: use, Short: i18n.T(short), Long: i18n.TOr(short+"_more", ""), Args: cobra.NoArgs,
 			RunE: func(cmd *cobra.Command, args []string) error {
 				inv, err := loadInventory(sections...)
 				if err != nil {
@@ -336,7 +336,7 @@ func applyChanges(changes []macos.Change) error {
 	}()
 	failed := 0
 	for _, c := range changes {
-		fmt.Printf("\n⏺ %s\n  %s\n", c.Title, c.Command)
+		fmt.Printf("\n● %s\n  %s\n", c.Title, c.Command)
 		if c.Sudo() && bridge == nil {
 			b, err := sudo.Start(askTerminalPassword, "")
 			if err != nil {
@@ -354,7 +354,7 @@ func applyChanges(changes []macos.Change) error {
 				fmt.Println("  ↳ It stopped halfway. `omega mac undo` puts back what was moved.")
 			}
 		} else {
-			fmt.Println("  ⎿ ✓")
+			fmt.Println("  └ ✓")
 			if err := macos.Record(c); err != nil {
 				fmt.Println("  " + err.Error())
 			}
@@ -624,7 +624,7 @@ func macUndoCmd() *cobra.Command {
 			}()
 			for _, id := range ids {
 				e := entries[id]
-				fmt.Printf("\n⏺ %s\n  %s\n", i18n.T("mac.undoing", e.Title), e.Undo)
+				fmt.Printf("\n● %s\n  %s\n", i18n.T("mac.undoing", e.Title), e.Undo)
 				if strings.Contains(e.Undo, "sudo ") && bridge == nil {
 					b, err := sudo.Start(askTerminalPassword, "")
 					if err != nil {
@@ -639,7 +639,7 @@ func macUndoCmd() *cobra.Command {
 					fmt.Println("  " + i18n.T("mac.failed", res.ExitCode))
 					continue
 				}
-				fmt.Println("  ⎿ ✓")
+				fmt.Println("  └ ✓")
 				done[e.Time] = true
 				if e.Section == "login" || e.Section == "background" {
 					macos.ForgetBTM()

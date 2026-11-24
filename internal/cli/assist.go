@@ -13,6 +13,7 @@ import (
 
 	"github.com/lcajigasm/omega/internal/assist"
 	"github.com/lcajigasm/omega/internal/i18n"
+	"github.com/lcajigasm/omega/internal/ui"
 )
 
 // The configuration assistants and the disk limits: what omega checks in the
@@ -28,17 +29,9 @@ func assistCmd() *cobra.Command {
 		Use:     "assist [tool]",
 		Aliases: []string{"assistant", "assistants", "asistente", "asistentes"},
 		Short:   i18n.T("cmd.assist"),
-		Long: "Checks the configuration of the AI apps and developer tools on this machine and sets what is\n" +
-			"worth setting in their own files: how long they keep conversations, how much cache and log they\n" +
-			"may keep, keys out of the agents' reach, and omega's MCP server so their agents can use omega.\n\n" +
-			"  omega assist                     every known tool: installed, version, what is pending\n" +
-			"  omega assist claude-code         walk through one tool's checks and apply what you accept\n" +
-			"  omega assist docker --yes        apply every recommendation of a tool without asking\n" +
-			"  omega assist apply <check> [v]   apply one check, with its recommended value or yours\n\n" +
-			"Tools: " + strings.Join(assist.IDs(), ", ") + ".\n" +
-			"A file is copied to " + assist.BackupDir() + " before it is changed.\n" +
-			"The disk side of the same checks is `omega disk limits`. Nothing leaves your machine.",
-		Args: cobra.MaximumNArgs(1),
+		Long:    i18n.T("cmd.assist_long", strings.Join(assist.IDs(), ", "), assist.BackupDir()),
+		Example: "  omega assist\n  omega assist claude-code\n  omega assist docker --yes\n  omega assist apply <check> 14",
+		Args:    cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			r := assistScan()
 			w := cmd.OutOrStdout()
@@ -51,7 +44,7 @@ func assistCmd() *cobra.Command {
 			}
 			t, ok := r.Find(args[0])
 			if !ok {
-				return fmt.Errorf("no assistant for %q: omega knows %s", args[0], strings.Join(assist.IDs(), ", "))
+				return fmt.Errorf("%s", i18n.T("assist.no_tool", args[0], strings.Join(assist.IDs(), ", ")))
 			}
 			if asJSON {
 				return writeIndented(w, t)
@@ -59,20 +52,20 @@ func assistCmd() *cobra.Command {
 			return walkTool(w, os.Stdin, t, yes, dry)
 		},
 	}
-	c.Flags().BoolVar(&asJSON, "json", false, "print the report as JSON")
-	c.Flags().BoolVarP(&yes, "yes", "y", false, "apply every recommendation without asking")
-	c.Flags().BoolVarP(&dry, "dry-run", "n", false, "show the checks and change nothing")
+	c.Flags().BoolVar(&asJSON, "json", false, i18n.T("flag.tools_json"))
+	c.Flags().BoolVarP(&yes, "yes", "y", false, i18n.T("flag.assist_yes"))
+	c.Flags().BoolVarP(&dry, "dry-run", "n", false, i18n.T("flag.assist_dry"))
 
 	var applyYes bool
 	apply := &cobra.Command{
 		Use:   "apply <check> [value]",
-		Short: "Apply one check: its recommended value, or the value given",
+		Short: i18n.T("cmd.assist_apply"),
 		Args:  cobra.RangeArgs(1, 2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			r := assistScan()
 			ch, ok := r.Check(args[0])
 			if !ok {
-				return fmt.Errorf("no check %q on this machine: `omega assist <tool>` lists them", args[0])
+				return fmt.Errorf("%s", i18n.T("assist.no_check", args[0]))
 			}
 			value := ""
 			if len(args) == 2 {
@@ -81,7 +74,7 @@ func assistCmd() *cobra.Command {
 			return applyOne(cmd.OutOrStdout(), ch, value, applyYes)
 		},
 	}
-	apply.Flags().BoolVarP(&applyYes, "yes", "y", false, "do not ask")
+	apply.Flags().BoolVarP(&applyYes, "yes", "y", false, i18n.T("flag.tools_yes"))
 	c.AddCommand(apply)
 	return c
 }
@@ -93,30 +86,30 @@ func writeIndented(w io.Writer, v any) error {
 }
 
 func writeTools(w io.Writer, r assist.Report) {
-	fmt.Fprintln(w, "\nCONFIGURATION ASSISTANTS")
+	fmt.Fprintln(w, "\n"+strings.ToUpper(i18n.T("assist.title")))
 	var missing []string
 	for _, t := range r.Tools {
 		if !t.Installed {
 			missing = append(missing, t.Name)
 			continue
 		}
-		state := "✓ nothing pending"
+		state := "✓ " + i18n.T("assist.nothing_pending")
 		if t.Pending > 0 {
-			state = fmt.Sprintf("● %d to review", t.Pending)
+			state = "● " + i18n.T("assist.to_review", t.Pending)
 		}
 		extra := t.Version
 		if t.DataText != "" {
 			extra = strings.TrimSpace(extra + "  " + t.DataText)
 		}
 		if t.Running {
-			extra += "  (open)"
+			extra += "  (" + i18n.T("assist.open") + ")"
 		}
 		fmt.Fprintf(w, "  %-16s %-18s %-20s %s\n", t.ID, t.Name, state, extra)
 	}
 	if len(missing) > 0 {
-		fmt.Fprintf(w, "\n  Not found here: %s.\n", strings.Join(missing, ", "))
+		fmt.Fprintln(w, "\n  "+i18n.T("assist.not_found", strings.Join(missing, ", ")))
 	}
-	fmt.Fprintln(w, "\n  omega assist <tool> walks through one; omega disk limits shows what each may take.")
+	fmt.Fprintln(w, "\n  "+i18n.T("assist.hint"))
 }
 
 func checkLine(w io.Writer, c assist.Check) {
@@ -128,17 +121,17 @@ func checkLine(w io.Writer, c assist.Check) {
 		mark = "●"
 	}
 	fmt.Fprintf(w, "\n  %s %s  [%s]\n", mark, c.Title, c.ID)
-	fmt.Fprintf(w, "      now: %s", c.Current)
+	fmt.Fprintf(w, "      %s", i18n.T("assist.now", c.Current))
 	if c.SizeText != "" && !strings.Contains(c.Current, c.SizeText) {
-		fmt.Fprintf(w, "   size: %s", c.SizeText)
+		fmt.Fprintf(w, "   %s", i18n.T("assist.size", c.SizeText))
 	}
 	if c.Recommended != "" && !c.OK && c.Kind != assist.KindAction {
-		fmt.Fprintf(w, "   recommended: %s %s", c.Recommended, strings.TrimSpace(unitWord(c)))
+		fmt.Fprintf(w, "   %s", strings.TrimSpace(i18n.T("assist.recommended", c.Recommended+" "+unitWord(c))))
 	}
 	fmt.Fprintln(w)
 	fmt.Fprintf(w, "      %s\n", c.Why)
 	if c.File != "" {
-		fmt.Fprintf(w, "      file: %s\n", c.File)
+		fmt.Fprintf(w, "      %s\n", i18n.T("assist.file", c.File))
 	}
 	if c.Note != "" {
 		fmt.Fprintf(w, "      %s\n", c.Note)
@@ -150,7 +143,7 @@ func checkLine(w io.Writer, c assist.Check) {
 
 func unitWord(c assist.Check) string {
 	if c.Unit == "days" {
-		return "days"
+		return i18n.T("assist.days")
 	}
 	return ""
 }
@@ -164,7 +157,7 @@ func walkTool(w io.Writer, in io.Reader, t *assist.Tool, yes, dry bool) error {
 	}
 	fmt.Fprintln(w)
 	if !t.Installed {
-		fmt.Fprintln(w, "  Not installed on this machine.")
+		fmt.Fprintln(w, "  "+i18n.T("assist.not_installed"))
 		return nil
 	}
 	fmt.Fprintf(w, "  %s\n", t.About)
@@ -185,7 +178,7 @@ func walkTool(w io.Writer, in io.Reader, t *assist.Tool, yes, dry bool) error {
 		}
 	}
 	if pending == 0 {
-		fmt.Fprintln(w, "\n✓ Nothing to change.")
+		fmt.Fprintln(w, "\n✓ "+i18n.T("assist.nothing_to_change"))
 		return nil
 	}
 	if dry {
@@ -193,7 +186,7 @@ func walkTool(w io.Writer, in io.Reader, t *assist.Tool, yes, dry bool) error {
 	}
 	interactive := !yes && stdinIsTerminal()
 	if !yes && !interactive {
-		fmt.Fprintln(w, "\nNothing changed: pass --yes to apply the recommendations, or use omega assist apply <check>.")
+		fmt.Fprintln(w, "\n"+i18n.T("assist.need_yes_walk"))
 		return nil
 	}
 	fmt.Fprintln(w)
@@ -208,7 +201,7 @@ func walkTool(w io.Writer, in io.Reader, t *assist.Tool, yes, dry bool) error {
 			if !interactive {
 				continue
 			}
-			fmt.Fprintf(w, "%s: budget in GB (empty to skip): ", c.Title)
+			fmt.Fprint(w, i18n.T("assist.ask_budget", c.Title))
 			line, _ := reader.ReadString('\n')
 			if v := strings.TrimSpace(line); v != "" {
 				report(w, &errs, c.ID, func() (string, error) { return c.Apply(v) })
@@ -229,14 +222,14 @@ func walkTool(w io.Writer, in io.Reader, t *assist.Tool, yes, dry bool) error {
 func describeChange(c assist.Check) string {
 	switch c.Kind {
 	case assist.KindCleanup:
-		return "free " + humanSize(c.Free)
+		return i18n.T("assist.free", humanSize(c.Free))
 	case assist.KindAction:
-		return "apply"
+		return i18n.T("assist.apply")
 	}
-	return "set " + c.Recommended + " " + unitWord(c)
+	return i18n.T("assist.set", strings.TrimSpace(c.Recommended+" "+unitWord(c)))
 }
 
-func humanSize(n int64) string { return assist.Human(n) }
+func humanSize(n int64) string { return ui.Bytes(n) }
 
 func report(w io.Writer, errs *[]error, id string, f func() (string, error)) {
 	msg, err := f()
@@ -255,11 +248,11 @@ func applyOne(w io.Writer, c *assist.Check, value string, yes bool) error {
 	if !yes {
 		checkLine(w, *c)
 		if !stdinIsTerminal() {
-			return errors.New("nothing changed: pass --yes to apply without a terminal")
+			return errors.New(i18n.T("assist.need_yes"))
 		}
 		what := describeChange(*c)
 		if value != "" {
-			what = "set " + value
+			what = i18n.T("assist.set", value)
 		}
 		if !askYesNo(fmt.Sprintf("\n%s → %s?", c.Title, what)) {
 			return nil
@@ -293,34 +286,26 @@ func diskLimitsCmd() *cobra.Command {
 		Use:     "limits",
 		Aliases: []string{"limit", "budgets", "limites"},
 		Short:   i18n.T("cmd.disk_limits"),
-		Long: "Lists what the AI apps and developer tools take on disk and how each is limited. Where the tool\n" +
-			"has a setting for it (Claude Code's conversations, Docker's build cache, logs and disk image,\n" +
-			"Codex's history, Homebrew's downloads) omega writes it in the tool's own file. Where it has none\n" +
-			"(Claude Desktop's VM image, app caches, Xcode's DerivedData, session recordings) you set a budget\n" +
-			"and `omega disk limits enforce` empties the folder once it holds more, never while the app is open.\n\n" +
-			"  omega disk limits                    what each tool takes and its limit\n" +
-			"  omega disk limits apply              write every recommended setting (asks first)\n" +
-			"  omega disk limits set <check> <v>    set one: 14 (days), 10GB, 20MB; a budget: 8GB or off\n" +
-			"  omega disk limits enforce            clean up old versions and empty what is over budget\n\n" +
-			"A file is copied to " + assist.BackupDir() + " before it is changed.",
-		Args: cobra.NoArgs,
-		RunE: show,
+		Long:    i18n.T("cmd.disk_limits_long", assist.BackupDir()),
+		Example: "  omega disk limits\n  omega disk limits set <check> 10GB\n  omega disk limits apply --dry-run\n  omega disk limits enforce",
+		Args:    cobra.NoArgs,
+		RunE:    show,
 	}
-	c.Flags().BoolVar(&asJSON, "json", false, "print the report as JSON")
+	c.Flags().BoolVar(&asJSON, "json", false, i18n.T("flag.tools_json"))
 
 	var yes, dry bool
 	set := &cobra.Command{
 		Use:   "set <check> <value>",
-		Short: "Set one tool's limit, or the budget omega keeps for a folder",
+		Short: i18n.T("cmd.limits_set"),
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			r := assistScan()
 			ch, ok := r.Check(args[0])
 			if !ok || !ch.Disk {
-				return fmt.Errorf("no disk limit %q here: `omega disk limits` lists them", args[0])
+				return fmt.Errorf("%s", i18n.T("limits.no_check", args[0]))
 			}
 			if ch.Kind == assist.KindCleanup || ch.Kind == assist.KindInfo {
-				return fmt.Errorf("%s has no limit to set: it is %s", ch.ID, map[string]string{assist.KindCleanup: "a cleanup (omega disk limits enforce)", assist.KindInfo: "measured only"}[ch.Kind])
+				return fmt.Errorf("%s", i18n.T("limits.no_limit_"+ch.Kind, ch.ID))
 			}
 			msg, err := ch.Apply(args[1])
 			if err != nil {
@@ -332,7 +317,7 @@ func diskLimitsCmd() *cobra.Command {
 	}
 	apply := &cobra.Command{
 		Use:   "apply",
-		Short: "Write every recommended limit in the tools' own configuration files",
+		Short: i18n.T("cmd.limits_apply"),
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			r := assistScan()
@@ -344,7 +329,7 @@ func diskLimitsCmd() *cobra.Command {
 				}
 			}
 			if len(todo) == 0 {
-				fmt.Fprintln(w, "✓ Every tool already has a limit omega can set.")
+				fmt.Fprintln(w, "✓ "+i18n.T("limits.all_set"))
 				return nil
 			}
 			for _, ch := range todo {
@@ -355,9 +340,9 @@ func diskLimitsCmd() *cobra.Command {
 			}
 			if !yes {
 				if !stdinIsTerminal() {
-					return errors.New("nothing changed: pass --yes to apply without a terminal")
+					return errors.New(i18n.T("assist.need_yes"))
 				}
-				if !askYesNo(fmt.Sprintf("\nWrite these %d limits?", len(todo))) {
+				if !askYesNo("\n" + i18n.T("limits.ask_write", len(todo))) {
 					return nil
 				}
 			}
@@ -370,7 +355,7 @@ func diskLimitsCmd() *cobra.Command {
 	}
 	enforce := &cobra.Command{
 		Use:   "enforce",
-		Short: "Remove old versions and empty the folders over their budget (closed apps only)",
+		Short: i18n.T("cmd.limits_enforce"),
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			w := cmd.OutOrStdout()
@@ -379,7 +364,7 @@ func diskLimitsCmd() *cobra.Command {
 				return err
 			}
 			if len(plan) == 0 {
-				fmt.Fprintln(w, "✓ Nothing over its limit.")
+				fmt.Fprintln(w, "✓ "+i18n.T("limits.none_over"))
 				return nil
 			}
 			for _, l := range plan {
@@ -390,9 +375,9 @@ func diskLimitsCmd() *cobra.Command {
 			}
 			if !yes {
 				if !stdinIsTerminal() {
-					return errors.New("nothing removed: pass --yes to enforce without a terminal")
+					return errors.New(i18n.T("limits.need_yes"))
 				}
-				if !askYesNo("\nFree this space?") {
+				if !askYesNo("\n" + i18n.T("limits.ask_free")) {
 					return nil
 				}
 			}
@@ -404,34 +389,35 @@ func diskLimitsCmd() *cobra.Command {
 		},
 	}
 	for _, sub := range []*cobra.Command{apply, enforce} {
-		sub.Flags().BoolVarP(&yes, "yes", "y", false, "do not ask")
-		sub.Flags().BoolVarP(&dry, "dry-run", "n", false, "show what would change and change nothing")
+		sub.Flags().BoolVarP(&yes, "yes", "y", false, i18n.T("flag.tools_yes"))
+		sub.Flags().BoolVarP(&dry, "dry-run", "n", false, i18n.T("flag.tools_dry"))
 	}
 	c.AddCommand(set, apply, enforce)
 	return c
 }
 
 func writeLimits(w io.Writer, r assist.Report) {
-	fmt.Fprintln(w, "\nDISK LIMITS")
-	fmt.Fprintf(w, "  %-28s %9s  %-30s %s\n", "CHECK", "SIZE", "LIMIT NOW", "RECOMMENDED")
+	fmt.Fprintln(w, "\n"+strings.ToUpper(i18n.T("limits.title")))
+	fmt.Fprintf(w, "  %-28s %9s  %-30s %s\n", strings.ToUpper(i18n.T("limits.col_check")), strings.ToUpper(i18n.T("disk.col_size")),
+		strings.ToUpper(i18n.T("limits.col_now")), strings.ToUpper(i18n.T("limits.col_rec")))
 	for _, c := range r.Disk {
 		rec := ""
 		switch {
 		case c.Kind == assist.KindInfo:
-			rec = "measured only"
+			rec = i18n.T("limits.measured")
 		case c.Kind == assist.KindCleanup && c.Free > 0 && !c.OK:
-			rec = "free " + assist.Human(c.Free)
+			rec = i18n.T("assist.free", ui.Bytes(c.Free))
 		case c.Kind == assist.KindBudget && c.Free > 0:
-			rec = "over budget: free " + assist.Human(c.Free)
+			rec = i18n.T("limits.over_budget", ui.Bytes(c.Free))
 		case c.Kind == assist.KindBudget && c.OK && strings.HasPrefix(c.Current, "no budget"):
-			rec = "set a budget"
+			rec = i18n.T("limits.set_budget")
 		case !c.OK:
 			rec = c.Recommended + " " + unitWord(c)
 		default:
 			rec = "✓"
 		}
 		if c.Blocked != "" && !c.OK {
-			rec += " (app open)"
+			rec += " (" + i18n.T("limits.app_open") + ")"
 		}
 		cur := c.Current
 		if len(cur) > 30 {
@@ -439,8 +425,8 @@ func writeLimits(w io.Writer, r assist.Report) {
 		}
 		fmt.Fprintf(w, "  %-28s %9s  %-30s %s\n", c.ID, c.SizeText, cur, strings.TrimSpace(rec))
 	}
-	fmt.Fprintf(w, "\n  These tools take %s; %s can be freed now without losing anything you would miss.\n", r.DiskText, r.FreeText)
-	fmt.Fprintln(w, "  omega disk limits apply writes the recommended settings; omega disk limits enforce frees the rest.")
+	fmt.Fprintln(w, "\n  "+i18n.T("limits.summary", r.DiskText, r.FreeText))
+	fmt.Fprintln(w, "  "+i18n.T("limits.hint"))
 }
 
 // ---------- the desktop app ----------

@@ -93,8 +93,8 @@ func TestUnattendedSingleChoiceTakesOnlyTheRecommendedOption(t *testing.T) {
 	}
 
 	s = runScript(t, Options{Unattended: true}, Deny, nil, nil,
-		proposal(true, opt("cache", "Prune the build cache", "normal", false), opt("volumes", "Delete the 80 volumes", "dangerous", false),
-			opt("nothing", "Leave Docker as it is", "read-only", false)))
+		proposal(true, opt("cache", "Prune the build cache", "normal", true), opt("volumes", "Delete the 80 volumes", "dangerous", true),
+			opt("nothing", "Leave Docker as it is", "read-only", true)))
 	got = s.p.results[1][0].Content
 	if !strings.Contains(got, "- cache:") || strings.Contains(got, "- volumes:") || strings.Contains(got, "- nothing:") {
 		t.Fatalf("multiple choice: %q", got)
@@ -236,7 +236,7 @@ func TestReadOnlyResultsAreKeptForTheSession(t *testing.T) {
 		&llm.Reply{Calls: []llm.ToolCall{call("2", "run_command", map[string]any{"command": "brew cleanup", "reason": "r"})}}, step)
 	du := 0 // disk_usage is du, or PowerShell on Windows
 	for _, c := range s.ran {
-		if strings.HasPrefix(c, "du ") || strings.HasPrefix(c, "Get-ChildItem") {
+		if strings.Contains(c, "du -xhd") || strings.HasPrefix(c, "Get-ChildItem") {
 			du++
 		}
 	}

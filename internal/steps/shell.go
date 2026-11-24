@@ -77,13 +77,13 @@ const goneWarning = `echo "omega: these casks are installed but their app is gon
 // casks whose app is gone, which are named with their fix.
 var brewUpgrade = withSpace("Homebrew", goneCasks+sudoCasks+`brew update || exit 1; gone=$(omega_gone); missing=$gone; `+sudoWarning+
 	`if [ -z "$gone" ]; then brew upgrade; else gone=$missing; [ -z "$gone" ] || { `+goneWarning+`}; gone=$(printf '%s\n%s\n' "$missing" "$sc" | grep -v '^$'); `+
-	`brew upgrade --formula; rc=$?; brew outdated --cask --quiet 2>/dev/null | grep -vxF "$gone" | xargs -r brew upgrade --cask || rc=1; (exit $rc); fi`)
+	`brew upgrade --formula; rc=$?; brew outdated --cask --quiet 2>/dev/null | { grep -vxF "$gone" || true; } | xargs -r brew upgrade --cask || rc=1; (exit $rc); fi`)
 
 // brewGreedy upgrades the casks that update themselves too, leaving out
 // the ones whose app is gone.
 var brewGreedy = withSpace("Homebrew", goneCasks+sudoCasks+`gone=$(omega_gone); missing=$gone; `+sudoWarning+
 	`if [ -z "$gone" ]; then brew upgrade --cask --greedy; else gone=$missing; [ -z "$gone" ] || { `+goneWarning+`}; gone=$(printf '%s\n%s\n' "$missing" "$sc" | grep -v '^$'); `+
-	`brew outdated --cask --greedy --quiet 2>/dev/null | grep -vxF "$gone" | xargs -r brew upgrade --cask --greedy; fi`)
+	`brew outdated --cask --greedy --quiet 2>/dev/null | { grep -vxF "$gone" || true; } | xargs -r brew upgrade --cask --greedy; fi`)
 
 // topgradeSudo defines omega_tg_sudo, true when the user's topgrade
 // configuration (main file or drop-ins, in either place topgrade looks)

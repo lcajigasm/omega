@@ -1,6 +1,7 @@
 package cleaner
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -204,7 +205,7 @@ func TestFindDuplicates(t *testing.T) {
 	_ = os.WriteFile(f1, content, 0644)
 	_ = os.WriteFile(f2, content, 0644)
 
-	dups, err := FindDuplicates(tmp, 1)
+	dups, _, err := FindDuplicates(context.Background(), tmp, ScanOptions{MinBytes: 1 << 20})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -222,7 +223,7 @@ func TestFindLargeFiles(t *testing.T) {
 	f1 := filepath.Join(tmp, "large.bin")
 	_ = os.WriteFile(f1, content, 0644)
 
-	files, err := FindLargeFiles(tmp, 2, 10)
+	files, _, err := FindLargeFiles(context.Background(), tmp, ScanOptions{MinBytes: 2 << 20})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -554,5 +555,47 @@ func TestUninstallRefusesAnotherAppsInternalName(t *testing.T) {
 	write(t, filepath.Join(home, "Library", "Application Support", "Code", "x"))
 	if _, err := FindAppArtifacts("Code"); !errors.Is(err, ErrOtherApp) || !strings.Contains(err.Error(), "Visual Studio Code") {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+// A folder that is not there is an error, not "no duplicates"; a folder
+// inside that cannot be read is counted.
+func TestScanReportsWhatItCouldNotRead(t *testing.T) {
+	if _, _, err := FindDuplicates(context.Background(), filepath.Join(t.TempDir(), "missing"), ScanOptions{}); err == nil {
+		t.Error("a missing folder gave no error")
+	}
+	if os.Getuid() == 0 {
+		t.Skip("root reads everything")
+	}
+	tmp := t.TempDir()
+	locked := filepath.Join(tmp, "locked")
+	os.MkdirAll(locked, 0o755)
+	os.Chmod(locked, 0)
+	t.Cleanup(func() { os.Chmod(locked, 0o755) })
+	_, st, err := FindLargeFiles(context.Background(), tmp, ScanOptions{})
+	if err != nil || len(st.Unreadable) != 1 {
+		t.Errorf("stats %+v, %v", st, err)
+	}
+}
+
+// Skipped folders are not gone into, unless they hold the scanned one.
+func TestScanSkips(t *testing.T) {
+	tmp := t.TempDir()
+	lib := filepath.Join(tmp, "Library")
+	os.MkdirAll(lib, 0o755)
+	os.WriteFile(filepath.Join(lib, "big"), make([]byte, 2<<20), 0o644)
+	files, st, err := FindLargeFiles(context.Background(), tmp, ScanOptions{MinBytes: 1 << 20, Skip: []string{lib}})
+	if err != nil || len(files) != 0 || len(st.Skipped) != 1 {
+		t.Errorf("files %v, stats %+v, %v", files, st, err)
+	}
+	files, _, _ = FindLargeFiles(context.Background(), lib, ScanOptions{MinBytes: 1 << 20, Skip: []string{lib}})
+	if len(files) != 1 {
+		t.Errorf("scanning the skipped folder itself found %v", files)
+	}
+	// A cancelled scan stops and says so.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, st, _ := FindLargeFiles(ctx, tmp, ScanOptions{}); !st.Interrupted {
+		t.Error("a cancelled scan does not say it was interrupted")
 	}
 }

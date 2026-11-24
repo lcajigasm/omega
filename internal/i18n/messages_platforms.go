@@ -78,7 +78,7 @@ var platformMessages = map[string][]string{
 		"%s wird mit einem Skript installiert, das an eine Shell übergeben wird (%s). omega führt das nur nach Bestätigung in einem Terminal aus: Starte omega dev install dort oder führe den Befehl selbst aus",
 		"%s instala-se com um script passado a uma shell (%s). O omega só o executa depois de confirmares num terminal: corre omega dev install aí, ou executa tu o comando",
 	},
-	"dev.installer_skipped": {"⎿ skipped", "⎿ omitido", "⎿ ignoré", "⎿ übersprungen", "⎿ ignorado"},
+	"dev.installer_skipped": {"└ skipped", "└ omitido", "└ ignoré", "└ übersprungen", "└ ignorado"},
 
 	// ---- the parts that only exist on macOS ----
 	"mac.only": {

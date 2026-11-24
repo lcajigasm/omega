@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 	"time"
 
@@ -93,6 +94,14 @@ func menuFromCommand(c *cobra.Command, group string) ui.MenuItem {
 			it.Children = append(it.Children, ui.MenuItem{Label: cmdLabel(args...), Detail: p.Label, Args: args})
 		}
 		return it
+	case "custom":
+		it.Children = []ui.MenuItem{
+			{Label: cmdLabel("custom"), Detail: firstLine(c.Short), Args: path},
+			{Label: cmdLabel("custom", "--set"), Detail: i18n.T("custom.ui_title"), Args: []string{"custom", "--set"}},
+			{Label: cmdLabel("custom", "--show"), Detail: i18n.T("flag.custom_show"), Args: []string{"custom", "--show"}},
+			{Label: cmdLabel("custom", "--dry-run"), Detail: i18n.T("flag.steps_dry"), Args: []string{"custom", "--dry-run"}},
+		}
+		return it
 	case "steps run":
 		for _, st := range steps.All {
 			if !st.Available() {
@@ -107,16 +116,12 @@ func menuFromCommand(c *cobra.Command, group string) ui.MenuItem {
 			{Label: cmdLabel("model"), Detail: firstLine(c.Short), Args: []string{"model"}},
 			{Label: cmdLabel("model", "auto"), Detail: i18n.T("model.auto"), Args: []string{"model", "auto"}},
 			{Label: cmdLabel("model", "…"), Detail: i18n.T("menu.type_model"), Args: []string{"model"}, Ask: i18n.T("ui.label_model")},
-		}
-		return it
-	case "models":
-		it.Children = []ui.MenuItem{
-			{Label: cmdLabel("models"), Detail: firstLine(c.Short), Args: []string{"models"}},
-			{Label: cmdLabel("models", "--refresh"), Detail: firstLine(i18n.T("flag.refresh")), Args: []string{"models", "--refresh"}},
+			{Label: cmdLabel("model", "list"), Detail: firstLine(i18n.T("cmd.models")), Args: []string{"model", "list"}},
+			{Label: cmdLabel("model", "list", "--refresh"), Detail: firstLine(i18n.T("flag.refresh")), Args: []string{"model", "list", "--refresh"}},
 		}
 		for _, p := range llm.Providers {
 			if !p.Local {
-				it.Children = append(it.Children, ui.MenuItem{Label: cmdLabel("models", p.Name), Detail: p.Label, Args: []string{"models", p.Name}})
+				it.Children = append(it.Children, ui.MenuItem{Label: cmdLabel("model", "list", p.Name), Detail: p.Label, Args: []string{"model", "list", p.Name}})
 			}
 		}
 		return it
@@ -186,11 +191,11 @@ var menuGroups = []struct {
 	group    string
 	commands []string
 }{
-	{"maintain", []string{"docker"}},
+	{"maintain", []string{"custom", "docker"}},
 	{"mac", []string{"mac"}},
 	{"dev", []string{"dev"}},
-	{"models", []string{"setup", "model", "models", "auth"}},
-	{"state", []string{"doctor", "steps", "logs", "notes", "pending"}},
+	{"models", []string{"setup", "model", "auth"}},
+	{"state", []string{"doctor", "steps", "history", "logs", "notes", "pending"}},
 	{"settings", []string{"config"}},
 }
 
@@ -214,7 +219,8 @@ func menuTree(root *cobra.Command) []ui.MenuItem {
 	}
 	byName := map[string]*cobra.Command{}
 	for _, c := range root.Commands() {
-		if !c.Hidden && c.Name() != "help" && c.Name() != "completion" && c.Name() != "menu" && c.Name() != "full" {
+		// The tasks have their rows above, with their run options.
+		if !c.Hidden && c.Name() != "help" && c.Name() != "completion" && c.Name() != "menu" && c.Name() != "full" && !slices.Contains(taskCommands, c.Name()) {
 			byName[c.Name()] = c
 		}
 	}
@@ -346,7 +352,13 @@ func menuCmd() *cobra.Command {
 				if err == nil && fullScreen(picked) {
 					continue
 				}
-				fmt.Print("\n" + i18n.T("menu.back"))
+				rep := ui.NewReport(os.Stdout)
+				if ee, ok := err.(*exec.ExitError); ok {
+					fmt.Print("\n" + rep.Err("✗ "+i18n.T("menu.exit_code", ee.ExitCode())) + "  ")
+				} else {
+					fmt.Print("\n" + rep.OK("✓") + "  ")
+				}
+				fmt.Print(rep.Muted(i18n.T("menu.back")))
 				if _, err := in.ReadString('\n'); err != nil {
 					return nil
 				}

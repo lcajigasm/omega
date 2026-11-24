@@ -66,6 +66,17 @@ func Normalize(v string) string {
 	return ""
 }
 
+// Use makes code the active language until the returned function puts the
+// previous one back, whatever OMEGA_LANG says: the man page is written in
+// English in every locale.
+func Use(code string) (restore func()) {
+	prev := current
+	if _, ok := Names[code]; ok {
+		current = code
+	}
+	return func() { current = prev }
+}
+
 // Lang returns the active language code.
 func Lang() string { return current }
 
@@ -93,6 +104,31 @@ func T(key string, args ...any) string {
 		return fmt.Sprintf(s, args...)
 	}
 	return s
+}
+
+// N translates a text that counts something, in the form the number asks
+// for: key+".one" for one (in French also for zero), key for any other
+// number. key itself holds the plural, so a caller that uses T still gets a
+// grammatical sentence for every number but one. Without args, n is the only
+// argument.
+func N(key string, n int, args ...any) string {
+	if len(args) == 0 {
+		args = []any{n}
+	}
+	if singular(n) {
+		if _, ok := messages[key+".one"]; ok {
+			return T(key+".one", args...)
+		}
+	}
+	return T(key, args...)
+}
+
+// singular reports whether n takes the singular in the active language.
+func singular(n int) bool {
+	if current == "fr" {
+		return n == 0 || n == 1
+	}
+	return n == 1
 }
 
 // In returns the translation of key in a given language, whatever the active
