@@ -2,8 +2,8 @@
 # writes its own copy from each release. The release workflow records the
 # version and the sha256 here too, so this file shows what was published.
 cask "omega-app" do
-  version "0.31.0"
-  sha256 "70c367e5116e83fdf0ae4e37fd72ec1ea3fb1079c8781032a5b6d65885f56b30"
+  version "0.32.0"
+  sha256 "be5881ecf93f8ac57ea1931f267127a5ecdc3bf272cdd5c817332cc8109823f0"
 
   url "https://github.com/lcajigasm/omega/releases/download/v#{version}/omega-macos-universal.dmg"
   name "omega"
