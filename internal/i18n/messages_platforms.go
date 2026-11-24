@@ -7,6 +7,9 @@ import "strings"
 // en, es, fr, de, pt.
 // (The file is not named after Linux: a _linux.go file only builds there.)
 var platformMessages = map[string][]string{
+	"slash.task_analyze@other": {
+		"Look at the state of this machine without changing anything", "Analiza el estado de este equipo sin cambiar nada", "Analyse l'état de cette machine sans rien changer", "Untersucht den Zustand dieses Rechners, ohne etwas zu ändern", "Analisa o estado desta máquina sem mudar nada",
+	},
 	// ---- where keys are kept ----
 	"secrets.src.env": {
 		"an environment variable", "una variable de entorno", "une variable d'environnement", "eine Umgebungsvariable", "uma variável de ambiente",
