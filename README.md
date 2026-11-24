@@ -270,7 +270,7 @@ program, and tokens and cost are always on screen.
 | **Ollama, LM Studio** | Local and free |
 | **Any compatible endpoint** | MLX, llama.cpp, vLLM or a company gateway through a base URL |
 
-`omega models` shows the ranking, `omega model` fixes one.
+`omega model list` shows the ranking, `omega model` fixes one.
 [Models and cost](docs/manual/models.md) has the rest.
 
 ## Local models
@@ -332,8 +332,8 @@ and API keys: have both, or only one. More in
 - **Deterministic offline mode**: run `omega --no-ai` or `omega --offline` for completely deterministic maintenance without calling external AI models or needing API keys. It covers `full`, `quick`, `update`, `clean`, `analyze` and `health`; a request in your own words needs the AI.
 - **CI/CD & Scripting ready**: structured JSON output with `--json` (or `--format json`), also for `omega steps --json` and `omega doctor --json`; with `--no-ai`, quiet mode `-q` and assertion flags `--fail-on-warning`, `--fail-on-outdated`, and `--fail-on-critical` with semantic exit codes.
 - **Custom steps & lifecycle hooks**: define custom steps in `~/.config/omega/steps.d/*.toml` and configure lifecycle hooks (`pre_<task>`, `post_<task>`, `on_error`). A file omega cannot use is reported at startup and by `omega doctor`.
-- **Help that answers**: `omega --help` groups the commands by what they are for; `omega docs ask "how do I…?"` answers from the manual in your language; `omega man` writes a man page with every command, option and example.
-- **Autocompletions**: install completions automatically with `omega completion install`.
+- **Help that answers**: `omega --help` groups the commands by what they are for; `omega docs ask "how do I…?"` answers from the manual in your language; `omega man` shows the man page with every command, option, example and exit status.
+- **Autocompletions**: install completions automatically with `omega completion install`; they describe every command and complete providers, models, step ids, pending ids and run numbers.
 - **Speaks five languages**: English, Spanish, French, German and Portuguese,
   in the command, in the app and on the [website](https://lcajigasm.github.io/omega/).
 - **Remembers**: it learns from each run and starts there next time.

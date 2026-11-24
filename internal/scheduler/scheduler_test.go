@@ -12,15 +12,6 @@ import (
 	"github.com/lcajigasm/omega/internal/runner"
 )
 
-func TestEscapeAppleScript(t *testing.T) {
-	in := `Hello "World" \ test`
-	got := escapeAppleScript(in)
-	want := `Hello \"World\" \\ test`
-	if got != want {
-		t.Errorf("escapeAppleScript(%q) = %q; want %q", in, got, want)
-	}
-}
-
 // fake points the package at an empty home and at a pretend system: every
 // command is recorded and answered by answer (nil answers 0). No test
 // reaches launchd, systemd, the Task Scheduler or the notification centre.
@@ -47,18 +38,6 @@ func fake(t *testing.T, system string, answer func(command string) runner.Result
 	}
 	executable = func() (string, error) { return filepath.Join(home, "bin", "omega"), nil }
 	return &ran
-}
-
-func TestNotifyDoesNotPostFromTests(t *testing.T) {
-	for _, system := range []string{"darwin", "windows"} {
-		ran := fake(t, system, nil)
-		if err := Notify(context.Background(), `It's "done"`, "Unit test"); err != nil {
-			t.Errorf("%s: %v", system, err)
-		}
-		if len(*ran) != 1 || !strings.Contains((*ran)[0], "Unit test") {
-			t.Errorf("%s: commands %q", system, *ran)
-		}
-	}
 }
 
 // launchd refusing the job is an error, and nothing is left that would
@@ -179,7 +158,7 @@ func TestInstallLinux(t *testing.T) {
 		t.Fatal(err)
 	}
 	data, _ := os.ReadFile(service)
-	if !strings.Contains(string(data), "Environment="+EnvScheduled+"=1") || !strings.Contains(string(data), " quick --yes --no-tui --no-ai") {
+	if !strings.Contains(string(data), "Environment="+EnvScheduled+"=1") || !strings.Contains(string(data), " quick --yes --no-tui --no-ai --scheduled") {
 		t.Errorf("service:\n%s", data)
 	}
 	if st, _ := Status(); !st.Installed {
@@ -217,7 +196,7 @@ func TestStablePath(t *testing.T) {
 
 // Every task says what it does, and that the Trash is left alone.
 func TestDescribe(t *testing.T) {
-	for _, task := range []string{"quick", "update", "clean", "full", "analyze", "health"} {
+	for _, task := range []string{"quick", "update", "clean", "full", "analyze", "health", "custom"} {
 		if d := Describe(task); !strings.Contains(d, "never empties the Trash") {
 			t.Errorf("%s: %q", task, d)
 		}
@@ -227,6 +206,10 @@ func TestDescribe(t *testing.T) {
 func TestValidate(t *testing.T) {
 	if err := Validate("monthly", "quick", 3, 0); err != nil {
 		t.Errorf("monthly: %v", err)
+	}
+	// custom runs the default routine, with the built-in steps only.
+	if err := Validate("daily", "custom", 3, 0); err != nil {
+		t.Errorf("custom: %v", err)
 	}
 	for _, bad := range []struct {
 		interval, task string
@@ -253,7 +236,7 @@ func TestMonthlySchedule(t *testing.T) {
 		t.Errorf("systemd: %s", c)
 	}
 	args := strings.Join(windowsTaskArgs(`C:\Program Files\omega\omega.exe`, "monthly", "quick", 4, 5), "|")
-	if !strings.Contains(args, "/SC|MONTHLY|/D|1") || !strings.Contains(args, `/TR|"C:\Program Files\omega\omega.exe" quick --yes --no-tui --no-ai|`) {
+	if !strings.Contains(args, "/SC|MONTHLY|/D|1") || !strings.Contains(args, `/TR|"C:\Program Files\omega\omega.exe" quick --yes --no-tui --no-ai --scheduled|`) {
 		t.Errorf("schtasks: %s", args)
 	}
 }
@@ -262,5 +245,81 @@ func TestMonthlySchedule(t *testing.T) {
 func TestSystemdQuote(t *testing.T) {
 	if got := systemdQuote(`/home/a/50%/$HOME/"x"\omega`); got != `/home/a/50%%/$$HOME/\"x\"\\omega` {
 		t.Fatalf("%s", got)
+	}
+}
+
+// A6: the job says it is scheduled on all three systems, with the flag (the
+// Task Scheduler passes no environment) and, where it can, the variable.
+// M8: and it runs at low priority.
+func TestScheduledFlagAndPriority(t *testing.T) {
+	ran := fake(t, "darwin", func(command string) runner.Result { return runner.Result{} })
+	_ = ran
+	if err := Install("weekly", "clean", 3, 0); err != nil {
+		t.Fatal(err)
+	}
+	plist, _ := os.ReadFile(macPlistPath())
+	for _, want := range []string{"<string>--scheduled</string>", "<key>" + EnvScheduled + "</key>", "<key>ProcessType</key>\n    <string>Background</string>"} {
+		if !strings.Contains(string(plist), want) {
+			t.Errorf("launchd job lacks %q:\n%s", want, plist)
+		}
+	}
+
+	fake(t, "linux", nil)
+	if err := Install("weekly", "clean", 3, 0); err != nil {
+		t.Fatal(err)
+	}
+	service, _ := systemdUnitPaths()
+	unit, _ := os.ReadFile(service)
+	for _, want := range []string{" clean --yes --no-tui --no-ai --scheduled\n", "Environment=" + EnvScheduled + "=1", "Nice=10", "IOSchedulingClass=idle"} {
+		if !strings.Contains(string(unit), want) {
+			t.Errorf("systemd unit lacks %q:\n%s", want, unit)
+		}
+	}
+
+	ran = fake(t, "windows", nil)
+	if err := Install("weekly", "clean", 3, 0); err != nil {
+		t.Fatal(err)
+	}
+	if len(*ran) != 1 || !strings.Contains((*ran)[0], " clean --yes --no-tui --no-ai --scheduled ") {
+		t.Errorf("schtasks: %q", *ran)
+	}
+}
+
+// M8: a schedule log over the limit keeps its last lines only, in place.
+func TestRotateLogs(t *testing.T) {
+	fake(t, "linux", nil)
+	oldAbove, oldKeep := rotateAbove, keepBytes
+	rotateAbove, keepBytes = 100, 40
+	defer func() { rotateAbove, keepBytes = oldAbove, oldKeep }()
+	dir := LogDir()
+	os.MkdirAll(dir, 0o700)
+	big := filepath.Join(dir, "schedule.log")
+	small := filepath.Join(dir, "schedule.err")
+	var b strings.Builder
+	for i := 0; i < 20; i++ {
+		b.WriteString("line number " + string(rune('a'+i)) + "\n")
+	}
+	os.WriteFile(big, []byte(b.String()), 0o600)
+	os.WriteFile(small, []byte("short\n"), 0o600)
+	RotateLogs()
+	got, _ := os.ReadFile(big)
+	if len(got) >= b.Len() || !strings.HasSuffix(string(got), "line number t\n") || !strings.HasPrefix(string(got), "[omega: older lines removed") {
+		t.Errorf("rotated log:\n%s", got)
+	}
+	for _, l := range strings.Split(strings.TrimSpace(string(got)), "\n")[1:] {
+		if !strings.HasPrefix(l, "line number ") {
+			t.Errorf("a line was cut: %q", l)
+		}
+	}
+	if s, _ := os.ReadFile(small); string(s) != "short\n" {
+		t.Errorf("a small log changed: %q", s)
+	}
+}
+
+// A scheduled custom task runs `omega custom` with the flags every task gets.
+func TestCustomTaskCommand(t *testing.T) {
+	args := strings.Join(windowsTaskArgs(`C:\omega.exe`, "daily", "custom", 3, 0), " ")
+	if !strings.Contains(args, `"C:\omega.exe" custom --yes --no-tui --no-ai --scheduled`) {
+		t.Errorf("schtasks: %s", args)
 	}
 }

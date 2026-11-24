@@ -6,7 +6,12 @@ import (
 	"os/exec"
 	"strconv"
 	"syscall"
+	"time"
 )
+
+// killGrace matches the Unix setting. On Windows taskkill /T /F ends the
+// tree at once: console programs have no message to stop them gently.
+var killGrace = 5 * time.Second
 
 // detach starts the command in its own process group. Windows has no
 // session id to kill, and ending PowerShell leaves what it started running

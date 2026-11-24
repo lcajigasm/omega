@@ -16,7 +16,7 @@ again with `omega auth set <provider>`; omega checks it with the provider before
 saving. An exported environment variable takes precedence over the stored key.
 
 **`model or endpoint not found (404)`**: the model does not exist for that
-provider. List them with `omega models <provider>` or pick one with `omega model`.
+provider. List them with `omega model list <provider>` or pick one with `omega model`.
 
 **A local provider is "not reachable"**: start Ollama (`ollama serve`) or the LM
 Studio server, or fix `base_url`.
@@ -32,8 +32,15 @@ password before the run starts.
 dangerous. Open an issue with the command so it can be added to the read-only
 list.
 
-**I want to see exactly what it did**: `omega logs` lists the transcripts and
-`omega logs view` prints the latest. omega keeps the newest 30 under
+**`omega` exits with 64**: the command line could not be used (a mistyped
+command or option, a value it does not take, the wrong number of arguments).
+The message names the closest command and the help to read. 1 is a failure,
+2 a warning asked for with `--fail-on-warning` or `--fail-on-outdated`.
+
+**I want to see exactly what it did**: `omega history` shows the latest runs,
+what is pending and the newest notes; `omega logs` lists the transcripts
+(`--failed`, `--task`, `-n`) and `omega logs view` prints the latest
+(`--tools` keeps only the tool calls and their results). omega keeps the newest 30 under
 `~/.local/state/omega/runs/`. Each one starts with the omega version, the
 machine, the command and the mode (interactive, guided stage or unattended).
 Inside, `$` is a shell command and `»` another tool (a file read, a page, a

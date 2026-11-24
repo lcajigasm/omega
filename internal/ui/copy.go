@@ -112,10 +112,10 @@ func (m *model) copyFocused() {
 		return
 	}
 	if err := copyClipboard(text); err != nil {
-		m.note(errStyle.Render("! ")+mutedStyle.Render(i18n.T("ui.copy_failed")), lipgloss.NewStyle())
+		m.note(errStyle.Render(gl.Error+" ")+mutedStyle.Render(i18n.T("ui.copy_failed")), lipgloss.NewStyle())
 		m.refresh()
 		return
 	}
-	m.note(okStyle.Render("✓ ")+mutedStyle.Render(i18n.T("ui.copied")), lipgloss.NewStyle())
+	m.note(okStyle.Render(gl.Check+" ")+mutedStyle.Render(i18n.T("ui.copied")), lipgloss.NewStyle())
 	m.refresh()
 }

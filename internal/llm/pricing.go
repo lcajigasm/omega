@@ -55,6 +55,11 @@ var prices = map[string]Price{
 	"gpt-5-mini":        {Input: 0.25, Output: 2},
 }
 
+// CautiousPrice stands in for a model whose price omega does not know when a
+// cost limit must still hold: the dearest list price above apart from the
+// "pro" tier, so a budget is reached early rather than never.
+var CautiousPrice = Price{Input: 10, Output: 50}
+
 // LivePrice, when set, answers with the current list price of a model from
 // the live catalogue. It is asked before the table above, which only knows
 // the models that existed when omega was built.

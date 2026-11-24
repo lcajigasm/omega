@@ -82,7 +82,18 @@ func toolMacInventory(_ context.Context, a *Agent, in map[string]any) (string, e
 // Mac that are the user's own arrangement.
 const unattendedPersonal = "UNATTENDED RUN: the Dock, the menu bar, keyboard shortcuts and the installed apps are how the user arranged " +
 	"this Mac, not maintenance. Report what stands out there, but do not offer or apply changes to them: mac_change rejects them and " +
-	"mac_policy saves nothing. Login and background items, stale privacy entries and leftovers of removed apps are still yours to tidy."
+	"mac_policy saves nothing. Removing apps, turning off login and background items and resetting every permission are refused too: " +
+	"list them as suggestions. Stale privacy entries and leftovers of removed apps are still yours to tidy."
+
+// unattendedRefused reports a change an unattended run never applies.
+func unattendedRefused(id string) bool {
+	for _, p := range []string{"app-remove:", "disable:", "perm-reset-all:"} {
+		if strings.HasPrefix(id, p) {
+			return true
+		}
+	}
+	return false
+}
 
 // personalDenied rejects, in a run nobody watches, a change to what the user
 // arranged themselves.
@@ -98,6 +109,15 @@ func toolMacChange(ctx context.Context, a *Agent, in map[string]any) (string, er
 	id := getString(in, "change")
 	if what := macos.Personal(id); what != "" && a.opts.Unattended {
 		return "", a.personalDenied("mac_change", id, what)
+	}
+	if a.opts.Unattended && unattendedRefused(id) {
+		// Removing an app cannot be undone, turning off a login item stops
+		// software the user installed, and resetting every permission makes
+		// every app ask again: a person decides those.
+		why := "Unattended run: " + id + " removes an app, stops software the user installed from starting, or resets a permission for every " +
+			"app, which needs a person, so it was not done. Do not retry it; list it in your summary as a suggestion for the user."
+		a.emit(Event{Kind: EvDenied, Tool: "mac_change", Command: id, Reason: why})
+		return "", explained(errors.New(why))
 	}
 	section, _, _ := strings.Cut(id, ":")
 	switch {
@@ -174,6 +194,7 @@ func toolMacPolicy(ctx context.Context, a *Agent, in map[string]any) (string, er
 		return "", err
 	}
 	a.macInv = nil
+	a.forget()
 	a.emit(Event{Kind: EvToolEnd, Tool: "mac_policy", Command: i18n.T("agent.mac_rule", kind, value)})
 	return fmt.Sprintf("saved in %s", macos.PolicyPath()), nil
 }

@@ -174,3 +174,66 @@ func TestRestoredConfig(t *testing.T) {
 		t.Error("a blueprint without settings restored some")
 	}
 }
+
+// The routines travel as custom.toml was written, and come back in one
+// piece, keeping the file that was there as custom.toml.bak.
+func TestRoutinesRoundTrip(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	fake(t, "", nil)
+	const routines = "default = \"weekly\"\n\n[routines.weekly]\nsteps = [\"trash\", \"brew\"]\n"
+	if err := os.MkdirAll(filepath.Dir(config.CustomPath()), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(config.CustomPath(), []byte(routines), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	out := filepath.Join(t.TempDir(), "blueprint.json")
+	if bp, err := Export(context.Background(), out); err != nil || bp.Routines != routines {
+		t.Fatalf("export: %v %q", err, bp.Routines)
+	}
+	bp, err := Load(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if write, _ := bp.RoutinesChange(); write {
+		t.Error("the same routines would be written again")
+	}
+
+	other := "[routines.mine]\nsteps = [\"trash\"]\n"
+	if err := os.WriteFile(config.CustomPath(), []byte(other), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if write, replaces := bp.RoutinesChange(); !write || !replaces {
+		t.Errorf("a different custom.toml: write %v, replaces %v", write, replaces)
+	}
+	backup, err := bp.SaveRoutines()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := os.ReadFile(config.CustomPath()); string(got) != routines {
+		t.Errorf("custom.toml = %q", got)
+	}
+	if got, _ := os.ReadFile(backup); string(got) != other {
+		t.Errorf("backup %s = %q", backup, got)
+	}
+	if rs, ok, err := config.LoadRoutines(); err != nil || !ok || rs.DefaultName() != "weekly" {
+		t.Errorf("restored routines: %+v %v %v", rs, ok, err)
+	}
+
+	// With no custom.toml here, it is written and replaces nothing.
+	os.Remove(config.CustomPath())
+	if write, replaces := bp.RoutinesChange(); !write || replaces {
+		t.Errorf("no custom.toml: write %v, replaces %v", write, replaces)
+	}
+}
+
+// A blueprint whose routines are not TOML is refused.
+func TestLoadRefusesBadRoutines(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "bp.json")
+	if err := os.WriteFile(path, []byte(`{"custom_toml": "[routines\nsteps = "}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(path); err == nil || !strings.Contains(err.Error(), "custom_toml") {
+		t.Errorf("Load: %v", err)
+	}
+}

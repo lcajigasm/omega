@@ -1,0 +1,23 @@
+● Step(brew)  brew upgrade
+  └  ✓ · 41s · 3 lines  (ctrl+o)
+
+▸ ● Bash(rm -rf ~/x)
+  └  denied · outside what omega may delete.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ » asks before risky actions                            test-model · ↑0 ↓0 · 0s
+  ? help · q quit · ↑↓ scroll · ctrl+f search

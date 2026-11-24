@@ -1,0 +1,17 @@
+╭──────────────────────────────────────────────────────────────────────────────╮
+│  Ω omega 1.0  AI maintenance for your Mac                                    │
+│                                                                              │
+│  disk      ━━━━━━━━━━━━━━━━━━━━━━──────  100.0 GB free of 500.0 GB           │
+│  model     anthropic · auto                                                  │
+│  last run  2 days ago                                                        │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+  MAINTENANCE
+❯ omega           Full maintenance
+  omega update +  Update all installed software
+  omega -p "…" …  Ask in words
+
+  YOUR MAC
+  omega mac ›     Review your Mac
+
+  ↑↓ move · enter open or run · → options · type to search everything · q quit

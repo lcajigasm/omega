@@ -145,10 +145,11 @@ func (m *model) handleSearchKey(msg tea.KeyMsg) {
 		m.searchAt = -1
 		m.refresh()
 		return
-	case "enter", "ctrl+n", "down":
+	case "enter", "down":
 		m.moveSearch(1)
 		return
-	case "ctrl+p", "up":
+	case "up":
+		// Up, not ctrl+p: ctrl+p switches the model everywhere else.
 		m.moveSearch(-1)
 		return
 	case "backspace":
@@ -168,7 +169,7 @@ func (m *model) handleSearchKey(msg tea.KeyMsg) {
 }
 
 func (m *model) moveSearch(delta int) {
-	lines := matchLines(m.transcript(), m.searchQ)
+	lines := m.matches()
 	if len(lines) == 0 {
 		m.searchAt = -1
 		m.refresh()

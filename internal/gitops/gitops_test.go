@@ -107,3 +107,60 @@ func TestMergedBranchesInAWorktree(t *testing.T) {
 		t.Errorf("the branch git refused to delete was not reported: %v", err)
 	}
 }
+
+// Merged means merged into the default branch, not into HEAD: with HEAD on
+// a feature branch, develop*, release/* and backup* branches, the branch of
+// a worktree and its upstream stay.
+func TestMergedAgainstTheDefaultBranch(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git is not installed")
+	}
+	dir := t.TempDir()
+	if real, err := filepath.EvalSymlinks(dir); err == nil {
+		dir = real
+	}
+	repo := filepath.Join(dir, "repo")
+	os.MkdirAll(repo, 0o755)
+	run := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", append([]string{"-C", repo, "-c", "user.name=t", "-c", "user.email=t@example.com", "-c", "commit.gpgsign=false"}, args...)...)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	run("init", "-q", "-b", "main")
+	os.WriteFile(filepath.Join(repo, "file"), []byte("x"), 0o644)
+	run("add", "-A")
+	run("commit", "-q", "-m", "one")
+	for _, b := range []string{"old", "develop2", "release/x", "backup-1", "tracked", "wt"} {
+		run("branch", b)
+	}
+	// A worktree on wt, which tracks the local branch "tracked".
+	run("branch", "--set-upstream-to=tracked", "wt")
+	run("worktree", "add", "-q", filepath.Join(dir, "wt"), "wt")
+	// HEAD on a feature branch with a commit of its own: everything above
+	// is merged into it too, but only main counts.
+	run("checkout", "-q", "-b", "feature")
+	os.WriteFile(filepath.Join(repo, "file2"), []byte("y"), 0o644)
+	run("add", "-A")
+	run("commit", "-q", "-m", "two")
+	run("branch", "ontop") // merged into HEAD, not into main
+
+	ctx := context.Background()
+	st, err := CheckRepo(ctx, repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.DefaultBranch != "main" || st.OnDefault {
+		t.Errorf("default %q, on default %v", st.DefaultBranch, st.OnDefault)
+	}
+	if got := strings.Join(st.MergedBranches, ","); got != "old" {
+		t.Errorf("merged branches offered: %q, want only old", got)
+	}
+	// Deleting works while HEAD is elsewhere, and a protected name is
+	// never deleted even when asked for.
+	deleted, err := DeleteMergedBranches(ctx, repo, []string{"old", "develop2"})
+	if strings.Join(deleted, ",") != "old" || err != nil {
+		t.Errorf("deleted %v, %v", deleted, err)
+	}
+}

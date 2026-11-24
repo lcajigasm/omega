@@ -7,7 +7,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"sort"
+	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/BurntSushi/toml"
@@ -91,13 +96,38 @@ func Path() string { return filepath.Join(Dir(), "config.toml") }
 // NotesPath is the file where the agent stores what it learned about this machine.
 func NotesPath() string { return filepath.Join(Dir(), "notes.md") }
 
+// unknownKeys are the keys of the last file Load read that omega does not
+// know (a typo such as "aproval"), as dotted paths.
+var (
+	unknownMu   sync.Mutex
+	unknownKeys []string
+)
+
+// UnknownKeys returns the keys of config.toml that the last Load did not
+// recognise, such as "aproval" or "providers.openai.modle", sorted. A typo
+// there leaves a setting at its default without a word, so `omega config
+// check` and `omega doctor` warn about them.
+func UnknownKeys() []string {
+	unknownMu.Lock()
+	defer unknownMu.Unlock()
+	return append([]string(nil), unknownKeys...)
+}
+
 // Load reads config.toml, falling back to defaults when it does not exist.
 func Load() (*Config, error) {
 	cfg := Default()
-	_, err := toml.DecodeFile(Path(), cfg)
+	md, err := toml.DecodeFile(Path(), cfg)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return nil, fmt.Errorf("reading %s: %w", Path(), err)
 	}
+	var unknown []string
+	for _, k := range md.Undecoded() {
+		unknown = append(unknown, k.String())
+	}
+	sort.Strings(unknown)
+	unknownMu.Lock()
+	unknownKeys = unknown
+	unknownMu.Unlock()
 	if cfg.Providers == nil {
 		cfg.Providers = map[string]ProviderConfig{}
 	}
@@ -113,6 +143,9 @@ func Load() (*Config, error) {
 	if cfg.Timeout == "" {
 		cfg.Timeout = "45m"
 	}
+	// The API takes the effort in lower case; "High" validated and then
+	// failed with a 400.
+	cfg.Effort = strings.ToLower(strings.TrimSpace(cfg.Effort))
 	return cfg, nil
 }
 
@@ -131,8 +164,9 @@ func (c *Config) Validate() error {
 	if err != nil || d <= 0 {
 		return fmt.Errorf("%s", i18n.T("config.bad_duration", c.Timeout))
 	}
+	c.Effort = strings.ToLower(strings.TrimSpace(c.Effort))
 	if c.Effort != "" {
-		switch strings.ToLower(c.Effort) {
+		switch c.Effort {
 		case "low", "medium", "high", "xhigh", "max":
 		default:
 			return fmt.Errorf("%s", i18n.T("config.bad_effort"))
@@ -148,7 +182,34 @@ func (c *Config) Validate() error {
 			return fmt.Errorf("%s", i18n.T("config.bad_step", id))
 		}
 	}
+	ids := make([]string, 0, len(c.DiskBudgets))
+	for id := range c.DiskBudgets {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	for _, id := range ids {
+		if _, err := ParseSize(c.DiskBudgets[id]); err != nil {
+			return fmt.Errorf("%s", i18n.T("config.bad_budget", id, c.DiskBudgets[id]))
+		}
+	}
 	return nil
+}
+
+var sizeRe = regexp.MustCompile(`(?i)^\s*([0-9]+(?:[.,][0-9]+)?)\s*(b|k|kb|kib|m|mb|mib|g|gb|gib|t|tb|tib)?\s*$`)
+
+// ParseSize reads a size as disk_budgets holds it: 500MB, 8GB, 8 G or
+// 1.5gb; a bare number is gigabytes. It reads what assist.ParseSize reads.
+func ParseSize(s string) (int64, error) {
+	m := sizeRe.FindStringSubmatch(s)
+	if m == nil {
+		return 0, fmt.Errorf("%q is not a size: write it as 500MB or 8GB", s)
+	}
+	n, err := strconv.ParseFloat(strings.ReplaceAll(m[1], ",", "."), 64)
+	if err != nil || n <= 0 {
+		return 0, fmt.Errorf("%q is not a size: write it as 500MB or 8GB", s)
+	}
+	mult := map[string]float64{"b": 1, "k": 1 << 10, "m": 1 << 20, "g": 1 << 30, "t": 1 << 40}[strings.ToLower(m[2] + "g")[:1]]
+	return int64(n * mult), nil
 }
 
 // savePath is the file Save replaces. When config.toml is a symbolic link
@@ -229,12 +290,31 @@ func (c *Config) BaseURLFor(provider string) string {
 	return c.Providers[provider].BaseURL
 }
 
+// scheduled is set by SetScheduled, for a run started with --scheduled.
+var scheduled atomic.Bool
+
+// SetScheduled marks this process as a scheduled run, as the flag
+// --scheduled of the job `omega schedule install` creates does. It means
+// what OMEGA_SCHEDULED=1 in the environment means; the Task Scheduler of
+// Windows passes no environment, so the flag is the one every system has.
+func SetScheduled(on bool) { scheduled.Store(on) }
+
+// Scheduled reports a scheduled run: --scheduled (SetScheduled) or
+// OMEGA_SCHEDULED=1. Nobody is looking when it runs.
+func Scheduled() bool {
+	return scheduled.Load() || os.Getenv("OMEGA_SCHEDULED") == "1"
+}
+
+// trashSteps are the steps that empty the Trash (macOS, Linux) or the
+// Recycle Bin (Windows).
+var trashSteps = map[string]bool{"trash": true, "recycle-bin": true}
+
 // Skipped reports whether a step is disabled by the user.
 func (c *Config) Skipped(id string) bool {
-	// A scheduled run (OMEGA_SCHEDULED, set by `omega schedule install` in
-	// the job it creates) never empties the Trash: what omega removes goes
-	// there so that it can be put back, and nobody is looking when it runs.
-	if id == "trash" && os.Getenv("OMEGA_SCHEDULED") == "1" {
+	// A scheduled run never empties the Trash or the Recycle Bin: what
+	// omega removes goes there so that it can be put back, and nobody is
+	// looking when it runs.
+	if trashSteps[id] && Scheduled() {
 		return true
 	}
 	for _, s := range c.SkipSteps {

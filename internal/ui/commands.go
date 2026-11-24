@@ -155,9 +155,9 @@ func (m *model) handleMenuKey(msg tea.KeyMsg) (handled bool) {
 	m.menuSel = min(m.menuSel, len(sugg)-1)
 	switch msg.Type {
 	case tea.KeyUp:
-		m.menuSel = (m.menuSel - 1 + len(sugg)) % len(sugg)
+		m.menuSel = wrap(m.menuSel, -1, len(sugg))
 	case tea.KeyDown:
-		m.menuSel = (m.menuSel + 1) % len(sugg)
+		m.menuSel = wrap(m.menuSel, 1, len(sugg))
 	case tea.KeyTab:
 		m.complete(sugg[m.menuSel])
 	case tea.KeyEsc:
@@ -204,7 +204,7 @@ func (m *model) submitCommand(text string) tea.Cmd {
 			return nil
 		}
 		if !slices.Contains(m.header.Models, arg) {
-			m.note(errStyle.Render("! ")+mutedStyle.Render(i18n.T("slash.no_model", arg, strings.Join(m.header.Models, ", "))), lipgloss.NewStyle())
+			m.note(errStyle.Render(gl.Error+" ")+mutedStyle.Render(i18n.T("slash.no_model", arg, strings.Join(m.header.Models, ", "))), lipgloss.NewStyle())
 			break
 		}
 		m.setModel(arg)
@@ -215,13 +215,13 @@ func (m *model) submitCommand(text string) tea.Cmd {
 		return nil
 	default:
 		if c, ok := findCommand(name); ok && !offered(c) {
-			m.note(errStyle.Render("! ")+mutedStyle.Render(i18n.T("mac.only_slash", c.name)), lipgloss.NewStyle())
+			m.note(errStyle.Render(gl.Error+" ")+mutedStyle.Render(i18n.T("mac.only_slash", c.name)), lipgloss.NewStyle())
 			break
 		}
 		if c, ok := findCommand(name); ok && strings.HasPrefix(c.desc, "slash.task_") {
 			return m.startTask(strings.TrimPrefix(c.name, "/"))
 		}
-		m.note(errStyle.Render("! ")+mutedStyle.Render(i18n.T("slash.unknown", name)), lipgloss.NewStyle())
+		m.note(errStyle.Render(gl.Error+" ")+mutedStyle.Render(i18n.T("slash.unknown", name)), lipgloss.NewStyle())
 	case "/exit", "/quit":
 		m.quitting = true
 		m.endSession()
@@ -356,13 +356,13 @@ func (m *model) setModel(name string) {
 	}
 	m.header.Model = name
 	m.ag.SetModel(name)
-	m.note(titleStyle.Render("↻ ")+mutedStyle.Render(i18n.T("ui.model_picked", name)), lipgloss.NewStyle())
+	m.note(titleStyle.Render(gl.Lifted+" ")+mutedStyle.Render(i18n.T("ui.model_picked", name)), lipgloss.NewStyle())
 }
 
 // cycleModel switches to the next model the run can use (ctrl+p).
 func (m *model) cycleModel() {
 	if len(m.header.Models) < 2 {
-		m.note(mutedStyle.Render("↻ "+i18n.T("ui.model_only", m.header.Model)), lipgloss.NewStyle())
+		m.note(mutedStyle.Render(gl.Lifted+" "+i18n.T("ui.model_only", m.header.Model)), lipgloss.NewStyle())
 		return
 	}
 	next := m.header.Models[0]
@@ -375,8 +375,8 @@ func (m *model) cycleModel() {
 }
 
 // helpKeys is the on-screen shortcut card, in the order a session uses them.
+// "?" itself is not listed: the key line under the card says it closes it.
 var helpKeys = [][2]string{
-	{"?", "key.help"},
 	{"ctrl+f", "key.search"},
 	{"shift+tab", "key.mode"},
 	{"ctrl+p", "key.model"},
@@ -389,8 +389,18 @@ var helpKeys = [][2]string{
 	{"y / n / a", "key.decide"},
 	{"esc", "key.esc"},
 	{"ctrl+c", "key.cancel"},
-	{"↑ ↓", "key.scroll"},
+	{"↑↓ home/end g G", "key.scroll"},
 	{"pgup/pgdown", "key.card_scroll"},
+	{"shift+drag", "uix.select_text"},
+}
+
+// helpKey is the label of a key on the help card: the yes letter of the
+// user's language on the approval row.
+func helpKey(k string) string {
+	if k == "y / n / a" && yesKey() != "y" {
+		return yesKey() + "/y / n / a"
+	}
+	return k
 }
 
 func (m *model) helpView() string {
@@ -415,7 +425,7 @@ func (m *model) helpView() string {
 		if c.name == "/expand" || c.name == "/panel" {
 			continue
 		}
-		label := lipgloss.NewStyle().Width(27).Render(strings.TrimSpace(c.name + " " + c.args))
+		label := pad(strings.TrimSpace(c.name+" "+c.args), 27)
 		b.WriteString("  " + cmdStyle.Render(label) + mutedStyle.Render(truncate(i18n.T(c.desc), max(12, w-33))) + "\n")
 	}
 	line := ""
@@ -427,7 +437,7 @@ func (m *model) helpView() string {
 		line = strings.TrimSpace(line + " " + t)
 	}
 	b.WriteString("  " + cmdStyle.Render(line) + "\n")
-	b.WriteString("  " + lipgloss.NewStyle().Width(27).Render("") + mutedStyle.Render(truncate(i18n.T("slash.tasks"), max(12, w-33))) + "\n")
+	b.WriteString("  " + strings.Repeat(" ", 27) + mutedStyle.Render(truncate(i18n.T("slash.tasks"), max(12, w-33))) + "\n")
 	b.WriteString(titleStyle.Render(i18n.T("slash.keys_title")) + "\n")
 	// Two columns when there is room, so the card fits a short terminal.
 	cols := 1
@@ -444,10 +454,10 @@ func (m *model) helpView() string {
 				break
 			}
 			k := helpKeys[i]
-			label := lipgloss.NewStyle().Width(16).Render(k[0])
+			label := pad(helpKey(k[0]), 16)
 			cell := " " + cmdStyle.Render(label) + mutedStyle.Render(truncate(i18n.T(k[1]), max(12, colW-19)))
 			if c < cols-1 {
-				cell = lipgloss.NewStyle().Width(colW).Render(cell)
+				cell = pad(cell, colW)
 			}
 			line += cell
 		}
@@ -474,15 +484,21 @@ func (m *model) menuView() string {
 	}
 	width = min(width+3, 32)
 	var b strings.Builder
+	if start > 0 {
+		b.WriteString("    " + moreAbove(start) + "\n")
+	}
 	for i := start; i < end; i++ {
 		s := sugg[i]
-		label := lipgloss.NewStyle().Width(width).Render(truncate(s.label, width-1))
+		label := pad(truncate(s.label, width-1), width)
 		desc := truncate(s.desc, max(10, m.width-width-8))
 		if i == sel {
-			b.WriteString("  " + titleStyle.Render("❯ "+label) + mutedStyle.Render(desc) + "\n")
+			b.WriteString("  " + titleStyle.Render(gl.Pointer+" "+label) + mutedStyle.Render(desc) + "\n")
 		} else {
-			b.WriteString("    " + label + faintStyle.Render(desc) + "\n")
+			b.WriteString("    " + label + mutedStyle.Render(desc) + "\n")
 		}
+	}
+	if end < len(sugg) {
+		b.WriteString("    " + moreBelow(len(sugg)-end) + "\n")
 	}
 	return strings.TrimRight(b.String(), "\n")
 }

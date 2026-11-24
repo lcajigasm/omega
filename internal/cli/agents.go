@@ -14,6 +14,7 @@ import (
 
 	"github.com/lcajigasm/omega/internal/aiagents"
 	"github.com/lcajigasm/omega/internal/i18n"
+	"github.com/lcajigasm/omega/internal/ui"
 )
 
 // What AI coding agents leave running: the dev servers, watchers, emulators
@@ -41,26 +42,20 @@ func agentsCmd() *cobra.Command {
 	c := &cobra.Command{
 		Use:     "agents",
 		Aliases: []string{"claude", "leftovers"},
-		Short:   "Find and end what AI coding agents left running",
-		Long: "Lists the processes that closed sessions of AI coding agents left behind (dev servers, watchers,\n" +
-			"emulators, browsers opened by Playwright), grouped by agent and session with their ports, memory\n" +
-			"and age, and the agent sessions still open and what they hold.\n\n" +
-			"  omega agents                 what is left behind and what is open\n" +
-			"  omega agents kill            end everything closed sessions left behind\n" +
-			"  omega agents kill <pid|id>   end one process, or what one session left\n" +
-			"  omega agents end <pid|id>    end an open session and what it runs\n" +
-			"  omega agents idle            end the sessions idle for more than two hours (--after)\n\n" +
-			"Known agents: " + knownAgents() + ".\n" +
-			"What an agent leaves behind is found by the variable it puts in the environment of the commands it\n" +
-			"runs; only Claude Code records whether a session is idle. Processes get two seconds to exit before\n" +
-			"they are forced, and a PID that now runs something other than what was listed is left alone.\n" +
-			"Nothing leaves your machine.",
+		Short:   i18n.T("cmd.agents"),
+		Long:    i18n.T("cmd.agents_long", knownAgents()),
+		Example: "  omega agents\n" +
+			"  omega agents kill\n" +
+			"  omega agents kill 41234\n" +
+			"  omega agents end 3f2a9c1b\n" +
+			"  omega agents idle --after 3h --yes\n" +
+			"  omega agents --json",
 		Args: cobra.NoArgs,
 		RunE: list,
 	}
-	c.Flags().BoolVar(&asJSON, "json", false, "print the report as JSON")
-	listCmd := &cobra.Command{Use: "list", Short: "List what closed agent sessions left running and the open sessions", Args: cobra.NoArgs, RunE: list}
-	listCmd.Flags().BoolVar(&asJSON, "json", false, "print the report as JSON")
+	c.Flags().BoolVar(&asJSON, "json", false, i18n.T("flag.tools_json"))
+	listCmd := &cobra.Command{Use: "list", Short: i18n.T("cmd.agents_list"), Args: cobra.NoArgs, RunE: list}
+	listCmd.Flags().BoolVar(&asJSON, "json", false, i18n.T("flag.tools_json"))
 
 	var yes bool
 	confirm := func(cmd *cobra.Command, q string) (bool, error) {
@@ -68,14 +63,14 @@ func agentsCmd() *cobra.Command {
 			return true, nil
 		}
 		if !stdinIsTerminal() {
-			return false, errors.New("nothing ended: pass --yes to end processes without a terminal")
+			return false, errors.New(i18n.T("agents.need_yes"))
 		}
 		return askYesNo(q), nil
 	}
 
 	kill := &cobra.Command{
 		Use:   "kill [pid | session-id]...",
-		Short: "End what closed sessions left running: everything, one process or one session's worth",
+		Short: i18n.T("cmd.agents_kill"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			r, err := agentScan()
 			if err != nil {
@@ -87,21 +82,21 @@ func agentsCmd() *cobra.Command {
 			}
 			w := cmd.OutOrStdout()
 			if len(targets) == 0 {
-				fmt.Fprintln(w, "Nothing left behind: every process an agent started belongs to an open session.")
+				fmt.Fprintln(w, i18n.T("agents.nothing_left"))
 				return nil
 			}
-			if ok, err := confirm(cmd, fmt.Sprintf("End %s (%s)?", what, humanBytes(float64(memoryOf(targets))))); !ok || err != nil {
+			if ok, err := confirm(cmd, i18n.T("agents.confirm_kill", what, ui.Bytes(int64(memoryOf(targets))))); !ok || err != nil {
 				return err
 			}
 			writeEnded(w, aiagents.Kill(targets, aiagents.Grace))
 			return nil
 		},
 	}
-	kill.Flags().BoolVarP(&yes, "yes", "y", false, "do not ask")
+	kill.Flags().BoolVarP(&yes, "yes", "y", false, i18n.T("flag.tools_yes"))
 
 	end := &cobra.Command{
 		Use:   "end <pid | session-id>",
-		Short: "End an open agent session and what it runs",
+		Short: i18n.T("cmd.agents_end"),
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			r, err := agentScan()
@@ -113,7 +108,7 @@ func agentsCmd() *cobra.Command {
 				return err
 			}
 			targets := aiagents.SessionTargets(s)
-			q := fmt.Sprintf("End the %s session %q%s and %s?", aiagents.NameOf(s.Agent), sessionName(s), dotted(s.Project), plural(len(targets)-1, "process", "processes"))
+			q := i18n.T("agents.confirm_end", aiagents.NameOf(s.Agent), sessionName(s)+dotted(s.Project), procCount(len(targets)-1))
 			if ok, err := confirm(cmd, q); !ok || err != nil {
 				return err
 			}
@@ -121,16 +116,16 @@ func agentsCmd() *cobra.Command {
 			return nil
 		},
 	}
-	end.Flags().BoolVarP(&yes, "yes", "y", false, "do not ask")
+	end.Flags().BoolVarP(&yes, "yes", "y", false, i18n.T("flag.tools_yes"))
 
 	var after time.Duration
 	idle := &cobra.Command{
 		Use:   "idle",
-		Short: "End the open sessions that have waited for input longer than --after",
+		Short: i18n.T("cmd.agents_idle"),
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if after < aiagents.MinIdle {
-				return fmt.Errorf("--after must be at least %s: a shorter wait ends sessions that only paused", aiagents.MinIdle)
+				return fmt.Errorf("%s", i18n.T("agents.min_idle", aiagents.MinIdle))
 			}
 			r, err := agentScan()
 			if err != nil {
@@ -139,26 +134,36 @@ func agentsCmd() *cobra.Command {
 			w := cmd.OutOrStdout()
 			sessions := r.IdleSessions(after)
 			if len(sessions) == 0 {
-				fmt.Fprintf(w, "No session has been idle for %s.\n", ageText(int(after.Seconds())))
+				fmt.Fprintln(w, i18n.T("agents.none_idle", ageText(int(after.Seconds()))))
 				return nil
 			}
+			rep := ui.NewReport(w)
 			var targets []aiagents.Target
 			for _, s := range sessions {
-				fmt.Fprintf(w, "  %s%s · %s · idle %s\n", aiagents.NameOf(s.Agent), dotted(s.Project), sessionName(s), ageText(int(s.IdleFor(r.Taken).Seconds())))
+				rep.Check(ui.MarkInfo, aiagents.NameOf(s.Agent)+dotted(s.Project), 0,
+					sessionName(s)+" · "+i18n.T("agents.idle_for", ageText(int(s.IdleFor(r.Taken).Seconds()))))
 				targets = append(targets, aiagents.SessionTargets(s)...)
 			}
-			if ok, err := confirm(cmd, fmt.Sprintf("End %s?", plural(len(sessions), "idle session", "idle sessions"))); !ok || err != nil {
+			if ok, err := confirm(cmd, i18n.N("agents.confirm_idle", len(sessions))); !ok || err != nil {
 				return err
 			}
 			writeEnded(w, aiagents.Kill(targets, aiagents.Grace))
 			return nil
 		},
 	}
-	idle.Flags().DurationVar(&after, "after", 2*time.Hour, "how long a session must have waited (at least 30m)")
-	idle.Flags().BoolVarP(&yes, "yes", "y", false, "do not ask")
+	idle.Flags().DurationVar(&after, "after", 2*time.Hour, i18n.T("flag.agents_after"))
+	idle.Flags().BoolVarP(&yes, "yes", "y", false, i18n.T("flag.tools_yes"))
 
 	c.AddCommand(listCmd, kill, end, idle)
 	return c
+}
+
+// procCount is "1 process" or "N processes", translated.
+func procCount(n int) string {
+	if n == 1 {
+		return i18n.T("agents.one_proc")
+	}
+	return i18n.T("agents.n_procs", n)
 }
 
 // leftoverTargets resolves what to end: every leftover with no arguments,
@@ -169,8 +174,7 @@ func leftoverTargets(r *aiagents.Report, args []string) ([]aiagents.Target, stri
 		for _, g := range r.Leftovers {
 			out = append(out, aiagents.GroupTargets(g)...)
 		}
-		return out, fmt.Sprintf("%s from %s", plural(len(out), "process", "processes"),
-			plural(len(r.Leftovers), "closed session", "closed sessions")), nil
+		return out, i18n.N("agents.what_all", len(r.Leftovers), procCount(len(out)), len(r.Leftovers)), nil
 	}
 	seen := map[int]bool{}
 	add := func(p aiagents.Proc) {
@@ -191,7 +195,7 @@ func leftoverTargets(r *aiagents.Report, args []string) ([]aiagents.Target, stri
 				}
 			}
 			if !found {
-				return nil, "", fmt.Errorf("%d is not a process a closed session left behind (see omega agents)", pid)
+				return nil, "", fmt.Errorf("%s", i18n.T("agents.not_leftover", pid))
 			}
 			continue
 		}
@@ -203,7 +207,7 @@ func leftoverTargets(r *aiagents.Report, args []string) ([]aiagents.Target, stri
 		}
 		switch len(match) {
 		case 0:
-			return nil, "", fmt.Errorf("no closed session %q left anything behind (see omega agents)", a)
+			return nil, "", fmt.Errorf("%s", i18n.T("agents.no_closed", a))
 		case 1:
 			for _, p := range match[0].Procs {
 				if !p.Shared {
@@ -211,10 +215,10 @@ func leftoverTargets(r *aiagents.Report, args []string) ([]aiagents.Target, stri
 				}
 			}
 		default:
-			return nil, "", fmt.Errorf("%q matches %d sessions: give more of the ID", a, len(match))
+			return nil, "", fmt.Errorf("%s", i18n.T("agents.ambiguous", a, len(match)))
 		}
 	}
-	return out, plural(len(out), "process", "processes"), nil
+	return out, procCount(len(out)), nil
 }
 
 // openSession finds an open session by the PID of its agent process or by
@@ -229,13 +233,13 @@ func openSession(r *aiagents.Report, arg string) (aiagents.Session, error) {
 	}
 	switch {
 	case len(match) == 0:
-		return aiagents.Session{}, fmt.Errorf("no open agent session is %q (see omega agents)", arg)
+		return aiagents.Session{}, fmt.Errorf("%s", i18n.T("agents.no_open", arg))
 	case len(match) > 1:
-		return aiagents.Session{}, fmt.Errorf("%q matches %d sessions: give more of the ID", arg, len(match))
+		return aiagents.Session{}, fmt.Errorf("%s", i18n.T("agents.ambiguous", arg, len(match)))
 	case match[0].Current:
-		return aiagents.Session{}, fmt.Errorf("that is the session omega runs in: end it from %s", aiagents.NameOf(match[0].Agent))
+		return aiagents.Session{}, fmt.Errorf("%s", i18n.T("agents.is_current", aiagents.NameOf(match[0].Agent)))
 	case match[0].Service:
-		return aiagents.Session{}, fmt.Errorf("that is %s's background service, which other sessions use: stop it from %s", aiagents.NameOf(match[0].Agent), aiagents.NameOf(match[0].Agent))
+		return aiagents.Session{}, fmt.Errorf("%s", i18n.T("agents.is_service", aiagents.NameOf(match[0].Agent)))
 	}
 	return match[0], nil
 }
@@ -302,95 +306,184 @@ func clip(s string, n int) string {
 	return s
 }
 
-func writeProc(w io.Writer, p aiagents.Proc, indent string) {
+// groupMemory is what a group holds without its shared daemons: the same
+// measure as the header's, so the numbers add up.
+func groupMemory(g aiagents.Group) uint64 {
+	var n uint64
+	for _, p := range g.Procs {
+		if !p.Shared {
+			n += p.Memory
+		}
+	}
+	return n
+}
+
+// procLine is one process of the list: PID, memory, age, command, ports.
+func procLine(r *ui.Report, p aiagents.Proc) {
 	extra := ""
 	if len(p.Ports) > 0 {
 		extra = " · :" + strings.Join(p.Ports, " :")
 	}
 	if len(p.Helpers) > 0 {
-		extra += " · +" + plural(len(p.Helpers), "helper", "helpers")
+		extra += " · " + i18n.T("agents.helpers", len(p.Helpers))
 	}
-	if p.Shared {
-		extra += " · shared daemon: kept unless named"
-	}
-	fmt.Fprintf(w, "%s%-7d %-9s %-6s %s%s\n", indent, p.PID, humanBytes(float64(p.Memory)), ageText(p.Age), clip(p.Short(), 70), extra)
+	r.Line(fmt.Sprintf("%-7d %8s  %-6s %s%s", p.PID, ui.Bytes(int64(p.Memory)), ageText(p.Age), r.Clip(p.Short(), 34+len(extra)), extra))
 	if p.Cwd != "" {
-		fmt.Fprintf(w, "%s        in %s\n", indent, p.Cwd)
+		r.Detail(i18n.T("agents.in", tildePath(p.Cwd)))
 	}
+}
+
+// sharedLine folds the identical shared daemons into one line:
+// "30 × git fsmonitor--daemon run, 2–5 MB".
+type sharedLine struct {
+	command  string
+	count    int
+	min, max uint64
+	pids     []int
+}
+
+func sharedLines(groups []aiagents.Group) []sharedLine {
+	var out []sharedLine
+	index := map[string]int{}
+	for _, g := range groups {
+		for _, p := range g.Procs {
+			if !p.Shared {
+				continue
+			}
+			key := p.Short()
+			i, ok := index[key]
+			if !ok {
+				i = len(out)
+				index[key] = i
+				out = append(out, sharedLine{command: key, min: p.Memory, max: p.Memory})
+			}
+			l := &out[i]
+			l.count++
+			l.min, l.max = min(l.min, p.Memory), max(l.max, p.Memory)
+			l.pids = append(l.pids, p.PID)
+		}
+	}
+	return out
+}
+
+func (l sharedLine) text(r *ui.Report) string {
+	size := memRange(l.min, l.max)
+	if l.count == 1 {
+		return fmt.Sprintf("pid %d · %s, %s", l.pids[0], r.Clip(l.command, 40), size)
+	}
+	return fmt.Sprintf("%d × %s, %s", l.count, r.Clip(l.command, 40), size)
+}
+
+// memRange is "4 MB", "2–5 MB" or "900 KB–2 MB".
+func memRange(lo, hi uint64) string {
+	a, b := ui.Bytes(int64(lo)), ui.Bytes(int64(hi))
+	if a == b {
+		return b
+	}
+	na, ua, _ := strings.Cut(a, " ")
+	if _, ub, _ := strings.Cut(b, " "); ua == ub {
+		return na + "–" + b
+	}
+	return a + "–" + b
 }
 
 func writeAgents(w io.Writer, r *aiagents.Report) {
+	rep := ui.NewReport(w)
 	n, kept := r.LeftoverCount(), r.SharedCount()
-	if n+kept == 0 {
-		fmt.Fprintln(w, "\nLeft behind: nothing. Every process an agent started belongs to an open session.")
+	rep.Title("omega agents", "")
+	if n == 0 {
+		rep.Section(i18n.T("agents.left_section"), 0)
+		rep.Check(ui.MarkOK, i18n.T("agents.nothing_left"), 0, "")
 	} else {
-		also := ""
-		if kept > 0 {
-			also = fmt.Sprintf(", and %s that stay unless named", plural(kept, "shared daemon", "shared daemons"))
-		}
-		fmt.Fprintf(w, "\nLeft behind: %s from %s, holding %s%s\n", plural(n, "process", "processes"),
-			plural(len(r.Leftovers), "closed session", "closed sessions"), humanBytes(float64(r.LeftoverMemory())), also)
+		rep.Section(i18n.T("agents.left_section"), n)
+		rep.Line(i18n.T("agents.left_summary", procCount(n), len(r.Leftovers), ui.Bytes(int64(r.LeftoverMemory()))))
 		for _, g := range r.Leftovers {
-			title := ""
-			if g.Title != "" {
-				title = " · " + clip(g.Title, 60)
+			if groupMemory(g) == 0 && len(aiagents.GroupTargets(g)) == 0 {
+				continue // only shared daemons: listed below
 			}
-			id := ""
+			head := aiagents.NameOf(g.Agent) + dotted(g.Project)
 			if g.Session != "" {
-				id = " · " + short(g.Session)
+				head += " · " + short(g.Session)
 			}
-			fmt.Fprintf(w, "\n  %s%s%s%s · %s\n", aiagents.NameOf(g.Agent), dotted(g.Project), id, title, humanBytes(float64(g.Memory())))
+			if g.Title != "" {
+				head += " · " + clip(g.Title, 60)
+			}
+			rep.Blank()
+			rep.Check(ui.MarkWarn, head, 0, ui.Bytes(int64(groupMemory(g))))
 			for _, p := range g.Procs {
-				writeProc(w, p, "    ")
+				if !p.Shared {
+					procLine(rep, p)
+				}
 			}
 		}
-		fmt.Fprintln(w, "\n  `omega agents kill` ends them all; give a PID or a session ID to end less.")
+	}
+	if kept > 0 {
+		rep.Section(i18n.T("agents.shared_section"), kept)
+		for _, l := range sharedLines(r.Leftovers) {
+			rep.Check(ui.MarkOff, l.text(rep), 0, "")
+		}
+		rep.Detail(i18n.T("agents.shared_note"))
 	}
 
-	fmt.Fprintf(w, "\nOpen sessions (%d)\n", len(r.Sessions))
+	rep.Section(i18n.T("agents.open_section"), len(r.Sessions))
 	for _, s := range r.Sessions {
-		state := s.Status
+		state := i18n.T("gui.agents.unknown")
+		if s.Status == aiagents.Busy {
+			state = i18n.T("gui.agents.working")
+		}
 		if d := s.IdleFor(r.Taken); d >= 0 {
-			state = "idle " + ageText(int(d.Seconds()))
+			state = i18n.T("agents.idle_for", ageText(int(d.Seconds())))
 		} else if s.Status == aiagents.Busy && !s.Since.IsZero() {
-			state = "working " + ageText(int(r.Taken.Sub(s.Since).Seconds()))
+			state = i18n.T("agents.working_for", ageText(int(r.Taken.Sub(s.Since).Seconds())))
 		}
 		if s.Current {
-			state += " · this one"
+			state += " · " + i18n.T("agents.this_one")
 		}
 		if s.Service {
-			state += " · background service"
+			state += " · " + i18n.T("agents.service")
 		}
-		id := ""
+		head := aiagents.NameOf(s.Agent) + dotted(s.Project)
 		if s.ID != "" {
-			id = " · " + short(s.ID)
+			head += " · " + short(s.ID)
 		}
-		fmt.Fprintf(w, "\n  %s%s%s · pid %d · %s · %s\n", aiagents.NameOf(s.Agent), dotted(s.Project), id, s.PID, state, humanBytes(float64(s.Total())))
+		mark := ui.MarkInfo
+		if s.Current {
+			mark = ui.MarkCurrent
+		}
+		rep.Blank()
+		rep.Check(mark, fmt.Sprintf("%s · pid %d", head, s.PID), 0, state+" · "+ui.Bytes(int64(s.Total())))
 		if s.Title != "" {
-			fmt.Fprintf(w, "    %s\n", clip(s.Title, 90))
+			rep.Detail(clip(s.Title, 90))
 		}
 		for _, p := range s.Procs {
-			writeProc(w, p, "    ")
+			procLine(rep, p)
 		}
 	}
-	fmt.Fprintln(w)
+	rep.Blank()
+	if n > 0 {
+		rep.Hint(i18n.T("agents.kill_hint"))
+	}
 }
 
 func writeEnded(w io.Writer, res aiagents.Result) {
-	fmt.Fprintf(w, "Ended %s, freed %s.", plural(res.Ended, "process", "processes"), humanBytes(float64(res.Freed)))
+	r := ui.NewReport(w)
+	mark := ui.MarkOK
+	if len(res.Failed) > 0 {
+		mark = ui.MarkWarn
+	}
+	r.Check(mark, i18n.T("agents.ended", procCount(res.Ended), ui.Bytes(int64(res.Freed))), 0, "")
 	if res.Forced > 0 {
-		fmt.Fprintf(w, " %d had to be forced.", res.Forced)
+		r.Detail(i18n.T("agents.forced", res.Forced))
 	}
 	if res.Skipped > 0 {
-		fmt.Fprintf(w, " %d had already exited or now run something else, and were left alone.", res.Skipped)
+		r.Detail(i18n.T("agents.skipped", res.Skipped))
 	}
-	fmt.Fprintln(w)
 	if len(res.Failed) > 0 {
 		var pids []string
 		for _, p := range res.Failed {
 			pids = append(pids, strconv.Itoa(p))
 		}
-		fmt.Fprintf(w, "Still running: %s.\n", strings.Join(pids, ", "))
+		r.Check(ui.MarkErr, i18n.T("agents.still_running", strings.Join(pids, ", ")), 0, "")
 	}
 }
 
@@ -453,7 +546,7 @@ func procRows(ps []aiagents.Proc) []AgentProcRow {
 	out := []AgentProcRow{}
 	for _, p := range ps {
 		out = append(out, AgentProcRow{PID: p.PID, Name: p.Name(), Command: p.Short(), Cwd: p.Cwd, Ports: p.Ports,
-			Memory: humanBytes(float64(p.Memory)), Age: ageText(p.Age), Helpers: len(p.Helpers), Shared: p.Shared})
+			Memory: ui.Bytes(int64(p.Memory)), Age: ageText(p.Age), Helpers: len(p.Helpers), Shared: p.Shared})
 	}
 	return out
 }
@@ -469,14 +562,14 @@ func AgentList() (AgentsView, error) {
 	if err != nil {
 		return v, err
 	}
-	v.Count, v.Shared, v.Memory = r.LeftoverCount(), r.SharedCount(), humanBytes(float64(r.LeftoverMemory()))
+	v.Count, v.Shared, v.Memory = r.LeftoverCount(), r.SharedCount(), ui.Bytes(int64(r.LeftoverMemory()))
 	for _, g := range r.Leftovers {
 		v.Leftovers = append(v.Leftovers, AgentGroupRow{ID: g.Key(), Agent: aiagents.NameOf(g.Agent), Short: short(g.Session), Project: g.Project, Title: g.Title,
-			Memory: humanBytes(float64(g.Memory())), Age: ageText(g.Oldest()), Procs: procRows(g.Procs)})
+			Memory: ui.Bytes(int64(groupMemory(g))), Age: ageText(g.Oldest()), Procs: procRows(g.Procs)})
 	}
 	for _, s := range r.Sessions {
 		row := AgentSessionRow{PID: s.PID, Agent: aiagents.NameOf(s.Agent), ID: s.ID, Project: s.Project, Title: s.Title, Status: s.Status,
-			Memory: humanBytes(float64(s.Total())), Age: ageText(s.Age), Current: s.Current, Service: s.Service, Procs: procRows(s.Procs)}
+			Memory: ui.Bytes(int64(s.Total())), Age: ageText(s.Age), Current: s.Current, Service: s.Service, Procs: procRows(s.Procs)}
 		switch d := s.IdleFor(r.Taken); {
 		case d >= 0:
 			row.IdleMin = int(d.Minutes())
@@ -548,7 +641,7 @@ func AgentEnd(what, id string) (string, error) {
 		return i18n.T("gui.agents.nothing"), nil
 	}
 	res := aiagents.Kill(targets, aiagents.Grace)
-	msg := i18n.T("gui.agents.ended", res.Ended, humanBytes(float64(res.Freed)))
+	msg := i18n.T("gui.agents.ended", res.Ended, ui.Bytes(int64(res.Freed)))
 	if len(res.Failed) > 0 {
 		return msg, fmt.Errorf("%s", i18n.T("gui.agents.failed", len(res.Failed)))
 	}

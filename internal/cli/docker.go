@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -13,7 +14,6 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"golang.org/x/term"
 
 	"github.com/lcajigasm/omega/internal/i18n"
 	"github.com/lcajigasm/omega/internal/runner"
@@ -63,18 +63,6 @@ func parseSize(s string) float64 {
 	return 0
 }
 
-func humanBytes(b float64) string {
-	switch {
-	case b >= 1e9:
-		return fmt.Sprintf("%.1f GB", b/1e9)
-	case b >= 1e6:
-		return fmt.Sprintf("%.0f MB", b/1e6)
-	case b >= 1e3:
-		return fmt.Sprintf("%.0f kB", b/1e3)
-	}
-	return fmt.Sprintf("%.0f B", b)
-}
-
 func totalSize(rows []dockerDF) float64 {
 	var t float64
 	for _, r := range rows {
@@ -83,34 +71,108 @@ func totalSize(rows []dockerDF) float64 {
 	return t
 }
 
-func dockerRunning() bool { return exec.Command("docker", "info").Run() == nil }
+var dockerRunning = func() bool { return exec.Command("docker", "info").Run() == nil }
+
+var dockerInstalled = func() bool { return runner.Has("docker") }
 
 func dockerDiskImage() string {
 	home, _ := os.UserHomeDir()
 	raw := filepath.Join(home, "Library/Containers/com.docker.docker/Data/vms/0/data/Docker.raw")
-	out, err := exec.Command("du", "-h", raw).Output()
+	out, err := exec.Command("du", "-k", raw).Output()
 	if err != nil {
 		return ""
 	}
-	return strings.Fields(string(out))[0]
+	f := strings.Fields(string(out))
+	if len(f) == 0 {
+		return ""
+	}
+	kb, err := strconv.ParseInt(f[0], 10, 64)
+	if err != nil {
+		return ""
+	}
+	return ui.Bytes(kb << 10)
+}
+
+// dockerReport is what docker --list --json prints.
+type dockerReport struct {
+	Rows      []dockerRow `json:"rows"`
+	Total     int64       `json:"total"`       // bytes
+	Reclaim   int64       `json:"reclaimable"` // bytes
+	DiskImage string      `json:"disk_image,omitempty"`
+}
+
+type dockerRow struct {
+	Type        string `json:"type"`
+	Count       string `json:"count"`
+	Active      string `json:"active"`
+	Size        int64  `json:"size"`
+	Reclaimable int64  `json:"reclaimable"`
+	Percent     string `json:"percent,omitempty"`
+}
+
+func newDockerReport(rows []dockerDF) dockerReport {
+	rep := dockerReport{Rows: []dockerRow{}}
+	for _, r := range rows {
+		row := dockerRow{Type: r.Type, Count: r.TotalCount, Active: r.Active,
+			Size: int64(parseSize(r.Size)), Reclaimable: int64(parseSize(r.Reclaimable))}
+		if _, pct, ok := strings.Cut(r.Reclaimable, " "); ok {
+			row.Percent = strings.Trim(pct, "()")
+		}
+		rep.Total += row.Size
+		rep.Reclaim += row.Reclaimable
+		rep.Rows = append(rep.Rows, row)
+	}
+	return rep
+}
+
+func writeDockerUsage(w io.Writer, rep dockerReport) {
+	r := ui.NewReport(w)
+	r.Title("omega docker", i18n.T("docker.usage"))
+	r.Blank()
+	var rows [][]string
+	for _, row := range rep.Rows {
+		rec := ui.Bytes(row.Reclaimable)
+		if row.Percent != "" {
+			rec += r.Muted(" (" + row.Percent + ")")
+		}
+		rows = append(rows, []string{row.Type, row.Count, row.Active, ui.Bytes(row.Size), rec})
+	}
+	r.Table([]ui.Column{{Title: ""}, {Title: i18n.T("docker.col_total"), Right: true}, {Title: i18n.T("docker.col_active"), Right: true},
+		{Title: i18n.T("disk.col_size"), Right: true}, {Title: i18n.T("docker.col_reclaimable"), Right: true}}, rows, nil)
+	r.Blank()
+	r.Line(i18n.T("docker.total", ui.Bytes(rep.Total), ui.Bytes(rep.Reclaim)))
+	if rep.DiskImage != "" {
+		r.Line(r.Muted(i18n.T("docker.disk_image", rep.DiskImage)))
+	}
 }
 
 func dockerCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "docker",
-		Short: i18n.T("cmd.docker"),
-		Args:  cobra.NoArgs,
+	var list, asJSON, yes bool
+	c := &cobra.Command{
+		Use:     "docker",
+		Short:   i18n.T("cmd.docker"),
+		Long:    i18n.T("cmd.docker_long"),
+		Example: "  omega docker\n  omega docker --list\n  omega docker --json",
+		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if !runner.Has("docker") {
-				fmt.Println(i18n.T("docker.not_installed"))
-				return nil
+			w := cmd.OutOrStdout()
+			if asJSON {
+				list = true
 			}
-			tty := term.IsTerminal(int(os.Stdin.Fd()))
+			if !dockerInstalled() {
+				return errors.New(i18n.T("docker.not_installed"))
+			}
+			tty := stdinIsTerminal() && w == io.Writer(os.Stdout)
 			if !dockerRunning() {
-				if !tty || !askYesNo(i18n.T("docker.not_running")) {
-					return nil
+				// Without a terminal nobody can say yes to starting it: say
+				// what is wrong and fail, so a script sees it.
+				if !tty || list {
+					return errors.New(i18n.T("docker.stopped"))
 				}
-				fmt.Println(i18n.T("docker.starting"))
+				if !askYesNo(i18n.T("docker.not_running")) {
+					return errors.New(i18n.T("docker.stopped"))
+				}
+				fmt.Fprintln(w, i18n.T("docker.starting"))
 				start, _ := steps.Find("docker-start")
 				if res := runner.Run(context.Background(), start.Command, 2*time.Minute, nil); res.ExitCode != 0 {
 					return fmt.Errorf("docker: %s", strings.TrimSpace(res.Output))
@@ -121,22 +183,27 @@ func dockerCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("docker system df: %w", err)
 			}
+			rep := newDockerReport(rows)
+			rep.DiskImage = dockerDiskImage()
+			if asJSON {
+				return writeJSON(w, rep)
+			}
+			writeDockerUsage(w, rep)
+			if list {
+				return nil
+			}
+			if !tty {
+				ui.NewReport(w).Hint(i18n.T("docker.need_tty"))
+				return nil
+			}
 			before := totalSize(rows)
-			reclaim := map[string]string{}
-			fmt.Printf("\n%s\n\n", i18n.T("docker.usage"))
-			fmt.Printf("  %-14s %7s %7s %10s  %s\n", "", "total", "active", "size", "reclaimable")
+			reclaim := map[string]float64{}
 			for _, r := range rows {
-				fmt.Printf("  %-14s %7s %7s %10s  %s\n", r.Type, r.TotalCount, r.Active, r.Size, r.Reclaimable)
-				reclaim[r.Type] = strings.SplitN(r.Reclaimable, " ", 2)[0]
+				reclaim[r.Type] = parseSize(r.Reclaimable)
 			}
-			if img := dockerDiskImage(); img != "" {
-				fmt.Println("\n  " + i18n.T("docker.disk_image", img))
-			}
-			fmt.Println()
-
 			badge := func(t string) string {
-				if v := reclaim[t]; v != "" && parseSize(v) > 0 {
-					return i18n.T("docker.reclaimable", v)
+				if v := reclaim[t]; v > 0 {
+					return i18n.T("docker.reclaimable", ui.Bytes(int64(v)))
 				}
 				return ""
 			}
@@ -153,34 +220,47 @@ func dockerCmd() *cobra.Command {
 				opts = append(opts, ui.Option{ID: p.id, Label: i18n.TOr("step."+p.id, s.Name),
 					Detail: s.Command, Badge: p.badge, Risk: p.risk})
 			}
-			ids, err := ui.Pick(i18n.T("docker.pick_title"), i18n.T("docker.pick_hint"), opts, true, tty, os.Stdin, os.Stdout)
+			fmt.Fprintln(w)
+			ids, err := ui.Pick(i18n.T("docker.pick_title"), i18n.T("docker.pick_hint"), opts, true, true, os.Stdin, w)
 			if errors.Is(err, ui.ErrCancelled) || (err == nil && len(ids) == 0) {
-				fmt.Println(i18n.T("docker.nothing"))
+				fmt.Fprintln(w, i18n.T("docker.nothing"))
 				return nil
 			}
 			if err != nil {
 				return err
 			}
 			// Docker cleanups are always confirmed, whatever the approval settings.
-			if !askYesNo(i18n.T("docker.confirm", len(ids))) {
-				fmt.Println(i18n.T("docker.nothing"))
+			if !yes && !askYesNo(i18n.N("docker.confirm", len(ids))) {
+				fmt.Fprintln(w, i18n.T("docker.nothing"))
 				return nil
 			}
+			r := ui.NewReport(w)
+			failed := 0
 			for _, id := range ids {
 				s, _ := steps.Find(id)
-				fmt.Printf("\n⏺ %s\n  %s\n", i18n.TOr("step."+id, s.Name), s.Command)
-				res := runner.Run(context.Background(), s.Command, 30*time.Minute, func(l string) { fmt.Println("    " + l) })
+				r.Blank()
+				r.Check(ui.MarkInfo, i18n.TOr("step."+id, s.Name), 0, r.Muted(s.Command))
+				res := runner.Run(context.Background(), s.Command, 30*time.Minute, func(l string) { r.Detail(l) })
 				if res.ExitCode != 0 {
-					fmt.Println("  " + i18n.T("steps.failed", id, res.ExitCode))
+					failed++
+					r.Check(ui.MarkErr, i18n.T("steps.failed", id, res.ExitCode), 0, "")
 				} else {
-					fmt.Println("  ⎿ ✓")
+					r.Check(ui.MarkOK, i18n.TOr("step."+id, s.Name), 0, "")
 				}
 			}
+			r.Blank()
 			if after, err := dockerUsage(); err == nil {
-				fmt.Println("\n" + i18n.T("docker.freed", humanBytes(totalSize(after)), humanBytes(before)))
+				r.Line(i18n.T("docker.freed", ui.Bytes(int64(totalSize(after))), ui.Bytes(int64(before))))
 			}
-			fmt.Println(i18n.T("docker.compact"))
+			r.Hint(i18n.T("docker.compact"))
+			if failed > 0 {
+				return exitCode(1)
+			}
 			return nil
 		},
 	}
+	c.Flags().BoolVar(&list, "list", false, i18n.T("flag.docker_list"))
+	c.Flags().BoolVar(&asJSON, "json", false, i18n.T("flag.tools_json"))
+	c.Flags().BoolVarP(&yes, "yes", "y", false, i18n.T("flag.docker_yes"))
+	return c
 }

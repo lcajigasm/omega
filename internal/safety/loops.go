@@ -305,7 +305,7 @@ func loopVarsMisused(code string, inners []string) bool {
 	}
 	for _, in := range inners {
 		for v := range untrusted {
-			if regexp.MustCompile(`\$\{?` + v + `\b`).MatchString(in) {
+			if mentionsVar(in, v) {
 				return true
 			}
 		}
@@ -373,4 +373,24 @@ func withoutFindGroups(bare string) (string, bool) {
 		bare = findGroup.ReplaceAllString(bare, "$1$2")
 	}
 	return bare, true
+}
+
+// mentionsVar reports $name or ${name in s, with the name ending there.
+func mentionsVar(s, name string) bool {
+	for i := strings.IndexByte(s, '$'); i >= 0; {
+		rest := strings.TrimPrefix(s[i+1:], "{")
+		if after, ok := strings.CutPrefix(rest, name); ok && (after == "" || !isWordByte(after[0])) {
+			return true
+		}
+		j := strings.IndexByte(s[i+1:], '$')
+		if j < 0 {
+			break
+		}
+		i += 1 + j
+	}
+	return false
+}
+
+func isWordByte(c byte) bool {
+	return c == '_' || c >= '0' && c <= '9' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z'
 }

@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"regexp"
 	"slices"
 	"strings"
 	"syscall"
@@ -24,6 +25,7 @@ import (
 	"github.com/lcajigasm/omega/internal/i18n"
 	"github.com/lcajigasm/omega/internal/llm"
 	"github.com/lcajigasm/omega/internal/runner"
+	"github.com/lcajigasm/omega/internal/scheduler"
 	"github.com/lcajigasm/omega/internal/secrets"
 	"github.com/lcajigasm/omega/internal/steps"
 	"github.com/lcajigasm/omega/internal/sudo"
@@ -94,20 +96,57 @@ func Execute(v string) error {
 	// A unique start of a command is enough: omega doc, omega mac perm.
 	cobra.EnablePrefixMatching = true
 	root.SetArgs(expandShortcut(root, os.Args[1:]))
-	return root.Execute()
+	return usageOf(root.Execute())
+}
+
+// flagGroupErr is cobra's error for options that cannot go together.
+var flagGroupErr = regexp.MustCompile(`if any flags in the group \[([^\]]*)\] are set none of the others can be`)
+
+// usageOf turns the errors cobra makes outside the flag and argument
+// checks (options that exclude each other) into usage errors.
+func usageOf(err error) error {
+	if err == nil {
+		return nil
+	}
+	if m := flagGroupErr.FindStringSubmatch(err.Error()); m != nil {
+		return usageErr(nil, i18n.T("err.flags_together", "--"+strings.ReplaceAll(m[1], " ", ", --")))
+	}
+	return err
 }
 
 // newRoot builds the command tree. The documentation test walks it too.
 func newRoot(f *runFlags) *cobra.Command {
 	root := &cobra.Command{
-		Use:           "omega [task]",
+		Use:           "omega [" + i18n.T("help.task_word") + "]",
 		Short:         i18n.T("cli.short"),
-		Long:          i18n.T("cli.long"),
+		Long:          i18n.T("cli.long") + "\n\n" + i18n.T("cli.exit_codes"),
 		Version:       version,
 		Args:          cobra.ArbitraryArgs,
 		SilenceUsage:  true,
 		SilenceErrors: true,
-		ValidArgs:     []string{agent.TaskFull, agent.TaskQuick, agent.TaskUpdate, agent.TaskClean, agent.TaskAnalyze, agent.TaskHealth, agent.TaskFix, agent.TaskTune, agent.TaskDev},
+		// No ValidArgs: the tasks are commands of their own, and complete
+		// as commands, once, with their help line.
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			// --scheduled is what the job `omega schedule install` writes
+			// says it is: the same as OMEGA_SCHEDULED=1, which a Windows
+			// task cannot set.
+			scheduled, _ := cmd.Flags().GetBool(strings.TrimPrefix(scheduler.FlagScheduled, "--"))
+			// A Windows task written by an older omega runs without the
+			// flag: its exact command line still says it is the job, and
+			// the task is brought up to date (once per machine).
+			if scheduler.IsLegacyRun(os.Args) {
+				scheduled = true
+			}
+			if _, err := scheduler.UpgradeTask(); err != nil {
+				fmt.Fprintln(os.Stderr, "omega:", err)
+			}
+			if scheduled {
+				config.SetScheduled(true)
+				// The job's own log grows every week: it is cut here.
+				scheduler.RotateLogs()
+			}
+			return nil
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			task, prompt, err := interpret(cmd.Root(), args)
 			if err != nil {
@@ -121,15 +160,21 @@ func newRoot(f *runFlags) *cobra.Command {
 		},
 	}
 	bindRunFlags(root.Flags(), f)
+	root.PersistentFlags().Bool(strings.TrimPrefix(scheduler.FlagScheduled, "--"), false, "run as the scheduled job does (OMEGA_SCHEDULED=1)")
+	_ = root.PersistentFlags().MarkHidden(strings.TrimPrefix(scheduler.FlagScheduled, "--"))
 
 	root.AddCommand(
-		fullCmd(), quickCmd(f), fixCmd(f), setupCmd(), group(authCmd()), modelCmd(), modelsCmd(),
+		fullCmd(), quickCmd(f), customCmd(), fixCmd(f), setupCmd(), group(authCmd()), modelCmd(), modelsCmd(),
+		taskCmd(f, agent.TaskUpdate), taskCmd(f, agent.TaskClean), taskCmd(f, agent.TaskAnalyze),
+		taskCmd(f, agent.TaskHealth), taskCmd(f, agent.TaskTune), historyCmd(),
 		dockerCmd(), macCmd(), devCmd(), menuCmd(), group(configCmd()), stepsCmd(), notesCmd(), pendingCmd(),
 		logsCmd(), doctorCmd(), group(netCmd()), group(auditCmd()), privacyCmd(), group(gitCmd()), group(diskCmd()),
 		uninstallCmd(), skillsCmd(), agentsCmd(), assistCmd(), mcpCmd(), docsCmd(root), group(scheduleCmd()), rollbackCmd(), exportCmd(), bootstrapCmd(), shellCmd(),
 		completionGroup(completionCmd(root)), manCmd(root),
 	)
 	groupCommands(root)
+	finishTree(root)
+	registerCompletions(root)
 	return root
 }
 
@@ -139,10 +184,10 @@ var commandGroups = []struct {
 	id, title string
 	names     []string
 }{
-	{"run", "help.g.run", []string{"full", "quick", "fix", "menu", "shell", "schedule", "rollback"}},
+	{"run", "help.g.run", []string{"full", "quick", "update", "clean", "analyze", "health", "tune", "custom", "fix", "menu", "shell", "schedule", "rollback"}},
 	{"tools", "help.g.tools", []string{"assist", "agents", "skills", "dev", "docker", "mac", "uninstall"}},
 	{"system", "help.g.system", []string{"disk", "net", "git", "audit", "privacy"}},
-	{"setup", "help.g.setup", []string{"setup", "auth", "model", "models", "config", "steps", "notes", "pending", "logs", "doctor", "export", "bootstrap"}},
+	{"setup", "help.g.setup", []string{"setup", "auth", "model", "models", "config", "steps", "history", "notes", "pending", "logs", "doctor", "export", "bootstrap"}},
 	{"help", "help.g.help", []string{"docs", "man", "mcp", "completion", "help"}},
 }
 
@@ -154,14 +199,12 @@ func groupCommands(root *cobra.Command) {
 			group[n] = g.id
 		}
 	}
-	root.SetHelpCommandGroupID("help")
 	root.SetCompletionCommandGroupID("help")
 	for _, c := range root.Commands() {
 		if id, ok := group[c.Name()]; ok {
 			c.GroupID = id
 		}
 	}
-	root.SetUsageTemplate(root.UsageTemplate() + "\n" + i18n.T("help.ask") + "\n")
 }
 
 // group finishes a command that only holds subcommands. On its own it shows
@@ -189,14 +232,19 @@ func completionGroup(c *cobra.Command) *cobra.Command {
 				}
 			}
 		}
-		return fmt.Errorf("unknown command %q for %q", strings.Join(args, " "), cmd.CommandPath())
+		return unknownWord(cmd, strings.Join(args, " "))
 	}
 	return c
 }
 
 func group(c *cobra.Command) *cobra.Command {
-	c.Args = cobra.NoArgs
-	c.RunE = func(cmd *cobra.Command, args []string) error { return cmd.Help() }
+	c.Args = cobra.ArbitraryArgs
+	c.RunE = func(cmd *cobra.Command, args []string) error {
+		if len(args) > 0 {
+			return unknownWord(cmd, args[0])
+		}
+		return cmd.Help()
+	}
 	return c
 }
 
@@ -227,7 +275,7 @@ var shortcuts = map[string][]string{
 	"login": {"mac", "login"}, "shortcuts": {"mac", "shortcuts"}, "atajos": {"mac", "shortcuts"},
 	"dock": {"mac", "dock"}, "menubar": {"mac", "menubar"}, "background": {"mac", "background"},
 	"install": {"dev", "install"}, "instalar": {"dev", "install"}, "activate": {"dev", "activate"},
-	"history": {"logs"}, "historial": {"logs"}, "log": {"logs"}, "runs": {"logs"},
+	"historial": {"history"}, "log": {"logs"}, "runs": {"logs"},
 	"settings": {"config", "show"}, "ajustes": {"config", "show"}, "configuracion": {"config", "show"},
 	"key": {"auth", "status"}, "keys": {"auth", "status"}, "claves": {"auth", "status"},
 	"version": {"--version"}, "ayuda": {"--help"},
@@ -236,7 +284,7 @@ var shortcuts = map[string][]string{
 	"diagnose": {"doctor"}, "status": {"doctor"}, "check": {"doctor"}, "estado": {"doctor"}, "ranking": {"models"}, "modelos": {"models"},
 	"memory": {"notes"}, "notas": {"notes"}, "pendientes": {"pending"}, "pasos": {"steps"}, "wizard": {"setup"}, "configure": {"setup"}, "init": {"setup"},
 	"unattended": {"full", "--unattended"}, "desatendido": {"full", "--unattended"}, "autopilot": {"full", "--unattended"},
-	"cron": {"schedule"}, "daemon": {"schedule"}, "backup": {"export"},
+	"cron": {"schedule"}, "daemon": {"schedule"},
 }
 
 // expandShortcut rewrites a command line whose first word is a shortcut.
@@ -322,6 +370,8 @@ func suggest(root *cobra.Command, word string) []string {
 	}
 	names = append(names, rootTasks...)
 	var out []string
+	slices.Sort(names)
+	names = slices.Compact(names) // a task is also a command
 	for _, n := range names {
 		// One slip in a short word, two in a longer one; or the word is part
 		// of the name.
@@ -352,15 +402,26 @@ func interpret(root *cobra.Command, args []string) (task, prompt string, err err
 	if text := strings.Join(args, " "); len(strings.Fields(text)) >= 3 {
 		return "", text, nil
 	}
+	// The words "update omega" are for a command this omega lacks, not for
+	// a slip of the fingers: with a close name, only that name is offered.
 	msg := i18n.T("err.unknown_command", strings.Join(args, " "), version)
 	if s := suggest(root, args[0]); len(s) > 0 {
-		msg = i18n.T("err.did_you_mean", strings.Join(s, ", ")) + " " + msg
+		msg = i18n.T("err.unknown_word", strings.Join(args, " ")) + " " + i18n.T("err.did_you_mean", strings.Join(s, ", "))
 	}
-	return "", "", fmt.Errorf("%s %s", msg, i18n.T("err.ask_words"))
+	return "", "", usageErr(root, msg+" "+i18n.T("err.ask_words"))
 }
 
-// bindRunFlags registers the flags of an agent run.
+// bindRunFlags registers the flags of a task: those of an agent run and
+// those of a run without the AI.
 func bindRunFlags(pf *pflag.FlagSet, f *runFlags) {
+	bindAgentFlags(pf, f)
+	bindNoAIFlags(pf, f)
+}
+
+// bindAgentFlags registers the flags of an agent run. The help shows them
+// under their own heading; --yes and --dry-run serve both kinds of run and
+// stay with the command's own options.
+func bindAgentFlags(pf *pflag.FlagSet, f *runFlags) {
 	pf.StringVar(&f.provider, "provider", "", i18n.T("flag.provider"))
 	pf.StringVarP(&f.model, "model", "m", "", i18n.T("flag.model"))
 	pf.StringVar(&f.effort, "effort", "", i18n.T("flag.effort"))
@@ -372,20 +433,74 @@ func bindRunFlags(pf *pflag.FlagSet, f *runFlags) {
 	pf.BoolVar(&f.once, "once", false, i18n.T("flag.once"))
 	pf.BoolVar(&f.auto, "auto", false, i18n.T("flag.auto"))
 	pf.BoolVar(&f.demo, "demo", false, "scripted session with no API calls and no real commands (for screenshots)")
-	pf.MarkHidden("demo")
-
-	pf.BoolVar(&f.noAI, "no-ai", false, "run deterministically without calling an AI model")
-	pf.BoolVar(&f.offline, "offline", false, "alias for --no-ai")
-	pf.BoolVar(&f.json, "json", false, "output report as structured JSON (runs without the AI, like --no-ai)")
-	pf.StringVar(&f.format, "format", "", "output format: json (the same as --json) or text (the default)")
-	pf.BoolVarP(&f.quiet, "quiet", "q", false, "with --no-ai: quiet mode; suppress non-essential output")
-	pf.BoolVarP(&f.verbose, "verbose", "v", false, "with --no-ai: show the output of every command")
+	_ = pf.MarkHidden("demo")
 	pf.BoolVar(&f.debug, "debug", false, "reserved; prints nothing more yet")
-	pf.BoolVar(&f.failOnWarning, "fail-on-warning", false, "with --no-ai: exit with non-zero code if any warning is found")
-	pf.BoolVar(&f.failOnOutdated, "fail-on-outdated", false, "with --no-ai: exit with non-zero code if outdated packages are detected")
-	pf.BoolVar(&f.failOnCritical, "fail-on-critical", false, "with --no-ai: exit with non-zero code if any step fails")
-	pf.Float64Var(&f.maxCost, "max-cost", 0.0, "maximum estimated session cost in USD before stopping")
-	pf.IntVar(&f.maxTurns, "max-turns", 0, "maximum number of agent turns")
+	_ = pf.MarkHidden("debug") // it does nothing yet: not worth a line in every help
+	pf.Float64Var(&f.maxCost, "max-cost", 0.0, i18n.T("flag.max_cost"))
+	pf.IntVar(&f.maxTurns, "max-turns", 0, i18n.T("flag.max_turns"))
+	markGroup(pf, groupAI, "provider", "model", "effort", "no-tui", "sudo", "prompt", "once", "auto", "max-cost", "max-turns")
+}
+
+// bindNoAIFlags registers the flags that only mean something in a run
+// without the AI.
+func bindNoAIFlags(pf *pflag.FlagSet, f *runFlags) {
+	pf.BoolVar(&f.noAI, "no-ai", false, i18n.T("flag.no_ai"))
+	pf.BoolVar(&f.offline, "offline", false, "alias for --no-ai")
+	_ = pf.MarkHidden("offline") // steps still use the network: --no-ai is the honest name
+	pf.BoolVar(&f.json, "json", false, i18n.T("flag.json_run"))
+	pf.StringVar(&f.format, "format", "", i18n.T("flag.format"))
+	pf.BoolVarP(&f.quiet, "quiet", "q", false, i18n.T("flag.quiet"))
+	pf.BoolVarP(&f.verbose, "verbose", "v", false, i18n.T("flag.verbose"))
+	pf.BoolVar(&f.failOnWarning, "fail-on-warning", false, i18n.T("flag.fail_warning"))
+	pf.BoolVar(&f.failOnOutdated, "fail-on-outdated", false, i18n.T("flag.fail_outdated"))
+	pf.BoolVar(&f.failOnCritical, "fail-on-critical", false, i18n.T("flag.fail_critical"))
+	markGroup(pf, groupNoAI, "no-ai", "json", "format", "quiet", "verbose", "fail-on-warning", "fail-on-outdated", "fail-on-critical")
+}
+
+// noAIOnly lists the flags of a run without the AI that an agent run takes
+// and does nothing with.
+func (f runFlags) noAIOnly() []string {
+	var out []string
+	for name, set := range map[string]bool{"--verbose": f.verbose, "--fail-on-warning": f.failOnWarning,
+		"--fail-on-outdated": f.failOnOutdated, "--fail-on-critical": f.failOnCritical} {
+		if set {
+			out = append(out, name)
+		}
+	}
+	slices.Sort(out)
+	return out
+}
+
+// taskCommands are the tasks that became commands of their own; full,
+// quick and fix were commands already.
+var taskCommands = []string{agent.TaskUpdate, agent.TaskClean, agent.TaskAnalyze, agent.TaskHealth, agent.TaskTune}
+
+// taskCmd is one of the tasks as a command of its own: `omega health
+// --help` shows the help of the health check. The words after it are read
+// as they always were: `omega update foo bar baz` is a request.
+func taskCmd(f *runFlags, task string) *cobra.Command {
+	c := &cobra.Command{
+		Use:   task,
+		Short: i18n.T("cmd.task." + task),
+		Long:  i18n.T("cmd.task." + task + "_long"),
+		Args:  cobra.ArbitraryArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			t, prompt := task, ""
+			if len(args) > 0 {
+				var err error
+				if t, prompt, err = interpret(cmd.Root(), append([]string{task}, args...)); err != nil {
+					return err
+				}
+			}
+			run := *f
+			if prompt != "" && run.prompt == "" {
+				run.prompt = prompt
+			}
+			return runTask(t, run)
+		},
+	}
+	bindRunFlags(c.Flags(), f)
+	return c
 }
 
 var getKey = secrets.Get
@@ -579,10 +694,15 @@ func withHooks(task string, f runFlags, run func() error) error {
 
 func runTask(task string, f runFlags) error {
 	if err := f.validate(); err != nil {
-		return err
+		return usageErr(nil, err.Error())
 	}
 	if f.deterministic() {
 		return runDeterministic(task, f)
+	}
+	// Said, not refused: the run goes on as asked, but the flag does
+	// nothing in it.
+	if flags := f.noAIOnly(); len(flags) > 0 {
+		fmt.Fprintln(os.Stderr, "omega:", i18n.T("warn.noai_flags", strings.Join(flags, ", ")))
 	}
 	return withHooks(task, f, func() error { return runAgent(task, f) })
 }
@@ -599,7 +719,7 @@ func runAgent(task string, f runFlags) error {
 			// Say so: the run that follows is not the one that was asked
 			// for, and a scheduled job has no other way to show why.
 			if !f.quiet {
-				fmt.Fprintf(os.Stderr, "omega: %v\nomega: running without AI (the built-in steps only)\n", err)
+				fmt.Fprintf(os.Stderr, "omega: %v\nomega: %s\n", err, i18n.T("det.no_key"))
 			}
 			return detTask(task, f)
 		}
@@ -607,7 +727,6 @@ func runAgent(task string, f runFlags) error {
 	}
 
 	stdinTTY := term.IsTerminal(int(os.Stdin.Fd()))
-	stdoutTTY := term.IsTerminal(int(os.Stdout.Fd()))
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
@@ -627,7 +746,7 @@ func runAgent(task string, f runFlags) error {
 	if ui.Piloted() {
 		// An unattended run has the screen: the session is one of its stages.
 		ui.PilotSession(ctx, cancel, ag, ui.Header{Version: version, Provider: r.p.Name(), Model: r.plan.Model, Task: r.task})
-	} else if f.noTUI || !stdinTTY || !stdoutTTY {
+	} else if !ui.WantTUI(f.noTUI) {
 		// An unattended run answers nothing at the terminal, although the
 		// user who started it may still be sitting there.
 		ui.RunPlain(ctx, ag, os.Stdin, stdinTTY && !f.unattended)

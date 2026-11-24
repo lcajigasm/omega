@@ -18,6 +18,10 @@ func alwaysAsks(command string) bool {
 	if pipesIntoInterpreter(command) {
 		return true
 	}
+	if overwritesInHome(command) {
+		return true
+	}
+	dir := "" // where an earlier cd left the shell; "" when it is not known
 	for _, seg := range shellSegments(command) {
 		if sudoAsks(seg) {
 			return true
@@ -28,11 +32,12 @@ func alwaysAsks(command string) bool {
 		}
 		verb := strings.TrimSuffix(strings.ToLower(path.Base(run[0])), ".exe")
 		args := run[1:]
+		if deletesInHome(seg, verb, args, dir) || destroysElsewhere(verb, args) {
+			return true
+		}
 		switch verb {
-		case "rm":
-			if rmRecursive(args) && anyArg(rejoin(args), underHome) {
-				return true
-			}
+		case "cd", "pushd":
+			dir = askDir(dir, args)
 		case "git":
 			if gitAsks(args) {
 				return true
@@ -83,8 +88,9 @@ func alwaysAsks(command string) bool {
 			}
 		case "security":
 			// -i reads commands from standard input; the find-* with -w or -g
-			// are refused outright by leaksSecret.
-			if anyArg(args, func(a string) bool { return a == "-i" || a == "-p" }) || securityReveals(seg) {
+			// are refused outright by leaksSecret. delete-* removes a
+			// password, a certificate or a whole keychain for good.
+			if anyArg(args, func(a string) bool { return a == "-i" || a == "-p" || strings.HasPrefix(a, "delete-") }) || securityReveals(seg) {
 				return true
 			}
 		}
@@ -158,19 +164,6 @@ func rejoin(args []string) []string {
 	return out
 }
 
-// rmRecursive reports rm -r, -R, -rf, -fr, --recursive.
-func rmRecursive(args []string) bool {
-	for _, a := range args {
-		if a == "--" {
-			return false
-		}
-		if a == "--recursive" || (shortFlags.MatchString(a) && strings.ContainsAny(a, "rR")) {
-			return true
-		}
-	}
-	return false
-}
-
 // tempDirs are where deleting is routine: nothing there is the user's.
 var tempDirs = regexp.MustCompile(`^(\$\{?TMPDIR\}?|/tmp|/private/tmp|/var/folders|/private/var/folders)(/|$)`)
 
@@ -182,7 +175,7 @@ var homePrefix = regexp.MustCompile(`^(~[\w.-]*|\$\{?HOME\}?|/Users/[^/]+|/home/
 // come back by themselves (caches, logs, build products, the Trash): a
 // deletion there is an ordinary dangerous command. Spotify is the
 // exception inside Caches: it keeps the offline downloads there.
-var regenerable = regexp.MustCompile(`^(\.Trash|Library/Caches|\.cache|Library/Logs|Library/Developer/Xcode/DerivedData|` +
+var regenerable = regexp.MustCompile(`^(\.Trash|\.local/share/Trash|Library/Caches|\.cache|Library/Logs|Library/Developer/Xcode/DerivedData|` +
 	`Library/Developer/Xcode/iOS DeviceSupport|Library/Developer/CoreSimulator/Caches|\.gradle/caches|\.gradle/daemon|\.npm/_cacache)/.`)
 
 var keptInCaches = regexp.MustCompile(`(?i)^Library/Caches/com\.spotify\.client(/|$)`)
@@ -225,9 +218,11 @@ func gitSplit(args []string) (string, []string) {
 	return "", nil
 }
 
-// gitAsks reports git worktree remove, which deletes a checkout and any
-// change in it that was never committed, and a write to the user's global
-// or system git configuration.
+// gitAsks reports the git commands that throw away work nobody can get
+// back: git worktree remove (a checkout and its uncommitted changes),
+// reset --hard, clean -f, stash drop and clear, a forced push, checkout or
+// restore of paths over local changes, branch -D, and a write to the
+// user's global or system git configuration.
 func gitAsks(args []string) bool {
 	sub, rest := gitSplit(args)
 	switch sub {
@@ -235,6 +230,41 @@ func gitAsks(args []string) bool {
 		return len(rest) > 0 && (rest[0] == "remove" || rest[0] == "rm")
 	case "config":
 		return gitConfigWritesGlobal(rest)
+	case "reset":
+		return anyArg(rest, func(a string) bool { return a == "--hard" || a == "--merge" || a == "--keep" })
+	case "clean":
+		return anyArg(rest, func(a string) bool {
+			return abbrev(a, "--force") || (shortFlags.MatchString(a) && strings.Contains(a, "f"))
+		})
+	case "stash":
+		return len(rest) > 0 && has("drop clear", rest[0])
+	case "push":
+		return anyArg(rest, func(a string) bool {
+			return strings.HasPrefix(a, "--force") || strings.HasPrefix(a, "+") || a == "--mirror" || a == "--delete" ||
+				(shortFlags.MatchString(a) && strings.ContainsAny(a, "fd"))
+		})
+	case "checkout":
+		// "git checkout -- ." and "git checkout -f" overwrite local changes;
+		// "git checkout branch" only moves, and refuses to lose anything.
+		return anyArg(rest, func(a string) bool {
+			return a == "--" || a == "." || abbrev(a, "--force") || (shortFlags.MatchString(a) && strings.Contains(a, "f"))
+		})
+	case "restore":
+		// Only --staged alone keeps the files in the working tree.
+		staged, worktree := false, false
+		for _, a := range rest {
+			switch {
+			case a == "--staged" || a == "-S":
+				staged = true
+			case a == "--worktree" || a == "-W":
+				worktree = true
+			}
+		}
+		return !staged || worktree
+	case "branch":
+		return anyArg(rest, func(a string) bool {
+			return a == "-D" || (abbrev(a, "--delete") && anyArg(rest, func(b string) bool { return b == "--force" || b == "-f" }))
+		})
 	}
 	return false
 }

@@ -295,6 +295,37 @@
         </div>
         <div id="steps"></div>
       </div>
+      <div class="panel" id="routines">
+        <div class="panel-head">
+          <div><h2 data-t="gui.routines.title"></h2><p class="muted" data-t="gui.routines.intro"></p></div>
+        </div>
+        <div class="routine-pick">
+          <div id="routine-list" class="seg"></div>
+          <form id="routine-new" class="ask">
+            <input type="text" id="routine-name" maxlength="40" data-ph="gui.routines.new_ph" autocomplete="off" spellcheck="false">
+            <button type="submit" data-t="gui.routines.new"></button>
+          </form>
+        </div>
+        <p id="routine-none" class="muted" data-t="gui.routines.none" hidden></p>
+        <div id="routine-edit" class="routine-edit" hidden>
+          <ol id="routine-steps" class="routine-steps"></ol>
+          <p id="routine-empty" class="muted small" data-t="gui.routines.empty" hidden></p>
+          <select id="routine-add" aria-label=""></select>
+          <div class="row">
+            <div><b data-t="gui.routines.below"></b><p class="muted" data-t="gui.routines.below_hint"></p></div>
+            <input type="number" id="routine-below" min="0" step="1" inputmode="decimal">
+          </div>
+          <div class="row">
+            <div><b data-t="gui.routines.days"></b><p class="muted" data-t="gui.routines.days_hint"></p></div>
+            <div id="routine-days" class="days"></div>
+          </div>
+          <div class="row">
+            <div><span id="routine-run" class="muted small mono selectable"></span></div>
+            <span id="routine-dirty" class="muted small" data-t="gui.routines.unsaved" hidden></span>
+            <button type="button" id="routine-save" class="primary" data-t="gui.routines.save"></button>
+          </div>
+        </div>
+      </div>
       <div class="panel">
         <div class="panel-head">
           <div><h2 data-t="gui.system.notes"></h2><p class="muted" data-t="gui.system.notes_intro"></p></div>

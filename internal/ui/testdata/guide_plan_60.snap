@@ -1,0 +1,19 @@
+ Ω omega full v1.2.3 · Guided run
+ These are the stages that apply to this machine, in the
+ order that makes sense. Each one starts when the one
+ before ends; between two you can go on, skip, repeat or
+ stop, and nothing risky runs without asking.
+
+ ❯ ◼  1  Check omega            omega doctor
+   ◼  2  Update                 omega update
+   ◼  3  Clean up               omega clean
+   ◼  4  What runs on the Mac   omega mac
+
+╭──────────────────────────────────────────────────────────╮
+│ Check omega  omega doctor                                │
+│ What it does  Checks the setup.                          │
+│ Why           Everything else needs it.                  │
+│ Risk          read-only: it changes nothing              │
+╰──────────────────────────────────────────────────────────╯
+ 4 of 4 stages will run
+  ↑↓ move · space tick or untick · enter start · q leave

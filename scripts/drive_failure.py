@@ -124,6 +124,32 @@ def read_some(fd):
         return b""
 
 
+def reap(pid, master, grace=5.0):
+    """Wait for omega to leave, still copying what it draws: closing the
+    terminal first would leave it stuck writing its last frame. Kill it if
+    it has not left after grace seconds, so a missed key never leaves the
+    recording hanging."""
+    end = time.time() + grace
+    while time.time() < end:
+        try:
+            done, _ = os.waitpid(pid, os.WNOHANG)
+        except ChildProcessError:
+            return
+        if done:
+            return
+        ready, _, _ = select.select([master], [], [], 0.1)
+        if master in ready:
+            chunk = read_some(master)
+            if chunk:
+                os.write(1, chunk)
+    sys.stderr.write("omega did not leave after ctrl+c; killing it\n")
+    os.kill(pid, signal.SIGKILL)
+    try:
+        os.waitpid(pid, 0)
+    except ChildProcessError:
+        pass
+
+
 def main():
     port = int(os.environ.get("OMEGA_FAILURE_PORT", "18082"))
     ready = threading.Event()
@@ -196,13 +222,12 @@ def main():
         elif sent_no and "denied" in text.lower():
             time.sleep(0.6)
             os.write(master, b"\x03")
+            time.sleep(0.5)
+            os.write(master, b"\x03")  # the first stops the turn; the second leaves
             time.sleep(0.3)
             break
+    reap(pid, master)
     os.close(master)
-    try:
-        os.waitpid(pid, 0)
-    except ChildProcessError:
-        pass
     if not (saw_reason and sent_scroll and sent_no):
         sys.stderr.write(
             "drive_failure: did not show the refusal and the card "

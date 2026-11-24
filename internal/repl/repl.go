@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"io"
 	"strings"
+
+	"github.com/lcajigasm/omega/internal/i18n"
 )
 
 // RunnerFunc is the signature for executing an Omega command or task.
@@ -39,7 +41,7 @@ func (r *REPL) Register(name string, fn RunnerFunc) {
 
 // Run starts the interactive loop.
 func (r *REPL) Run(ctx context.Context) error {
-	fmt.Fprintf(r.out, "Omega %s interactive shell. Type 'help' for commands or 'exit' to quit.\n\n", r.version)
+	fmt.Fprintf(r.out, "%s\n\n", i18n.T("repl.welcome", r.version))
 
 	scanner := bufio.NewScanner(r.in)
 	for {
@@ -62,7 +64,7 @@ func (r *REPL) Run(ctx context.Context) error {
 		args := fields[1:]
 
 		if cmd == "exit" || cmd == "quit" || cmd == "q" {
-			fmt.Fprintln(r.out, "Goodbye!")
+			fmt.Fprintln(r.out, i18n.T("repl.bye"))
 			break
 		}
 
@@ -73,7 +75,7 @@ func (r *REPL) Run(ctx context.Context) error {
 
 		fn, ok := r.commands[cmd]
 		if !ok {
-			fmt.Fprintf(r.out, "Unknown command '%s'. Type 'help' for available commands.\n", cmd)
+			fmt.Fprintln(r.out, i18n.T("repl.unknown", cmd))
 			continue
 		}
 
@@ -91,29 +93,24 @@ func (r *REPL) Run(ctx context.Context) error {
 // "Error: " followed by nothing would say less than the status does.
 func failure(err error) string {
 	if msg := strings.TrimSpace(err.Error()); msg != "" {
-		return "Error: " + msg
+		return i18n.T("repl.error", msg)
 	}
 	var code interface{ ExitCode() int }
 	if errors.As(err, &code) {
-		return fmt.Sprintf("failed (exit %d)", code.ExitCode())
+		return i18n.T("repl.failed_exit", code.ExitCode())
 	}
-	return "failed"
+	return i18n.T("repl.failed")
 }
 
 func (r *REPL) printHelp() {
-	fmt.Fprintln(r.out, "Available commands:")
-	fmt.Fprintln(r.out, "  quick      - Run one-click safe maintenance")
-	fmt.Fprintln(r.out, "  update     - Update software and package managers")
-	fmt.Fprintln(r.out, "  clean      - Clean system caches and trash")
-	fmt.Fprintln(r.out, "  analyze    - System report without changes")
-	fmt.Fprintln(r.out, "  health     - Check disk, battery, RAM and logs")
-	fmt.Fprintln(r.out, "  doctor     - Check Omega configuration and providers")
-	fmt.Fprintln(r.out, "  status     - The same as doctor")
-	fmt.Fprintln(r.out, "  dev        - Developer setup status and tools")
-	fmt.Fprintln(r.out, "  net        - Network diagnostics and DNS flush")
-	fmt.Fprintln(r.out, "  audit      - Security and SSH key audit")
-	fmt.Fprintln(r.out, "  privacy    - Review telemetry and browser caches")
-	fmt.Fprintln(r.out, "  steps      - Catalogue of native maintenance steps")
-	fmt.Fprintln(r.out, "  help, ?    - Show this help message")
-	fmt.Fprintln(r.out, "  exit, quit - Exit the shell")
+	fmt.Fprintln(r.out, i18n.T("repl.help_title"))
+	for _, c := range []struct{ name, key string }{
+		{"quick", "repl.help_quick"}, {"update", "repl.help_update"}, {"clean", "repl.help_clean"},
+		{"analyze", "repl.help_analyze"}, {"health", "repl.help_health"}, {"doctor", "repl.help_doctor"},
+		{"status", "repl.help_status"}, {"dev", "repl.help_dev"}, {"net", "repl.help_net"},
+		{"audit", "repl.help_audit"}, {"privacy", "repl.help_privacy"}, {"steps", "repl.help_steps"},
+		{"help, ?", "repl.help_help"}, {"exit, quit", "repl.help_exit"},
+	} {
+		fmt.Fprintf(r.out, "  %-10s - %s\n", c.name, i18n.T(c.key))
+	}
 }

@@ -36,8 +36,11 @@ type Bridge struct {
 const helperArg = "__askpass"
 
 // wrapper strips the options that would stop sudo from asking (-n, -S) from
-// sudo's own flags only, then forces the askpass helper with -A.
-const wrapper = `#!/bin/bash
+// sudo's own flags only, then forces the askpass helper with -A. It finds
+// bash on the PATH (NixOS has no /bin/bash) and runs the real sudo at the
+// path realSudo found, which is quoted in.
+func wrapper(sudoPath string) string {
+	return `#!/usr/bin/env bash
 # omega: route sudo's password prompt to omega's interface.
 opts=()
 while [[ $# -gt 0 && "$1" == -* && "$1" != "--" ]]; do
@@ -48,8 +51,23 @@ while [[ $# -gt 0 && "$1" == -* && "$1" != "--" ]]; do
   esac
   shift
 done
-exec /usr/bin/sudo -A "${opts[@]}" "$@"
+exec ` + runner.ShellQuote(sudoPath) + ` -A "${opts[@]}" "$@"
 `
+}
+
+// lookPath is exec.LookPath; tests replace it.
+var lookPath = exec.LookPath
+
+// realSudo is the sudo the wrapper runs: the one on the PATH (NixOS keeps
+// it in /run/wrappers/bin), not another omega wrapper, else /usr/bin/sudo.
+func realSudo() string {
+	if p, err := lookPath("sudo"); err == nil {
+		if abs, err := filepath.Abs(p); err == nil && !strings.Contains(abs, "omega-sudo-") {
+			return abs
+		}
+	}
+	return "/usr/bin/sudo"
+}
 
 // Start creates the wrapper, the askpass helper and the socket.
 func Start(ask AskFunc, password string) (*Bridge, error) {
@@ -76,12 +94,12 @@ func Start(ask AskFunc, password string) (*Bridge, error) {
 		b.Close()
 		return nil, err
 	}
-	helper := fmt.Sprintf("#!/bin/sh\nOMEGA_ASKPASS_SOCK=%s exec %s %s \"$1\"\n", shellQuote(sock), shellQuote(exe), helperArg)
+	helper := fmt.Sprintf("#!/bin/sh\nOMEGA_ASKPASS_SOCK=%s exec %s %s \"$1\"\n", runner.ShellQuote(sock), runner.ShellQuote(exe), helperArg)
 	if err := os.WriteFile(filepath.Join(dir, "askpass"), []byte(helper), 0o700); err != nil {
 		b.Close()
 		return nil, err
 	}
-	if err := os.WriteFile(filepath.Join(bin, "sudo"), []byte(wrapper), 0o700); err != nil {
+	if err := os.WriteFile(filepath.Join(bin, "sudo"), []byte(wrapper(realSudo())), 0o700); err != nil {
 		b.Close()
 		return nil, err
 	}
@@ -203,5 +221,3 @@ func RunHelper(args []string) int {
 	fmt.Println(pw)
 	return 0
 }
-
-func shellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'" }

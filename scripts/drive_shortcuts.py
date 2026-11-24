@@ -34,6 +34,32 @@ def read_some(fd):
         return b""
 
 
+def reap(pid, master, grace=5.0):
+    """Wait for omega to leave, still copying what it draws: closing the
+    terminal first would leave it stuck writing its last frame. Kill it if
+    it has not left after grace seconds, so a missed key never leaves the
+    recording hanging."""
+    end = time.time() + grace
+    while time.time() < end:
+        try:
+            done, _ = os.waitpid(pid, os.WNOHANG)
+        except ChildProcessError:
+            return
+        if done:
+            return
+        ready, _, _ = select.select([master], [], [], 0.1)
+        if master in ready:
+            chunk = read_some(master)
+            if chunk:
+                os.write(1, chunk)
+    sys.stderr.write("omega did not leave after ctrl+c; killing it\n")
+    os.kill(pid, signal.SIGKILL)
+    try:
+        os.waitpid(pid, 0)
+    except ChildProcessError:
+        pass
+
+
 def main():
     binary = os.environ.get("OMEGA_BIN", "./bin/omega")
     master, slave = pty.openpty()
@@ -87,13 +113,12 @@ def main():
         elif sent_no and "denied" in fresh.lower():
             time.sleep(0.8)
             os.write(master, b"\x03")
+            time.sleep(0.5)
+            os.write(master, b"\x03")  # the first stops the turn; the second leaves
             time.sleep(0.3)
             break
+    reap(pid, master)
     os.close(master)
-    try:
-        os.waitpid(pid, 0)
-    except ChildProcessError:
-        pass
     if not (sent_help and sent_esc and sent_no):
         sys.stderr.write(
             "drive_shortcuts: did not reach ?, Esc and a denial "

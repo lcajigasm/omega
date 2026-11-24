@@ -53,15 +53,8 @@ func (m *model) tally() tally {
 	return t
 }
 
-func humanBytes(n uint64) string {
-	switch {
-	case n >= 1<<30:
-		return fmt.Sprintf("%.1f GB", float64(n)/(1<<30))
-	case n >= 1<<20:
-		return fmt.Sprintf("%.0f MB", float64(n)/(1<<20))
-	}
-	return fmt.Sprintf("%.0f KB", float64(n)/(1<<10))
-}
+// size is a disk size as the panel and the home screen write it.
+func size(n uint64) string { return Bytes(int64(n)) }
 
 // gauge draws a bar of width cells with the used share filled.
 func gauge(used float64, width int) string {
@@ -77,9 +70,11 @@ func gauge(used float64, width int) string {
 	case used >= 0.9:
 		st = errStyle
 	case used >= 0.75:
-		st = lipgloss.NewStyle().Foreground(warnColor)
+		st = warnPlainStyle
 	}
-	return st.Render(strings.Repeat("━", full)) + faintStyle.Render(strings.Repeat("━", width-full))
+	// Used and free are drawn differently, not only in different colours,
+	// so the bar still reads without colour.
+	return st.Render(strings.Repeat(gl.Heavy, full)) + faintStyle.Render(strings.Repeat(gl.Rule, width-full))
 }
 
 // diskDelta is the change in free space worth showing: small moves are noise
@@ -100,19 +95,19 @@ func (m *model) panelView(height int) string {
 	}
 	add(titleStyle.Render(i18n.T("panel.session")))
 	row(i18n.T("ui.label_task"), truncate(m.header.Task, inner-9))
-	row(i18n.T("panel.mode"), truncate(m.modeText(), inner-9))
+	row(i18n.T("panel.mode"), truncate(m.modeShort(), inner-9))
 	row(i18n.T("ui.label_model"), truncate(m.header.Model, inner-9))
 
 	t := m.tally()
-	steps := okStyle.Render(fmt.Sprintf("✓ %d", t.ok))
+	steps := okStyle.Render(fmt.Sprintf("%s %d", gl.Check, t.ok))
 	if t.failed > 0 {
-		steps += "  " + errStyle.Render(fmt.Sprintf("✗ %d", t.failed))
+		steps += "  " + errStyle.Render(fmt.Sprintf("%s %d", gl.Cross, t.failed))
 	}
 	if t.denied > 0 {
-		steps += "  " + warnStyle.Render(fmt.Sprintf("⊘ %d", t.denied))
+		steps += "  " + warnStyle.Render(fmt.Sprintf("%s %d", gl.Denied, t.denied))
 	}
 	if t.running > 0 {
-		steps += "  " + titleStyle.Render(fmt.Sprintf("● %d", t.running))
+		steps += "  " + titleStyle.Render(fmt.Sprintf("%s %d", gl.Running, t.running))
 	}
 	row(i18n.T("panel.steps"), steps)
 
@@ -120,20 +115,20 @@ func (m *model) panelView(height int) string {
 		add("")
 		add(titleStyle.Render(i18n.T("panel.disk")))
 		add(gauge(1-float64(m.diskNow)/float64(m.diskTotal), inner))
-		add(mutedStyle.Render(truncate(i18n.T("panel.free", humanBytes(m.diskNow), humanBytes(m.diskTotal)), inner)))
+		add(mutedStyle.Render(truncate(i18n.T("panel.free", size(m.diskNow), size(m.diskTotal)), inner)))
 		switch {
 		case m.diskNow > m.diskStart+diskDelta:
-			add(okStyle.Render("▲ " + i18n.T("panel.freed", humanBytes(m.diskNow-m.diskStart))))
+			add(okStyle.Render(gl.Freed + " " + i18n.T("panel.freed", size(m.diskNow-m.diskStart))))
 		case m.diskStart > m.diskNow+diskDelta:
-			add(faintStyle.Render("▼ " + i18n.T("panel.used", humanBytes(m.diskStart-m.diskNow))))
+			add(faintStyle.Render(gl.Used + " " + i18n.T("panel.used", size(m.diskStart-m.diskNow))))
 		}
 	}
 
 	add("")
 	add(titleStyle.Render(i18n.T("panel.usage")))
-	usage := "↑" + humanTokens(m.stats.Usage.Input()) + " ↓" + humanTokens(m.stats.Usage.OutputTokens)
+	usage := gl.Up + humanTokens(m.stats.Usage.Input()) + " " + gl.Down + humanTokens(m.stats.Usage.OutputTokens)
 	if c := m.costText(); c != "" {
-		usage += " · " + c
+		usage += " " + gl.Sep + " " + c
 	}
 	add(mutedStyle.Render(usage))
 
@@ -144,16 +139,16 @@ func (m *model) panelView(height int) string {
 		if e.kind != enTool {
 			continue
 		}
-		icon := okStyle.Render("✓")
+		icon := okStyle.Render(gl.Check)
 		dur := e.duration
 		switch {
 		case e.running:
-			icon = titleStyle.Render(spinFrames[m.frame%len(spinFrames)])
+			icon = titleStyle.Render(spinFrame(m.frame))
 			dur = time.Since(e.started)
 		case e.denied != "":
-			icon = warnStyle.Render("⊘")
+			icon = warnStyle.Render(gl.Denied)
 		case e.failed:
-			icon = errStyle.Render("✗")
+			icon = errStyle.Render(gl.Cross)
 		}
 		name, arg := toolLabel(e.tool, e.command)
 		label := name

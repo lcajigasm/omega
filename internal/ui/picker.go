@@ -35,12 +35,31 @@ type Picker struct {
 	cursor  int
 	filter  string
 	visible []int
+	rows    int // rows of options on screen; 0 is pickerRows
 }
 
 // ErrCancelled is returned when the user closes a card without choosing.
 var ErrCancelled = errors.New("cancelled")
 
+// pickerRows is the most options a card shows at once.
 const pickerRows = 10
+
+// setHeight fits the card to a terminal h rows high: at most pickerRows
+// options, fewer when the terminal is short.
+func (p *Picker) setHeight(h int) {
+	if h <= 0 {
+		p.rows = 0
+		return
+	}
+	p.rows = max(3, min(pickerRows, h-8))
+}
+
+func (p *Picker) maxRows() int {
+	if p.rows > 0 {
+		return p.rows
+	}
+	return pickerRows
+}
 
 // NewPicker builds a card.
 func NewPicker(title string, opts []Option, multi bool) *Picker {
@@ -82,16 +101,19 @@ func (p *Picker) Selected() []string {
 // HandleKey updates the card. done is true when the user confirmed or
 // cancelled; cancelled tells which.
 func (p *Picker) HandleKey(k tea.KeyMsg) (done, cancelled bool) {
+	// Lists go round at both ends, like every list of the interface.
 	switch k.Type {
-	case tea.KeyUp:
-		if p.cursor > 0 {
-			p.cursor--
-		}
+	case tea.KeyUp, tea.KeyShiftTab:
+		p.cursor = wrap(p.cursor, -1, len(p.visible))
 		return
 	case tea.KeyDown, tea.KeyTab:
-		if p.cursor < len(p.visible)-1 {
-			p.cursor++
-		}
+		p.cursor = wrap(p.cursor, 1, len(p.visible))
+		return
+	case tea.KeyHome:
+		p.cursor = 0
+		return
+	case tea.KeyEnd:
+		p.cursor = max(0, len(p.visible)-1)
 		return
 	case tea.KeyEnter:
 		if p.Multi || len(p.visible) > 0 {
@@ -107,7 +129,8 @@ func (p *Picker) HandleKey(k tea.KeyMsg) (done, cancelled bool) {
 		return true, true
 	case tea.KeyBackspace:
 		if !p.Multi && p.filter != "" {
-			p.filter = p.filter[:len(p.filter)-1]
+			r := []rune(p.filter)
+			p.filter = string(r[:len(r)-1])
 			p.refilter()
 		}
 		return
@@ -162,10 +185,11 @@ type cardLine struct {
 // layout is the card content and the rows a click can hit. width is the
 // same value View receives.
 func (p *Picker) layout(width int) (string, []cardLine) {
-	if width < 40 {
-		width = 40
-	}
 	inner := width - 6
+	if width < compactWidth {
+		inner = width - 2 // no border on a narrow terminal
+	}
+	inner = max(inner, 10)
 	var b strings.Builder
 	var lines []cardLine
 	add := func(text string, role lineRole, row int) {
@@ -176,40 +200,63 @@ func (p *Picker) layout(width int) (string, []cardLine) {
 		lines = append(lines, cardLine{role: role, row: row, text: text})
 	}
 
-	title := titleStyle.Render(p.Title)
+	title := titleStyle.Render(truncate(p.Title, inner))
 	if !p.Multi && p.filter != "" {
 		title += mutedStyle.Render("  " + i18n.T("pick.filter", p.filter))
 	}
-	add(title, roleText, 0)
+	add(truncateANSI(title, inner), roleText, 0)
 	if p.Hint != "" {
 		add(mutedStyle.Render(truncate(p.Hint, inner)), roleText, 0)
 	}
 	add("", roleText, 0)
 
+	rows := p.maxRows()
 	start := 0
-	if p.cursor >= pickerRows {
-		start = p.cursor - pickerRows + 1
+	if p.cursor >= rows {
+		start = p.cursor - rows + 1
 	}
-	end := min(len(p.visible), start+pickerRows)
+	end := min(len(p.visible), start+rows)
 	if len(p.visible) == 0 {
 		add(mutedStyle.Render("  "+i18n.T("pick.no_match")), roleText, 0)
+	}
+	if start > 0 {
+		add("    "+moreAbove(start), roleText, 0)
+	}
+	// Badges stand in one column, after the widest label.
+	labelW := 0
+	for _, i := range p.visible {
+		labelW = max(labelW, lipgloss.Width(p.Options[i].Label))
+	}
+	badgeW := 0
+	for _, i := range p.visible {
+		badgeW = max(badgeW, lipgloss.Width(p.Options[i].Badge))
+	}
+	lead := 2
+	if p.Multi {
+		lead += 2
+	}
+	if badgeW > 0 {
+		labelW = min(labelW, max(8, inner-lead-badgeW-2))
 	}
 	for row := start; row < end; row++ {
 		o := p.Options[p.visible[row]]
 		active := row == p.cursor
 		pointer := "  "
 		if active {
-			pointer = titleStyle.Render("❯ ")
+			pointer = titleStyle.Render(gl.Pointer + " ")
 		}
 		mark := ""
 		if p.Multi {
 			if o.Selected {
-				mark = riskStyle(o.Risk).Render("◼") + " "
+				mark = riskStyle(o.Risk).Render(gl.BoxOn) + " "
 			} else {
-				mark = mutedStyle.Render("◻") + " "
+				mark = mutedStyle.Render(gl.BoxOff) + " "
 			}
 		}
 		label := o.Label
+		if badgeW > 0 {
+			label = pad(truncate(label, labelW), labelW)
+		}
 		if active {
 			label = cmdStyle.Render(label)
 		}
@@ -223,14 +270,20 @@ func (p *Picker) layout(width int) (string, []cardLine) {
 		}
 	}
 	if len(p.visible) > end {
-		add(mutedStyle.Render(fmt.Sprintf("    … %d", len(p.visible)-end)), roleText, 0)
+		add("    "+moreBelow(len(p.visible)-end), roleText, 0)
 	}
 	add("", roleText, 0)
+	var keyLine string
 	if p.Multi {
 		n := len(p.Selected())
-		add(mutedStyle.Render(i18n.T("pick.keys_multi", n)), roleKeys, 0)
+		keyLine = cardHints(inner, hk("↑↓", "uix.move"), hk("space", "uix.select"), hk("a", "uix.all"),
+			hk("enter", "uix.confirm_n", n).must(), hk("esc", "uix.none").must())
 	} else {
-		add(mutedStyle.Render(i18n.T("pick.keys_single")), roleKeys, 0)
+		keyLine = cardHints(inner, hk("↑↓", "uix.move"), hint{action: i18n.T("uix.type_filter")},
+			hk("enter", "uix.choose").must(), hk("esc", "uix.cancel").must())
+	}
+	for _, l := range strings.Split(keyLine, "\n") {
+		add(l, roleKeys, 0)
 	}
 	return b.String(), lines
 }
@@ -242,6 +295,9 @@ func (p *Picker) layout(width int) (string, []cardLine) {
 func (p *Picker) Click(x, y, width int) (done, cancelled bool) {
 	_, lines := p.layout(width)
 	contentY := y - 1 // top border
+	if width < compactWidth {
+		contentY = y // a narrow card has none
+	}
 	if contentY < 0 || contentY >= len(lines) {
 		return false, false
 	}
@@ -275,23 +331,18 @@ func riskStyle(risk string) lipgloss.Style {
 	case "read-only":
 		return okStyle
 	}
-	return lipgloss.NewStyle().Foreground(accent)
+	return accentStyle
 }
 
-// View renders the card at the given width.
+// View renders the card at the given width. Below compactWidth columns the
+// card has no border, so its rows keep the room.
 func (p *Picker) View(width int) string {
-	if width < 40 {
-		width = 40
-	}
+	width = max(width, 20)
 	body, _ := p.layout(width)
-	return cardStyle.Width(width - 2).Render(body)
-}
-
-func truncateANSI(s string, n int) string {
-	if lipgloss.Width(s) <= n {
-		return s
+	if width < compactWidth {
+		return body
 	}
-	return lipgloss.NewStyle().MaxWidth(n).Render(s)
+	return cardStyle.Width(width - 2).Render(body)
 }
 
 // pickerProgram runs a Picker on its own, inline in the terminal.
@@ -308,6 +359,7 @@ func (m *pickerProgram) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
+		m.p.setHeight(msg.Height)
 	case tea.KeyMsg:
 		if msg.String() == "ctrl+c" {
 			m.cancelled, m.done = true, true

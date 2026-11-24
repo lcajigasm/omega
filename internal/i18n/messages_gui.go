@@ -295,6 +295,32 @@ var guiMessages = map[string][]string{
 	"gui.agents.service":     {"background service", "servicio en segundo plano", "service d'arrière-plan", "Hintergrunddienst", "serviço em segundo plano"},
 	"gui.agents.shared":      {"shared daemon: kept by End all", "demonio compartido: Terminar todo no lo toca", "démon partagé : Tout arrêter le garde", "gemeinsamer Daemon: Alle beenden lässt ihn", "daemon partilhado: Terminar tudo não o toca"},
 	"gui.agents.known":       {"Known agents: %s. Only Claude Code says whether a session is idle; for an agent that marks nothing, what it leaves behind cannot be found.", "Agentes conocidos: %s. Solo Claude Code dice si una sesión está inactiva; de un agente que no marca nada no se pueden encontrar sus restos.", "Agents connus : %s. Seul Claude Code indique si une session est inactive ; pour un agent qui ne marque rien, ses restes ne peuvent pas être trouvés.", "Bekannte Agenten: %s. Nur Claude Code sagt, ob eine Sitzung untätig ist; was ein Agent ohne Markierung zurücklässt, lässt sich nicht finden.", "Agentes conhecidos: %s. Só o Claude Code diz se uma sessão está inativa; de um agente que não marca nada não se encontram os restos."},
+
+	// The Routines card of System: the routines of omega custom.
+	"gui.routines.title":      {"Your routines", "Tus rutinas", "Vos routines", "Deine Routinen", "As tuas rotinas"},
+	"gui.routines.intro":      {"The steps omega custom runs, in your order, without AI. Saved in custom.toml.", "Los pasos que ejecuta omega custom, en tu orden, sin IA. Se guardan en custom.toml.", "Les étapes que lance omega custom, dans votre ordre, sans IA. Enregistrées dans custom.toml.", "Die Schritte, die omega custom in deiner Reihenfolge ohne KI ausführt. Gespeichert in custom.toml.", "Os passos que o omega custom executa, pela tua ordem, sem IA. Guardados em custom.toml."},
+	"gui.routines.none":       {"No routines yet. Name one and add steps to it.", "Aún no hay rutinas. Ponle nombre a una y añádele pasos.", "Pas encore de routine. Nommez-en une et ajoutez-y des étapes.", "Noch keine Routinen. Gib einer einen Namen und füge Schritte hinzu.", "Ainda não há rotinas. Dá nome a uma e junta-lhe passos."},
+	"gui.routines.default":    {"default", "por defecto", "par défaut", "Standard", "por omissão"},
+	"gui.routines.new_ph":     {"New routine name", "Nombre de la nueva rutina", "Nom de la nouvelle routine", "Name der neuen Routine", "Nome da nova rotina"},
+	"gui.routines.new":        {"New routine", "Nueva rutina", "Nouvelle routine", "Neue Routine", "Nova rotina"},
+	"gui.routines.bad_name":   {"Use letters, digits, - and _ (up to 40).", "Usa letras, cifras, - y _ (hasta 40).", "Utilisez lettres, chiffres, - et _ (40 au plus).", "Nutze Buchstaben, Ziffern, - und _ (bis 40).", "Usa letras, algarismos, - e _ (até 40)."},
+	"gui.routines.empty":      {"No steps yet: add them below, in the order they should run.", "Aún sin pasos: añádelos abajo, en el orden en que deben ejecutarse.", "Pas encore d'étapes : ajoutez-les ci-dessous, dans l'ordre d'exécution.", "Noch keine Schritte: füge sie unten in der gewünschten Reihenfolge hinzu.", "Ainda sem passos: junta-os abaixo, pela ordem em que devem correr."},
+	"gui.routines.add":        {"Add a step…", "Añadir un paso…", "Ajouter une étape…", "Schritt hinzufügen…", "Juntar um passo…"},
+	"gui.routines.stop":       {"stop if it fails", "parar si falla", "arrêter si échec", "bei Fehler stoppen", "parar se falhar"},
+	"gui.routines.up":         {"Move up", "Subir", "Monter", "Nach oben", "Subir"},
+	"gui.routines.down":       {"Move down", "Bajar", "Descendre", "Nach unten", "Descer"},
+	"gui.routines.remove":     {"Remove from the routine", "Quitar de la rutina", "Retirer de la routine", "Aus der Routine entfernen", "Tirar da rotina"},
+	"gui.routines.not_here":   {"not on this machine", "no está en este equipo", "absente de cette machine", "nicht auf diesem Rechner", "não está nesta máquina"},
+	"gui.routines.last":       {"last time: %s", "la última vez: %s", "la dernière fois : %s", "letztes Mal: %s", "da última vez: %s"},
+	"gui.routines.below":      {"Only below this free space", "Solo con menos espacio libre que", "Seulement sous cet espace libre", "Nur unter so viel freiem Platz", "Só com menos espaço livre que"},
+	"gui.routines.below_hint": {"In GB. With more free space the routine has nothing to do. 0: always.", "En GB. Con más espacio libre la rutina no tiene nada que hacer. 0: siempre.", "En Go. Avec plus d'espace libre, la routine n'a rien à faire. 0 : toujours.", "In GB. Mit mehr freiem Platz hat die Routine nichts zu tun. 0: immer.", "Em GB. Com mais espaço livre a rotina não tem nada a fazer. 0: sempre."},
+	"gui.routines.days":       {"Only on these days", "Solo estos días", "Seulement ces jours-là", "Nur an diesen Tagen", "Só nestes dias"},
+	"gui.routines.days_hint":  {"A scheduled run skips the other days; one you start by hand runs anyway. None ticked: every day.", "Una ejecución programada se salta los demás días; si la lanzas tú, se ejecuta igual. Ninguno marcado: todos los días.", "Une exécution planifiée saute les autres jours ; lancée à la main, elle s'exécute quand même. Aucun coché : tous les jours.", "Ein geplanter Lauf überspringt die anderen Tage; von Hand gestartet läuft sie trotzdem. Keiner angehakt: jeden Tag.", "Uma execução agendada salta os outros dias; se a lançares tu, corre na mesma. Nenhum marcado: todos os dias."},
+	"gui.routines.save":       {"Save routine", "Guardar rutina", "Enregistrer la routine", "Routine speichern", "Guardar rotina"},
+	"gui.routines.saved":      {"Routine saved", "Rutina guardada", "Routine enregistrée", "Routine gespeichert", "Rotina guardada"},
+	"gui.routines.discard":    {"Unsaved changes: save them, or click again to leave them.", "Hay cambios sin guardar: guárdalos, o vuelve a pulsar para descartarlos.", "Modifications non enregistrées : enregistrez-les, ou cliquez encore pour les abandonner.", "Ungespeicherte Änderungen: speichere sie oder klicke noch einmal, um sie zu verwerfen.", "Há alterações por guardar: guarda-as, ou clica outra vez para as descartar."},
+	"gui.routines.unsaved":    {"Unsaved changes", "Cambios sin guardar", "Modifications non enregistrées", "Ungespeicherte Änderungen", "Alterações por guardar"},
+	"gui.routines.run_hint":   {"Run it in a terminal: omega custom %s", "Ejecútala en una terminal: omega custom %s", "Lancez-la dans un terminal : omega custom %s", "In einem Terminal ausführen: omega custom %s", "Executa-a num terminal: omega custom %s"},
 }
 
 func init() {

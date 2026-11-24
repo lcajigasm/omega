@@ -1,0 +1,17 @@
+Ω  omega doctor  · v1.2.3
+
+SETUP 3
+  ✓ config    ~/.config/omega/config.toml
+  ! key       the key for anthropic is in the environment,
+              not in the keychain; omega config set-key
+              moves it
+  ✗ brew      not installed
+
+STEPS
+    STEP    SIZE  WHAT
+  ✓ brew  3.0 GB  Updates Homebrew formulae and casks, then
+                  cleans the old versions it leaves behind
+  · npm    12 MB  Updates global npm packages
+
+› Run omega doctor --fix to repair what can be repaired
+  without asking.

@@ -94,7 +94,7 @@ omega takes more than the exact names. All of these work:
 | `omega cleanup`, `omega repair`, `omega optimize`, `omega report`, `omega security` | `omega clean`, `fix`, `tune`, `analyze`, `health` |
 | `omega perms`, `omega apps`, `omega undo`, `omega dock` | `omega mac permissions`, `mac apps`, `mac undo`, `mac dock` |
 | `omega install fzf mise` | `omega dev install fzf mise` |
-| `omega history`, `omega settings`, `omega keys`, `omega status` | `omega logs`, `config show`, `auth status`, `doctor` |
+| `omega historial`, `omega settings`, `omega keys`, `omega status` | `omega history`, `config show`, `auth status`, `doctor` |
 | `omega doc`, `omega mac perm` | nothing if the start is ambiguous (`doc` could be `docker` or `doctor`); the command when it is not (`omega mac perm` is `omega mac permissions`) |
 | `omega why is my disk full` | the same as `omega -p "why is my disk full"`: three words or more are a request for the agent |
 | `omega menuu` | an error that says `Did you mean omega menu?` |
@@ -109,6 +109,139 @@ omega -p "Why is ~/Library 40 GB? Tell me what I can safely delete"
 omega -p "Only update Homebrew and npm, nothing else"
 omega -p "topgrade fails on the rustup step, fix it"
 ```
+
+## Your own routine
+
+`omega custom` runs a routine you put together: the steps you pick, in the
+order you put them. It runs them on this machine with the same approval
+rules as `omega steps run`, and it never calls an AI model, so nothing about
+the machine leaves it (the steps themselves may still download updates).
+
+```bash
+omega custom --set                        # choose steps and order in an editor
+omega custom --set disk brew npm-cache    # or name them directly
+omega custom --show                       # the routine, without running it
+omega custom                              # run it
+omega custom --dry-run                    # what it would run
+```
+
+### The editor
+
+`omega custom --set` (with a routine name or without one) opens a full-screen
+editor: the routine on top, in running order, and every other installed step
+below, by category.
+
+| Key | What it does |
+|---|---|
+| space, `x` | add the step under the cursor to the routine, or take it out |
+| ⇧↑ / ⇧↓, `K` / `J` | move a step of the routine up or down |
+| `f` | stop the run if this step fails (the step must be in the routine) |
+| `b` | run the routine only below N GB free: type the number, enter keeps it, an empty field means always |
+| `w` | run a scheduled routine only on some days: type `mon,wed,fri` (or the short names of your language: `lun,mié,vie`, `lun,mer,ven`, `mo,mi,fr`, `seg,qua,sex`); an empty field means every day |
+| `i` | ask your AI model for a recommendation |
+| `d` | turn on or off sending machine data with that recommendation |
+| `c` / `u` | empty the routine / undo every change since it opened |
+| enter, `s` | save; esc or `q` leaves, and asks first when something changed |
+
+Each step shows the figures of the last time `omega custom` ran it: how long
+it took and how much space the disk gained (`1m05s · 2.1 GB`). The header of
+the routine shows its options (`only below 30 GB free · only on mon, fri`).
+
+`i` sends the model the operating system, the installed steps (id, category,
+risk and what each does) and your current routine, nothing else, and only
+when you press it. With `d` on, it also sends three aggregated figures, which
+the status line spells out before you ask: the free space of the system disk
+rounded to whole GB, the days since `omega custom` last ran a step, and the
+ids of the steps that failed in the runs kept. Nothing names you, a file or a
+path. The recommendation shows each step with a reason; `a` takes it (you can
+still edit it), esc keeps yours and leaves the reasons as ✦ notes beside the
+steps.
+
+The routines live in `~/.config/omega/custom.toml`, so a dotfiles repository
+can carry them to other machines; steps a machine lacks are passed over there
+and kept in the file.
+
+### Several routines
+
+A routine can have a name. A first word after `--set` that is not a step id
+names the routine; the one without a name is called `default`:
+
+```bash
+omega custom --set weekly brew mole-clean npm-cache   # a routine called weekly
+omega custom --list                                   # every routine, the default marked
+omega custom weekly                                   # run it
+omega custom weekly --show                            # show it
+omega custom weekly --default                         # omega custom now runs weekly
+omega custom weekly --clear                           # delete it
+```
+
+### Options of a routine
+
+Three options belong to a routine. They are set in the editor or with
+`--set`, with or without step ids (without ids only the options change):
+
+- `--stop-on-fail brew,npm` (key `f`): when one of these steps fails, the
+  routine stops there and the steps after it do not run;
+- `--only-below-free-gb 30` (key `b`): the routine runs only while the system
+  disk has less than 30 GB free. With more, it says so and does nothing,
+  which is not a failure. `0` turns it off;
+- `--days mon,wed,fri` (key `w`): a scheduled run of the routine runs only on
+  these weekdays; on the others it says so and does nothing, which is not a
+  failure. A run you start by hand runs on any day and only warns.
+  `--days ""` clears it. The days are stored as `mon` … `sun` whatever
+  language you typed them in.
+
+```bash
+omega custom --set weekly --stop-on-fail brew --only-below-free-gb 30 --days mon,thu
+```
+
+```toml
+# ~/.config/omega/custom.toml
+default = "weekly"
+
+[routines.weekly]
+steps = ["brew", "mole-clean", "npm-cache"]
+stop_on_fail = ["brew"]
+only_below_free_gb = 30.0
+days = ["mon", "thu"]
+```
+
+`--show` and `--list` show the options in words beside each routine;
+`--show --json` and `--list --json` give them as stored. `omega steps show
+<id>` lists the last runs of a step by `omega custom`. An older
+`custom.toml` with a single list of steps is read as the routine `default`.
+
+### Scheduling, other machines and the desktop app
+
+`omega schedule install --task custom` runs the default routine on a
+schedule, like any other task without AI: `--yes` answers the steps that
+need it, and the steps that always ask are skipped and named. With
+`--interval daily`, the routine's `days` choose the days it really runs.
+
+`omega export` puts `custom.toml` in the blueprint, and `omega bootstrap`
+writes it on the other machine after a yes. Routines that differ from the
+ones already there replace them only after a yes at the terminal or with
+`--force` (the old file is kept as `custom.toml.bak`); `--yes` alone keeps
+them.
+
+In the desktop app, **System** has a **Your routines** card: pick a routine
+(the default is marked) or name a new one, then order its steps with the ↑ ↓
+buttons, take one out with ✕, add an installed step from the list, tick
+"stop if it fails" per step, set the free-space limit and the days, and
+press **Save routine**. The card writes the same `custom.toml`; running a
+routine stays in the terminal (`omega custom <name>`).
+
+### Which steps always ask
+
+A step asks every time, even with `--yes`, when the catalogue says so (the
+Docker cleanups, `mole-purge`) or when its command is one the safety policy
+always asks about: `mo purge --yes` deletes `node_modules`, `.venv` and
+`target`, and a script run from your home folder could do anything. This
+holds for omega's own steps and for yours. The one exception is an omega step
+that asks only because it runs `sudo` (the macOS update, apt, dnf, pacman,
+snap): the sudo password is the question, and a machine where sudo needs no
+password keeps its scheduled updates working. A step of yours in `steps.d`
+that runs `sudo` always asks.
 
 ## Unattended runs
 

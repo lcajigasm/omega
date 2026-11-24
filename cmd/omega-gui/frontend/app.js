@@ -1076,7 +1076,8 @@ async function endAgents(button) {
 // ---------- status ----------
 
 async function showSystem() {
-  const [steps, notes] = await Promise.all([call("Steps"), call("Notes")]);
+  const [steps, notes, rs] = await Promise.all([call("Steps"), call("Notes"), call("Routines")]);
+  showRoutines(rs, steps);
   const nodes = [];
   let cat = "";
   for (const s of steps) {
@@ -1120,6 +1121,224 @@ async function runCheck() {
     b.disabled = false;
     b.textContent = t("gui.system.run");
   }
+}
+
+// ---------- routines (omega custom) ----------
+
+const weekdays = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+let routineInfo = { routines: [] };
+let routineCatalog = []; // the steps of this machine, from Steps
+let routine = null;      // the routine being edited: {name, steps, below, days, dirty}
+let routineBusy = false;
+
+// showRoutines draws the card from what custom.toml holds. A routine with
+// changes not yet saved stays as it is.
+function showRoutines(rs, steps) {
+  routineInfo = rs;
+  routineCatalog = steps;
+  if (!routine?.dirty) {
+    const name = routine && rs.routines.some((r) => r.name === routine.name) ? routine.name : rs.default || rs.routines[0]?.name;
+    routine = name ? editable(rs.routines.find((r) => r.name === name)) : null;
+  }
+  drawRoutines();
+}
+
+// editable copies a routine of Routines into the form the card edits.
+function editable(r) {
+  return {
+    name: r.name,
+    steps: r.steps.map((s) => ({ ...s })),
+    below: r.only_below_free_gb || 0,
+    days: new Set(r.days || []),
+    dirty: false,
+  };
+}
+
+let discardFor = null; // the routine the user was warned about leaving
+
+function pickRoutine(name) {
+  if (routine?.name === name) return;
+  // Unsaved changes are not dropped on the first click: it warns, and a
+  // second click on the same routine leaves them behind.
+  if (routine?.dirty && routine.steps.length && discardFor !== name) {
+    discardFor = name;
+    return toast(t("gui.routines.discard"), true);
+  }
+  discardFor = null;
+  const r = routineInfo.routines.find((x) => x.name === name);
+  routine = r ? editable(r) : { name, steps: [], below: 0, days: new Set(), dirty: true };
+  drawRoutines();
+}
+
+function changed() {
+  routine.dirty = true;
+  drawRoutine();
+}
+
+function drawRoutines() {
+  const names = routineInfo.routines.map((r) => r.name);
+  if (routine && !names.includes(routine.name)) names.push(routine.name);
+  $("routine-list").replaceChildren(...names.map((name) => {
+    const r = routineInfo.routines.find((x) => x.name === name);
+    const b = el("button", routine?.name === name ? "on" : "", name);
+    b.type = "button";
+    b.dataset.routine = name;
+    if (r?.default) b.textContent += " · " + t("gui.routines.default");
+    return b;
+  }));
+  $("routine-none").hidden = names.length > 0;
+  $("routine-edit").hidden = !routine;
+  if (routine) drawRoutine();
+}
+
+function drawRoutine() {
+  const r = routine;
+  $("routine-steps").replaceChildren(...r.steps.map((s, i) => {
+    const li = el("li", s.here ? "" : "missing");
+    const body = el("div", "body");
+    body.append(el("div", "name", s.label || s.id));
+    const sub = [s.id];
+    if (!s.here) sub.push(t("gui.routines.not_here"));
+    const last = [s.last_run, s.freed_text].filter(Boolean).join(" · ");
+    if (last) sub.push(t("gui.routines.last").replace("%s", last));
+    body.append(el("div", "id", sub.join(" · ")));
+    li.append(body);
+    if (s.risk_id) li.append(el("span", "badge" + (s.risk_id === "dangerous" ? " dangerous" : ""), s.risk));
+    const stop = el("label", "check");
+    const box = el("input");
+    box.type = "checkbox";
+    box.checked = s.stops;
+    box.dataset.stop = i;
+    stop.append(box, document.createTextNode(t("gui.routines.stop")));
+    li.append(stop);
+    for (const [label, title, act, off] of [["↑", "gui.routines.up", "up", i === 0], ["↓", "gui.routines.down", "down", i === r.steps.length - 1], ["✕", "gui.routines.remove", "remove", false]]) {
+      const b = el("button", "move", label);
+      b.type = "button";
+      b.title = t(title);
+      b.setAttribute("aria-label", t(title));
+      b.dataset.act = act;
+      b.dataset.i = i;
+      b.disabled = off;
+      li.append(b);
+    }
+    return li;
+  }));
+  $("routine-empty").hidden = r.steps.length > 0;
+
+  // The installed steps not yet in the routine, by category.
+  const add = $("routine-add");
+  const first = el("option", "", t("gui.routines.add"));
+  first.value = "";
+  const groups = [];
+  let group = null;
+  for (const s of routineCatalog) {
+    if (!s.installed || r.steps.some((x) => x.id === s.id)) continue;
+    if (!group || group.label !== s.category) {
+      group = el("optgroup");
+      group.label = s.category;
+      groups.push(group);
+    }
+    const o = el("option", "", s.name + " (" + s.id + ")");
+    o.value = s.id;
+    group.append(o);
+  }
+  add.replaceChildren(first, ...groups);
+  add.setAttribute("aria-label", t("gui.routines.add"));
+  add.disabled = groups.length === 0;
+
+  const below = $("routine-below");
+  if (document.activeElement !== below) below.value = r.below ? String(r.below) : "0";
+  const names = (t("custom.weekdays") || "").split(",");
+  $("routine-days").replaceChildren(...weekdays.map((d, i) => {
+    const label = el("label");
+    const box = el("input");
+    box.type = "checkbox";
+    box.checked = r.days.has(d);
+    box.dataset.day = d;
+    label.append(box, document.createTextNode(names[i] || d));
+    return label;
+  }));
+  $("routine-dirty").hidden = !r.dirty;
+  $("routine-save").disabled = routineBusy || !r.dirty || r.steps.length === 0;
+  const saved = routineInfo.routines.find((x) => x.name === r.name);
+  $("routine-run").textContent = saved ? t("gui.routines.run_hint").replace("%s", saved.default ? "" : r.name).trimEnd() : "";
+}
+
+async function saveRoutine() {
+  const r = routine;
+  if (!r || routineBusy) return;
+  const below = Number($("routine-below").value || 0);
+  if (!(below >= 0)) return toast(t("gui.routines.below_hint"), true);
+  r.below = below;
+  routineBusy = true;
+  $("routine-save").disabled = true;
+  try {
+    await call("SaveRoutine", r.name, r.steps.map((s) => s.id), r.steps.filter((s) => s.stops).map((s) => s.id),
+      below, weekdays.filter((d) => r.days.has(d)));
+    r.dirty = false;
+    toast(t("gui.routines.saved") + " ✓");
+  } catch (err) {
+    toastError(err);
+  } finally {
+    routineBusy = false;
+  }
+  const [rs, steps] = await Promise.all([call("Routines"), call("Steps")]);
+  showRoutines(rs, steps);
+}
+
+function routineEvents() {
+  $("routine-list").addEventListener("click", (e) => {
+    const name = e.target.closest("button")?.dataset.routine;
+    if (name) pickRoutine(name);
+  });
+  $("routine-new").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const name = $("routine-name").value.trim();
+    if (!name) return;
+    if (!/^[\p{L}\p{N}][\p{L}\p{N}_-]{0,39}$/u.test(name)) return toast(t("gui.routines.bad_name"), true);
+    $("routine-name").value = "";
+    pickRoutine(name);
+  });
+  $("routine-steps").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-act]");
+    if (!b || !routine) return;
+    const i = Number(b.dataset.i);
+    const list = routine.steps;
+    if (b.dataset.act === "remove") list.splice(i, 1);
+    else {
+      const j = b.dataset.act === "up" ? i - 1 : i + 1;
+      if (j < 0 || j >= list.length) return;
+      [list[i], list[j]] = [list[j], list[i]];
+    }
+    changed();
+  });
+  $("routine-steps").addEventListener("change", (e) => {
+    const i = e.target.dataset.stop;
+    if (i === undefined || !routine) return;
+    routine.steps[Number(i)].stops = e.target.checked;
+    changed();
+  });
+  $("routine-add").addEventListener("change", (e) => {
+    const s = routineCatalog.find((x) => x.id === e.target.value);
+    if (!s || !routine) return;
+    routine.steps.push({ id: s.id, label: s.name, risk: s.risk, risk_id: s.risk_id, here: s.available, stops: false });
+    changed();
+  });
+  $("routine-below").addEventListener("input", (e) => {
+    if (!routine) return;
+    routine.below = Number(e.target.value || 0);
+    routine.dirty = true;
+    $("routine-dirty").hidden = false;
+    $("routine-save").disabled = routineBusy || routine.steps.length === 0;
+  });
+  $("routine-days").addEventListener("change", (e) => {
+    const d = e.target.dataset.day;
+    if (!d || !routine) return;
+    if (e.target.checked) routine.days.add(d);
+    else routine.days.delete(d);
+    changed();
+  });
+  $("routine-save").addEventListener("click", () => saveRoutine().catch(toastError));
 }
 
 // ---------- settings ----------
@@ -1352,6 +1571,7 @@ function wire() {
     wails.Clipboard.SetText($("tool-out").textContent).then(() => toast(t("gui.copied") + " ✓"), toastError);
   });
   $("check-run").addEventListener("click", () => runCheck().catch(toastError));
+  routineEvents();
   $("agents-refresh").addEventListener("click", () => showAgents().catch(toastError));
   $("cfg-refresh").addEventListener("click", () => showConfigure().catch(toastError));
   $("steps").addEventListener("change", (e) => {

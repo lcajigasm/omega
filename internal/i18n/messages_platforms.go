@@ -7,6 +7,9 @@ import "strings"
 // en, es, fr, de, pt.
 // (The file is not named after Linux: a _linux.go file only builds there.)
 var platformMessages = map[string][]string{
+	"slash.task_analyze@other": {
+		"Look at the state of this machine without changing anything", "Analiza el estado de este equipo sin cambiar nada", "Analyse l'état de cette machine sans rien changer", "Untersucht den Zustand dieses Rechners, ohne etwas zu ändern", "Analisa o estado desta máquina sem mudar nada",
+	},
 	// ---- where keys are kept ----
 	"secrets.src.env": {
 		"an environment variable", "una variable de entorno", "une variable d'environnement", "eine Umgebungsvariable", "uma variável de ambiente",
@@ -78,7 +81,7 @@ var platformMessages = map[string][]string{
 		"%s wird mit einem Skript installiert, das an eine Shell übergeben wird (%s). omega führt das nur nach Bestätigung in einem Terminal aus: Starte omega dev install dort oder führe den Befehl selbst aus",
 		"%s instala-se com um script passado a uma shell (%s). O omega só o executa depois de confirmares num terminal: corre omega dev install aí, ou executa tu o comando",
 	},
-	"dev.installer_skipped": {"⎿ skipped", "⎿ omitido", "⎿ ignoré", "⎿ übersprungen", "⎿ ignorado"},
+	"dev.installer_skipped": {"└ skipped", "└ omitido", "└ ignoré", "└ übersprungen", "└ ignorado"},
 
 	// ---- the parts that only exist on macOS ----
 	"mac.only": {

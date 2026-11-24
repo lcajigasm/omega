@@ -83,29 +83,22 @@ func TestFindPortsOnlyTCPListeners(t *testing.T) {
 		}
 		return runner.Result{}
 	})
-	ports, err := FindPorts(ctx, 3000)
+	ports, err := FindPorts(ctx, 3000, "tcp")
 	if err != nil || len(ports) != 1 || ports[0].PID != 4242 || ports[0].Proto != "TCP" || ports[0].Process != "node" {
 		t.Fatalf("ports: %+v, %v", ports, err)
 	}
-	if (*ran)[0] != "lsof -iTCP:3000 -sTCP:LISTEN -P -n" {
+	if (*ran)[0] != "lsof -iTCP:3000 -sTCP:LISTEN -P -n +c 0" {
 		t.Errorf("command: %s", (*ran)[0])
 	}
-	if err := KillPortProcess(ctx, 3000); err != nil {
-		t.Fatal(err)
-	}
-	var kills []string
-	for _, c := range *ran {
-		if strings.HasPrefix(c, "kill") {
-			kills = append(kills, c)
-		}
-	}
-	if len(kills) != 1 || kills[0] != "kill -9 4242" {
-		t.Errorf("kills: %q", kills)
+	// --udp lists the bound UDP sockets, not the TCP ones.
+	ports, err = FindPorts(ctx, 3000, "udp")
+	if err != nil || len(ports) != 1 || ports[0].PID != 300 || ports[0].Proto != "UDP" {
+		t.Fatalf("udp ports: %+v, %v", ports, err)
 	}
 
 	// Without lsof nothing can be said, and saying "no ports" would be wrong.
 	fake(t, "linux", nil, func(string) runner.Result { return runner.Result{ExitCode: 127} })
-	if ports, err := FindPorts(ctx, 0); err == nil {
+	if ports, err := FindPorts(ctx, 0, "tcp"); err == nil {
 		t.Errorf("without lsof: %+v and no error", ports)
 	}
 }
@@ -200,5 +193,74 @@ func TestHideUserinfo(t *testing.T) {
 		if got := hideUserinfo(in); got != want {
 			t.Errorf("%s: %s", in, got)
 		}
+	}
+}
+
+// Every port, sorted by number, with the whole name of the program.
+func TestFindPortsSortedWithWholeNames(t *testing.T) {
+	fake(t, "darwin", []string{"lsof"}, func(string) runner.Result {
+		return runner.Result{Output: `COMMAND PID USER FD TYPE DEVICE SIZE/OFF NODE NAME
+ControlCenter 673 luis 9u IPv4 0x1 0t0 TCP *:7000 (LISTEN)
+Google\x20Chrome 80 luis 9u IPv4 0x2 0t0 TCP 127.0.0.1:5000 (LISTEN)
+`}
+	})
+	ports, err := FindPorts(context.Background(), 0, "tcp")
+	if err != nil || len(ports) != 2 {
+		t.Fatalf("ports: %+v, %v", ports, err)
+	}
+	if ports[0].Port != 5000 || ports[0].Process != "Google Chrome" || ports[1].Process != "ControlCenter" {
+		t.Errorf("ports: %+v", ports)
+	}
+}
+
+// A process is asked to exit first, and forced only when it does not.
+func TestStopProcessAsksThenForces(t *testing.T) {
+	oldSignal, oldAlive := signalProcess, processAlive
+	t.Cleanup(func() { signalProcess, processAlive = oldSignal, oldAlive })
+	var sent []bool
+	alive := true
+	stubborn := false
+	signalProcess = func(_ context.Context, _ int, force bool) error {
+		sent = append(sent, force)
+		if force || !stubborn {
+			alive = false
+		}
+		return nil
+	}
+	processAlive = func(int) bool { return alive }
+
+	forced, err := StopProcess(context.Background(), 4242, 100*time.Millisecond)
+	if err != nil || forced || len(sent) != 1 || sent[0] {
+		t.Fatalf("polite stop: forced=%v err=%v signals=%v", forced, err, sent)
+	}
+
+	sent, alive, stubborn = nil, true, true
+	forced, err = StopProcess(context.Background(), 4242, 100*time.Millisecond)
+	if err != nil || !forced || len(sent) != 2 || sent[0] || !sent[1] {
+		t.Fatalf("forced stop: forced=%v err=%v signals=%v", forced, err, sent)
+	}
+
+	if _, err := StopProcess(context.Background(), 1, time.Millisecond); err == nil {
+		t.Error("PID 1 was not refused")
+	}
+}
+
+// Only the registries of this system are checked.
+func TestRegistriesBySystem(t *testing.T) {
+	old := goos
+	t.Cleanup(func() { goos = old })
+	goos = "darwin"
+	for _, r := range Registries() {
+		if r.Name == "Ubuntu Mirrors" || r.Name == "winget" {
+			t.Errorf("%s is checked on a Mac", r.Name)
+		}
+	}
+	goos = "linux"
+	found := false
+	for _, r := range Registries() {
+		found = found || r.Name == "Ubuntu Mirrors"
+	}
+	if !found {
+		t.Error("Ubuntu's mirrors are not checked on Linux")
 	}
 }

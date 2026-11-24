@@ -170,3 +170,31 @@ func TestAuditSSHConfigFile(t *testing.T) {
 		t.Errorf("expected 1 finding for missing IdentityFile, got %d", len(findings))
 	}
 }
+
+// fish's history and atuin's database are read too, and what was read is
+// listed.
+func TestScanHistoriesReadsFishAndAtuin(t *testing.T) {
+	dir := home(t)
+	t.Setenv("XDG_DATA_HOME", "")
+	key := "ghp_" + strings.Repeat("A", 36)
+	fish := filepath.Join(dir, ".local", "share", "fish", "fish_history")
+	os.MkdirAll(filepath.Dir(fish), 0o700)
+	os.WriteFile(fish, []byte("- cmd: ls\n  when: 1\n- cmd: gh auth login --with-token "+key+"\n  when: 2\n"), 0o600)
+	atuin := filepath.Join(dir, ".local", "share", "atuin", "history.db")
+	os.MkdirAll(filepath.Dir(atuin), 0o700)
+	os.WriteFile(atuin, []byte("SQLite format 3\x00\x01\x02export AWS_KEY=AKIA"+strings.Repeat("B", 16)+"\x00\x03"), 0o600)
+
+	scan, err := ScanHistories()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(scan.Scanned) != 2 || len(scan.Findings) != 2 {
+		t.Fatalf("scan: %+v", scan)
+	}
+	if scan.Findings[0].Type != "GitHub Personal Token" || scan.Findings[0].LineNum != 3 {
+		t.Errorf("fish finding: %+v", scan.Findings[0])
+	}
+	if scan.Findings[1].Type != "AWS Access Key" || strings.Contains(scan.Findings[1].Snippet, "BBBB") {
+		t.Errorf("atuin finding: %+v", scan.Findings[1])
+	}
+}

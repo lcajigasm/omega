@@ -13,6 +13,7 @@ import (
 	"golang.org/x/term"
 
 	"github.com/lcajigasm/omega/internal/agent"
+	"github.com/lcajigasm/omega/internal/config"
 	"github.com/lcajigasm/omega/internal/i18n"
 	"github.com/lcajigasm/omega/internal/runner"
 	"github.com/lcajigasm/omega/internal/sudo"
@@ -58,18 +59,14 @@ var fullStages = []fullStage{
 // catalogue step: the guided run wants the verdict, and `omega steps` has
 // the list.
 func doctorBrief(w io.Writer) error {
-	var b strings.Builder
-	err := runDoctor(&b)
-	skipped := " (" + i18n.T("doctor.skipped") + ")"
-	for _, line := range strings.Split(strings.TrimRight(b.String(), "\n"), "\n") {
-		// A step's line is indented and holds a mark and an id, with
-		// "(skipped)" after it when the user turned the step off.
-		t := strings.TrimSuffix(strings.TrimSpace(line), skipped)
-		if mark, id, ok := strings.Cut(t, " "); ok && strings.HasPrefix(line, "  ") && (mark == "✓" || mark == "·") && !strings.Contains(id, " ") {
-			continue
-		}
-		fmt.Fprintln(w, line)
+	ui.NewReport(w).Title("omega doctor", i18n.T("doctor.subtitle"))
+	_, err := doctorCheck(w, false)
+	cfg, cerr := config.Load()
+	if cerr != nil {
+		cfg = config.Default()
 	}
+	installed, missing := stepCounts(cfg)
+	doctorLine(w, ui.MarkOK, i18n.T("doctor.steps", installed, missing))
 	return err
 }
 
@@ -203,7 +200,7 @@ func runFull(w io.Writer, stages []ui.GuideStage, run func(id string) error, ask
 			fmt.Fprintln(w, "\n"+line)
 		default:
 			res[i].Status = ui.StageDone
-			fmt.Fprintf(w, "\n✓ %s · %s\n", s.Title, i18n.T("full.finished", res[i].Duration.Round(time.Second)))
+			fmt.Fprintf(w, "\n✓ %s · %s\n", s.Title, i18n.T("full.finished", ui.Duration(res[i].Duration)))
 		}
 		if ask == nil {
 			if interrupted {
@@ -226,6 +223,8 @@ func runFull(w io.Writer, stages []ui.GuideStage, run func(id string) error, ask
 			if retry {
 				keys = i18n.T("full.between_keys_retry")
 			}
+			// The text run has no plan to reopen: that key is the screen's.
+			keys = strings.ReplaceAll(keys, " · [p] "+planWord(), "")
 			fmt.Fprint(w, keys+": ")
 			answer := strings.ToLower(strings.TrimSpace(ask()))
 			if answer == "q" {
@@ -333,7 +332,7 @@ func fullCmd() *cobra.Command {
 				}
 				defer func() { sudoAsked = "" }()
 			}
-			if tty && !f.noTUI {
+			if ui.WantTUI(f.noTUI) {
 				info := ui.GuideInfo{Version: version}
 				for _, fl := range []struct {
 					on  bool
@@ -434,8 +433,7 @@ var (
 	// pilotScreen says whether an unattended run writing to w gets its own
 	// screen: it needs a terminal at both ends, and --no-tui asks for lines.
 	pilotScreen = func(w io.Writer, noTUI bool) bool {
-		return w == io.Writer(os.Stdout) && !noTUI && os.Getenv("TERM") != "dumb" &&
-			term.IsTerminal(int(os.Stdin.Fd())) && term.IsTerminal(int(os.Stdout.Fd()))
+		return w == io.Writer(os.Stdout) && ui.WantTUI(noTUI)
 	}
 	runPilot = ui.RunPilot
 )
@@ -511,4 +509,16 @@ func runUnattended(w io.Writer, stages []ui.GuideStage, byID map[string]fullStag
 		return exitCode(1)
 	}
 	return nil
+}
+
+// planWord is the label of the [p] key in the active language, as the
+// between-stages keys write it.
+func planWord() string {
+	keys := i18n.T("full.between_keys")
+	_, after, ok := strings.Cut(keys, "[p] ")
+	if !ok {
+		return "\x00"
+	}
+	label, _, _ := strings.Cut(after, " · ")
+	return label
 }

@@ -64,13 +64,17 @@ func firstLine(out string, err error) string {
 
 // RepoStatus holds hygiene metrics for a single git repository.
 type RepoStatus struct {
-	Path           string   `json:"path"`
-	Name           string   `json:"name"`
-	Branch         string   `json:"branch"`
-	HasUncommitted bool     `json:"has_uncommitted"`
-	UnpushedCount  int      `json:"unpushed_count"`
+	Path           string `json:"path"`
+	Name           string `json:"name"`
+	Branch         string `json:"branch"`
+	HasUncommitted bool   `json:"has_uncommitted"`
+	UnpushedCount  int    `json:"unpushed_count"`
+	// DefaultBranch is what merged branches are compared with: origin/HEAD,
+	// else main or master, else HEAD. OnDefault says whether HEAD is on it.
+	DefaultBranch  string   `json:"default_branch,omitempty"`
+	OnDefault      bool     `json:"on_default"`
 	MergedBranches []string `json:"merged_branches,omitempty"`
-	GitSizeMB      int64    `json:"git_size_mb"`
+	GitSize        int64    `json:"git_size"` // bytes
 	LargeFiles     []string `json:"large_files,omitempty"`
 }
 
@@ -125,7 +129,7 @@ func CheckRepo(ctx context.Context, repoPath string) (*RepoStatus, error) {
 
 	// Git size
 	gitDir := filepath.Join(repoPath, ".git")
-	st.GitSizeMB = dirSizeMB(gitDir)
+	st.GitSize = dirSize(gitDir)
 
 	// Uncommitted changes
 	out, err := git(ctx, repoPath, "status", "--porcelain")
@@ -153,25 +157,135 @@ func CheckRepo(ctx context.Context, repoPath string) (*RepoStatus, error) {
 		st.UnpushedCount = len(strings.Split(strings.TrimSpace(out), "\n"))
 	}
 
-	// Merged branches. Left out: the current one ("*"), the ones checked
-	// out in another worktree ("+", which git refuses to delete) and the
-	// main ones.
-	out, err = git(ctx, repoPath, "branch", "--merged")
+	// Merged branches: merged into the default branch, not into whatever
+	// HEAD is on. With HEAD on a feature branch, "merged into HEAD" took
+	// develop, release and backup branches for leftovers.
+	def, err := defaultBranch(ctx, repoPath)
 	if errors.Is(err, ErrGitTimeout) {
 		return st, fmt.Errorf("could not check: %w", err)
 	}
-	if err == nil {
-		for _, b := range strings.Split(out, "\n") {
-			b = strings.TrimSpace(b)
-			if b == "" || strings.HasPrefix(b, "*") || strings.HasPrefix(b, "+") || b == "main" || b == "master" || b == "develop" {
-				continue
-			}
-			st.MergedBranches = append(st.MergedBranches, b)
-		}
+	st.DefaultBranch = def
+	st.OnDefault = def == "" || localName(def) == st.Branch
+	merged, err := mergedBranches(ctx, repoPath, def, st.Branch)
+	if errors.Is(err, ErrGitTimeout) {
+		return st, fmt.Errorf("could not check: %w", err)
 	}
+	st.MergedBranches = merged
 
 	st.LargeFiles = largeFiles(repoPath)
 	return st, nil
+}
+
+// defaultBranch is the branch a repository's work is merged into:
+// origin/HEAD when the clone knows it, else a local or remote main or
+// master. "" when there is none (merged branches are then measured
+// against HEAD).
+func defaultBranch(ctx context.Context, repo string) (string, error) {
+	out, err := git(ctx, repo, "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD")
+	if errors.Is(err, ErrGitTimeout) {
+		return "", err
+	}
+	if b := strings.TrimSpace(out); err == nil && b != "" {
+		return b, nil
+	}
+	for _, ref := range []string{"main", "master", "origin/main", "origin/master"} {
+		_, err := git(ctx, repo, "rev-parse", "--verify", "--quiet", ref+"^{commit}")
+		if errors.Is(err, ErrGitTimeout) {
+			return "", err
+		}
+		if err == nil {
+			return ref, nil
+		}
+	}
+	return "", nil
+}
+
+// localName is a branch name without its remote: origin/main is main.
+func localName(ref string) string {
+	if i := strings.Index(ref, "/"); i >= 0 && strings.HasPrefix(ref, "origin/") {
+		return ref[i+1:]
+	}
+	return ref
+}
+
+// Protected reports whether a branch is one omega never offers to delete
+// whatever git says of it: the main lines of work (main, master, develop…,
+// release/…) and the backups somebody made on purpose.
+func Protected(branch string) bool {
+	switch {
+	case branch == "main", branch == "master", branch == "trunk",
+		strings.HasPrefix(branch, "develop"), strings.HasPrefix(branch, "release"),
+		strings.HasPrefix(branch, "backup"):
+		return true
+	}
+	return false
+}
+
+// keptBranches are the branches of a repository that must stay whatever
+// is merged: the default one, the one HEAD is on, those checked out in any
+// worktree, and the upstream of each of those (a worktree on feature
+// tracking origin/develop2 keeps develop2).
+func keptBranches(ctx context.Context, repo, def, current string) (map[string]bool, error) {
+	keep := map[string]bool{}
+	if def != "" {
+		keep[localName(def)] = true
+	}
+	if current != "" && current != "HEAD" {
+		keep[current] = true
+	}
+	out, err := git(ctx, repo, "worktree", "list", "--porcelain")
+	if errors.Is(err, ErrGitTimeout) {
+		return nil, err
+	}
+	for _, line := range strings.Split(out, "\n") {
+		if b, ok := strings.CutPrefix(strings.TrimSpace(line), "branch refs/heads/"); ok {
+			keep[b] = true
+		}
+	}
+	out, err = git(ctx, repo, "for-each-ref", "--format=%(refname:short) %(upstream:short)", "refs/heads")
+	if errors.Is(err, ErrGitTimeout) {
+		return nil, err
+	}
+	for _, line := range strings.Split(out, "\n") {
+		branch, upstream, ok := strings.Cut(strings.TrimSpace(line), " ")
+		if !ok || upstream == "" || !keep[branch] {
+			continue
+		}
+		// The upstream as a local branch name: origin/develop2 is develop2.
+		if _, name, ok := strings.Cut(upstream, "/"); ok {
+			keep[name] = true
+		} else {
+			keep[upstream] = true
+		}
+	}
+	return keep, nil
+}
+
+// mergedBranches lists the local branches merged into def (HEAD when def
+// is ""), without the protected and kept ones.
+func mergedBranches(ctx context.Context, repo, def, current string) ([]string, error) {
+	args := []string{"branch", "--format=%(refname:short)", "--merged"}
+	if def != "" {
+		args = append(args, def)
+	}
+	out, err := git(ctx, repo, args...)
+	if err != nil {
+		return nil, err
+	}
+	keep, err := keptBranches(ctx, repo, def, current)
+	if err != nil {
+		return nil, err
+	}
+	var merged []string
+	for _, b := range strings.Split(out, "\n") {
+		b = strings.TrimSpace(b)
+		// "(HEAD detached at …)" is not a branch.
+		if b == "" || strings.HasPrefix(b, "(") || keep[b] || Protected(b) {
+			continue
+		}
+		merged = append(merged, b)
+	}
+	return merged, nil
 }
 
 // largeFiles lists the files over 50 MB in a repository, four folders deep
@@ -203,7 +317,8 @@ func largeFiles(repoPath string) []string {
 // ErrRepoBusy is returned for a repository another git process is using.
 var ErrRepoBusy = errors.New("another git process is using the repository")
 
-// OptimizeRepo runs git gc and repacks loose objects to reclaim space.
+// OptimizeRepo runs git gc and repacks loose objects to reclaim space. It
+// returns the bytes freed.
 //
 // It is the gc git runs by itself: objects nothing points to are kept for
 // two weeks. --prune=now would delete at once what can still be recovered
@@ -216,13 +331,13 @@ func OptimizeRepo(ctx context.Context, repoPath string) (int64, error) {
 			return 0, ErrRepoBusy
 		}
 	}
-	before := dirSizeMB(filepath.Join(repoPath, ".git"))
+	before := dirSize(filepath.Join(repoPath, ".git"))
 	cmd := fmt.Sprintf("git -C %s gc --quiet 2>&1", shellQuote(repoPath))
 	res := runner.Run(ctx, cmd, 120*time.Second, nil)
 	if res.ExitCode != 0 {
 		return 0, fmt.Errorf("git gc failed: %s", strings.TrimSpace(res.Output))
 	}
-	after := dirSizeMB(filepath.Join(repoPath, ".git"))
+	after := dirSize(filepath.Join(repoPath, ".git"))
 	freed := before - after
 	if freed < 0 {
 		freed = 0
@@ -232,16 +347,41 @@ func OptimizeRepo(ctx context.Context, repoPath string) (int64, error) {
 
 // DeleteMergedBranches removes the local merged branches. It returns the
 // ones it deleted, and an error that names every one git refused to
-// delete and why.
+// delete and why. A protected or kept branch (see CheckRepo) is never
+// deleted, whatever the caller passed.
 func DeleteMergedBranches(ctx context.Context, repoPath string, branches []string) ([]string, error) {
 	var deleted []string
 	var failed []error
+	current := ""
+	if out, err := git(ctx, repoPath, "rev-parse", "--abbrev-ref", "HEAD"); err == nil {
+		current = strings.TrimSpace(out)
+	}
+	def, err := defaultBranch(ctx, repoPath)
+	if err != nil {
+		return nil, err
+	}
+	keep, err := keptBranches(ctx, repoPath, def, current)
+	if err != nil {
+		return nil, err
+	}
 	for _, b := range branches {
-		if b == "main" || b == "master" || b == "develop" {
+		if Protected(b) {
 			continue
 		}
-		// -d, never -D: git itself refuses a branch that is not merged.
-		if _, err := git(ctx, repoPath, "branch", "-d", "--", b); err != nil {
+		if keep[b] {
+			failed = append(failed, fmt.Errorf("%s: checked out or the upstream of a worktree; kept", b))
+			continue
+		}
+		// -d: git refuses a branch that is not merged into its upstream
+		// or HEAD. One merged into the default branch while HEAD is
+		// elsewhere is checked here, and only then deleted with -D.
+		_, err := git(ctx, repoPath, "branch", "-d", "--", b)
+		if err != nil && def != "" {
+			if _, aerr := git(ctx, repoPath, "merge-base", "--is-ancestor", "refs/heads/"+b, def); aerr == nil {
+				_, err = git(ctx, repoPath, "branch", "-D", "--", b)
+			}
+		}
+		if err != nil {
 			failed = append(failed, fmt.Errorf("%s: %w", b, err))
 			continue
 		}
@@ -250,7 +390,7 @@ func DeleteMergedBranches(ctx context.Context, repoPath string, branches []strin
 	return deleted, errors.Join(failed...)
 }
 
-func dirSizeMB(path string) int64 {
+func dirSize(path string) int64 {
 	var total int64
 	_ = filepath.Walk(path, func(_ string, info os.FileInfo, err error) error {
 		if err == nil && info != nil && !info.IsDir() {
@@ -258,7 +398,7 @@ func dirSizeMB(path string) int64 {
 		}
 		return nil
 	})
-	return total / (1024 * 1024)
+	return total
 }
 
 func shellQuote(s string) string {

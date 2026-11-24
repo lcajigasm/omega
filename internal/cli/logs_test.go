@@ -33,12 +33,12 @@ func TestLogsListAndView(t *testing.T) {
 		t.Fatal(err)
 	}
 	out := buf.String()
-	newer := strings.Index(out, "2024-06-01_000000.log")
-	older := strings.Index(out, "2024-01-01_000000.log")
+	newer := strings.Index(out, "2024-06-01 00:00")
+	older := strings.Index(out, "2024-01-01 00:00")
 	if newer < 0 || older < 0 || newer > older {
 		t.Fatalf("newest should be listed first:\n%s", out)
 	}
-	if !strings.Contains(out, dir) || !strings.Contains(out, "keeping the newest") {
+	if !strings.Contains(out, dir) || !strings.Contains(out, "the newest 30 are kept") {
 		t.Fatalf("list header:\n%s", out)
 	}
 

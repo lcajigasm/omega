@@ -58,7 +58,7 @@ func assertSnap(t *testing.T, name, view string) {
 		got += "\n"
 	}
 	path := filepath.Join("testdata", name+".snap")
-	if os.Getenv("OMEGA_UPDATE_SNAPS") == "1" {
+	if *update || os.Getenv("OMEGA_UPDATE_SNAPS") == "1" {
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 			t.Fatal(err)
 		}

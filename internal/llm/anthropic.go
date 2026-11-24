@@ -23,7 +23,9 @@ type anthropicProvider struct {
 func newAnthropic(name string, opts Options) *anthropicProvider {
 	// Retries belong to sendRetried, on the same schedule as the OpenAI client.
 	// The SDK's own backoff would stack on top of that one.
-	reqOpts := []option.RequestOption{option.WithAPIKey(opts.APIKey), option.WithMaxRetries(0)}
+	// A time limit on each attempt, as the OpenAI-compatible client has: a
+	// connection that hangs would otherwise hold a scheduled run for ever.
+	reqOpts := []option.RequestOption{option.WithAPIKey(opts.APIKey), option.WithMaxRetries(0), option.WithRequestTimeout(requestTimeout)}
 	if opts.BaseURL != "" {
 		reqOpts = append(reqOpts, option.WithBaseURL(opts.BaseURL))
 	}
@@ -248,7 +250,7 @@ func (c *anthropicChat) sendRetried(ctx context.Context) (*anthropic.Message, er
 	var retryAfter string
 	for attempt := 0; attempt < 4; attempt++ {
 		if attempt > 0 {
-			if err := c.pause(ctx, retryWait(attempt, retryAfter)); err != nil {
+			if err := pause(ctx, c.after, retryWait(attempt, retryAfter)); err != nil {
 				return nil, err
 			}
 		}
@@ -270,19 +272,6 @@ func (c *anthropicChat) sendRetried(ctx context.Context) (*anthropic.Message, er
 		}
 	}
 	return nil, lastErr
-}
-
-func (c *anthropicChat) pause(ctx context.Context, d time.Duration) error {
-	after := c.after
-	if after == nil {
-		after = time.After
-	}
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-after(d):
-		return nil
-	}
 }
 
 func retryableAnthropic(err error) bool {

@@ -17,11 +17,14 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/lcajigasm/omega/internal/safety"
 )
 
-func shellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'" }
+// ShellQuote quotes s as one word for a POSIX shell (sh, bash, zsh): in
+// single quotes, each single quote in s closed, escaped and reopened.
+func ShellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'" }
 
 // Result is the outcome of a command.
 type Result struct {
@@ -100,7 +103,7 @@ func shellInvocation(script string) (string, []string) {
 		return sh, []string{"/d", "/c", script}
 	default:
 		if pathPrefix != "" {
-			script = "export PATH=" + shellQuote(pathPrefix) + ":\"$PATH\"; " + script
+			script = "export PATH=" + ShellQuote(pathPrefix) + ":\"$PATH\"; " + script
 		}
 		return sh, []string{"-lc", unsetWithheld(base) + resetAskpass() + posixPrelude(base) + script}
 	}
@@ -134,7 +137,7 @@ func posixPrelude(shell string) string {
 func resetAskpass() string {
 	for _, kv := range extraEnv {
 		if v, ok := strings.CutPrefix(kv, "SUDO_ASKPASS="); ok {
-			return "export SUDO_ASKPASS=" + shellQuote(v) + "; "
+			return "export SUDO_ASKPASS=" + ShellQuote(v) + "; "
 		}
 	}
 	return ""
@@ -574,15 +577,17 @@ func Configure(env []string, prefix string) {
 // the interface. onLine receives each line of output.
 func Run(ctx context.Context, command string, timeout time.Duration, onLine func(string)) Result {
 	start := time.Now()
+	// The login environment is read once, by the first command; its time
+	// does not count against that command's timeout.
+	envOnce.Do(func() {
+		redactEnv()
+		scanEnv(loginEnv())
+	})
 	if timeout > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, timeout)
 		defer cancel()
 	}
-	envOnce.Do(func() {
-		redactEnv()
-		scanEnv(loginEnv())
-	})
 	name, args := shellInvocation(command)
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Stdin = nil
@@ -617,6 +622,9 @@ func Run(ctx context.Context, command string, timeout time.Duration, onLine func
 		rd := bufio.NewReaderSize(pr, maxLine)
 		var keys pemMask
 		emit := func(raw []byte, cut bool) {
+			if cut {
+				raw = wholeRunes(raw)
+			}
 			line := keys.line(scrub(stripANSI(string(raw))))
 			if cut {
 				line += " [omega: line cut]"
@@ -702,23 +710,50 @@ func (c *capture) add(s string) {
 		}
 		// One line can be up to the scanner limit (1 MB). Keep the budget:
 		// the head stays at headBytes and the rest competes for the tail.
+		// The cut goes back to the start of a character, so a Spanish or
+		// Japanese line is not left with half of one.
+		for room > 0 && !utf8.RuneStart(s[room]) {
+			room--
+		}
 		c.head.WriteString(s[:room])
 		s = s[room:]
 	}
 	c.tail = append(c.tail, s...)
 	if len(c.tail) > tailBytes*2 {
-		cut := len(c.tail) - tailBytes
+		cut := runeCut(c.tail, len(c.tail)-tailBytes)
 		c.dropped += cut
 		c.tail = append([]byte(nil), c.tail[cut:]...)
 	}
+}
+
+// wholeRunes drops a character left incomplete at the end of b by a cut.
+func wholeRunes(b []byte) []byte {
+	i := len(b) - 1
+	for i > 0 && len(b)-i < utf8.UTFMax && !utf8.RuneStart(b[i]) {
+		i--
+	}
+	if i >= 0 && !utf8.FullRune(b[i:]) {
+		return b[:i]
+	}
+	return b
+}
+
+// runeCut moves a cut at i forward to the start of the next character, so
+// that b[i:] does not begin with the end of one.
+func runeCut(b []byte, i int) int {
+	for i < len(b) && !utf8.RuneStart(b[i]) {
+		i++
+	}
+	return i
 }
 
 func (c *capture) String() string {
 	tail := c.tail
 	dropped := c.dropped
 	if len(tail) > tailBytes {
-		dropped += len(tail) - tailBytes
-		tail = tail[len(tail)-tailBytes:]
+		cut := runeCut(tail, len(tail)-tailBytes)
+		dropped += cut
+		tail = tail[cut:]
 	}
 	if dropped == 0 {
 		return c.head.String() + string(tail)

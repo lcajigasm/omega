@@ -236,9 +236,19 @@ func okText(s string) string { return "✓ " + s }
 func modelCmd() *cobra.Command {
 	var provider string
 	c := &cobra.Command{
-		Use:   "model [model|auto]",
-		Short: i18n.T("cmd.model"),
-		Args:  cobra.MaximumNArgs(1),
+		Use:         "model [model|auto]",
+		Short:       i18n.T("cmd.model"),
+		Long:        i18n.T("cmd.model_long"),
+		Args:        cobra.MaximumNArgs(1),
+		Example:     "  omega model\n  omega model claude-sonnet-5-5\n  omega model auto\n  omega model list",
+		Annotations: map[string]string{"see_also": "omega model list, omega config set model, omega setup"},
+		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
+			if len(args) > 0 {
+				return nil, cobra.ShellCompDirectiveNoFileComp
+			}
+			out, dir := completeModels(cmd, args, toComplete)
+			return append(out, "list"), dir
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := config.Load()
 			if err != nil {
@@ -280,7 +290,68 @@ func modelCmd() *cobra.Command {
 		},
 	}
 	c.Flags().StringVar(&provider, "provider", "", i18n.T("flag.provider"))
+	c.AddCommand(modelListCmd())
 	return c
+}
+
+// modelEntry is one model as `omega model list --json` gives it.
+type modelEntry struct {
+	Name      string  `json:"name"`
+	Score     float64 `json:"score,omitempty"`
+	Estimated bool    `json:"score_estimated,omitempty"`
+	InputUSD  float64 `json:"input_usd_per_mtok,omitempty"`
+	OutputUSD float64 `json:"output_usd_per_mtok,omitempty"`
+	Pick      string  `json:"pick,omitempty"` // fast, smart or both
+}
+
+// modelList is the answer of `omega model list --json`.
+type modelList struct {
+	Provider string       `json:"provider"`
+	Fixed    string       `json:"fixed,omitempty"` // the model the configuration names
+	Fast     string       `json:"fast,omitempty"`
+	Smart    string       `json:"smart,omitempty"`
+	Models   []modelEntry `json:"models"`
+}
+
+// modelsList is what modelsReport shows, as data.
+func modelsList(cfg *config.Config, info llm.Info, available []string, filter string) modelList {
+	fast, smart := tiers(cfg, info)
+	out := modelList{Provider: info.Name, Fast: fast, Smart: smart, Models: []modelEntry{}}
+	if m := cfg.ModelFor(info.Name); m != "" && m != "auto" {
+		out.Fixed = m
+	}
+	match := func(name string) bool {
+		return filter == "" || strings.Contains(strings.ToLower(name), strings.ToLower(filter))
+	}
+	pick := func(name string) string {
+		switch {
+		case name == fast && name == smart:
+			return "both"
+		case name == fast:
+			return "fast"
+		case name == smart:
+			return "smart"
+		}
+		return ""
+	}
+	listed := map[string]bool{}
+	if modelStore != nil && len(modelStore.Models) > 0 && cfg.Catalog != config.CatalogOff {
+		for _, c := range modelStore.For(info.Name, available, time.Now()) {
+			listed[c.Native] = true
+			if match(c.Native) {
+				out.Models = append(out.Models, modelEntry{Name: c.Native, Score: c.Score, Estimated: c.Estimated,
+					InputUSD: c.In, OutputUSD: c.Out, Pick: pick(c.Native)})
+			}
+		}
+	}
+	rest := append([]string(nil), available...)
+	sort.Strings(rest)
+	for _, m := range rest {
+		if !listed[m] && match(m) && !strings.HasSuffix(m, ":batch") {
+			out.Models = append(out.Models, modelEntry{Name: m, Pick: pick(m)})
+		}
+	}
+	return out
 }
 
 // newProvider builds a provider with its key (none for local servers).
@@ -382,10 +453,12 @@ func modelsReport(w io.Writer, cfg *config.Config, info llm.Info, available []st
 		}
 		return ""
 	}
+	rep := ui.NewReport(w)
 	listed := map[string]bool{}
 	estimated := false
 	if modelStore != nil && len(modelStore.Models) > 0 && cfg.Catalog != config.CatalogOff {
-		fmt.Fprintf(w, "  %-40s %7s %9s %9s\n", i18n.T("models.col_model"), i18n.T("models.col_score"), i18n.T("models.col_in"), i18n.T("models.col_out"))
+		var rows [][]string
+		var marks []ui.Mark
 		for _, c := range modelStore.For(info.Name, available, time.Now()) {
 			listed[c.Native] = true
 			if !match(c.Native) {
@@ -398,23 +471,32 @@ func modelsReport(w io.Writer, cfg *config.Config, info llm.Info, available []st
 					score, estimated = "~"+score, true
 				}
 			}
-			lead := "  "
+			name, m := c.Native, ui.MarkNone
 			if mark(c.Native) != "" {
-				lead = "▸ "
+				name, m = rep.Bold(name), ui.MarkCurrent
 			}
-			fmt.Fprintf(w, "%s%-40s %7s %9s %9s  %s\n", lead, c.Native, score, dollars(c.In), dollars(c.Out), mark(c.Native))
+			rows = append(rows, []string{name, score, dollars(c.In), dollars(c.Out), rep.Accent(mark(c.Native))})
+			marks = append(marks, m)
 		}
+		rep.Table([]ui.Column{{Title: i18n.T("models.col_model")}, {Title: i18n.T("models.col_score"), Right: true},
+			{Title: i18n.T("models.col_in"), Right: true}, {Title: i18n.T("models.col_out"), Right: true}, {Title: ""}}, rows, marks)
 	}
 	sort.Strings(available)
+	var rows [][]string
+	var marks []ui.Mark
 	for _, m := range available {
 		if listed[m] || !match(m) || strings.HasSuffix(m, ":batch") {
 			continue
 		}
-		lead := "  "
+		mk := ui.MarkNone
 		if mark(m) != "" {
-			lead = "▸ "
+			mk = ui.MarkCurrent
 		}
-		fmt.Fprintf(w, "%s%-40s %s  %s\n", lead, m, priceBadge(info.Name, m), mark(m))
+		rows = append(rows, []string{m, priceBadge(info.Name, m), rep.Accent(mark(m))})
+		marks = append(marks, mk)
+	}
+	if len(rows) > 0 {
+		rep.Table([]ui.Column{{}, {}, {}}, rows, marks)
 	}
 	fmt.Fprintln(w)
 	if estimated {

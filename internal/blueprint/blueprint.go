@@ -6,14 +6,19 @@
 package blueprint
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/BurntSushi/toml"
 
 	"github.com/lcajigasm/omega/internal/config"
 	"github.com/lcajigasm/omega/internal/devtools"
@@ -44,6 +49,9 @@ type SystemBlueprint struct {
 	PipxPackages []string       `json:"pipx_packages,omitempty"`
 	DevTools     []string       `json:"dev_tools,omitempty"`
 	Config       *config.Config `json:"config,omitempty"`
+	// Routines is custom.toml as it was written: the routines of
+	// `omega custom`.
+	Routines string `json:"custom_toml,omitempty"`
 	// Unlisted names what could not be listed, so nobody takes an incomplete
 	// file for the whole machine.
 	Unlisted []string          `json:"unlisted,omitempty"`
@@ -142,6 +150,12 @@ func Export(ctx context.Context, path string) (*SystemBlueprint, error) {
 		bp.Unlisted = append(bp.Unlisted, fmt.Sprintf("omega configuration (%v)", err))
 	}
 
+	if data, err := os.ReadFile(config.CustomPath()); err == nil {
+		bp.Routines = string(data)
+	} else if !errors.Is(err, os.ErrNotExist) {
+		bp.Unlisted = append(bp.Unlisted, fmt.Sprintf("omega routines (%v)", err))
+	}
+
 	if path != "" {
 		data, err := json.MarshalIndent(bp, "", "  ")
 		if err != nil {
@@ -188,6 +202,13 @@ func Load(path string) (*SystemBlueprint, error) {
 			if !ValidName(name) {
 				return nil, fmt.Errorf("%s: %q in %q is not a package name; nothing was installed", path, name, list.field)
 			}
+		}
+	}
+	if bp.Routines != "" {
+		// What comes back is written as custom.toml: it must read as TOML.
+		var v map[string]any
+		if _, err := toml.Decode(bp.Routines, &v); err != nil {
+			return nil, fmt.Errorf("%s: custom_toml is not valid TOML: %v; nothing was installed", path, err)
 		}
 	}
 	return &bp, nil
@@ -297,4 +318,57 @@ func SaveConfig(cfg *config.Config) (backup string, err error) {
 		}
 	}
 	return backup, cfg.Save()
+}
+
+// RoutinesChange says what restoring the blueprint's routines would do here:
+// write is false when the blueprint has none or custom.toml already holds
+// them; replaces is true when a different custom.toml is there.
+func (bp *SystemBlueprint) RoutinesChange() (write, replaces bool) {
+	if bp.Routines == "" {
+		return false, false
+	}
+	current, err := os.ReadFile(config.CustomPath())
+	if err != nil {
+		return true, false
+	}
+	if bytes.Equal(bytes.TrimSpace(current), bytes.TrimSpace([]byte(bp.Routines))) {
+		return false, false
+	}
+	return true, true
+}
+
+// SaveRoutines writes the blueprint's routines to custom.toml in one step.
+// A custom.toml that was there is copied to custom.toml.bak first; backup
+// is its path, or "" when there was none.
+func (bp *SystemBlueprint) SaveRoutines() (backup string, err error) {
+	path := config.CustomPath()
+	if old, readErr := os.ReadFile(path); readErr == nil {
+		backup = path + ".bak"
+		if err := os.WriteFile(backup, old, 0o600); err != nil {
+			return "", fmt.Errorf("backing up the routines: %w", err)
+		}
+	}
+	return backup, writeAtomic(path, []byte(bp.Routines))
+}
+
+// writeAtomic replaces a file in one step: a reader sees the old file or
+// the new one, never half of it.
+func writeAtomic(path string, data []byte) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	f, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+"-*")
+	if err != nil {
+		return err
+	}
+	tmp := f.Name()
+	defer os.Remove(tmp)
+	if _, err := f.Write(data); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmp, path)
 }

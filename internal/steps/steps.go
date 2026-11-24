@@ -505,7 +505,10 @@ var catalog = []Step{
 	{OS: mac, ID: "mole-optimize", Name: "Mole optimize", Category: Backend, Command: moleQuiet("optimize"), Risk: safety.Dangerous, Requires: "mo", Install: "brew install mole"},
 	{OS: mac, ID: "mole-purge-preview", Name: "Mole purge (dry run)", Category: Backend, Command: moleQuiet("purge --dry-run"), Risk: safety.Safe, Requires: "mo", Install: "brew install mole",
 		Description: "Project build artifacts Mole would remove, in its scan folders (mo purge --paths)"},
-	{OS: mac, ID: "mole-purge", Name: "Mole purge", Category: Clean, Command: moleQuiet("purge --yes"), Risk: safety.Dangerous, Requires: "mo", Install: "brew install mole",
+	// AlwaysConfirm: --yes answers Mole's own question, and what it removes
+	// is the user's projects' folders; a scheduled clean must not do it with
+	// nobody there.
+	{OS: mac, ID: "mole-purge", Name: "Mole purge", Category: Clean, Command: moleQuiet("purge --yes"), Risk: safety.Dangerous, Requires: "mo", Install: "brew install mole", AlwaysConfirm: true,
 		Description: "Removes the build artifacts (node_modules, target, .venv...) of projects with no change in the last 7 days, in Mole's scan folders; " +
 			"they come back with the next install or build. Without --yes Mole selects nothing (\"No items selected\" does not mean there was nothing to clean)"},
 	{OS: mac, ID: "mole-update", Name: "Update Mole", Category: Backend, Command: "mo update", Risk: safety.Normal, Requires: "mo", Install: "brew install mole"},

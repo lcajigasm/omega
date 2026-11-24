@@ -8,6 +8,9 @@ root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root"
 
 export OMEGA_LANG=en
+# termenv takes CI=… (set on every CI runner) to mean no terminal and drops
+# all colour; the recordings run in a real terminal and must keep it.
+unset CI
 export XDG_CONFIG_HOME="${OMEGA_CAPTURE_CONFIG:-$(mktemp -d)}"
 export XDG_STATE_HOME="${OMEGA_CAPTURE_STATE:-$(mktemp -d)}"
 export XDG_DATA_HOME="${OMEGA_CAPTURE_DATA:-$(mktemp -d)}"
@@ -44,15 +47,23 @@ echo "capture: demo session (gif and screenshots)"
 rm -f "$XDG_CONFIG_HOME/omega/config.toml"
 vhs docs/assets/demo.tape
 
+# asciinema 3 writes asciicast v3 unless told otherwise, and takes the size
+# as --window-size; the README player and cast_test.go read v2.
+if asciinema rec --help 2>&1 | grep -q -- --output-format; then
+  asc_size=(--output-format asciicast-v2 --window-size 100x32)
+else
+  asc_size=(--cols 100 --rows 32)
+fi
+
 echo "capture: ?, Esc and a denial"
 cast=docs/assets/shortcuts.cast
 rm -f "$cast"
 title="omega: help, Esc and a denial"
 if [ -t 1 ]; then
-  asciinema rec -q --overwrite --cols 100 --rows 32 -i 2 \
+  asciinema rec -q --overwrite "${asc_size[@]}" -i 2 \
     -t "$title" -c "python3 scripts/drive_shortcuts.py" "$cast"
 else
-  script -qefc "TERM=xterm-256color asciinema rec -q --overwrite --cols 100 --rows 32 -i 2 -t '$title' -c 'python3 scripts/drive_shortcuts.py' '$cast'" /dev/null
+  script -qefc "TERM=xterm-256color asciinema rec -q --overwrite ${asc_size[*]} -i 2 -t '$title' -c 'python3 scripts/drive_shortcuts.py' '$cast'" /dev/null
 fi
 python3 - "$cast" <<'PY'
 import json, sys
@@ -80,10 +91,10 @@ cast=docs/assets/failure.cast
 rm -f "$cast"
 title="omega: a refused key and scrolling during approval"
 if [ -t 1 ]; then
-  asciinema rec -q --overwrite --cols 100 --rows 32 -i 2 \
+  asciinema rec -q --overwrite "${asc_size[@]}" -i 2 \
     -t "$title" -c "python3 scripts/drive_failure.py" "$cast"
 else
-  script -qefc "TERM=xterm-256color asciinema rec -q --overwrite --cols 100 --rows 32 -i 2 -t '$title' -c 'python3 scripts/drive_failure.py' '$cast'" /dev/null
+  script -qefc "TERM=xterm-256color asciinema rec -q --overwrite ${asc_size[*]} -i 2 -t '$title' -c 'python3 scripts/drive_failure.py' '$cast'" /dev/null
 fi
 python3 - "$cast" <<'PY'
 import json, sys

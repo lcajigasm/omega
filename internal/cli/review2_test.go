@@ -164,7 +164,12 @@ func TestDeterministicRefusesWhatNeedsTheModel(t *testing.T) {
 	if _, err := execRoot(t, "--json", "what", "is", "using", "my", "disk"); err == nil || !strings.Contains(err.Error(), "needs the AI") {
 		t.Errorf("omega --json <sentence>: %v", err)
 	}
-	needAI := [][]string{{"dev", "--no-ai"}, {"fix", "--json"}, {"tune", "--offline"}}
+	// fix takes only the agent's flags: --json is refused as an option
+	// it does not have, with the help to read and the status of a usage error.
+	if _, err := execRoot(t, "fix", "--json"); err == nil || !strings.Contains(err.Error(), "--json") || !strings.Contains(err.Error(), "omega fix --help") {
+		t.Errorf("omega fix --json: %v", err)
+	}
+	needAI := [][]string{{"dev", "--no-ai"}, {"tune", "--offline"}}
 	if runtime.GOOS == "darwin" { // elsewhere `omega mac` says it is for macOS
 		needAI = append(needAI, []string{"mac", "--json"})
 	}
@@ -825,24 +830,9 @@ func TestStepsAndDoctorJSON(t *testing.T) {
 // `brew upgrade omega` failed; v0.25.0 printed the help instead of a script.
 func TestCompletionAsHomebrewAsksForIt(t *testing.T) {
 	for _, shell := range []string{"bash", "zsh", "fish", "powershell"} {
-		r, w, err := os.Pipe()
-		if err != nil {
-			t.Fatal(err)
-		}
-		// Read while the script is written: a pipe holds little (on Windows
-		// less than the bash script), and the writer would wait for ever.
-		read := make(chan []byte)
-		go func() {
-			b, _ := io.ReadAll(r)
-			read <- b
-		}()
-		stdout := os.Stdout
-		os.Stdout = w
-		_, runErr := execRoot(t, "completion", "completion", shell)
-		os.Stdout = stdout
-		w.Close()
-		script := <-read
-		r.Close()
+		// The script goes to the command's output, which is stdout when
+		// Homebrew runs the binary.
+		script, runErr := execRoot(t, "completion", "completion", shell)
 		if runErr != nil {
 			t.Errorf("%s: %v", shell, runErr)
 		}

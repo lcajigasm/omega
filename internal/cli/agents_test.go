@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -40,12 +41,32 @@ func TestClaudeList(t *testing.T) {
 	r := fakeAgents(t)
 	var out bytes.Buffer
 	writeAgents(&out, r)
-	for _, want := range []string{"3 processes from 2 closed sessions", "and 1 shared daemon", "Claude Code · shop · aaaa1111 · Fix checkout",
-		":5173", "Codex · api · bbbb3333", "shared daemon: kept unless named", "Claude Code · omega · cccc5555 · pid 9300", "this one",
-		"web · dddd6666 · pid 9400 · idle 3 h", "400 MB"} {
+	for _, want := range []string{"3 processes from 2 closed sessions", "SHARED DAEMONS 1", "pid 9202 · git fsmonitor--daemon run",
+		"Claude Code · shop · aaaa1111 · Fix checkout", ":5173", "Codex · api · bbbb3333", "kept by omega agents kill unless named",
+		"Claude Code · omega · cccc5555 · pid 9300", "this one", "web · dddd6666 · pid 9400  idle 3 h", "381 MB", "omega agents kill ends"} {
 		if !strings.Contains(out.String(), want) {
 			t.Errorf("%q is missing from:\n%s", want, out.String())
 		}
+	}
+}
+
+// With nothing left behind there is no invitation to end anything, and
+// identical shared daemons are one line whose memory adds up with the
+// header's.
+func TestClaudeListNothingToKill(t *testing.T) {
+	r := &aiagents.Report{Taken: time.Now()}
+	for i := 0; i < 30; i++ {
+		r.Leftovers = append(r.Leftovers, aiagents.Group{Agent: "claude", Session: fmt.Sprintf("s%d", i), Procs: []aiagents.Proc{
+			{PID: 7000 + i, Command: "git fsmonitor--daemon run", Path: "git", Memory: uint64(2+i%4) << 20, Shared: true}}})
+	}
+	var out bytes.Buffer
+	writeAgents(&out, r)
+	got := out.String()
+	if strings.Contains(got, "omega agents kill ends") || !strings.Contains(got, "Nothing left behind") {
+		t.Errorf("an invitation to kill with nothing to kill:\n%s", got)
+	}
+	if !strings.Contains(got, "30 × git fsmonitor--daemon run, 2–5 MB") || strings.Count(got, "fsmonitor") != 1 {
+		t.Errorf("the shared daemons are not one line:\n%s", got)
 	}
 }
 

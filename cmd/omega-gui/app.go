@@ -149,7 +149,7 @@ func (a *App) Info() Info {
 	in := Info{Version: cli.Version(), OS: runtime.GOOS, Lang: i18n.Lang(), Demo: a.demo,
 		Tagline: i18n.T("ui.welcome_tagline"), LastRun: cli.LastRun(),
 		Text: i18n.WithPrefix("gui.", "setup.no_key", "ui.mode_", "ui.password_", "ui.always_note", "ui.denied", "ui.confirm",
-			"ui.model_switch", "logs.empty", "notes.empty")}
+			"ui.model_switch", "logs.empty", "notes.empty", "custom.weekdays")}
 	in.Provider, in.Ready = cli.CurrentProvider()
 	for _, id := range homeTasks {
 		if _, ok := agent.TaskPrompts[id]; !ok || (id == agent.TaskMac && runtime.GOOS != "darwin") {
@@ -189,6 +189,17 @@ func (a *App) SetModel(choice string) error { return cli.SetModel(choice) }
 
 // Steps lists the maintenance steps of this machine.
 func (a *App) Steps() ([]cli.StepInfo, error) { return cli.StepList() }
+
+// Routines lists the routines of omega custom, with their steps and
+// options.
+func (a *App) Routines() (cli.RoutinesInfo, error) { return cli.Routines() }
+
+// SaveRoutine saves one routine as the Routines card left it: its steps in
+// order, those whose failure ends the run, the free-space limit in GB (0:
+// always) and the weekdays of a scheduled run (mon … sun; none: every day).
+func (a *App) SaveRoutine(name string, ids, stopOnFail []string, onlyBelowFreeGB float64, days []string) error {
+	return cli.SaveRoutine(name, ids, stopOnFail, onlyBelowFreeGB, days)
+}
 
 // SkipStep turns a step off or back on.
 func (a *App) SkipStep(id string, skip bool) error { return cli.SkipStep(id, skip) }

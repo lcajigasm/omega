@@ -144,10 +144,10 @@ func TestSkillsForTheApp(t *testing.T) {
 		}
 	}
 
-	if out, err = SkillAction("update", "pdf", ""); err != nil || !strings.Contains(out, "up to date") {
+	if out, err = SkillAction("update", "pdf", ""); err != nil || !strings.Contains(out, i18n.T("skills.st_current")) {
 		t.Errorf("update: %v\n%s", err, out)
 	}
-	if out, err = SkillAction("remove", "pdf", "claude"); err != nil || !strings.Contains(out, "removed") {
+	if out, err = SkillAction("remove", "pdf", "claude"); err != nil || !strings.Contains(out, i18n.T("skills.removed", "pdf")) {
 		t.Errorf("remove: %v\n%s", err, out)
 	}
 	if out, err = SkillAction("sync", "", ""); err != nil || !strings.Contains(out, "~/.claude/skills/pdf") {

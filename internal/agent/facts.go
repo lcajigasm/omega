@@ -231,7 +231,7 @@ func worktreeFacts(ctx context.Context, home string) string {
 		if len(clean) > 0 {
 			b.WriteString("  clean and pushed (safe to remove, one option per worktree on a card):\n")
 			for _, p := range clean {
-				fmt.Fprintf(&b, "    git -C %s worktree remove %s\n", shellQuote(repo), shellQuote(p))
+				fmt.Fprintf(&b, "    git -C %s worktree remove %s\n", safety.ShellQuote(repo), safety.ShellQuote(p))
 			}
 		}
 	}

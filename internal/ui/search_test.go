@@ -44,7 +44,13 @@ func TestTranscriptSearch(t *testing.T) {
 	}
 	second := m.vp.YOffset
 
+	// ctrl+p switches the model everywhere else, so it does nothing here;
+	// up goes to the previous match.
 	m.Update(tea.KeyMsg{Type: tea.KeyCtrlP})
+	if m.vp.YOffset != second {
+		t.Fatalf("ctrl+p moved the search: %d, want %d", m.vp.YOffset, second)
+	}
+	m.Update(tea.KeyMsg{Type: tea.KeyUp})
 	if m.vp.YOffset != first {
 		t.Fatalf("previous match offset %d, want %d (second was %d)", m.vp.YOffset, first, second)
 	}

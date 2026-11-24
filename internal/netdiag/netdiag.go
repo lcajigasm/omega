@@ -13,8 +13,11 @@ import (
 	"net/url"
 	"os"
 	"runtime"
+	"slices"
+	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/lcajigasm/omega/internal/runner"
@@ -72,19 +75,37 @@ type NetworkAudit struct {
 	Warnings    []string          `json:"warnings"`
 }
 
-// DefaultRegistries to check in net ping.
-var DefaultRegistries = []struct {
+// Registry is a place net ping checks. OS, when not empty, lists the
+// systems where it matters: Ubuntu's mirrors say nothing about a Mac.
+type Registry struct {
 	Name string
 	URL  string
-}{
-	{"Homebrew", "https://github.com/Homebrew/brew"},
-	{"npm", "https://registry.npmjs.org"},
-	{"PyPI", "https://pypi.org"},
-	{"crates.io", "https://crates.io"},
-	{"Docker Hub", "https://registry-1.docker.io"},
-	{"GitHub", "https://api.github.com"},
-	{"Ubuntu Mirrors", "https://archive.ubuntu.com"},
-	{"Go Packages", "https://proxy.golang.org"},
+	OS   []string
+}
+
+// DefaultRegistries to check in net ping. The URLs answer 200 to a plain
+// request, so a code of 400 or more says something about the service.
+var DefaultRegistries = []Registry{
+	{"Homebrew", "https://formulae.brew.sh", []string{"darwin", "linux"}},
+	{"npm", "https://registry.npmjs.org", nil},
+	{"PyPI", "https://pypi.org", nil},
+	{"crates.io", "https://crates.io", nil},
+	{"Docker Hub", "https://hub.docker.com", nil},
+	{"GitHub", "https://api.github.com", nil},
+	{"Go Packages", "https://proxy.golang.org", nil},
+	{"Ubuntu Mirrors", "https://archive.ubuntu.com", []string{"linux"}},
+	{"winget", "https://cdn.winget.microsoft.com/cache/source.msix", []string{"windows"}},
+}
+
+// Registries are the ones that matter on this system.
+func Registries() []Registry {
+	var out []Registry
+	for _, r := range DefaultRegistries {
+		if len(r.OS) == 0 || slices.Contains(r.OS, goos) {
+			out = append(out, r)
+		}
+	}
+	return out
 }
 
 // FlushDNS flushes the system's DNS resolver cache. The message says what
@@ -142,71 +163,91 @@ func FlushDNS(ctx context.Context) (string, error) {
 	}
 }
 
-// PingRegistries tests reachability and latency against package registries.
+// PingRegistries tests reachability and latency against the registries
+// of this system, all at once. Any HTTP answer means the service can be
+// reached; Status says which.
 func PingRegistries(ctx context.Context) []RegistryPing {
-	var results []RegistryPing
-	client := &http.Client{
-		Timeout: 4 * time.Second,
+	regs := Registries()
+	results := make([]RegistryPing, len(regs))
+	client := &http.Client{Timeout: 4 * time.Second}
+	var wg sync.WaitGroup
+	for i, reg := range regs {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			results[i] = ping(ctx, client, reg)
+		}()
 	}
-
-	for _, reg := range DefaultRegistries {
-		start := time.Now()
-		req, err := http.NewRequestWithContext(ctx, http.MethodHead, reg.URL, nil)
-		if err != nil {
-			results = append(results, RegistryPing{
-				Name: reg.Name, URL: reg.URL, Reachable: false, Error: err.Error(),
-			})
-			continue
-		}
-		req.Header.Set("User-Agent", "omega/1.0 (network-check)")
-		resp, err := client.Do(req)
-		latency := time.Since(start)
-
-		if err != nil {
-			// Try GET if HEAD was refused (some servers return 405 on HEAD)
-			reqGet, _ := http.NewRequestWithContext(ctx, http.MethodGet, reg.URL, nil)
-			if reqGet != nil {
-				startGet := time.Now()
-				respGet, errGet := client.Do(reqGet)
-				if errGet == nil {
-					respGet.Body.Close()
-					results = append(results, RegistryPing{
-						Name: reg.Name, URL: reg.URL, Reachable: true, Latency: time.Since(startGet), Status: respGet.StatusCode,
-					})
-					continue
-				}
-			}
-			results = append(results, RegistryPing{
-				Name: reg.Name, URL: reg.URL, Reachable: false, Latency: latency, Error: err.Error(),
-			})
-			continue
-		}
-		resp.Body.Close()
-		results = append(results, RegistryPing{
-			Name: reg.Name, URL: reg.URL, Reachable: true, Latency: latency, Status: resp.StatusCode,
-		})
-	}
+	wg.Wait()
 	return results
 }
 
-// FindPorts finds processes listening on the given port, or common development ports if port == 0.
-func FindPorts(ctx context.Context, targetPort int) ([]PortInfo, error) {
-	if goos == "windows" {
-		return findPortsWindows(ctx, targetPort)
+func ping(ctx context.Context, client *http.Client, reg Registry) RegistryPing {
+	try := func(method string) (int, time.Duration, error) {
+		req, err := http.NewRequestWithContext(ctx, method, reg.URL, nil)
+		if err != nil {
+			return 0, 0, err
+		}
+		req.Header.Set("User-Agent", "omega/1.0 (network-check)")
+		start := time.Now()
+		resp, err := client.Do(req)
+		if err != nil {
+			return 0, time.Since(start), err
+		}
+		resp.Body.Close()
+		return resp.StatusCode, time.Since(start), nil
 	}
-	return findPortsUnix(ctx, targetPort)
+	code, latency, err := try(http.MethodHead)
+	// Some servers refuse HEAD (405, or 404 as crates.io does) or drop
+	// it: GET says more.
+	if err != nil || code >= 400 {
+		if c, l, gerr := try(http.MethodGet); gerr == nil {
+			code, latency, err = c, l, nil
+		}
+	}
+	if err != nil {
+		return RegistryPing{Name: reg.Name, URL: reg.URL, Latency: latency, Error: err.Error()}
+	}
+	return RegistryPing{Name: reg.Name, URL: reg.URL, Reachable: true, Latency: latency, Status: code}
 }
 
-func findPortsUnix(ctx context.Context, targetPort int) ([]PortInfo, error) {
+// FindPorts finds the processes listening on a port, or on every port when
+// targetPort is 0, sorted by port. proto is "tcp" (listening sockets) or
+// "udp" (bound sockets).
+func FindPorts(ctx context.Context, targetPort int, proto string) ([]PortInfo, error) {
+	var ports []PortInfo
+	var err error
+	if goos == "windows" {
+		ports, err = findPortsWindows(ctx, targetPort, proto)
+	} else {
+		ports, err = findPortsUnix(ctx, targetPort, proto)
+	}
+	sort.SliceStable(ports, func(i, j int) bool {
+		if ports[i].Port != ports[j].Port {
+			return ports[i].Port < ports[j].Port
+		}
+		return ports[i].PID < ports[j].PID
+	})
+	return ports, err
+}
+
+func findPortsUnix(ctx context.Context, targetPort int, proto string) ([]PortInfo, error) {
 	if !has("lsof") {
 		return nil, errors.New("lsof is not installed, so the listening ports cannot be read")
 	}
 	// TCP sockets that are listening, and nothing else: "-i :PORT" alone
 	// also lists UDP sockets and outgoing connections on that port, and
-	// `net kill` would end those processes.
-	cmdStr := "lsof -iTCP -sTCP:LISTEN -P -n"
-	if targetPort > 0 {
-		cmdStr = fmt.Sprintf("lsof -iTCP:%d -sTCP:LISTEN -P -n", targetPort)
+	// `net kill` would end those processes. +c 0 prints the whole name of
+	// the program ("ControlCenter", not "ControlCe").
+	udp := strings.EqualFold(proto, "udp")
+	cmdStr := "lsof -iTCP -sTCP:LISTEN -P -n +c 0"
+	switch {
+	case udp && targetPort > 0:
+		cmdStr = fmt.Sprintf("lsof -iUDP:%d -P -n +c 0", targetPort)
+	case udp:
+		cmdStr = "lsof -iUDP -P -n +c 0"
+	case targetPort > 0:
+		cmdStr = fmt.Sprintf("lsof -iTCP:%d -sTCP:LISTEN -P -n +c 0", targetPort)
 	}
 
 	// lsof ends with status 1 when it finds nothing, so only what it
@@ -214,17 +255,24 @@ func findPortsUnix(ctx context.Context, targetPort int) ([]PortInfo, error) {
 	res := run(ctx, cmdStr, 5*time.Second)
 	var ports []PortInfo
 	seen := map[string]bool{}
+	want := "TCP"
+	if udp {
+		want = "UDP"
+	}
 	for i, line := range strings.Split(res.Output, "\n") {
 		if i == 0 || strings.TrimSpace(line) == "" {
 			continue // skip header
 		}
 		// COMMAND PID USER FD TYPE DEVICE SIZE/OFF NODE NAME (STATE)
 		fields := strings.Fields(line)
-		if len(fields) < 9 || fields[7] != "TCP" {
+		if len(fields) < 9 || fields[7] != want {
 			continue
 		}
-		if len(fields) > 9 && fields[9] != "(LISTEN)" {
+		if !udp && len(fields) > 9 && fields[9] != "(LISTEN)" {
 			continue
+		}
+		if strings.Contains(fields[8], "->") {
+			continue // a connected socket, not one waiting on the port
 		}
 		pid, _ := strconv.Atoi(fields[1])
 		port := parsePort(fields[8]) // e.g. "*:3000" or "127.0.0.1:8080"
@@ -237,17 +285,23 @@ func findPortsUnix(ctx context.Context, targetPort int) ([]PortInfo, error) {
 			continue
 		}
 		seen[key] = true
-		ports = append(ports, PortInfo{Port: port, PID: pid, Process: fields[0], User: fields[2], Proto: "TCP"})
+		// lsof writes a space in a name as \x20.
+		name := strings.ReplaceAll(fields[0], `\x20`, " ")
+		ports = append(ports, PortInfo{Port: port, PID: pid, Process: name, User: fields[2], Proto: want})
 	}
 	return ports, nil
 }
 
-func findPortsWindows(ctx context.Context, targetPort int) ([]PortInfo, error) {
+func findPortsWindows(ctx context.Context, targetPort int, proto string) ([]PortInfo, error) {
 	filter := ""
 	if targetPort > 0 {
 		filter = fmt.Sprintf("Where-Object { $_.LocalPort -eq %d } | ", targetPort)
 	}
-	script := "Get-NetTCPConnection -State Listen | " + filter +
+	source, want := "Get-NetTCPConnection -State Listen | ", "TCP"
+	if strings.EqualFold(proto, "udp") {
+		source, want = "Get-NetUDPEndpoint | ", "UDP"
+	}
+	script := source + filter +
 		"Select-Object LocalPort, OwningProcess | " +
 		"ForEach-Object { $p = (Get-Process -Id $_.OwningProcess -ErrorAction SilentlyContinue); " +
 		"'{0} {1} {2}' -f $_.LocalPort, $_.OwningProcess, ($p.ProcessName) }"
@@ -271,7 +325,7 @@ func findPortsWindows(ctx context.Context, targetPort int) ([]PortInfo, error) {
 					Port:    port,
 					PID:     pid,
 					Process: proc,
-					Proto:   "TCP",
+					Proto:   want,
 				})
 			}
 		}
@@ -289,33 +343,51 @@ func parsePort(addr string) int {
 	return p
 }
 
-// KillPortProcess terminates the process occupying the specified port.
-func KillPortProcess(ctx context.Context, port int) error {
-	ports, err := FindPorts(ctx, port)
-	if err != nil {
-		return err
+// Seams of StopProcess, replaced by the tests: signalProcess asks a
+// process to exit (or, with force, ends it), and processAlive says whether
+// it still runs.
+var (
+	signalProcess = osSignal
+	processAlive  = osAlive
+)
+
+// StopGrace is how long a process gets to exit before it is forced to.
+const StopGrace = 3 * time.Second
+
+// StopProcess asks a process to exit (SIGTERM; taskkill without /F on
+// Windows), waits up to grace for it to go, and only then forces it
+// (SIGKILL; taskkill /F). forced says whether it had to be.
+func StopProcess(ctx context.Context, pid int, grace time.Duration) (forced bool, err error) {
+	if pid <= 1 || pid == os.Getpid() {
+		return false, fmt.Errorf("PID %d is not one omega ends", pid)
 	}
-	if len(ports) == 0 {
-		return fmt.Errorf("no process found listening on port %d", port)
+	// When asking fails (another user's process, say), forcing is still
+	// tried, and says why when it fails too.
+	_ = signalProcess(ctx, pid, false)
+	if waitGone(pid, grace) {
+		return false, nil
 	}
-	killed := map[int]bool{}
-	for _, p := range ports {
-		if p.PID <= 1 || killed[p.PID] {
-			continue // safeguard against init/launchd; one kill per process
-		}
-		killed[p.PID] = true
-		var killCmd string
-		if goos == "windows" {
-			killCmd = fmt.Sprintf("Stop-Process -Id %d -Force", p.PID)
-		} else {
-			killCmd = fmt.Sprintf("kill -9 %d", p.PID)
-		}
-		res := run(ctx, killCmd, 5*time.Second)
-		if res.ExitCode != 0 {
-			return fmt.Errorf("failed to terminate PID %d (%s) on port %d: %s", p.PID, p.Process, port, res.Output)
-		}
+	if err := signalProcess(ctx, pid, true); err != nil && processAlive(pid) {
+		return true, fmt.Errorf("PID %d could not be ended: %w", pid, err)
 	}
-	return nil
+	if waitGone(pid, time.Second) {
+		return true, nil
+	}
+	return true, fmt.Errorf("PID %d is still running", pid)
+}
+
+// waitGone waits up to d for pid to exit and says whether it did.
+func waitGone(pid int, d time.Duration) bool {
+	deadline := time.Now().Add(d)
+	for {
+		if !processAlive(pid) {
+			return true
+		}
+		if time.Now().After(deadline) {
+			return false
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
 }
 
 // hideUserinfo replaces the user and password of a URL with "***".

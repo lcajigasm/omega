@@ -57,13 +57,7 @@ var macMessages = map[string][]string{
 		"Activez-le pour %s, rouvrez-le et relancez la commande.", "Aktiviere ihn für %s, öffne es neu und starte den Befehl noch einmal.",
 		"Ativa-o para %s, volta a abri-lo e corre o comando outra vez.",
 	},
-	"cmd.mac": {
-		"Control what opens at login, runs in the background, sits in the menu bar or the Dock, and global keyboard shortcuts (AI-guided)",
-		"Controla lo que se abre al iniciar sesión, corre en segundo plano, está en la barra de menús o en el Dock, y los atajos de teclado globales (guiado por IA)",
-		"Contrôle ce qui s'ouvre à la connexion, tourne en arrière-plan, occupe la barre des menus ou le Dock, et les raccourcis clavier globaux (guidé par IA)",
-		"Steuert, was beim Anmelden startet, im Hintergrund läuft, in der Menüleiste oder im Dock sitzt, und globale Tastenkürzel (KI-geführt)",
-		"Controla o que abre no início de sessão, corre em segundo plano, fica na barra de menus ou no Dock, e os atalhos de teclado globais (guiado por IA)",
-	},
+	"cmd.mac": {"Login items, background, menu bar, Dock, shortcuts", "Inicio de sesión, segundo plano, barra, Dock, atajos", "Ouverture, arrière-plan, barre des menus, Dock, raccourcis", "Anmeldeobjekte, Hintergrund, Menüleiste, Dock, Kürzel", "Início de sessão, segundo plano, barra, Dock, atalhos"},
 	"cmd.mac_long": {
 		`Without a subcommand, the AI reviews everything with your rules (omega mac policy) and omega's defaults,
 asks you on cards and applies only what you pick. The subcommands do the same for one area without AI.
@@ -299,7 +293,7 @@ pergunta-te com cartões e aplica só o que escolheres. Os subcomandos fazem o m
 	"mac.rules":         {"your rules", "tus reglas", "vos règles", "deine Regeln", "as tuas regras"},
 	"mac.none_found":    {"Nothing to review here.", "Aquí no hay nada que revisar.", "Rien à passer en revue ici.", "Hier gibt es nichts zu prüfen.", "Aqui não há nada para rever."},
 	"mac.nothing":       {"Nothing changed.", "No se ha cambiado nada.", "Rien n'a changé.", "Nichts geändert.", "Nada foi alterado."},
-	"mac.failed":        {"⎿ failed (exit %d)", "⎿ falló (salida %d)", "⎿ échec (code %d)", "⎿ fehlgeschlagen (Exit %d)", "⎿ falhou (saída %d)"},
+	"mac.failed":        {"└ failed (exit %d)", "└ falló (salida %d)", "└ échec (code %d)", "└ fehlgeschlagen (Exit %d)", "└ falhou (saída %d)"},
 	"mac.undo_hint": {
 		"Changes recorded: omega mac undo reverts them.",
 		"Cambios registrados: omega mac undo los deshace.",

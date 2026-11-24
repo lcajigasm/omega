@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -310,4 +311,113 @@ func ClearNotes() error {
 		return nil
 	}
 	return err
+}
+
+// RoutineStepInfo is one step of a routine as the app draws it.
+type RoutineStepInfo struct {
+	ID       string `json:"id"`
+	Label    string `json:"label"`   // translated name; the id when the step is not on this machine
+	Risk     string `json:"risk"`    // translated
+	RiskID   string `json:"risk_id"` // read-only, normal, dangerous; "" when not on this machine
+	Here     bool   `json:"here"`    // the step exists and what it needs is installed
+	Stops    bool   `json:"stops"`   // its failure ends the run
+	LastRun  string `json:"last_run,omitempty"`
+	LastNS   int64  `json:"last_run_ns,omitempty"`
+	Freed    int64  `json:"freed,omitempty"` // bytes the disk gained the last time it ran well
+	FreedTxt string `json:"freed_text,omitempty"`
+}
+
+// RoutineInfo is one routine of custom.toml.
+type RoutineInfo struct {
+	Name            string            `json:"name"`
+	Default         bool              `json:"default"`
+	Steps           []RoutineStepInfo `json:"steps"`
+	StopOnFail      []string          `json:"stop_on_fail"`
+	OnlyBelowFreeGB float64           `json:"only_below_free_gb"` // 0: always
+	Days            []string          `json:"days"`               // mon … sun; empty: every day
+	Options         string            `json:"options"`            // the options in words
+	Updated         string            `json:"updated,omitempty"`  // RFC 3339
+}
+
+// RoutinesInfo is what `omega custom --list` knows, with each step.
+type RoutinesInfo struct {
+	Default  string        `json:"default"`
+	Routines []RoutineInfo `json:"routines"`
+	Path     string        `json:"path"`
+}
+
+// Routines lists the user's routines, by name, with the steps of each and
+// the figures of their last runs. Steps to add come from StepList.
+func Routines() (RoutinesInfo, error) {
+	rs, _, err := config.LoadRoutines()
+	if err != nil {
+		return RoutinesInfo{}, err
+	}
+	hist := loadCustomHistory()
+	def := rs.DefaultName()
+	out := RoutinesInfo{Routines: []RoutineInfo{}, Path: config.CustomPath()}
+	if _, ok := rs.Routines[def]; ok {
+		out.Default = def
+	}
+	for _, name := range rs.Names() {
+		rt := rs.Routines[name]
+		ri := RoutineInfo{Name: name, Default: name == out.Default, Steps: []RoutineStepInfo{}, StopOnFail: []string{},
+			OnlyBelowFreeGB: rt.OnlyBelowFreeGB, Days: append([]string{}, rt.Days...), Options: routineOptions(rt)}
+		ri.StopOnFail = append(ri.StopOnFail, rt.StopOnFail...)
+		if !rt.Updated.IsZero() {
+			ri.Updated = rt.Updated.Format(time.RFC3339)
+		}
+		for _, id := range rt.Steps {
+			si := RoutineStepInfo{ID: id, Label: id, Stops: rt.Stops(id)}
+			if s, ok := steps.Find(id); ok {
+				si.Label, si.Risk, si.RiskID, si.Here = i18n.TOr("step."+s.ID, s.Name), ui.RiskName(s.Risk), s.Risk.String(), s.Available()
+			}
+			if last, ok := hist.last(id); ok {
+				if last.Took > 0 {
+					si.LastRun, si.LastNS = ui.Duration(last.Took), int64(last.Took)
+				}
+				if last.Freed > 0 {
+					si.Freed, si.FreedTxt = last.Freed, ui.Bytes(last.Freed)
+				}
+			}
+			ri.Steps = append(ri.Steps, si)
+		}
+		out.Routines = append(out.Routines, ri)
+	}
+	return out, nil
+}
+
+// SaveRoutine saves one routine as the app's editor left it: its steps in
+// order, the steps whose failure ends the run, the free-space limit (0:
+// always) and the weekdays a scheduled run runs it on (mon … sun; none:
+// every day). "" names the default routine. Other routines are kept.
+func SaveRoutine(name string, ids, stopOnFail []string, onlyBelowFreeGB float64, days []string) error {
+	name = strings.TrimSpace(name)
+	if name != "" && !config.ValidRoutineName(name) {
+		return fmt.Errorf("%q cannot name a routine: use letters, digits, - and _", name)
+	}
+	if onlyBelowFreeGB < 0 {
+		return fmt.Errorf("%s", i18n.T("err.negative", "only_below_free_gb"))
+	}
+	if len(ids) == 0 {
+		return fmt.Errorf("%s", i18n.T("custom.ui_empty"))
+	}
+	days, err := config.ParseDays(strings.Join(days, ","))
+	if err != nil {
+		var bad config.BadDayError
+		errors.As(err, &bad)
+		return fmt.Errorf("%s", i18n.T("custom.bad_days", bad.Word))
+	}
+	for _, id := range append(slices.Clone(ids), stopOnFail...) {
+		if !steps.Known(id) {
+			return fmt.Errorf("%s", i18n.T("custom.unknown", id))
+		}
+	}
+	var stops []string
+	for _, id := range stopOnFail {
+		if slices.Contains(ids, id) {
+			stops = append(stops, id)
+		}
+	}
+	return config.SaveNamedRoutine(name, config.Routine{Steps: ids, StopOnFail: stops, OnlyBelowFreeGB: onlyBelowFreeGB, Days: days})
 }

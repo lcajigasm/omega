@@ -1,11 +1,30 @@
 package llm
 
 import (
+	"context"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 )
+
+// requestTimeout is the most one attempt of a request may take, on every
+// provider.
+var requestTimeout = 10 * time.Minute
+
+// pause waits d before a retry, or until ctx ends. after is the clock the
+// tests replace; nil uses time.After.
+func pause(ctx context.Context, after func(time.Duration) <-chan time.Time, d time.Duration) error {
+	if after == nil {
+		after = time.After
+	}
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-after(d):
+		return nil
+	}
+}
 
 // maxRetryAfter caps a server-supplied pause. One 429 must not stall a run
 // for the minutes some APIs ask for.

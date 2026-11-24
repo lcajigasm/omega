@@ -107,9 +107,9 @@ func (m *model) finishChoice(cancelled bool) tea.Cmd {
 		}
 	}
 	if len(labels) == 0 {
-		m.note(mutedStyle.Render("› "+i18n.T("ui.chosen_none")), lipgloss.NewStyle())
+		m.note(mutedStyle.Render(gl.Prompt+" "+i18n.T("ui.chosen_none")), lipgloss.NewStyle())
 	} else {
-		m.note(titleStyle.Render("› ")+i18n.T("ui.chosen", strings.Join(labels, ", ")), lipgloss.NewStyle())
+		m.note(titleStyle.Render(gl.Prompt+" ")+i18n.T("ui.chosen", strings.Join(labels, ", ")), lipgloss.NewStyle())
 	}
 	if m.pending != nil && m.pending.Picks != nil {
 		m.pending.Picks <- ids

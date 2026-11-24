@@ -41,7 +41,7 @@ every step and every setting.
   several actions, and omega carries out exactly those.
 - **Model choice from live data**: a fast model for routine work that escalates
   to a stronger one on the first failure. Which two is decided once a day from
-  current list prices and benchmark scores (`omega models`), not from a list
+  current list prices and benchmark scores (`omega model list`), not from a list
   built into the program. Tokens and cost are always visible.
 - **Ask in words**: inside a session the AI can do everything the command line
   does: install developer tools, undo a Mac change, read earlier runs, change

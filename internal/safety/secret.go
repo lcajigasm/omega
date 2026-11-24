@@ -717,9 +717,11 @@ func leaksSecret(cmd string) bool {
 	return leaksIn(shellSegments(cmd))
 }
 
-// contentVerbs print what is in the files they are handed.
+// contentVerbs print what is in the files they are handed. cpio, pax,
+// tar and zip read the names of the files to pack from standard input.
 var contentVerbs = map[string]bool{"cat": true, "get-content": true, "gc": true, "type": true, "select-string": true, "sls": true,
-	"more": true, "less": true, "head": true, "tail": true, "xargs": true, "foreach-object": true, "%": true, "strings": true}
+	"more": true, "less": true, "head": true, "tail": true, "xargs": true, "foreach-object": true, "%": true, "strings": true,
+	"cpio": true, "pax": true, "tar": true, "zip": true, "bsdtar": true, "gtar": true}
 
 // listsIntoReader reports a secret folder listed into a later stage of
 // the same pipeline that prints the files: Get-ChildItem ~\.ssh |
@@ -843,6 +845,9 @@ func leaksIn(segs [][]string) bool {
 		}
 	}
 	if touchesOmega && xargs {
+		return true
+	}
+	if archivesSecrets(segs) {
 		return true
 	}
 	if cdAbove {

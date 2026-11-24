@@ -194,7 +194,7 @@ func TestReview4AlwaysConfirm(t *testing.T) {
 		`rm -rf ~/Library/Developer/Xcode/DerivedData/*`:          false,
 		`rm -rf ~/.gradle/caches/* ~/.gradle/daemon/*`:            false,
 		`rm -rf $TMPDIR/x /tmp/y /private/var/folders/ab/x`:       false,
-		`rm ~/Dev/x.txt`:                                    false,
+		`rm ~/Dev/x.txt`:                                    true, // fifth review, A2: one file of the user is asked too
 		`git worktree remove ../wt`:                         true,
 		`git -C ~/Dev/app worktree remove x --force`:        true,
 		`git worktree list`:                                 false,

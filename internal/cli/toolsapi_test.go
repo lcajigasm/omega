@@ -43,7 +43,7 @@ func TestToolListMatchesCommands(t *testing.T) {
 func TestRunTool(t *testing.T) {
 	isolate(t, nil)
 	out, err := RunTool("schedule-status", "")
-	if err != nil || !strings.Contains(out, "Background Maintenance Status") {
+	if err != nil || !strings.Contains(out, "omega schedule") {
 		t.Errorf("schedule status: %q, %v", out, err)
 	}
 	// The app can run what is listed and nothing else: no other command, and

@@ -141,6 +141,12 @@ timeout or `skip_steps` value omega would misread. Saving writes a temporary
 file and replaces the config only after it is valid, so a bad edit does not
 wipe the previous one.
 
+Your routines (`omega custom`) live beside it in `~/.config/omega/custom.toml`:
+`default` names the routine `omega custom` runs, and each `[routines.<name>]`
+has `steps` (in running order), `stop_on_fail`, `only_below_free_gb` and
+`days` (`mon` … `sun`; a scheduled run skips the other days). See
+[Your own routine](tasks.md#your-own-routine).
+
 ```toml
 provider = "anthropic"          # active provider
 model = ""                      # empty or "auto": automatic; or a fixed model id
@@ -183,8 +189,10 @@ model = "my-model"
 ## Command reference
 
 ```text
-omega [task] [flags]
+omega [task] [options]
 ```
+
+`update`, `clean`, `analyze`, `health` and `tune` are commands of their own, like `full`, `quick` and `fix`: `omega health --help` shows the help of the health check. `omega update` still works as it always did, and `omega update brew and npm` (three words or more) is still a request in your own words. Every help is in your language, and its options come in groups: the command's own, **Agent options** (the run with a model) and **Options without AI** (with `--no-ai`). A flag of the runs without AI given to a run with the model (`-v`, `--fail-on-*`) is ignored, and omega says so on stderr.
 
 | Flag | Description |
 |---|---|
@@ -206,21 +214,30 @@ omega [task] [flags]
 | `-q, --quiet` | with `--no-ai`: suppress the progress lines |
 | `-v, --verbose` | with `--no-ai`: show the output of every command |
 | `--debug` | accepted, and reserved: it prints nothing more yet |
-| `--fail-on-warning` | with `--no-ai`: exit with non-zero code if any warning is found |
-| `--fail-on-outdated` | with `--no-ai`: exit with non-zero code if outdated packages are detected |
-| `--fail-on-critical` | with `--no-ai`: exit with non-zero code if any step fails |
-| `--max-cost` | maximum estimated session cost in USD before stopping |
-| `--max-turns` | maximum number of agent turns |
+| `--fail-on-warning` | with `--no-ai`: exit with 2 if a check warns |
+| `--fail-on-outdated` | with `--no-ai`: exit with 2 if outdated packages are found |
+| `--fail-on-critical` | with `--no-ai`: exit with 1 if any step fails, checks included (a step that changes something and fails already does) |
+| `--max-cost` | stop at this estimated session cost in USD; `0` (the default) is no limit |
+| `--max-turns` | stop after this many turns of the model; `0` (the default) is no limit |
+
+### Exit status
+
+| Status | Meaning |
+|---|---|
+| `0` | the run worked |
+| `1` | something failed: a step, a check of `omega doctor`, the model or the provider |
+| `2` | the run worked, but `--fail-on-warning` or `--fail-on-outdated` found what they look for |
+| `64` | a command line omega cannot use: an unknown command, option or value, options that cannot go together, the wrong number of arguments. The message ends with the help to read, and a mistyped word gets the closest names (a typo in `omega config set` offers it); asking for the help of a word that is not a command fails the same way |
 
 A run with `--no-ai` follows the same confirmation rules as the agent: a dangerous step asks at the terminal unless `--yes` was given, `approval = "all"` asks before every step that is not read-only, and the Docker cleanups always ask. With nobody at a terminal such a step is skipped and named. The configuration must load and be valid: a `config.toml` that cannot be read stops the run instead of running with the defaults.
 
-The JSON report has `task`, `timestamp`, `dry_run`, `steps_run` (always a list; each step with `id`, `name`, `category`, `command`, `success`, `exit_code`, `duration` in nanoseconds, `duration_ms` and `output`), `would_run` (under `--dry-run`: the steps that would have run), `skipped` (the steps nobody could confirm, with a `reason`), `outdated_count`, `warning_count`, `total_duration` (nanoseconds), `total_duration_ms` and `summary`.
+The run without AI speaks your language, its summary included. The JSON report keeps its field names in every language. It has `task`, `timestamp`, `dry_run`, `steps_run` (always a list; each step with `id`, `name`, `category`, `command`, `success`, `exit_code`, `duration` in nanoseconds, `duration_ms` and `output`), `would_run` (under `--dry-run`: the steps that would have run), `skipped` (the steps nobody could confirm, with a `reason`), `outdated_count`, `warning_count`, `total_duration` (nanoseconds), `total_duration_ms` and `summary`.
 
 | Subcommand | Description |
 |---|---|
 | `omega setup` | setup wizard |
 | `omega model [model\|auto] [--provider p]` | choose the model on a card, or set it directly |
-| `omega models [provider] [filter]` | list models with prices |
+| `omega model list [provider] [filter] [--json] [--refresh]` | list models with score and prices (`omega models` still works) |
 | `omega docker` | measure Docker and clean what you select |
 | `omega menu` | home screen: every command on one screen, started with Enter |
 | `omega full [--only a,b] [--skip a,b]` | everything, stage by stage in one interface: choose the stages, see what each does and why, skip, repeat or stop |
@@ -231,17 +248,23 @@ The JSON report has `task`, `timestamp`, `dry_run`, `steps_run` (always a list; 
 | `omega dev [status\|install [tool…]\|activate]` | review, install and activate languages and developer tools (AI-guided without a subcommand) |
 | `omega mac policy [edit]` | your rules (`mac.toml`) and omega's defaults |
 | `omega mac undo` | revert changes made by `omega mac` |
-| `omega auth set\|remove\|status` | manage API keys (validated before saving) |
-| `omega config show\|path\|edit\|check\|set <key> <value>` | configuration (`check` validates it) |
-| `omega steps [--json]` | step catalogue and availability |
+| `omega auth set\|remove\|status [--json]` | manage API keys (validated before saving); the JSON has the masked key only |
+| `omega config show [--json]\|path\|edit\|check\|set <key> <value>` | configuration (`check` validates it and names the keys omega does not know, such as a mistyped `aproval`; `omega doctor` names them too) |
+| `omega steps [--json] [--installed] [--category check\|update\|clean\|backend]` | step catalogue and availability |
+| `omega steps show <id> [--json]` | everything about one step: full command, what it does, risk (and whether it always asks), whether it is installed and how to install it, and its last runs by `omega custom` |
 | `omega steps run <id>… [-y] [-n]` | run steps without AI; `-n` shows the commands only. `-y` does not answer for a step that always asks, and a step nobody could confirm makes the command fail |
-| `omega notes [clear]` | the agent's memory |
-| `omega pending` | what earlier runs left for you to do by hand, with how long it has been there |
+| `omega custom [routine] [--show [--json]\|--dry-run\|-y]` | run a routine (the default one without a name): the steps you chose, in your order, here and without any AI model. A scheduled run on a day the routine does not list does nothing; one started by hand warns and runs |
+| `omega custom --set [routine] [id…] [--stop-on-fail id,…] [--only-below-free-gb N] [--days mon,…]` | choose a routine's steps and order in an editor (keys: space add/remove, ⇧↑↓ reorder, `f` stop if it fails, `b` free-space limit, `w` days, `i` ask your model for a recommendation, `d` send machine data with it; each step shows its last duration and the space it freed); with ids, set it directly; with only options, change just those. A first word that is not a step id names the routine. `--days ""` clears the days, `--only-below-free-gb 0` the limit |
+| `omega custom --list [--json]`, `omega custom <routine> --default`, `omega custom [routine] --clear` | list the routines with their options, choose the one `omega custom` runs, delete one |
+| `omega history [-n N] [--task t] [--since 7d\|2026-11-01] [--json]` | the latest runs, what is still pending and the newest notes on one screen |
+| `omega notes [--last N] [--grep text] [--json] [clear]` | the agent's memory, newest first |
+| `omega notes compact [--dry-run] [-y]` | remove the notes that repeat a newer one (same words once dates, case and punctuation are left aside), after showing them and a yes; the old file stays as `notes.md.bak`. No AI |
+| `omega pending [--all] [--json]` | what earlier runs left for you to do by hand, with how long it has been there; `--all` adds what is postponed, dismissed or done |
 | `omega pending dismiss\|snooze <id> <3d\|2w\|1m>\|reopen\|done <id>` | stop runs from repeating an item, postpone it, bring it back or mark it done |
-| `omega logs` | list run transcripts, newest first |
-| `omega logs view [n\|file]` | print one transcript (the latest if omitted) |
+| `omega logs [-n N] [--task t] [--failed] [--json]` | list run transcripts, newest first |
+| `omega logs view [n\|file] [--tools]` | print one transcript (the latest if omitted); `--tools` keeps only the tool calls and what they returned |
 | `omega doctor [--json]` | check config, key shape, provider, the configured model, your own steps and installed steps; no chat, no tokens |
-| `omega completion zsh\|bash\|fish\|powershell\|install` | completion script and automatic installer (`install` reads `$SHELL`; on Windows it writes the PowerShell script and prints the line for your profile) |
+| `omega completion zsh\|bash\|fish\|powershell\|install` | completion script, with a description for every command, and automatic installer (`install` reads `$SHELL`; on Windows it writes the PowerShell script and prints the line for your profile). Values complete too: `--provider`, `--effort`, `--format`, `--model` (from the stored catalogue, never the network), `schedule install --task/--interval`, the ids of `pending`, `steps run`, `steps show` and `custom`, and the numbers of `logs view` |
 | `omega quick` | the short safe round: with `--no-ai` or no API key it empties the Trash and two caches (asking first), shows the battery and the free disk space and counts pending updates |
 | `omega net flush\|ping\|ports\|kill\|audit` | network, DNS cache flush, registry ping, port conflict hunter and hosts audit |
 | `omega git status\|clean\|gc` | git repository hygiene across dev folders: merged branches, unpushed work, .git optimization |
@@ -264,11 +287,13 @@ The JSON report has `task`, `timestamp`, `dry_run`, `steps_run` (always a list; 
 | `omega uninstall <app>` | finds one app by its exact name and what it left behind (preferences, caches, app support), and moves it all to the Trash after asking |
 | `omega schedule install\|status\|uninstall` | automated background maintenance with native daemons (launchd, systemd, Windows Task Scheduler); `--interval daily\|weekly\|monthly`, `--task quick\|update\|clean\|full\|analyze\|health`. The job runs `omega <task> --yes --no-tui --no-ai`: the built-in steps, never the model, and it never empties the Trash |
 | `omega rollback` | inspect and restore safety filesystem snapshots (APFS, Btrfs, Windows System Restore) |
-| `omega export [file]` | write the machine's blueprint to omega-blueprint.json (mode `0600`): Homebrew formulae and casks, global npm packages, pipx packages, the developer tools found (for reference) and omega's settings. What could not be listed is named |
-| `omega bootstrap <file> [-n] [-y]` | show what a blueprint would install and restore, then do it after a yes at the terminal (or with `-y`); `-n` shows the plan only |
+| `omega export [file]` | write the machine's blueprint to omega-blueprint.json (mode `0600`): Homebrew formulae and casks, global npm packages, pipx packages, the developer tools found (for reference), omega's settings and your routines (`custom.toml`). What could not be listed is named |
+| `omega bootstrap <file> [-n] [-y] [-f]` | show what a blueprint would install and restore, then do it after a yes at the terminal (or with `-y`); `-n` shows the plan only. Routines that differ from this machine's `custom.toml` replace it only after a yes at the terminal or with `--force` (the old file stays as `custom.toml.bak`) |
 | `omega shell` | interactive maintenance REPL console |
-| `omega man [dir]` | write omega.1, a man page with every command, its options and examples (`man -l man/omega.1`) |
-| `omega fix [--log <file>] [error...]` | diagnose and fix failing commands, configuration or external build logs |
+| `omega man [--output dir]` | the man page (in English in every language): shown with `man` at a terminal, printed as troff anywhere else (`omega man > omega.1`); `--output` writes `dir/omega.1` |
+| `omega fix ["error…"]`, `… \| omega fix -`, `omega fix --log <file>` | the model diagnoses an error and fixes it: one you describe or paste, one read from stdin, or a log file; with nothing given, why topgrade fails. Agent options only |
+
+`omega logs --json` and `omega history --json` give each run with `n` (the number `logs view` takes), `file`, `path`, `when`, `task`, `model`, `cost_usd`, `failed_tools`, `ended` and `bytes`. `omega pending --json` gives the items as they are stored (`id`, `text`, `status`, `first_seen`, `last_seen`, `seen`, `until`); `omega notes --json` the notes with `day` and `text`.
 
 `omega logs view` prints the newest transcript, `omega logs view 2` prints the second row of `omega logs`, and `omega logs view <file>` prints that file. A new run deletes older transcripts until 30 remain.
 

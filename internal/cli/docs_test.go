@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -113,7 +114,8 @@ func TestUnknownCommandSaysHowToUpdate(t *testing.T) {
 	old := version
 	version = "v0.13.0"
 	t.Cleanup(func() { version = old })
-	for _, args := range [][]string{{"menuu"}, {"dev2", "status"}, {"update", "now"}} {
+	// A word nothing resembles may be a command of a newer omega.
+	for _, args := range [][]string{{"zqxw"}, {"blorpt", "status"}} {
 		_, _, err := interpret(testRoot(), args)
 		if err == nil {
 			t.Fatalf("%v: no error", args)
@@ -122,6 +124,17 @@ func TestUnknownCommandSaysHowToUpdate(t *testing.T) {
 			if !strings.Contains(err.Error(), want) {
 				t.Errorf("%v: %q is missing from %q", args, want, err.Error())
 			}
+		}
+	}
+	// A slip of the fingers gets the close name, not "update omega".
+	for _, args := range [][]string{{"menuu"}, {"dev2", "status"}, {"update", "now"}} {
+		_, _, err := interpret(testRoot(), args)
+		if err == nil || !strings.Contains(err.Error(), "Did you mean") || strings.Contains(err.Error(), "brew upgrade omega") {
+			t.Errorf("%v: %v", args, err)
+		}
+		var code interface{ ExitCode() int }
+		if !errors.As(err, &code) || code.ExitCode() != 64 {
+			t.Errorf("%v: not a usage error (64): %v", args, err)
 		}
 	}
 }
