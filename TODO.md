@@ -814,7 +814,7 @@ todo lo que se escapa de `AlwaysConfirm` se ejecuta sin nadie delante.
     pasos fallaron.
   - Que el editor muestre cuánto tardó y cuánto liberó cada paso en las
     últimas ejecuciones.
-  **Hecho:** rutinas con nombre (`--list`, `--default`), `stop_on_fail` (tecla `f`), `only_below_free_gb` (tecla `b`), días de la semana (`--days`, tecla `w`), duración y espacio liberado de la última vez en el editor, tarea programada `custom`, `export`/`bootstrap` llevan `custom.toml`, datos del equipo opcionales para la recomendación (tecla `d`, apagado por defecto) y tarjeta de rutinas en la app de escritorio, probada en la app real (Wails en modo servidor, con sus bindings): reordenar, parar si falla y días quedan en `custom.toml` igual que los escribe `omega custom --set`.
+  **Hecho:** rutinas con nombre (`--list`, `--default`), `stop_on_fail` (tecla `f`), `only_below_free_gb` (tecla `b`), días de la semana (`--days`, tecla `w`), duración y espacio liberado de la última vez en el editor, tarea programada `custom`, `export`/`bootstrap` llevan `custom.toml`, datos del equipo opcionales para la recomendación (tecla `d`, apagado por defecto) y tarjeta de rutinas en la app de escritorio, probada en la app nativa de macOS (WebView y puente de Wails reales, con un guion que pulsa la tarjeta): subir un paso, «parar si falla» y lunes y viernes quedan en `custom.toml` y `omega custom --show` los muestra igual.
 - [x] **N2. `omega steps show <id>`**: comando completo, qué hace, riesgo,
   instalación y últimas ejecuciones. Ver F21.
   **Hecho:** `omega steps show <id> [--json]`.
