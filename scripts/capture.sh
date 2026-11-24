@@ -8,6 +8,9 @@ root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root"
 
 export OMEGA_LANG=en
+# termenv takes CI=… (set on every CI runner) to mean no terminal and drops
+# all colour; the recordings run in a real terminal and must keep it.
+unset CI
 export XDG_CONFIG_HOME="${OMEGA_CAPTURE_CONFIG:-$(mktemp -d)}"
 export XDG_STATE_HOME="${OMEGA_CAPTURE_STATE:-$(mktemp -d)}"
 export XDG_DATA_HOME="${OMEGA_CAPTURE_DATA:-$(mktemp -d)}"
