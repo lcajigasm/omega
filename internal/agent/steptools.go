@@ -93,6 +93,10 @@ func stepDetail(a *Agent, s steps.Step) string {
 func toolRunStep(ctx context.Context, a *Agent, in map[string]any) (string, error) {
 	id := getString(in, "id")
 	s, ok := steps.Find(id)
+	if why, off := notUpkeepSteps[id]; off && a.opts.Unattended {
+		// Refused whatever the platform: the step may not exist here.
+		return "", a.notUpkeep("run_step:"+id, s.Command, "the "+id+" step was not run: "+why)
+	}
 	if !ok {
 		return "", fmt.Errorf("no step %q; use list_steps", id)
 	}

@@ -101,7 +101,13 @@ var uiMessages = map[string][]string{
 		"personne n'a rien à répondre : chaque étape se lance seule", "niemand muss etwas beantworten: jede Etappe läuft von selbst",
 		"ninguém precisa de responder a nada: cada etapa corre sozinha",
 	},
-	"uix.stop_run": {"stop the run", "detener la ejecución", "arrêter l'exécution", "den Lauf anhalten", "parar a execução"},
+	"uix.stop_run":   {"stop the run", "detener la ejecución", "arrêter l'exécution", "den Lauf anhalten", "parar a execução"},
+	"uix.skip_stage": {"skip this stage", "saltar esta etapa", "sauter cette étape", "diese Etappe überspringen", "saltar esta etapa"},
+	"uix.pilot_skipping": {
+		"skipping this stage: the next one starts when it has ended", "saltando esta etapa: la siguiente empieza cuando termine",
+		"étape sautée : la suivante commence dès qu'elle s'arrête", "Etappe wird übersprungen: die nächste beginnt, sobald sie endet",
+		"a saltar esta etapa: a seguinte começa quando ela acabar",
+	},
 	"uix.pilot_stopping": {
 		"stopping: the step that is running is ending", "parando: el paso en curso está terminando", "arrêt : l'étape en cours se termine",
 		"wird gestoppt: der laufende Schritt endet gerade", "a parar: o passo em curso está a terminar",

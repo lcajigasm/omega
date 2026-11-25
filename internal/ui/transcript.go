@@ -39,12 +39,15 @@ func (m *model) markdown(s string) string {
 
 // shimmer paints a soft highlight that sweeps across the text. With motion
 // reduced the text stands still in one colour.
-func (m *model) shimmer(s string) string {
+func (m *model) shimmer(s string) string { return shimmerAt(s, m.frame) }
+
+// shimmerAt is the shimmer at a given frame of the screen.
+func shimmerAt(s string, frame int) string {
 	if reducedMotion() {
 		return th.shimMid.Render(s)
 	}
 	r := []rune(s)
-	pos := m.frame % (len(r) + 8)
+	pos := frame % (len(r) + 8)
 	var b strings.Builder
 	for i, c := range r {
 		d := math.Abs(float64(i - pos + 4))

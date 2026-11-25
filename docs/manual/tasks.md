@@ -22,6 +22,15 @@
 your Mac and for your development setup. `omega menu` lists everything on one
 screen and starts what you choose.
 
+Updating an app on a Mac closes it: Homebrew and the App Store quit an app to
+replace it and do not open it again, so a menu bar app disappears from the menu
+bar until the next login. omega notes which apps of the pending updates are
+open, and once the update is done it opens again, in the background, the ones
+that were closed. The uninstall step of some casks (Alfred, Tailscale, OpenVPN
+Connect) also removes their login item; putting it back would need a macOS
+permission only you can give, so the Homebrew step names those and says where
+to turn "open at login" on again.
+
 ### Everything, stage by stage
 
 ```bash
@@ -253,77 +262,130 @@ omega unattended --skip docker   # --only and --skip still choose the stages
 omega desatendido                # the same, in Spanish
 ```
 
-`omega unattended` is the guided run with nobody at the keyboard. It asks for
-the sudo password once, before the first stage, checks it and keeps it in
-memory until the run ends; if sudo needs no password on this machine, it asks
-nothing. Then every stage that applies here runs, one after another:
+`omega unattended` is upkeep with nobody at the keyboard: it checks the
+machine, updates what is installed and clears caches. It asks for the sudo
+password once, before the first stage, checks it and keeps it in memory until
+the run ends; if sudo needs no password on this machine, it asks nothing.
+Then the upkeep stages that apply here run, one after another: `doctor`,
+`analyze`, `health`, `update`, `clean` and `docker`.
 
-- every approval is answered yes, as with `--yes`, and the low-risk
-  improvements are applied, as with `--auto`;
+The other stages of `omega full` (`tune`, `dev`, `mac`, `fix` and the loose
+ends of `/history`) change how you set up the machine: what starts at login,
+the menu bar, your apps, the configuration of your tools and your shell,
+decisions an earlier run left for you. A person decides those, so an
+unattended run leaves them out and names them; asking for one with `--only`
+is an error. Run them yourself when you are at the machine.
+
+- every approval is answered yes, as with `--yes`, and the low-risk upkeep is
+  applied, as with `--auto`;
 - every option a stage would offer on a card is taken, so the model is told to
-  offer only what it recommends for this machine;
+  offer only the upkeep it recommends for this machine;
 - blocked commands still never run, and the actions that always need a person
   (deleting Docker volumes or images you may want to keep) are skipped and
   listed in the summary as things to do by hand;
-- what you arranged yourself is never changed: the Dock (or the taskbar or
-  panel) and what is pinned there, the menu bar, keyboard shortcuts, the
-  wallpaper and the apps you installed. The run is upkeep, so omega rejects
-  those changes in this mode and the summary lists them as suggestions; apply
-  the ones you like with `omega mac`;
+- how you set up the machine is never changed. The run has no tool to write a
+  configuration file, change what runs on the Mac, install language versions
+  or change omega's settings, and it refuses the commands and steps that
+  would: installing, removing or reinstalling apps or tools; quitting or
+  killing apps; login items, launch agents and daemons; the menu bar, the
+  Dock (or the taskbar or panel), keyboard shortcuts and the wallpaper; system
+  settings (power, network, firewall, FileVault, Time Machine, the login
+  shell, default apps); the preferences of the system and of apps; dotfiles
+  and the global configuration of your tools; emptying the Trash; Mole's
+  `optimize` (which repairs login items and background services) and
+  topgrade (which upgrades apps with its own steps). The summary lists what
+  it would suggest instead;
+- updating an app can close it or take it out of what starts at login:
+  Homebrew quits an app to replace it and does not open it again (a menu bar
+  app disappears from the menu bar), and the uninstall step of some casks
+  removes their login item or background service (Alfred, Tailscale,
+  Dropbox, 1Password…). So the Homebrew step leaves out the casks whose app
+  is open and those whose update removes a login item or a background
+  service, the App Store step leaves out the apps that are open, and both
+  name them: they are updated the next time you run `omega update` at the
+  machine, which opens again what the update closed. Formulae, tools and closed apps are updated as usual;
 - macOS privacy permissions are not asked for; a stage that needs one says so
   in its summary;
+- each stage builds on the ones before it: it is told what they concluded,
+  so it does not measure, redo or offer again what an earlier stage already
+  did, and the read-only results they measured (the disk scan, the dry runs
+  of the catalogue steps) are reused instead of run again. Anything that may
+  change the machine (a command, a written file, a hook of yours, the
+  built-in steps) throws those results away for every stage after it;
 - a stage that fails does not stop the ones after it; Ctrl+C stops the run.
 
 At a terminal the run has a screen of its own, since nobody is going to type
-anything into it (this one is `omega unattended --demo --only update,clean`):
+anything into it (here a stage has just failed a step, and the mascot winces):
 
 ```text
- ✻ omega unattended run  dev · claude-haiku-5-5 · demo, nothing real runs         45s · $0.2207
- ✓✻  1/2  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ Ω omega  unattended run  dev · claude-haiku-5-5 · demo, nothing real runs        45s · $0.0156
+ ━━━━━━━━━━━━━━━━━━━━━━━━ ━━━━━━━━━━━━━━━━━━━━━━━━ ──────────────────────────  1/3 · about 40s left
 
-            .             ╭────────────────────────────────────────────────────────────────────╮
-      .-======*==-.       │ Stage 2 of 2 · Clean up  omega clean · 13s                         │
-    .'             '.   ◂ │ Disk is at 91% and 6 Homebrew packages are outdated. Updating      │
-   /                 \    │ first.                                                             │
-  |   ( o )   ( o )   |   ╰────────────────────────────────────────────────────────────────────╯
-  |                   |
-   \     \_____/     /      ✶ Step(pipx) 1s
-    '.             .'         ⎿ Error: python@3.12 is not installed
-      '.         .'
-  '-----:       :====='
+                       !
+          ▄▄██████▄▄     !
+       ▄█▀▀        ▀▀█▄       ╭─ Stage 2 of 3 · Update ─────────────────────── omega update · 21s ─╮
+      ██              ██    ╶─┤ Disk is at 91% and 6 Homebrew packages are outdated. Updating      │
+     ██   ▀▄      ▄▀   ██     │ first, then the npm globals and pipx.                              │
+     ██   ▄▀      ▀▄   ██     ╰────────────────────────────────────────────────────────────────────╯
+      ██      ╭╮      ██
+       ▀█▄          ▄█▀       ✶ Step(npm)  2s
+    ▄▄▄▄▄██        ██▄▄▄▄▄      └ added 3 packages in 2s
+    ▀▀▀▀▀▀▀        ▀▀▀▀▀▀▀
 
- ROUTE                      1/2 │ DONE SO FAR            actions: 14 done · 1 failed · 1 denied
- ✓ Update                   32s │  ✓ Disk(~/Library)                                         4s
- ✶ Clean up                 13s │  ✓ Step(brew-cleanup)                                      3s
-                                │  ⊘ Step(docker-build-cache) · Unattended run: this ac… denied
-                                │  ✓ Step(xcode-derived)                                     2s
-                                │  ✓ Step(npm-cache)                                         3s
-                                │ ── Clean up
-                                │  ✓ System
-                                │  ✓ Step(brew-outdated)                                     4s
-                                │  ✓ Step(disk)                                              4s
-                                │  ✓ Step(brew)                                              5s
-                                │  ✶ Step(pipx)                                              1s
-
- Nobody needs to answer anything: every stage runs on its own · ctrl+c stops the run
+ ROUTE ────────────────────── 1/3   DONE SO FAR ───────────── actions: 1 done · 1 failed · 1 denied
+  ✓ Check omega                4s   ─ Check omega ─────────────────────────────────────────────────
+ ▌✶ Update                    21s   ─ Update ──────────────────────────────────────────────────────
+    omega update  ✓1 ✗1 ⊘1            ✓ Step(brew)                                               4s
+  · Clean up                          ✗ Step(pipx) · Error: python@3.12 is not installed     exit 1
+                                      ⊘ Bash(docker volume prune -f) · Unattended run: this  denied
+ FOR YOU LATER ──────────────── 2     ✶ Step(npm)                                                2s
+  ✗ Step(pipx)
+    Update · Error: python@3.12
+    is not installed
+  ⊘ Bash(docker volume prune -f)
+    Update · Unattended run: this
+    action always needs a person.
+────────────────────────────────────────────────────────────────────────────────────────────────────
+ ctrl+c stop the run · s skip this stage · ↑↓ scroll
 ```
 
-- the mascot, the letter Ω itself with a face inside it, never sits still
-  while a stage runs (a glint runs along its arc, its feet step, its eyes
-  look around and blink, its mouth moves) and says what the run is doing, in
-  the model's own words, with the stage it is on; its face follows the run
-  (working, thinking, wincing at a failure, pleased or sorry at the end). A
-  terminal under 26 lines or 72 columns gets a small version of it;
-- under it, the command that is running and the last line it printed;
-- **Route** is every stage and how it went; **Done so far** is every command
-  that has run, failed or been refused, with the totals;
+- at the top, the progress of the run: one segment per stage, green when it
+  went well, red when it failed, with a pulse running along the one that is
+  running; beside it, how many have ended and about how long the rest will
+  take, from how long the ones that ran took;
+- the mascot is the letter Ω itself, with a face, and it never sits still:
+  while a stage works a glint runs along its arc, its feet tap, its eyes look
+  around and blink and sparkles twinkle around it; it looks up with thought
+  bubbles while the model thinks, winces and flashes red at a failure, jumps
+  among confetti when a stage ends well, and at the end of the run is pleased
+  or sorry, depending on how it went. A terminal under 26 lines or 80 columns
+  gets a small version of it, and `OMEGA_ASCII=1` or `TERM=dumb` one drawn in
+  plain characters; `OMEGA_REDUCED_MOTION=1` (or `NO_COLOR`) keeps it still;
+- its speech bubble says what the run is doing, in the model's own words, with
+  the stage it is on, its command and how long it has taken; under it, the
+  command that is running and the last line it printed;
+- **Route** is every stage and how it went; under the one that is running, its
+  command and how many of its actions went through, failed or were refused;
+- **Done so far** is every action of the run, stage by stage, with the totals;
+- **For you later** is what did not go through (a step that failed, an action
+  that needs a person), with the stage it was in and why: what to look at when
+  you come back. A terminal under 84 columns leaves it out (the report at the
+  end still has it);
+- **s** ends the stage that is running and goes on with the next one (it is
+  listed as stopped, not failed); ↑↓, PgUp and PgDn scroll back through
+  **Done so far**, and End follows the run again;
+- the terminal's title says how far the run has got and which stage is
+  running, and keeps the verdict (✓ or ✗) when the run ends; the screen stays
+  up a moment to show it, and the terminal's bell rings to mark the tab it was
+  left in;
 - Ctrl+C stops the stage that is running and the run with it; a second Ctrl+C
   leaves at once.
 
 When the run ends the screen closes and leaves on the terminal what each stage
 concluded, what failed or was refused in it, and the summary of every stage,
 so it is all there when you come back. Without a terminal (a pipe, cron,
-launchd), with `TERM=dumb` or with `--no-tui`, the run prints lines instead.
+launchd), with `TERM=dumb` or with `--no-tui`, the run prints lines instead,
+and each stage's line says the time it started, for the log you read later.
 
 It exits with status **1** if any stage failed. With `--dry-run` nothing changes and no password is asked. Without
 a terminal (from launchd or cron) there is nobody to type the password, so the

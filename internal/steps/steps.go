@@ -327,7 +327,7 @@ var catalog = []Step{
 		Description: "Upgrades formulae and casks, when there are at least 10 GB free; casks whose app is gone are left out and named with their fix"},
 	{OS: mac, ID: "brew-greedy", Name: "Self-updating casks", Category: Update, Command: brewGreedy, Risk: safety.Dangerous, Requires: "brew",
 		Description: "Also casks that update themselves (may quit running apps); needs 10 GB free and leaves out casks whose app is gone"},
-	{OS: mac, ID: "mas", Name: "Mac App Store", Category: Update, Command: withSpace("the App Store", "mas upgrade"), Risk: safety.Normal, Requires: "mas", Install: "brew install mas"},
+	{OS: mac, ID: "mas", Name: "Mac App Store", Category: Update, Command: masUpgrade, Risk: safety.Normal, Requires: "mas", Install: "brew install mas"},
 	{ID: "npm", Name: "npm global", Category: Update, Command: "npm update -g", Risk: safety.Normal, Requires: "npm"},
 	{ID: "pnpm", Name: "pnpm global", Category: Update, Command: "pnpm update -g", Risk: safety.Normal, Requires: "pnpm", Detect: once(pnpmHasGlobals),
 		Description: "Only when pnpm has global packages"},

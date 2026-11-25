@@ -351,7 +351,8 @@ func TestFullUnattended(t *testing.T) {
 	if sudoAsked != "" {
 		t.Error("the password outlived the run")
 	}
-	if got := strings.Join(started, " "); got != "analyze health update clean tune dev mac" {
+	// Only upkeep: tune, dev and mac change how the user set up the Mac.
+	if got := strings.Join(started, " "); got != "analyze health update clean" {
 		t.Errorf("started %s", got)
 	}
 	if code, ok := err.(exitCode); !ok || code != 1 {
@@ -461,5 +462,44 @@ func TestUnattendedScreen(t *testing.T) {
 	// A buffer is not a terminal: the real check says no.
 	if oldScreen(&b, false) {
 		t.Error("a run that does not write to the terminal got a screen")
+	}
+}
+
+// An unattended run keeps the stages that are upkeep and names the others;
+// asking for one of those by name is an error, not a silent skip.
+func TestUnattendedRunsOnlyUpkeep(t *testing.T) {
+	stages := fullFixture(t, "darwin", false)
+	var b strings.Builder
+	kept, err := upkeepStages(stages, nil, &b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ids []string
+	for _, s := range kept {
+		ids = append(ids, s.id)
+	}
+	if got := strings.Join(ids, " "); got != "doctor analyze health update clean" {
+		t.Errorf("kept %s", got)
+	}
+	for _, want := range []string{"mac (omega mac)", "dev (omega dev)", "tune (omega tune)", "a person decides"} {
+		if !strings.Contains(b.String(), want) {
+			t.Errorf("the note does not say %q: %s", want, b.String())
+		}
+	}
+	b.Reset()
+	if _, err := upkeepStages(stages, []string{"update,mac"}, &b); err == nil || !strings.Contains(err.Error(), "omega mac") ||
+		!strings.Contains(err.Error(), "doctor, analyze, health, update, clean, docker") {
+		t.Errorf("--only mac: %v", err)
+	}
+	if kept, err := upkeepStages(stages, []string{"update"}, &b); err != nil || len(kept) != 5 || b.Len() != 0 {
+		t.Errorf("--only update: %d kept, %v, note %q", len(kept), err, b.String())
+	}
+	for _, s := range fullStages {
+		switch s.id {
+		case "mac", "dev", "tune", "fix", "history":
+			if s.upkeep {
+				t.Errorf("%s changes how the user set up the machine: it must not run unattended", s.id)
+			}
+		}
 	}
 }

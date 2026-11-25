@@ -34,6 +34,12 @@ type fullStage struct {
 	risk   string
 	// when says whether the stage applies to this machine; nil means always.
 	when func() bool
+	// upkeep says the stage is maintenance that may run with nobody there:
+	// it checks, updates or clears caches. The others change how the user
+	// set up the machine (what runs at login, the menu bar, the apps, tool
+	// and shell configuration, earlier decisions left pending), which a
+	// person decides, so an unattended run leaves them out.
+	upkeep bool
 }
 
 // fullStages is everything omega can do to leave a machine better, in the
@@ -41,12 +47,12 @@ type fullStage struct {
 // touching, update, clean, then the reviews that ask for decisions, and at
 // the end what earlier runs left undone.
 var fullStages = []fullStage{
-	{id: "doctor", command: "omega doctor", report: doctorBrief, risk: "read-only"},
-	{id: "analyze", command: "omega analyze", task: agent.TaskAnalyze, risk: "read-only"},
-	{id: "health", command: "omega health", task: agent.TaskHealth, risk: "normal"},
-	{id: "update", command: "omega update", task: agent.TaskUpdate, risk: "normal"},
-	{id: "clean", command: "omega clean", task: agent.TaskClean, risk: "dangerous"},
-	{id: "docker", command: "omega docker", task: agent.TaskDocker, risk: "dangerous", when: func() bool { return hasTool("docker") }},
+	{id: "doctor", command: "omega doctor", report: doctorBrief, risk: "read-only", upkeep: true},
+	{id: "analyze", command: "omega analyze", task: agent.TaskAnalyze, risk: "read-only", upkeep: true},
+	{id: "health", command: "omega health", task: agent.TaskHealth, risk: "normal", upkeep: true},
+	{id: "update", command: "omega update", task: agent.TaskUpdate, risk: "normal", upkeep: true},
+	{id: "clean", command: "omega clean", task: agent.TaskClean, risk: "dangerous", upkeep: true},
+	{id: "docker", command: "omega docker", task: agent.TaskDocker, risk: "dangerous", upkeep: true, when: func() bool { return hasTool("docker") }},
 	{id: "tune", command: "omega tune", task: agent.TaskTune, risk: "normal"},
 	{id: "dev", command: "omega dev", task: agent.TaskDev, risk: "normal"},
 	{id: "mac", command: "omega mac", task: agent.TaskMac, risk: "normal", when: func() bool { return goos == "darwin" }},
@@ -72,6 +78,7 @@ func doctorBrief(w io.Writer) error {
 
 // Seams the tests replace.
 var (
+	clock   = time.Now
 	hasTool = runner.Has
 	hasRuns = func() bool {
 		logs, err := agent.ListRunLogs()
@@ -143,6 +150,39 @@ func pickStages(stages []fullStage, only, skip []string) (map[string]bool, error
 	return chosen, nil
 }
 
+// upkeepStages keeps the stages an unattended run may do and names the
+// others. A stage asked for by name with --only that is not upkeep is an
+// error: running it with nobody there is what the user must not get.
+func upkeepStages(here []fullStage, only []string, w io.Writer) ([]fullStage, error) {
+	named := map[string]bool{}
+	for _, item := range only {
+		for _, id := range strings.Split(item, ",") {
+			named[strings.ToLower(strings.TrimSpace(id))] = true
+		}
+	}
+	var kept []fullStage
+	var left, upkeep []string
+	for _, s := range fullStages {
+		if s.upkeep {
+			upkeep = append(upkeep, s.id)
+		}
+	}
+	for _, s := range here {
+		switch {
+		case s.upkeep:
+			kept = append(kept, s)
+		case named[s.id]:
+			return nil, fmt.Errorf("%s", i18n.T("unattended.not_upkeep", s.id, s.command, strings.Join(upkeep, ", ")))
+		default:
+			left = append(left, s.id+" ("+s.command+")")
+		}
+	}
+	if len(left) > 0 && len(named) == 0 {
+		fmt.Fprintln(w, i18n.T("unattended.left_out", strings.Join(left, ", ")))
+	}
+	return kept, nil
+}
+
 // runStage runs one stage and returns when it has ended.
 func runStage(s fullStage, f runFlags, out io.Writer) error {
 	if s.task == "" {
@@ -181,7 +221,13 @@ func runFull(w io.Writer, stages []ui.GuideStage, run func(id string) error, ask
 	for n := 0; n < len(todo); n++ {
 		i := todo[n]
 		s := stages[i]
-		fmt.Fprintf(w, "\n%s %s · %s · %s\n", rule, i18n.T("full.stage", n+1, len(todo)), s.Title, s.Command)
+		head := fmt.Sprintf("%s %s · %s · %s", rule, i18n.T("full.stage", n+1, len(todo)), s.Title, s.Command)
+		if ask == nil {
+			// Nobody is watching: the lines end in a log read later, where
+			// the time each stage started is what places it.
+			head += " · " + clock().Format("15:04:05")
+		}
+		fmt.Fprintf(w, "\n%s\n", head)
 		fmt.Fprintf(w, "  %s: %s\n  %s: %s\n\n", i18n.T("full.what"), s.What, i18n.T("full.why"), s.Why)
 		began := time.Now()
 		err := run(s.ID)
@@ -306,6 +352,11 @@ func fullCmd() *cobra.Command {
 					fmt.Fprintln(os.Stderr, i18n.T("full.no_ai_left", strings.Join(left, ", ")))
 				}
 			}
+			if f.unattended {
+				if here, err = upkeepStages(here, only, os.Stderr); err != nil {
+					return err
+				}
+			}
 			byID := map[string]fullStage{}
 			var stages []ui.GuideStage
 			for _, s := range here {
@@ -313,8 +364,10 @@ func fullCmd() *cobra.Command {
 				stages = append(stages, guideStage(s, chosen[s.id]))
 			}
 			// A stage ends when its work does: the run goes on to the next
-			// one without anybody typing /exit.
+			// one without anybody typing /exit. The stages share what they
+			// measured and what each one concluded.
 			f.stage = true
+			f.share = newStageShare()
 			if f.unattended {
 				return runUnattended(os.Stdout, stages, byID, f)
 			}
@@ -444,6 +497,14 @@ var (
 // stop the ones after it. At a terminal the run has its own screen; without
 // one, or with --no-tui, it prints lines.
 func runUnattended(w io.Writer, stages []ui.GuideStage, byID map[string]fullStage, f runFlags) error {
+	// Only upkeep runs with nobody there, however the stages were picked.
+	var upkeep []ui.GuideStage
+	for _, s := range stages {
+		if byID[s.ID].upkeep {
+			upkeep = append(upkeep, s)
+		}
+	}
+	stages = upkeep
 	screen := pilotScreen(w, f.noTUI)
 	info := ui.PilotInfo{Version: version}
 	for _, fl := range []struct {
@@ -455,6 +516,14 @@ func runUnattended(w io.Writer, stages []ui.GuideStage, byID map[string]fullStag
 		}
 	}
 	f = unattendedFlags(f)
+	// Every command of the run knows it is unattended: the Homebrew step
+	// then leaves out the casks whose upgrade would quit an open app or
+	// remove what it starts at login.
+	runner.SetUnattended(true)
+	defer runner.SetUnattended(false)
+	if f.share == nil {
+		f.share = newStageShare()
+	}
 	fmt.Fprintln(w, i18n.T("unattended.intro"))
 	if screen {
 		fmt.Fprintln(w, i18n.T("unattended.intro_screen"))
@@ -486,6 +555,8 @@ func runUnattended(w io.Writer, stages []ui.GuideStage, byID map[string]fullStag
 			fmt.Fprintln(w, line)
 		}
 		fullSummary(w, stages, res)
+		// The bell marks the tab the run was left in: it has finished.
+		fmt.Fprint(w, "\a")
 		if fullFailed(res) {
 			return exitCode(1)
 		}

@@ -16,6 +16,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unicode/utf8"
 
@@ -571,6 +572,16 @@ func Configure(env []string, prefix string) {
 	extraEnv, pathPrefix = env, prefix
 }
 
+// unattended is set while an unattended run (omega unattended) is going:
+// every command gets OMEGA_UNATTENDED=1, so a step can leave out what needs
+// a person, such as a cask whose upgrade would quit an open app or remove
+// its login item.
+var unattended atomic.Bool
+
+// SetUnattended marks the commands that run from now on as part of an
+// unattended run, or no longer.
+func SetUnattended(on bool) { unattended.Store(on) }
+
 // Run executes command through the login shell with stdin closed and in its
 // own session, without a controlling terminal: tools that would prompt fail
 // fast (or go through omega's sudo bridge) instead of hanging or writing over
@@ -605,6 +616,9 @@ func Run(ctx context.Context, command string, timeout time.Duration, onLine func
 	)
 	cmd.Env = append(cmd.Env, GitEnv()...)
 	cmd.Env = append(cmd.Env, extraEnv...)
+	if unattended.Load() {
+		cmd.Env = append(cmd.Env, "OMEGA_UNATTENDED=1")
+	}
 	cmd.WaitDelay = 5 * time.Second
 
 	pr, pw := io.Pipe()

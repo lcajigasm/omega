@@ -20,6 +20,7 @@ type session struct {
 	ran    []string
 	log    string
 	events []Event
+	a      *Agent
 }
 
 func runScript(t *testing.T, opts Options, answer Decision, picks []string, output func(cmd string) runner.Result, replies ...*llm.Reply) *session {
@@ -48,6 +49,7 @@ func runScript(t *testing.T, opts Options, answer Decision, picks []string, outp
 		return res
 	}
 	a := New(s.p, opts)
+	s.a = a
 	path := a.LogPath()
 	go a.Run(context.Background(), "the task")
 	for e := range a.Events() {

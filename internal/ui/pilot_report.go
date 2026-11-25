@@ -99,8 +99,8 @@ func (m *pilotModel) report() []string {
 	}
 	ok, failed, denied := m.tally(-1)
 	side := []string{"", "", "", "", verdict, mutedStyle.Render(i18n.T("pilot.tally", ok, failed, denied)), "", "", "", ""}
-	for i, line := range avatar(mood, 6) {
-		lines = append(lines, strings.TrimRight(" "+accentStyle.Render(line)+"  "+side[i], " "))
+	for i, line := range drawAvatar(mood, 3, false) {
+		lines = append(lines, strings.TrimRight(" "+line+"  "+side[i], " "))
 	}
 	return lines
 }
