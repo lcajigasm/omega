@@ -353,13 +353,18 @@ type pickerProgram struct {
 	done      bool
 }
 
-func (m *pickerProgram) Init() tea.Cmd { return nil }
+func (m *pickerProgram) Init() tea.Cmd { return statsTick() }
 
 func (m *pickerProgram) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
-		m.p.setHeight(msg.Height)
+		m.p.setHeight(msg.Height - 1) // the stats line takes one
+	case statsTickMsg:
+		if m.done {
+			return m, nil
+		}
+		return m, statsTick()
 	case tea.KeyMsg:
 		if msg.String() == "ctrl+c" {
 			m.cancelled, m.done = true, true
@@ -377,7 +382,7 @@ func (m *pickerProgram) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if w == 0 || w > 100 {
 			w = 100
 		}
-		if done, cancelled := m.p.Click(msg.X, msg.Y, w); done {
+		if done, cancelled := m.p.Click(msg.X, msg.Y-1, w); done { // under the stats line
 			m.done, m.cancelled = true, cancelled
 			return m, tea.Quit
 		}
@@ -393,7 +398,8 @@ func (m *pickerProgram) View() string {
 	if w == 0 || w > 100 {
 		w = 100
 	}
-	return m.p.View(w) + "\n"
+	// The machine's stats, as every screen shows them, then the card.
+	return statsLine(w) + "\n" + m.p.View(w) + "\n"
 }
 
 // Pick shows a card in the terminal and returns the chosen IDs. Without a
@@ -406,6 +412,7 @@ func Pick(title, hint string, opts []Option, multi bool, tty bool, in io.Reader,
 		// otherwise its reply (which starts with ESC) arrives as an Esc key
 		// press and closes the card at once.
 		lipgloss.HasDarkBackground()
+		defer watchStats()()
 		m := &pickerProgram{p: p}
 		if _, err := tea.NewProgram(m).Run(); err != nil {
 			return nil, err

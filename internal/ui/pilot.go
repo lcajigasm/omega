@@ -184,6 +184,7 @@ func RunPilot(info PilotInfo, stages []GuideStage, run StageRunner) (results []S
 	// Resolve the background query before Bubble Tea reads stdin, or its
 	// reply arrives as an Esc key press (see Pick).
 	lipgloss.HasDarkBackground()
+	defer watchStats()()
 	m := newPilotModel(info, stages)
 	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithOutput(os.Stdout))
 	m.host.send = p.Send

@@ -124,7 +124,6 @@ func (m *model) planView() string {
 		inner = w - 1
 	}
 	var top strings.Builder
-	top.WriteString(" " + titleStyle.Render(gl.Brand+" full") + mutedStyle.Render(" "+g.info.Version+" "+gl.Sep+" "+i18n.T("full.title")) + "\n")
 	intro := i18n.T("full.plan_intro")
 	if len(g.info.Flags) > 0 {
 		intro += " " + i18n.T("full.plan_flags", strings.Join(g.info.Flags, ", "))
@@ -179,12 +178,12 @@ func (m *model) planView() string {
 	if g.planBack {
 		hints = []hint{hk("↑↓", "uix.move"), hk("space", "uix.tick"), hk("a", "uix.all"), hk("enter", "uix.back_run").must()}
 	}
-	keyLine := hintLine(w, hints...)
+	keyLine := strings.Join(chromeFooter(max(m.width, 20), "", hints...), "\n")
 
 	// The list takes what the rest leaves, scrolled to keep the cursor in sight.
 	room := len(rows)
 	if m.height > 0 {
-		used := lipgloss.Height(top.String()) + 1 + 1 + lipgloss.Height(cardView) + 1 + lipgloss.Height(keyLine)
+		used := chromeRows + lipgloss.Height(top.String()) + 1 + 1 + lipgloss.Height(cardView) + 1 + lipgloss.Height(keyLine)
 		room = max(3, m.height-used)
 	}
 	if len(rows) > room {
@@ -281,13 +280,41 @@ func (m *model) guideFooter() (string, bool) {
 	return "", false
 }
 
-// topRows is the height of what sits above the transcript: the route on
-// one line when the panel, which shows it in full, has no room.
+// topRows is the height of what sits above the transcript: the chrome,
+// and the route on one line when the panel, which shows it in full, has
+// no room.
 func (m *model) topRows() int {
 	if m.g != nil && !m.panelShown() {
-		return 1
+		return chromeRows + 1
 	}
-	return 0
+	return chromeRows
+}
+
+// chromeRows is the top bar, the stats line and a blank line under them.
+const chromeRows = 3
+
+// chromeTop is the top bar and the machine's stats, as every screen has.
+func (m *model) chromeTop() string {
+	w := max(m.width, 20)
+	title, info := m.header.Task, []string{}
+	if m.g != nil {
+		title = i18n.T("full.title")
+		if m.g.info.Version != "" {
+			info = append(info, m.g.info.Version)
+		}
+		if m.header.Model != "" {
+			info = append(info, m.header.Model)
+		}
+		info = append(info, m.g.info.Flags...)
+	} else {
+		if m.header.Version != "" {
+			info = append(info, m.header.Version)
+		}
+		if m.header.Provider != "" {
+			info = append(info, m.header.Provider)
+		}
+	}
+	return topBar(title, info, "", w) + "\n" + statsLine(w) + "\n"
 }
 
 // routeStrip is the route on one line.
@@ -301,7 +328,7 @@ func (m *model) routeStrip() string {
 		}
 		marks.WriteString(m.stageMark(i))
 	}
-	s := " " + titleStyle.Render(gl.Brand+" full") + "  " + marks.String() + "  " + mutedStyle.Render(fmt.Sprintf("%d/%d", settled, total))
+	s := " " + marks.String() + "  " + mutedStyle.Render(fmt.Sprintf("%d/%d", settled, total))
 	if g.cur >= 0 {
 		s += mutedStyle.Render(" "+gl.Sep+" ") + cmdStyle.Render(g.stages[g.cur].Title)
 	}
@@ -312,13 +339,7 @@ func (m *model) routeStrip() string {
 func (m *model) routeLines(inner int) []string {
 	g := m.g
 	total, settled := g.chosen()
-	head := titleStyle.Render(i18n.T("full.route"))
-	count := fmt.Sprintf("%d/%d", settled, total)
-	gap := inner - lipgloss.Width(head) - lipgloss.Width(count)
-	if gap < 1 {
-		gap = 1
-	}
-	lines := []string{head + strings.Repeat(" ", gap) + mutedStyle.Render(count)}
+	lines := []string{panelHead(i18n.T("full.route"), fmt.Sprintf("%d/%d", settled, total), inner)}
 	for i, s := range g.stages {
 		name := truncate(s.Title, max(10, inner-2))
 		switch {

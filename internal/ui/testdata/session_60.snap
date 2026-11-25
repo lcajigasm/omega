@@ -1,3 +1,6 @@
+ Ω omega  update
+ CPU  23%   RAM  62%   DISK  80%   NET ↓1.5 MB/s ↑40 KB/s
+
 ● Step(brew)  brew upgrade
   └  ✓ · 41s · 3 lines  (ctrl+o)
 
@@ -15,9 +18,6 @@
 
 
 
-
-
-
-
+────────────────────────────────────────────────────────────
  » asks before risky actions        test-model · ↑0 ↓0 · 0s
   ? help · q quit · ↑↓ scroll · ctrl+f search

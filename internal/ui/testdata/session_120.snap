@@ -1,23 +1,23 @@
-● Step(brew)  brew upgrade                                                            ╭────────────────────────────────╮
-  └  ✓ · 41s · 3 lines  (ctrl+o)                                                      │ SESSION                        │
-                                                                                      │ task     update                │
-▸ ● Bash(rm -rf ~/x)                                                                  │ mode     asks first            │
-  └  denied · outside what omega may delete.                                          │ model    test-model            │
-                                                                                      │ steps    ✓ 1  ⊘ 1              │
-                                                                                      │                                │
-                                                                                      │ TOKENS                         │
-                                                                                      │ ↑0 ↓0                          │
-                                                                                      │                                │
-                                                                                      │ ACTIVITY                       │
-                                                                                      │ ✓ Step brew                41s │
-                                                                                      │ ⊘ Bash rm -rf ~/x              │
-                                                                                      │                                │
-                                                                                      │                                │
-                                                                                      │                                │
-                                                                                      │                                │
-                                                                                      │                                │
-                                                                                      │                                │
-                                                                                      │                                │
-                                                                                      ╰────────────────────────────────╯
+ Ω omega  update
+ CPU ━─────  23%   RAM ━━━━──  62% 10/16 GB   DISK / ━━━━━─  80%   Backup ━─────  10%   NET ↓1.5 MB/s ↑40 KB/s
+
+● Step(brew)  brew upgrade                                                              SESSION ──────────────────────
+  └  ✓ · 41s · 3 lines  (ctrl+o)                                                        task     update
+                                                                                        mode     asks first
+▸ ● Bash(rm -rf ~/x)                                                                    model    test-model
+  └  denied · outside what omega may delete.                                            steps    ✓ 1  ⊘ 1
+
+                                                                                        TOKENS ───────────────────────
+                                                                                        ↑0 ↓0
+
+                                                                                        ACTIVITY ─────────────────── 2
+                                                                                        ✓ Step brew                41s
+                                                                                        ⊘ Bash rm -rf ~/x
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  » asks before risky actions                                                                    test-model · ↑0 ↓0 · 0s
   ? help · q quit · ↑↓ scroll · ctrl+f search

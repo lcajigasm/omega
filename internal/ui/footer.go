@@ -226,12 +226,14 @@ func (m *model) newLinesLine() string {
 		hint{key: "end", action: i18n.T("uix.to_end")}.render()
 }
 
-// statusBlock is the status bar, with the new-lines notice above it.
+// statusBlock is the status bar under a rule, with the new-lines notice
+// above it.
 func (m *model) statusBlock() string {
+	bar := chromeRule(m.width) + "\n" + m.statusBar()
 	if s := m.newLinesLine(); s != "" {
-		return s + "\n" + m.statusBar()
+		return s + "\n" + bar
 	}
-	return m.statusBar()
+	return bar
 }
 
 // helpAllowed is false while a password or a filter is being typed, and
@@ -351,8 +353,8 @@ func (m *model) resize() {
 // startView is the screen before the terminal has said its size.
 func (m *model) startView() string {
 	s := titleStyle.Render(gl.Brand) + "   " + titleStyle.Render(spinFrame(m.frame)) + " " + mutedStyle.Render(i18n.T("ui.starting"))
-	if m.width > 0 && m.height > 0 {
-		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, s)
+	if m.width > 0 && m.height > chromeRows {
+		return m.chromeTop() + "\n" + lipgloss.Place(m.width, m.height-chromeRows, lipgloss.Center, lipgloss.Center, s)
 	}
 	return "\n   " + s
 }
@@ -362,14 +364,15 @@ func (m *model) View() string {
 		return m.startView()
 	}
 	if m.g != nil && m.state == stPlan {
-		return m.planView()
+		return m.chromeTop() + "\n" + m.planView()
 	}
 	m.resize()
+	top := m.chromeTop() + "\n"
 	if m.panelShown() {
-		return lipgloss.JoinHorizontal(lipgloss.Top, m.vp.View(), m.panelView(m.vp.Height)) + "\n" + m.footerView()
+		return top + lipgloss.JoinHorizontal(lipgloss.Top, m.vp.View(), m.panelView(m.vp.Height)) + "\n" + m.footerView()
 	}
-	if m.topRows() > 0 {
-		return m.routeStrip() + "\n" + m.vp.View() + "\n" + m.footerView()
+	if m.g != nil {
+		return top + m.routeStrip() + "\n" + m.vp.View() + "\n" + m.footerView()
 	}
-	return m.vp.View() + "\n" + m.footerView()
+	return top + m.vp.View() + "\n" + m.footerView()
 }

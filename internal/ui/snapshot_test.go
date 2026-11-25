@@ -12,6 +12,7 @@ import (
 	"github.com/lcajigasm/omega/internal/agent"
 	"github.com/lcajigasm/omega/internal/i18n"
 	"github.com/lcajigasm/omega/internal/safety"
+	"github.com/lcajigasm/omega/internal/sysstats"
 )
 
 // update rewrites the snapshots under testdata instead of comparing them:
@@ -35,6 +36,22 @@ func stableLook(t *testing.T) {
 	i18n.OS = "darwin"
 	t.Cleanup(func() { i18n.OS = os })
 	i18n.Init("en")
+	pinStats(t)
+}
+
+// pinStats draws a fixed machine on the stats line.
+func pinStats(t *testing.T) {
+	t.Helper()
+	was := statsNow
+	statsNow = func() sysstats.Sample {
+		return sysstats.Sample{
+			CPU: 0.23, CPUKnown: true, Cores: 8,
+			MemUsed: 10 << 30, MemTotal: 16 << 30, MemKnown: true,
+			Disks:  []sysstats.Disk{{Mount: "/", Used: 400 << 30, Total: 500 << 30}, {Mount: "/Volumes/Backup", Used: 100 << 30, Total: 1000 << 30}},
+			RxRate: 1.5 * (1 << 20), TxRate: 40 << 10, NetKnown: true,
+		}
+	}
+	t.Cleanup(func() { statsNow = was })
 }
 
 func TestMenuSnapshots(t *testing.T) {
@@ -51,7 +68,6 @@ func TestMenuSnapshots(t *testing.T) {
 	}
 	for _, w := range snapWidths {
 		m := newMenu(MenuInfo{Version: "1.0", Provider: "anthropic", Model: "auto", LastRun: "2 days ago"}, items)
-		m.total, m.free = 500<<30, 100<<30
 		m.Update(tea.WindowSizeMsg{Width: w, Height: 30})
 		assertSnap(t, fmt.Sprintf("menu_%d", w), m.View())
 	}

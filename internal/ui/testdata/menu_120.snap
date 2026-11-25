@@ -1,17 +1,29 @@
-╭────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│  Ω omega 1.0  AI maintenance for your Mac                                                                  │
-│                                                                                                            │
-│  disk      ━━━━━━━━━━━━━━━━━━━━━━──────  100.0 GB free of 500.0 GB                                         │
-│  model     anthropic · auto                                                                                │
-│  last run  2 days ago                                                                                      │
-╰────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+ Ω omega  AI maintenance for your Mac  1.0 · anthropic · auto                                       last run 2 days ago
+ CPU ━─────  23%   RAM ━━━━──  62% 10/16 GB   DISK / ━━━━━─  80%   Backup ━─────  10%   NET ↓1.5 MB/s ↑40 KB/s
 
-  MAINTENANCE
+  MAINTENANCE ────────────────────────────────────────────────
 ❯ omega           Full maintenance
   omega update +  Update all installed software
   omega -p "…" …  Ask in words
 
-  YOUR MAC
+  YOUR MAC ───────────────────────────────────────────────────
   omega mac ›     Review your Mac
 
-  ↑↓ move · enter open or run · → options · type to search everything · q quit
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ ↑↓ move · enter open or run · → options · type to search everything · q quit

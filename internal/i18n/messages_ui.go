@@ -5,6 +5,12 @@ package i18n
 // separate so the key can be drawn in bold. Same order as messages: en, es,
 // fr, de, pt.
 var uiMessages = map[string][]string{
+	// The machine, on the second line of every screen.
+	"stats.cpu":  {"CPU", "CPU", "CPU", "CPU", "CPU"},
+	"stats.ram":  {"RAM", "RAM", "RAM", "RAM", "RAM"},
+	"stats.disk": {"DISK", "DISCO", "DISQUE", "DISK", "DISCO"},
+	"stats.net":  {"NET", "RED", "RÉSEAU", "NETZ", "REDE"},
+
 	// Names of keys.
 	"uix.k_enter": {"enter", "enter", "entrée", "Enter", "enter"},
 	"uix.k_esc":   {"esc", "esc", "échap", "Esc", "esc"},
