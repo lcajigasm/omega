@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -58,6 +59,55 @@ type runFlags struct {
 	failOnCritical bool
 	maxCost        float64
 	maxTurns       int
+	// share is what the stages of one guided or unattended run hand on to
+	// each other; nil for a task on its own.
+	share *stageShare
+}
+
+// stageShare is what the stages of one run share: the read-only results
+// they measured and what each one concluded.
+type stageShare struct {
+	cache *agent.ResultCache
+	mu    sync.Mutex
+	notes []agent.StageNote
+}
+
+func newStageShare() *stageShare { return &stageShare{cache: agent.NewResultCache()} }
+
+// add keeps what a stage concluded for the stages after it.
+func (s *stageShare) add(task, text string, failed bool) {
+	if s == nil || strings.TrimSpace(text) == "" {
+		return
+	}
+	s.mu.Lock()
+	s.notes = append(s.notes, agent.StageNote{Task: task, Text: text, Failed: failed})
+	s.mu.Unlock()
+}
+
+// prompt is what the next stage is told about the ones before it.
+func (s *stageShare) prompt() string {
+	if s == nil {
+		return ""
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return agent.EarlierStagesPrompt(s.notes)
+}
+
+// changed says something outside the sessions may have changed the
+// machine: nothing measured before is served again.
+func (s *stageShare) changed() {
+	if s != nil {
+		s.cache.Clear()
+	}
+}
+
+// resultCache is the cache the stages share; nil outside a run of stages.
+func (s *stageShare) resultCache() *agent.ResultCache {
+	if s == nil {
+		return nil
+	}
+	return s.cache
 }
 
 // version is set by Execute for the TUI header.
@@ -566,6 +616,9 @@ func prepareRun(task string, f runFlags) (*run, error) {
 	if f.unattended {
 		prompt += agent.UnattendedSuffix
 	}
+	if f.stage && f.prompt == "" {
+		prompt += f.share.prompt()
+	}
 	readOnly := f.dryRun || task == agent.TaskAnalyze
 
 	planTask := task
@@ -628,6 +681,7 @@ func (r *run) agent(interactive, demoInteractive bool, sudoPassword string) *age
 		Version:    version,
 		Task:       r.task,
 		Command:    strings.Join(os.Args, " "),
+		Cache:      r.f.share.resultCache(),
 	}
 	if r.f.demo {
 		opts.Provider = "anthropic"
@@ -673,6 +727,14 @@ func withHooks(task string, f runFlags, run func() error) error {
 	case f.quiet:
 		w = io.Discard
 	}
+	hooked := func(name string) {
+		// A hook is a command of the user's: what the stages measured
+		// before it may no longer hold.
+		if !f.dryRun && len(customsteps.Hooks(name)) > 0 {
+			f.share.changed()
+		}
+	}
+	hooked("pre_" + task)
 	if err := runHook(w, "pre_"+task, f.dryRun); err != nil {
 		return err
 	}
@@ -682,6 +744,7 @@ func withHooks(task string, f runFlags, run func() error) error {
 		after = []string{"on_error", "post_" + task}
 	}
 	for _, name := range after {
+		hooked(name)
 		if hookErr := runHook(w, name, f.dryRun); hookErr != nil {
 			fmt.Fprintln(os.Stderr, "omega:", hookErr)
 			if err == nil {
@@ -697,6 +760,8 @@ func runTask(task string, f runFlags) error {
 		return usageErr(nil, err.Error())
 	}
 	if f.deterministic() {
+		// The built-in steps change the machine outside any session.
+		defer f.share.changed()
 		return runDeterministic(task, f)
 	}
 	// Said, not refused: the run goes on as asked, but the flag does
@@ -721,6 +786,7 @@ func runAgent(task string, f runFlags) error {
 			if !f.quiet {
 				fmt.Fprintf(os.Stderr, "omega: %v\nomega: %s\n", err, i18n.T("det.no_key"))
 			}
+			defer f.share.changed() // the built-in steps change the machine
 			return detTask(task, f)
 		}
 		return err
@@ -764,7 +830,13 @@ func runAgent(task string, f runFlags) error {
 	if err != nil {
 		return err
 	}
-	if code := ag.ExitCode(); code != 0 {
+	code := ag.ExitCode()
+	if code != agent.ExitCancelled {
+		// A stage hands what it concluded to the ones after it; one that
+		// was stopped did not get to conclude anything.
+		f.share.add(task, ag.Conclusion(), code != 0)
+	}
+	if code != 0 {
 		return exitCode(code)
 	}
 	return nil

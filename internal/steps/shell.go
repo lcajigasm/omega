@@ -69,21 +69,104 @@ const sudoWarning = `if [ "$OMEGA_SUDO" = no ]; then sc=$(omega_sudocasks); if [
 	`echo "omega: these casks ask for the administrator password to upgrade, and this run has no sudo; they are left out (run omega with --sudo, or brew upgrade --cask <name> yourself):"; ` +
 	`printf '  %s\n' $sc; gone=$(printf '%s\n%s\n' "$gone" "$sc" | grep -v '^$'); fi; fi; `
 
+// keepCasks defines omega_keep, which in an unattended run (OMEGA_UNATTENDED=1,
+// set by omega) lists the outdated casks an upgrade would disturb, each
+// with why: those whose app is open, because Homebrew quits it to replace
+// it and does not open it again (a menu bar app then disappears from the
+// menu bar), and those whose uninstall stanza removes a login item or a
+// background service (Alfred, Tailscale, Dropbox, 1Password…), which the
+// new version does not always put back. Upgrading them is left for when
+// the user is there. The stanza is read from the install receipt, before
+// its zap section; an app counts as open when a process runs from inside
+// its bundle.
+const keepCasks = `omega_keep() { [ "$OMEGA_UNATTENDED" = 1 ] || return 0; cr=$(brew --caskroom 2>/dev/null) && [ -d "$cr" ] || return 0; ` +
+	`out=$(brew outdated --cask --quiet 2>/dev/null); [ -n "$out" ] || return 0; ps=$(ps -axo command= 2>/dev/null); ` +
+	`la=$(lsappinfo list 2>/dev/null | grep -o 'bundleID="[^"]*"'); ` +
+	`printf '%s\n' "$out" | while IFS= read -r t; do r="$cr/$t/.metadata/INSTALL_RECEIPT.json"; [ -f "$r" ] || continue; ` +
+	`u=$(tr -d '\n' < "$r" | sed 's/"zap".*//'); ` +
+	`case $u in *'"login_item"'*|*'"launchctl"'*) echo "$t (upgrading it removes what it starts at login or in the background)"; continue ;; esac; ` +
+	// Open, by the bundle ids its stanza quits (a .pkg cask has no app
+	// artifact) or by a process running from inside one of its apps.
+	`o=$(printf '%s' "$u" | awk '{ if (match($0, /"quit": *(\[[^]]*\]|"[^"]*")/)) { s = substr($0, RSTART + 7, RLENGTH - 7); ` +
+	`while (match(s, /"[^"]*"/)) { print substr(s, RSTART + 1, RLENGTH - 2); s = substr(s, RSTART + RLENGTH) } } }' | ` +
+	`while IFS= read -r b; do printf '%s\n' "$la" | grep -qxF "bundleID=\"$b\"" && { echo y; break; }; done); ` +
+	`[ -n "$o" ] || o=$(awk '{ s = $0 } !f && match(s, /"app": *\[/) { f = 1; s = substr(s, RSTART + RLENGTH) } ` +
+	`f { e = index(s, "]"); if (e) { s = substr(s, 1, e - 1); f = 0 }; while (match(s, /"[^"]*\.app"/)) { print substr(s, RSTART + 1, RLENGTH - 2); s = substr(s, RSTART + RLENGTH) } }' "$r" | ` +
+	`while IFS= read -r a; do a=${a##*/}; printf '%s\n' "$ps" | grep -qF "/$a/Contents/MacOS/" && { echo y; break; }; done); ` +
+	`[ -z "$o" ] || echo "$t (it is open: upgrading it would quit it)"; done; }; `
+
+// keepWarning names the casks omega_keep found and adds them to the casks
+// the upgrade leaves out.
+const keepWarning = `kl=$(omega_keep); kc=; if [ -n "$kl" ]; then ` +
+	`echo "omega: unattended run: these apps are not upgraded now, so nothing you have open is closed and nothing is taken out of what starts at login; they are upgraded the next time you run omega update at the Mac (or brew upgrade --cask <name>):"; ` +
+	`printf '%s\n' "$kl" | sed 's/^/  /'; kc=$(printf '%s\n' "$kl" | sed 's/ .*//'); gone=$(printf '%s\n%s\n' "$gone" "$kc" | grep -v '^$'); fi; `
+
+// openCasks defines what brings back what a Homebrew upgrade closes.
+// Homebrew quits an app to replace it and does not open it again, so a
+// menu bar app disappears from the menu bar until the next login.
+//
+// omega_open, before the upgrade, lists the apps of the outdated casks
+// (--greedy: the self-updating ones too) that are open: the path of each
+// running app, or b:<bundle id> for a .pkg cask, known by what its stanza
+// quits. omega_reopen, after it, opens again in the background those that
+// are no longer running. omega_logins lists the outdated casks whose
+// uninstall stanza removes a login item; omega_loginnote, after the
+// upgrade, names those that were upgraded: putting a login item back needs
+// the Automation permission, which only the user can give, so the user is
+// told where to turn it on again.
+const openCasks = `omega_open() { cr=$(brew --caskroom 2>/dev/null) && [ -d "$cr" ] || return 0; ` +
+	`out=$(brew outdated --cask --quiet $1 2>/dev/null); [ -n "$out" ] || return 0; ps=$(ps -axo command= 2>/dev/null); ` +
+	`la=$(lsappinfo list 2>/dev/null | grep -o 'bundleID="[^"]*"'); ` +
+	`printf '%s\n' "$out" | while IFS= read -r t; do r="$cr/$t/.metadata/INSTALL_RECEIPT.json"; [ -f "$r" ] || continue; ` +
+	`f=$(awk '{ s = $0 } !f && match(s, /"app": *\[/) { f = 1; s = substr(s, RSTART + RLENGTH) } ` +
+	`f { e = index(s, "]"); if (e) { s = substr(s, 1, e - 1); f = 0 }; while (match(s, /"[^"]*\.app"/)) { print substr(s, RSTART + 1, RLENGTH - 2); s = substr(s, RSTART + RLENGTH) } }' "$r" | ` +
+	`while IFS= read -r a; do a=${a##*/}; printf '%s\n' "$ps" | grep -F "/$a/Contents/MacOS/" | head -n 1 | sed 's#/Contents/MacOS/.*##'; done); ` +
+	`if [ -n "$f" ]; then printf '%s\n' "$f"; else tr -d '\n' < "$r" | sed 's/"zap".*//' | ` +
+	`awk '{ if (match($0, /"quit": *(\[[^]]*\]|"[^"]*")/)) { s = substr($0, RSTART + 7, RLENGTH - 7); ` +
+	`while (match(s, /"[^"]*"/)) { print substr(s, RSTART + 1, RLENGTH - 2); s = substr(s, RSTART + RLENGTH) } } }' | ` +
+	`while IFS= read -r b; do printf '%s\n' "$la" | grep -qxF "bundleID=\"$b\"" && echo "b:$b"; done; fi; done | sort -u; }; ` +
+	`omega_reopen() { [ -n "$op" ] || return 0; ps=$(ps -axo command= 2>/dev/null); la=$(lsappinfo list 2>/dev/null | grep -o 'bundleID="[^"]*"'); ` +
+	`printf '%s\n' "$op" | while IFS= read -r p; do case $p in ` +
+	`b:*) b=${p#b:}; printf '%s\n' "$la" | grep -qxF "bundleID=\"$b\"" || { open -g -b "$b" 2>/dev/null && echo "omega: reopened $b, which Homebrew closed to update it"; } ;; ` +
+	`*) printf '%s\n' "$ps" | grep -qF "$p/Contents/MacOS/" || { [ -d "$p" ] && open -g "$p" 2>/dev/null && echo "omega: reopened ${p##*/}, which Homebrew closed to update it"; } ;; ` +
+	`esac; done; }; ` +
+	`omega_logins() { cr=$(brew --caskroom 2>/dev/null) && [ -d "$cr" ] || return 0; brew outdated --cask --quiet $1 2>/dev/null | while IFS= read -r t; do ` +
+	`r="$cr/$t/.metadata/INSTALL_RECEIPT.json"; [ -f "$r" ] || continue; case $(tr -d '\n' < "$r" | sed 's/"zap".*//') in *'"login_item"'*) echo "$t" ;; esac; done; }; ` +
+	`omega_loginnote() { [ -n "$ll" ] || return 0; now=$(brew outdated --cask --quiet $1 2>/dev/null); ` +
+	`printf '%s\n' "$ll" | grep -vxF -e "$kc" -e "$now" | while IFS= read -r t; do [ -n "$t" ] || continue; ` +
+	`echo "omega: updating $t removed its login item; if it should open at login, turn that on again in its settings or in System Settings > General > Login Items."; done; }; `
+
 // goneWarning prints the casks omega_gone found, with what fixes each one.
 const goneWarning = `echo "omega: these casks are installed but their app is gone, so upgrading them would fail; they are left out of this upgrade:"; ` +
 	`printf '%s\n' "$gone" | while IFS= read -r c; do echo "  $c: reinstall it (brew reinstall --cask $c) or remove it (brew uninstall --cask $c, with the force option if Homebrew says the app is missing)"; done; `
 
 // brewUpgrade is the Homebrew step: room first, then everything except the
 // casks whose app is gone, which are named with their fix.
-var brewUpgrade = withSpace("Homebrew", goneCasks+sudoCasks+`brew update || exit 1; gone=$(omega_gone); missing=$gone; `+sudoWarning+
-	`if [ -z "$gone" ]; then brew upgrade; else gone=$missing; [ -z "$gone" ] || { `+goneWarning+`}; gone=$(printf '%s\n%s\n' "$missing" "$sc" | grep -v '^$'); `+
-	`brew upgrade --formula; rc=$?; brew outdated --cask --quiet 2>/dev/null | { grep -vxF "$gone" || true; } | xargs -r brew upgrade --cask || rc=1; (exit $rc); fi`)
+var brewUpgrade = withSpace("Homebrew", goneCasks+sudoCasks+keepCasks+openCasks+`brew update || exit 1; gone=$(omega_gone); missing=$gone; `+sudoWarning+keepWarning+
+	`op=$(omega_open); ll=$(omega_logins); `+
+	`if [ -z "$gone" ]; then brew upgrade; else gone=$missing; [ -z "$gone" ] || { `+goneWarning+`}; gone=$(printf '%s\n%s\n%s\n' "$missing" "$sc" "$kc" | grep -v '^$'); `+
+	`brew upgrade --formula; rc=$?; brew outdated --cask --quiet 2>/dev/null | { grep -vxF "$gone" || true; } | xargs -r brew upgrade --cask || rc=1; (exit $rc); fi; brc=$?; omega_reopen; omega_loginnote; (exit $brc)`)
 
 // brewGreedy upgrades the casks that update themselves too, leaving out
 // the ones whose app is gone.
-var brewGreedy = withSpace("Homebrew", goneCasks+sudoCasks+`gone=$(omega_gone); missing=$gone; `+sudoWarning+
+var brewGreedy = withSpace("Homebrew", goneCasks+sudoCasks+openCasks+`gone=$(omega_gone); missing=$gone; `+sudoWarning+
+	`op=$(omega_open --greedy); ll=$(omega_logins --greedy); `+
 	`if [ -z "$gone" ]; then brew upgrade --cask --greedy; else gone=$missing; [ -z "$gone" ] || { `+goneWarning+`}; gone=$(printf '%s\n%s\n' "$missing" "$sc" | grep -v '^$'); `+
-	`brew outdated --cask --greedy --quiet 2>/dev/null | { grep -vxF "$gone" || true; } | xargs -r brew upgrade --cask --greedy; fi`)
+	`brew outdated --cask --greedy --quiet 2>/dev/null | { grep -vxF "$gone" || true; } | xargs -r brew upgrade --cask --greedy; fi; brc=$?; omega_reopen; omega_loginnote --greedy; (exit $brc)`)
+
+// masUpgrade is the App Store step. In an unattended run the apps that are
+// open are left out and named: the App Store quits an app to update it.
+var masUpgrade = withSpace("the App Store", `ps=$(ps -axo command= 2>/dev/null); if [ "$OMEGA_UNATTENDED" = 1 ]; then `+
+	`mas outdated 2>/dev/null | while read -r id rest; do n=$(printf '%s' "$rest" | sed 's/ *(.*//; s/ *$//'); [ -n "$id" ] || continue; `+
+	`if [ -n "$n" ] && printf '%s\n' "$ps" | grep -qF "/$n.app/Contents/MacOS/"; then `+
+	`echo "omega: $n is open, so this unattended run does not update it (the App Store would quit it); it is updated the next time you run omega update at the Mac." >&2; `+
+	`else echo "$id"; fi; done | xargs -r mas upgrade; else `+
+	// With someone there everything is updated, and what the App Store
+	// closed to update it is opened again.
+	`mo=$(mas outdated 2>/dev/null | while read -r id rest; do n=$(printf '%s' "$rest" | sed 's/ *(.*//; s/ *$//'); `+
+	`[ -n "$n" ] && printf '%s\n' "$ps" | grep -qF "/$n.app/Contents/MacOS/" && echo "$n"; done); mas upgrade; mrc=$?; `+
+	`if [ -n "$mo" ]; then ps=$(ps -axo command= 2>/dev/null); printf '%s\n' "$mo" | while IFS= read -r n; do `+
+	`printf '%s\n' "$ps" | grep -qF "/$n.app/Contents/MacOS/" || { open -g -a "$n" 2>/dev/null && echo "omega: reopened $n, which the App Store closed to update it"; }; done; fi; (exit $mrc); fi`)
 
 // topgradeSudo defines omega_tg_sudo, true when the user's topgrade
 // configuration (main file or drop-ins, in either place topgrade looks)

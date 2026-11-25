@@ -102,6 +102,9 @@ func toolRunStep(ctx context.Context, a *Agent, in map[string]any) (string, erro
 	if !a.opts.SkipDetect && !s.Available() {
 		return "", fmt.Errorf("step %q is not available on this machine", id)
 	}
+	if why, off := notUpkeepSteps[id]; off && a.opts.Unattended {
+		return "", a.notUpkeep("run_step:"+id, s.Command, "the "+id+" step was not run: "+why)
+	}
 	risk := s.Risk
 	if safety.Classify(s.Command) == safety.Blocked {
 		risk = safety.Blocked

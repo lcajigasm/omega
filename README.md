@@ -129,7 +129,7 @@ topgrade and Mole are excellent until something breaks. Then the work is yours.
 |---|---|---|
 | **Everything** | `omega` | Checks the state, updates, cleans up and tells you what changed |
 | **A guided run** | `omega full` | Every stage that applies to this machine, on one screen, with a plan you can edit |
-| **Hands-off** | `omega unattended` | The same stages with no questions: the sudo password once, then every approval answered yes, on a screen that says what it is doing, the stage it is on and everything done so far |
+| **Hands-off** | `omega unattended` | Upkeep with no questions (checks, updates, caches): the sudo password once, then every approval answered yes, on a screen that says what it is doing. It never touches your apps, what starts at login, the menu bar or your settings, and leaves out the updates that would close an open app |
 | **Quick clean** | `omega quick` | One-click safe cleanup (trash, caches), pending updates, free disk space and battery |
 | **Update** | `omega update` | Homebrew, the App Store, apt, dnf, pacman, winget, Scoop, npm, pnpm, pipx, uv, rustup, cargo and more |
 | **Clean** | `omega clean` | Measures first, then frees what is worth it: package caches, Xcode, Docker, the Trash |
@@ -340,9 +340,10 @@ and API keys: have both, or only one. More in
 - **Works from the official documentation**: before a fix or a setting of its
   own, the agent reads what Apple, Microsoft, your Linux distribution and each
   tool's vendor document ([how](docs/manual/tools.md#tuning-your-tools-configuration)).
-- **Runs unattended**: `omega unattended` does everything with one password
-  and no questions, and never rearranges your Dock, menu bar, shortcuts or
-  apps; plain output for scripts, cron, launchd and CI
+- **Runs unattended**: `omega unattended` checks, updates and cleans with one
+  password and no questions; it never removes apps, never touches what starts
+  at login, the menu bar, the Dock, shortcuts or your settings, and never
+  closes an app you have open; plain output for scripts, cron, launchd and CI
   ([how](docs/manual/tasks.md#unattended-runs)).
 - **Keeps a log** of every run, which `omega logs` reads back.
 - **One Go binary**, MIT licensed.

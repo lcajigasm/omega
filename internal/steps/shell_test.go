@@ -428,3 +428,185 @@ func TestNothingToUpdateIsNotAvailable(t *testing.T) {
 		t.Errorf("detection ran %d times", n)
 	}
 }
+
+// In an unattended run the Homebrew step does not upgrade a cask whose app
+// is open (Homebrew would quit it and not open it again: a menu bar app
+// vanishes from the menu bar) or whose uninstall stanza removes a login
+// item or a background service; it names them. With someone there, they
+// are upgraded as before.
+func TestUnattendedKeepsOpenAppsAndLoginItems(t *testing.T) {
+	for _, sh := range shells(t) {
+		home := t.TempDir()
+		room := filepath.Join(home, "Caskroom")
+		receipt := func(token, body string) {
+			dir := filepath.Join(room, token, ".metadata")
+			os.MkdirAll(dir, 0o755)
+			os.WriteFile(filepath.Join(dir, "INSTALL_RECEIPT.json"), []byte(body), 0o644)
+			os.MkdirAll(filepath.Join(home, "Applications", strings.Title(token)+".app"), 0o755)
+		}
+		receipt("alfred", `{"uninstall_artifacts": [
+  { "uninstall": [ { "quit": "com.runningwithcrayons.Alfred", "login_item": "Alfred5" } ] },
+  { "app": [ "Alfred.app" ] }
+]}`)
+		receipt("dropbox", `{"uninstall_artifacts":[{"uninstall":[{"launchctl":"com.dropbox.DropboxMacUpdate.agent","quit":"com.getdropbox.dropbox"}]},{"app":["Dropbox.app"]}]}`)
+		receipt("bartender", `{"uninstall_artifacts":[{"uninstall":[{"quit":"com.surteesstudios.Bartender"}]},{"app":["Bartender.app"]}]}`)
+		receipt("choosy", `{"uninstall_artifacts":[{"uninstall":[{"quit":"com.choosyosx.Choosy","pkgutil":"com.choosyosx.Choosy"}]}]}`)
+		receipt("firefox", `{"uninstall_artifacts":[{"uninstall":[{"quit":"org.mozilla.firefox"}]},{"app":["Firefox.app"]},{"zap":[{"trash":["~/Library/login_item"]}]}]}`)
+		log := filepath.Join(home, "brew.log")
+		bin := fakeBin(t, map[string]string{
+			"brew": `echo "brew $*" >> "` + log + `"
+case "$1" in
+  --caskroom) echo "` + room + `" ;;
+  outdated) printf 'alfred\ndropbox\nbartender\nchoosy\nfirefox\n' ;;
+esac`,
+			// Bartender runs from its app, Choosy (a .pkg cask) is known by
+			// its bundle id; Firefox is not running.
+			"ps":        `echo "/Applications/Bartender.app/Contents/MacOS/Bartender"; echo "/usr/sbin/cfprefsd agent"`,
+			"lsappinfo": `echo ' 12) "Choosy" ASN:0x0-0x1 bundleID="com.choosyosx.Choosy"'; echo ' 13) "Finder" bundleID="com.apple.finder"'`,
+		})
+
+		out, code := run(t, sh, brewUpgrade, bin, "HOME="+home, "OMEGA_MIN_FREE_GB=0", "OMEGA_UNATTENDED=1")
+		calls, _ := os.ReadFile(log)
+		for _, want := range []string{"alfred (upgrading it removes what it starts at login", "dropbox (upgrading it removes",
+			"bartender (it is open: upgrading it would quit it)", "choosy (it is open", "omega update at the Mac"} {
+			if !strings.Contains(out, want) {
+				t.Errorf("%s: the step does not say %q:\n%s", sh, want, out)
+			}
+		}
+		if code != 0 || !strings.Contains(string(calls), "brew upgrade --cask firefox\n") || strings.Contains(string(calls), "upgrade --cask alfred") ||
+			strings.Contains(string(calls), "bartender\n") && strings.Contains(string(calls), "--cask bartender") || strings.Contains(out, "firefox (") {
+			t.Errorf("%s: unattended: exit %d, brew was asked:\n%s\noutput:\n%s", sh, code, calls, out)
+		}
+
+		// With someone there, every cask is upgraded.
+		os.Remove(log)
+		out, code = run(t, sh, brewUpgrade, bin, "HOME="+home, "OMEGA_MIN_FREE_GB=0")
+		calls, _ = os.ReadFile(log)
+		if code != 0 || !strings.Contains(string(calls), "\nbrew upgrade\n") || strings.Contains(string(calls), "upgrade --cask") || strings.Contains(out, "unattended") {
+			t.Errorf("%s: attended: exit %d, brew was asked:\n%s\noutput:\n%s", sh, code, calls, out)
+		}
+	}
+}
+
+// The App Store step leaves out, unattended, the apps that are open.
+func TestUnattendedAppStoreLeavesOpenApps(t *testing.T) {
+	for _, sh := range shells(t) {
+		home := t.TempDir()
+		log := filepath.Join(home, "mas.log")
+		bin := fakeBin(t, map[string]string{
+			"mas": `case "$1" in
+  outdated) printf '497799835  Xcode  (15.0 -> 15.1)\n1352778147 Bitwarden (2024.1 -> 2024.2)\n' ;;
+  *) echo "mas $*" >> "` + log + `" ;;
+esac`,
+			"ps": `echo "/Applications/Bitwarden.app/Contents/MacOS/Bitwarden"`,
+		})
+		out, code := run(t, sh, masUpgrade, bin, "HOME="+home, "OMEGA_MIN_FREE_GB=0", "OMEGA_UNATTENDED=1")
+		calls, _ := os.ReadFile(log)
+		if code != 0 || strings.TrimSpace(string(calls)) != "mas upgrade 497799835" || !strings.Contains(out, "Bitwarden is open") {
+			t.Errorf("%s: exit %d, mas was asked %q, output:\n%s", sh, code, calls, out)
+		}
+		os.Remove(log)
+		run(t, sh, masUpgrade, bin, "HOME="+home, "OMEGA_MIN_FREE_GB=0")
+		if calls, _ := os.ReadFile(log); strings.TrimSpace(string(calls)) != "mas upgrade" {
+			t.Errorf("%s: attended: mas was asked %q", sh, calls)
+		}
+	}
+}
+
+// With someone there, every cask is upgraded, and what Homebrew closed to
+// replace it is opened again in the background: a menu bar app comes back
+// to the menu bar. A cask whose update removed its login item is named,
+// with where to turn it on again.
+func TestUpgradeReopensWhatHomebrewClosed(t *testing.T) {
+	for _, sh := range shells(t) {
+		home := t.TempDir()
+		room := filepath.Join(home, "Caskroom")
+		receipt := func(token, body string) {
+			dir := filepath.Join(room, token, ".metadata")
+			os.MkdirAll(dir, 0o755)
+			os.WriteFile(filepath.Join(dir, "INSTALL_RECEIPT.json"), []byte(body), 0o644)
+		}
+		apps := filepath.Join(home, "Applications")
+		for _, a := range []string{"Bartender 5.app", "Alfred 5.app", "Firefox.app"} {
+			os.MkdirAll(filepath.Join(apps, a), 0o755)
+		}
+		receipt("bartender", `{"uninstall_artifacts":[{"uninstall":[{"quit":"com.surteesstudios.Bartender"}]},{"app":["Bartender 5.app"]}]}`)
+		receipt("alfred", `{"uninstall_artifacts":[{"uninstall":[{"quit":"com.runningwithcrayons.Alfred","login_item":"Alfred5"}]},{"app":["Alfred 5.app"]}]}`)
+		receipt("choosy", `{"uninstall_artifacts":[{"uninstall":[{"quit":"com.choosyosx.Choosy","pkgutil":"com.choosyosx.Choosy"}]}]}`)
+		receipt("firefox", `{"uninstall_artifacts":[{"uninstall":[{"quit":"org.mozilla.firefox"}]},{"app":["Firefox.app"]}]}`)
+		// What runs, and what the App Store and Homebrew see, live in files
+		// the fake brew changes: upgrading quits every app.
+		running := filepath.Join(home, "running")
+		bundles := filepath.Join(home, "bundles")
+		os.WriteFile(running, []byte(apps+"/Bartender 5.app/Contents/MacOS/Bartender 5 -psn\n"+apps+"/Alfred 5.app/Contents/MacOS/Alfred\n"), 0o644)
+		os.WriteFile(bundles, []byte(` 1) "Choosy" bundleID="com.choosyosx.Choosy"`+"\n"), 0o644)
+		outdated := filepath.Join(home, "outdated")
+		os.WriteFile(outdated, []byte("bartender\nalfred\nchoosy\nfirefox\n"), 0o644)
+		log := filepath.Join(home, "calls.log")
+		bin := fakeBin(t, map[string]string{
+			"brew": `echo "brew $*" >> "` + log + `"
+case "$1" in
+  --caskroom) echo "` + room + `" ;;
+  outdated) cat "` + outdated + `" ;;
+  upgrade) : > "` + running + `"; : > "` + bundles + `"; : > "` + outdated + `" ;;
+esac`,
+			"ps":        `cat "` + running + `"`,
+			"lsappinfo": `cat "` + bundles + `"`,
+			"open":      `echo "open $*" >> "` + log + `"`,
+		})
+		out, code := run(t, sh, brewUpgrade, bin, "HOME="+home, "OMEGA_MIN_FREE_GB=0")
+		calls, _ := os.ReadFile(log)
+		for _, want := range []string{"open -g " + apps + "/Bartender 5.app\n", "open -g " + apps + "/Alfred 5.app\n", "open -g -b com.choosyosx.Choosy\n"} {
+			if !strings.Contains(string(calls), want) {
+				t.Errorf("%s: not reopened: %q; calls:\n%s", sh, want, calls)
+			}
+		}
+		if strings.Contains(string(calls), "Firefox") {
+			t.Errorf("%s: an app that was not open was opened:\n%s", sh, calls)
+		}
+		if code != 0 || !strings.Contains(out, "reopened Bartender 5.app, which Homebrew closed") ||
+			!strings.Contains(out, "updating alfred removed its login item") || strings.Contains(out, "updating bartender removed") {
+			t.Errorf("%s: exit %d, output:\n%s", sh, code, out)
+		}
+
+		// An upgrade that failed and left the cask outdated does not claim
+		// it removed anything.
+		os.WriteFile(running, []byte(apps+"/Alfred 5.app/Contents/MacOS/Alfred\n"), 0o644)
+		os.WriteFile(outdated, []byte("alfred\n"), 0o644)
+		failing := fakeBin(t, map[string]string{
+			"brew": `case "$1" in
+  --caskroom) echo "` + room + `" ;;
+  outdated) cat "` + outdated + `" ;;
+  upgrade) exit 1 ;;
+esac`,
+			"ps": `cat "` + running + `"`, "lsappinfo": `true`, "open": `echo "open $*" >> "` + log + `"`,
+		})
+		out, code = run(t, sh, brewUpgrade, failing, "HOME="+home, "OMEGA_MIN_FREE_GB=0")
+		if code == 0 || strings.Contains(out, "removed its login item") || strings.Contains(out, "reopened") {
+			t.Errorf("%s: a failed upgrade: exit %d, output:\n%s", sh, code, out)
+		}
+	}
+}
+
+// The App Store step opens again, with someone there, the apps it closed.
+func TestAppStoreReopensWhatItClosed(t *testing.T) {
+	for _, sh := range shells(t) {
+		home := t.TempDir()
+		log := filepath.Join(home, "calls.log")
+		running := filepath.Join(home, "running")
+		os.WriteFile(running, []byte("/Applications/Bitwarden.app/Contents/MacOS/Bitwarden\n"), 0o644)
+		bin := fakeBin(t, map[string]string{
+			"mas": `case "$1" in
+  outdated) printf '497799835  Xcode  (15.0 -> 15.1)\n1352778147 Bitwarden (2024.1 -> 2024.2)\n' ;;
+  upgrade) echo "mas $*" >> "` + log + `"; : > "` + running + `" ;;
+esac`,
+			"ps":   `cat "` + running + `"`,
+			"open": `echo "open $*" >> "` + log + `"`,
+		})
+		out, code := run(t, sh, masUpgrade, bin, "HOME="+home, "OMEGA_MIN_FREE_GB=0")
+		calls, _ := os.ReadFile(log)
+		if code != 0 || string(calls) != "mas upgrade\nopen -g -a Bitwarden\n" || !strings.Contains(out, "reopened Bitwarden") {
+			t.Errorf("%s: exit %d, calls %q, output:\n%s", sh, code, calls, out)
+		}
+	}
+}

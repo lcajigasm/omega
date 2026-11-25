@@ -10,6 +10,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/lcajigasm/omega/internal/agent"
 	"github.com/lcajigasm/omega/internal/i18n"
@@ -65,8 +66,9 @@ func TestPilotScreen(t *testing.T) {
 		"Bash(brew upgrade)", "└ ==> Upgrading 4 outdated packages", // what is running now
 		"ROUTE", "1/3", "✓ Check omega", "Clean up", // the route
 		"DONE SO FAR", "actions: 2 done · 1 failed · 1 denied", "✓ Remember(pipx needs Python 3.13)", // the summary so far
-		"✓ Bash(brew update)", "✗ Bash(softwareupdate -ia)", "exit 2", "⊘ Bash(docker volume prune -f) · Unattended run: this ne…", "denied",
-		"── Check omega", "── Update", "$0.0123", "claude-haiku-5-5", "( > )   ( < )", `/~~~\`, ".-=========-.", "ctrl+c stop the run",
+		"✓ Bash(brew update)", "✗ Bash(softwareupdate -ia)", "exit 2", "⊘ Bash(docker volume prune -f) · Unattended run", "denied",
+		"─ Check omega", "─ Update", "$0.0123", "claude-haiku-5-5", "▀▄      ▄▀", "╭╮", "▄▄██████▄▄", "ctrl+c stop the run",
+		"FOR YOU LATER", "Update · exit 2", "╭─ Stage 2 of 3", "omega update", "about", // what needs the user, the bubble, the estimate
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("the screen does not show %q:\n%s", want, got)
@@ -88,7 +90,7 @@ func TestPilotScreen(t *testing.T) {
 	if _, cmd := m.Update(key("ctrl+c")); cmd != nil || !cancelled || !m.host.stop.Load() {
 		t.Errorf("ctrl+c: cancelled %v, stop %v, cmd %v", cancelled, m.host.stop.Load(), cmd)
 	}
-	if got := screen(m.View(), 100, 30); !strings.Contains(got, "ctrl+c again to leave now") || !strings.Contains(got, "( - )   ( - )") {
+	if got := screen(m.View(), 100, 30); !strings.Contains(got, "ctrl+c again to leave now") || !strings.Contains(got, "──      ──") {
 		t.Errorf("stopping is not shown:\n%s", got)
 	}
 	if _, cmd := m.Update(key("ctrl+c")); cmd == nil {
@@ -113,7 +115,7 @@ func TestPilotSmallMascot(t *testing.T) {
 	m.Update(pilotStageMsg{idx: 1, ord: 2, of: 3})
 	m.frame = 10 // not on a blink
 	got := screen(m.View(), 100, 22)
-	if !strings.Contains(got, "( o o )") || strings.Contains(got, ".-=========-.") || !strings.Contains(got, "Stage 2 of 3") {
+	if !strings.Contains(got, "▄█▀▀▀▀█▄") || strings.Contains(got, "▄▄██████▄▄") || !strings.Contains(got, "Stage 2 of 3") {
 		t.Errorf("a terminal 22 lines high:\n%s", got)
 	}
 }
@@ -144,39 +146,40 @@ func TestPilotSmallTerminal(t *testing.T) {
 
 // The mascot's face follows the run.
 func TestMascot(t *testing.T) {
-	faces := map[int]string{moodWork: "( o o )", moodOops: "( > < )", moodHappy: "( ^ ^ )", moodSad: "( ; ; )", moodStop: "( - - )"}
+	plain := func(art []string) string { return stripANSI(strings.Join(art, "\n")) }
+	faces := map[int]string{moodWork: "╰╯", moodOops: ">  <", moodHappy: "^  ^", moodSad: "╥  ╥", moodStop: "─  ─"}
 	for mood, face := range faces {
 		art := mascot(mood, 10)
-		if !strings.Contains(strings.Join(art, "\n"), face) {
-			t.Errorf("mood %d: %q", mood, art)
+		if len(art) != mascotHeight || !strings.Contains(plain(art), face) {
+			t.Errorf("mood %d:\n%s", mood, plain(art))
 		}
 		for _, line := range art {
-			if len([]rune(line)) != mascotWidth {
-				t.Errorf("mood %d: line %q is not %d wide", mood, line, mascotWidth)
+			if w := lipgloss.Width(line); w != mascotWidth {
+				t.Errorf("mood %d: line %q is %d wide, not %d", mood, stripANSI(line), w, mascotWidth)
 			}
 		}
 	}
-	// The big Ω: every frame of every mood has the same shape, and it
-	// moves while the run works.
-	for mood, eyes := range map[int]string{moodIdle: "( o )   ( o )", moodOops: "( > )   ( < )", moodHappy: "( ^ )   ( ^ )", moodSad: "( ; )   ( ; )", moodStop: "( - )   ( - )"} {
-		if art := strings.Join(avatar(mood, 10), "\n"); !strings.Contains(art, eyes) || !strings.Contains(art, ":") || !strings.Contains(art, "'.         .'") {
+	// The big Ω: every frame of every mood has the same size, the face
+	// says the mood, and it moves while the run works.
+	for mood, face := range map[int]string{moodIdle: "▄      ▄", moodOops: "▀▄      ▄▀", moodHappy: "╰▄▄▄▄╯", moodSad: "╭──╮", moodStop: "────"} {
+		if art := plain(avatar(mood, 10)); !strings.Contains(art, face) || !strings.Contains(art, "██        ██") {
 			t.Errorf("mood %d:\n%s", mood, art)
 		}
 	}
 	for mood := moodIdle; mood <= moodStop; mood++ {
 		for frame := 0; frame < 120; frame++ {
 			art := avatar(mood, frame)
-			if len(art) != 10 {
+			if len(art) != avatarHeight {
 				t.Fatalf("mood %d: %d lines", mood, len(art))
 			}
 			for _, line := range art {
-				if len([]rune(line)) != avatarWidth {
-					t.Fatalf("mood %d, frame %d: line %q is not %d wide", mood, frame, line, avatarWidth)
+				if w := lipgloss.Width(line); w != avatarWidth {
+					t.Fatalf("mood %d, frame %d: line %q is %d wide, not %d", mood, frame, stripANSI(line), w, avatarWidth)
 				}
 			}
 		}
 	}
-	for _, mood := range []int{moodWork, moodThink, moodHappy} {
+	for _, mood := range []int{moodIdle, moodWork, moodThink, moodHappy, moodOops, moodSad} {
 		seen := map[string]bool{}
 		for frame := 0; frame < 120; frame++ {
 			seen[strings.Join(avatar(mood, frame), "\n")] = true
@@ -185,6 +188,15 @@ func TestMascot(t *testing.T) {
 			t.Errorf("mood %d does not move", mood)
 		}
 	}
+	// Without block characters, the drawing in ASCII.
+	t.Setenv("OMEGA_ASCII", "1")
+	if art := plain(avatar(moodIdle, 10)); !strings.Contains(art, "( o )   ( o )") || strings.Contains(art, "█") {
+		t.Errorf("ASCII:\n%s", art)
+	}
+	if art := plain(mascot(moodHappy, 10)); !strings.Contains(art, "^ ^") || strings.Contains(art, "█") {
+		t.Errorf("ASCII small:\n%s", art)
+	}
+	t.Setenv("OMEGA_ASCII", "")
 
 	m := testPilot(t, 100, 30)
 	if m.mood() != moodIdle {
@@ -239,7 +251,7 @@ func TestPilotReport(t *testing.T) {
 		"━━ Check omega · done", "omega is set up",
 		"━━ Update · ended with an error · 1m00s", "Everything is up to date.", "macOS could not be updated.", "! the model stopped answering", "✗ Bash(sleep 100)",
 		"✗ Bash(softwareupdate -ia) · exit 2", "⊘ Bash(docker volume prune -f) · denied · It needs a person.", "Run log: /tmp/run.md",
-		"━━ Clean up · done", "( ; )   ( ; )", "Finished, but 1 of the 3 stages that ran ended with an error.", "actions: 0 done · 2 failed · 1 denied",
+		"━━ Clean up · done", "╭──╮", "Finished, but 1 of the 3 stages that ran ended with an error.", "actions: 0 done · 2 failed · 1 denied",
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("the report does not say %q:\n%s", want, got)
@@ -253,7 +265,7 @@ func TestPilotReport(t *testing.T) {
 	ok.Update(pilotStageMsg{idx: 0, ord: 1, of: 1})
 	ok.Update(pilotEndMsg{idx: 0})
 	ok.Update(pilotFinishMsg{})
-	if got := stripANSI(strings.Join(ok.report(), "\n")); !strings.Contains(got, "( ^ )   ( ^ )") || !strings.Contains(got, "All done: no stage failed.") {
+	if got := stripANSI(strings.Join(ok.report(), "\n")); !strings.Contains(got, "╰▄▄▄▄╯") || !strings.Contains(got, "All done: no stage failed.") {
 		t.Errorf("a clean run:\n%s", got)
 	}
 }
@@ -291,5 +303,116 @@ func TestPilotSessionWithoutHost(t *testing.T) {
 	case <-done:
 	case <-time.After(time.Second):
 		t.Fatal("a refusal did not return")
+	}
+}
+
+// s ends the stage that is running and the run goes on; the arrows scroll
+// back through what has run; the terminal's title follows the run.
+func TestPilotSkipScrollAndTitle(t *testing.T) {
+	m := testPilot(t, 100, 30)
+	if m.Update(key("s")); m.skipping {
+		t.Fatal("s with no stage running must do nothing")
+	}
+	m.Update(pilotStageMsg{idx: 0, ord: 1, of: 3})
+	if got := m.windowTitle(); !strings.Contains(got, "0/3") || !strings.Contains(got, m.stages[0].Title) {
+		t.Errorf("title %q", got)
+	}
+	if m.Update(key("s")); m.skipping {
+		t.Error("a stage without a session cannot be skipped")
+	}
+	cancelled := false
+	m.Update(pilotAttachMsg{cancel: func() { cancelled = true }})
+	if got := screen(m.View(), 100, 30); !strings.Contains(got, "s skip this stage") {
+		t.Errorf("the key is not shown:\n%s", got)
+	}
+	m.Update(key("s"))
+	if !cancelled || !m.skipping || !m.host.skip.Load() || m.host.stop.Load() {
+		t.Fatalf("s: cancelled %v, skipping %v, skip %v, stop %v", cancelled, m.skipping, m.host.skip.Load(), m.host.stop.Load())
+	}
+	if got := screen(m.View(), 100, 30); !strings.Contains(got, "skipping this stage") {
+		t.Errorf("skipping is not shown:\n%s", got)
+	}
+	m.Update(pilotEndMsg{idx: 0, err: errors.New("cancelled"), skipped: true})
+	if r := m.results()[0]; r.Status != StageStopped || !strings.Contains(r.Note, "skipped while it ran") {
+		t.Errorf("a skipped stage is not a failure: %+v", r)
+	}
+	if m.skipping || m.stopping {
+		t.Error("the run must go on after a skip")
+	}
+
+	// Many actions: the latest are shown; up scrolls back and end returns.
+	m.Update(pilotStageMsg{idx: 1, ord: 2, of: 3})
+	m.Update(pilotAttachMsg{cancel: func() {}})
+	for i := 0; i < 40; i++ {
+		ev(m, agent.Event{Kind: agent.EvToolEnd, Tool: "bash", Command: fmt.Sprintf("step-%02d", i)})
+	}
+	if got := screen(m.View(), 100, 30); !strings.Contains(got, "step-39") {
+		t.Fatalf("the latest action is not shown:\n%s", got)
+	}
+	for i := 0; i < 10; i++ {
+		m.Update(tea.KeyMsg{Type: tea.KeyUp})
+	}
+	got := screen(m.View(), 100, 30)
+	if strings.Contains(got, "step-39") || !strings.Contains(got, "10 more below") {
+		t.Errorf("up did not scroll back:\n%s", got)
+	}
+	// New actions while scrolled back do not move what is on the screen.
+	ev(m, agent.Event{Kind: agent.EvToolEnd, Tool: "bash", Command: "step-40"})
+	if again := screen(m.View(), 100, 30); !strings.Contains(again, "11 more below") {
+		t.Errorf("the list moved under the reader:\n%s", again)
+	}
+	m.Update(tea.KeyMsg{Type: tea.KeyEnd})
+	if got := screen(m.View(), 100, 30); !strings.Contains(got, "step-40") || strings.Contains(got, "more below") {
+		t.Errorf("end did not return to the latest:\n%s", got)
+	}
+
+	m.Update(pilotEndMsg{idx: 1, err: errors.New("boom")})
+	m.Update(pilotStageMsg{idx: 2, ord: 3, of: 3})
+	m.Update(pilotEndMsg{idx: 2})
+	if got := m.windowTitle(); !strings.Contains(got, "✗") || !strings.Contains(got, "3/3") {
+		t.Errorf("the final title must say a stage failed: %q", got)
+	}
+}
+
+// A stage that ends well is cheered; the end of the run is shown for a
+// moment before the screen closes; the bubble's frame is closed on every
+// side, whatever the width.
+func TestPilotCheerFinaleAndBubble(t *testing.T) {
+	m := testPilot(t, 120, 32)
+	m.Update(pilotStageMsg{idx: 0, ord: 1, of: 3})
+	m.Update(pilotAttachMsg{cancel: func() {}})
+	m.Update(pilotEndMsg{idx: 0, dur: time.Second})
+	if m.mood() != moodHappy {
+		t.Errorf("mood %d after a stage ended well", m.mood())
+	}
+	for i := 0; i < 20; i++ {
+		m.Update(tickMsg(time.Now()))
+	}
+	if m.mood() != moodIdle {
+		t.Errorf("mood %d once the cheer is over", m.mood())
+	}
+
+	for _, w := range []int{30, 47, 80, 133} {
+		lines := m.bubble(w, 3, 1)
+		top, bot := lipgloss.Width(lines[0]), lipgloss.Width(lines[len(lines)-1])
+		for _, l := range lines {
+			if lw := lipgloss.Width(l); lw != top || lw != bot || lw > max(w, 16) {
+				t.Errorf("width %d: the frame is not closed (%d, %d, %d):\n%s", w, top, lw, bot, stripANSI(strings.Join(lines, "\n")))
+				break
+			}
+		}
+	}
+
+	m.Update(pilotStageMsg{idx: 1, ord: 2, of: 3})
+	m.Update(pilotEndMsg{idx: 1, err: errors.New("boom")})
+	_, cmd := m.Update(pilotFinishMsg{})
+	if cmd == nil || !m.finished || m.mood() != moodSad || !strings.Contains(m.say, "ended with an error") {
+		t.Fatalf("finale: cmd %v, finished %v, mood %d, says %q", cmd != nil, m.finished, m.mood(), m.say)
+	}
+	if got := screen(m.View(), 120, 32); !strings.Contains(got, "Finished, but 1 of the 2") || !strings.Contains(got, "ctrl+c again to leave now") {
+		t.Errorf("the end is not shown:\n%s", got)
+	}
+	if _, cmd := m.Update(pilotQuitMsg{}); cmd == nil {
+		t.Error("the screen must close after the finale")
 	}
 }

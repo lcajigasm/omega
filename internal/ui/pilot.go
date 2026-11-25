@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 	"sync"
@@ -67,6 +68,7 @@ type pilotStage struct {
 type pilotHost struct {
 	send func(tea.Msg)
 	stop atomic.Bool // ctrl+c: no stage starts after the one that is running
+	skip atomic.Bool // s: the stage that is running ends and the run goes on
 }
 
 var pilot atomic.Pointer[pilotHost]
@@ -83,6 +85,7 @@ type pilotEndMsg struct {
 	err     error
 	dur     time.Duration
 	stopped bool
+	skipped bool // the user ended this stage alone: the run goes on
 }
 
 type pilotAttachMsg struct {
@@ -94,6 +97,13 @@ type pilotAttachMsg struct {
 type pilotEventMsg struct{ e agent.Event }
 
 type pilotFinishMsg struct{}
+
+// pilotQuitMsg closes the screen once the mascot has shown how the run went.
+type pilotQuitMsg struct{}
+
+// finale is how long the screen stays up when the run has ended, so the
+// last state can be seen before the report replaces it.
+const finale = 1800 * time.Millisecond
 
 // PilotSession shows an agent session on the unattended run's screen and
 // returns when the session has ended. Nobody is there to answer: what would
@@ -138,12 +148,16 @@ type pilotModel struct {
 	thinking  bool
 	thinkAt   time.Time
 	oops      int // frames the mascot still winces after a failure
+	cheer     int // frames the mascot still cheers a stage that ended well
 	header    Header
 	cancel    context.CancelFunc
 
 	width, height, frame int
 	began                time.Time
 	stopping, finished   bool
+	skipping             bool // the running stage is being ended with s
+	scroll               int  // lines of "done so far" hidden below, when scrolled back
+	title                string
 }
 
 func newPilotModel(info PilotInfo, stages []GuideStage) *pilotModel {
@@ -188,12 +202,13 @@ func RunPilot(info PilotInfo, stages []GuideStage, run StageRunner) (results []S
 			if m.host.stop.Load() {
 				break
 			}
+			m.host.skip.Store(false)
 			p.Send(pilotStageMsg{idx: i, ord: n + 1, of: len(todo)})
 			w := &lineWriter{send: p.Send}
 			began := time.Now()
 			err := run(stages[i].ID, w)
 			w.flush()
-			p.Send(pilotEndMsg{idx: i, err: err, dur: time.Since(began), stopped: m.host.stop.Load()})
+			p.Send(pilotEndMsg{idx: i, err: err, dur: time.Since(began), stopped: m.host.stop.Load(), skipped: m.host.skip.Swap(false)})
 		}
 		release() // the last lines reach the screen before it closes
 		p.Send(pilotFinishMsg{})
@@ -250,7 +265,43 @@ func (m *pilotModel) results() []StageResult {
 
 func (m *pilotModel) Init() tea.Cmd { return doTick() }
 
+// windowTitle is the terminal's title while the run goes on: the run is
+// often left in a tab of its own, and the title says how it is going
+// without opening it. The last one stays when the screen closes, so the
+// tab still says whether the run went well.
+func (m *pilotModel) windowTitle() string {
+	total, settled := m.progress()
+	count := fmt.Sprintf("%d/%d", settled, total)
+	switch {
+	case total > 0 && settled == total:
+		mark := gl.Check
+		for _, r := range m.res {
+			if r.Status == StageFailed {
+				mark = gl.Cross
+			}
+		}
+		return gl.Brand + " omega " + mark + " " + count
+	case m.cur >= 0:
+		return gl.Brand + " omega " + count + " " + gl.Sep + " " + m.stages[m.cur].Title
+	}
+	return gl.Brand + " omega " + count
+}
+
 func (m *pilotModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	acts := len(m.acts)
+	model, cmd := m.update(msg)
+	if m.scroll > 0 && len(m.acts) > acts {
+		// Scrolled back: what is on the screen stays where it is.
+		m.scroll += len(m.acts) - acts
+	}
+	if t := m.windowTitle(); t != m.title {
+		m.title = t
+		cmd = tea.Batch(cmd, tea.SetWindowTitle(t))
+	}
+	return model, cmd
+}
+
+func (m *pilotModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
@@ -260,11 +311,41 @@ func (m *pilotModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.oops > 0 {
 			m.oops--
 		}
+		if m.cheer > 0 {
+			m.cheer--
+		}
 		return m, doTick()
 
 	case tea.KeyMsg:
-		if msg.String() != "ctrl+c" {
-			break
+		switch msg.String() {
+		case "s":
+			// End the stage that is running and go on with the next. A
+			// stage without a session (a report, the built-in steps) has
+			// nothing to stop.
+			if m.cur >= 0 && m.cancel != nil && !m.stopping && !m.skipping {
+				m.skipping = true
+				m.host.skip.Store(true)
+				m.cancel()
+			}
+			return m, nil
+		case "up", "k":
+			m.scroll++
+			return m, nil
+		case "down", "j":
+			m.scroll = max(0, m.scroll-1)
+			return m, nil
+		case "pgup":
+			m.scroll += max(1, m.height/2)
+			return m, nil
+		case "pgdown":
+			m.scroll = max(0, m.scroll-max(1, m.height/2))
+			return m, nil
+		case "end", "G":
+			m.scroll = 0
+			return m, nil
+		case "ctrl+c":
+		default:
+			return m, nil
 		}
 		if m.stopping || m.finished {
 			return m, tea.Quit // asked twice: leave now
@@ -280,7 +361,7 @@ func (m *pilotModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.cur, m.last, m.ord, m.of = i, i, msg.ord, msg.of
 		m.res[i].Status = StageRunning
 		m.st[i].began = time.Now()
-		m.lastOut, m.thinking, m.cancel = "", false, nil
+		m.lastOut, m.thinking, m.cancel, m.skipping = "", false, nil, false
 		m.header = Header{}
 		m.say = m.stages[i].What
 		m.acts = append(m.acts, pilotAct{kind: actStage, stage: i, name: m.stages[i].Title})
@@ -290,7 +371,7 @@ func (m *pilotModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.cur >= 0 {
 			m.st[m.cur].log = msg.log
 		}
-		if m.stopping {
+		if m.stopping || m.skipping {
 			msg.cancel()
 		}
 
@@ -315,11 +396,14 @@ func (m *pilotModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch {
 		case msg.stopped:
 			r.Status = StageStopped
+		case msg.skipped:
+			r.Status, r.Note = StageStopped, i18n.T("pilot.skipped_note")
 		case msg.err != nil:
 			r.Status, r.Note = StageFailed, strings.TrimSpace(msg.err.Error())
 			m.oops = 20
 		default:
 			r.Status = StageDone
+			m.cheer = 18
 		}
 		for j := range m.acts {
 			// The session ended under a command: it did not finish.
@@ -327,10 +411,17 @@ func (m *pilotModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				a.kind, a.dur = actFailed, time.Since(a.began)
 			}
 		}
-		m.cur, m.thinking, m.cancel, m.lastOut = -1, false, nil, ""
+		m.cur, m.thinking, m.cancel, m.lastOut, m.skipping = -1, false, nil, "", false
 
 	case pilotFinishMsg:
-		m.finished = true
+		m.finished, m.cur, m.cheer, m.oops = true, -1, 0, 0
+		m.say = m.verdict()
+		if reducedMotion() {
+			return m, tea.Quit
+		}
+		return m, tea.Tick(finale, func(time.Time) tea.Msg { return pilotQuitMsg{} })
+
+	case pilotQuitMsg:
 		return m, tea.Quit
 	}
 	return m, nil
@@ -402,6 +493,58 @@ func (m *pilotModel) event(e agent.Event) {
 			m.acts = append(m.acts, pilotAct{kind: actNote, stage: i, name: oneLine(text)})
 		}
 	}
+}
+
+// verdict is how the run went, in a sentence.
+func (m *pilotModel) verdict() string {
+	failed, ran := 0, 0
+	for i, r := range m.results() {
+		if !m.stages[i].Selected {
+			continue
+		}
+		switch r.Status {
+		case StageFailed:
+			failed++
+			ran++
+		case StageDone, StageStopped:
+			ran++
+		}
+	}
+	switch {
+	case m.stopping:
+		return i18n.T("pilot.bye_stopped")
+	case failed > 0:
+		return i18n.T("pilot.bye_failed", failed, ran)
+	}
+	return i18n.T("pilot.bye_ok")
+}
+
+// eta is about how long the stages left will take, from how long the ones
+// that ran took; false until a stage has ended.
+func (m *pilotModel) eta() (time.Duration, bool) {
+	var sum time.Duration
+	ended, left := 0, 0
+	for i, s := range m.stages {
+		if !s.Selected {
+			continue
+		}
+		switch r := m.res[i]; r.Status {
+		case StageDone, StageFailed:
+			sum += r.Duration
+			ended++
+		case StagePending:
+			left++
+		}
+	}
+	if ended == 0 || (left == 0 && m.cur < 0) {
+		return 0, false
+	}
+	avg := sum / time.Duration(ended)
+	est := avg * time.Duration(left)
+	if m.cur >= 0 {
+		est += max(0, avg-time.Since(m.st[m.cur].began))
+	}
+	return est, true
 }
 
 // running is the command that is running, the latest when there are

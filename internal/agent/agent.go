@@ -79,6 +79,9 @@ type Options struct {
 	Version string
 	Task    string
 	Command string
+	// Cache, when set, is shared with the other stages of the same run:
+	// what one stage measured read-only is not measured again by the next.
+	Cache *ResultCache
 }
 
 // Agent drives one maintenance session.
@@ -141,8 +144,9 @@ type Agent struct {
 	// own (mo purge: "use --yes to confirm"): the program, so that adding
 	// --yes or --force to it afterwards is asked about every time.
 	refusedConfirm map[string]bool
-	results        map[string]cachedResult // read-only results kept for the session
-	lastCall       uint64                  // numbers the shell calls, for the transcript (under mu)
+	cache          *ResultCache // read-only results kept for the session (or the run)
+	conclusion     string       // the last thing the model wrote: what the session concluded
+	lastCall       uint64       // numbers the shell calls, for the transcript (under mu)
 }
 
 // nextCall numbers a tool call: two identical commands of one batch run
@@ -165,14 +169,22 @@ func New(p llm.Provider, opts Options) *Agent {
 	}
 	notes, _ := os.ReadFile(config.NotesPath())
 	sys := systemPrompt(promptNotes(string(notes), maxPromptNotes), opts.Config.SkipSteps, opts.ReadOnly) + runModePrompt(opts) + pendingPrompt()
+	specs := toolSpecs()
+	if opts.Unattended {
+		specs = upkeepTools(specs)
+	}
 	a := &Agent{
 		opts:    opts,
 		model:   opts.Model,
-		chat:    p.NewChat(opts.Model, sys, toolSpecs()),
+		chat:    p.NewChat(opts.Model, sys, specs),
 		events:  make(chan Event, 512),
 		input:   make(chan string),
 		started: time.Now(),
 		real:    real,
+		cache:   opts.Cache,
+	}
+	if a.cache == nil {
+		a.cache = NewResultCache()
 	}
 	switch {
 	case opts.ReadOnly:
@@ -183,6 +195,14 @@ func New(p llm.Provider, opts Options) *Agent {
 	_, a.costKnown = llm.PriceFor(opts.Provider, opts.Model)
 	a.openLog(p.Name())
 	return a
+}
+
+// Conclusion is the last thing the model wrote in this session: in a stage
+// of a guided run, its summary of what was done and what is left.
+func (a *Agent) Conclusion() string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.conclusion
 }
 
 // Events is the stream the UI consumes. It is closed when the run ends.
@@ -412,6 +432,9 @@ func (a *Agent) Run(ctx context.Context, task string) {
 			a.compact()
 		}
 		if t := strings.TrimSpace(reply.Text); t != "" {
+			a.mu.Lock()
+			a.conclusion = t
+			a.mu.Unlock()
 			a.emit(Event{Kind: EvAssistant, Text: t})
 		}
 
@@ -726,6 +749,15 @@ func (a *Agent) authorize(ctx context.Context, tool, command, reason string, ris
 		return deny("Read-only mode: this action would change the system and was rejected. " +
 			"Offer it to the user with propose_actions instead.")
 	}
+	if a.opts.Unattended && risk > safety.Safe && tool == "run_command" {
+		// A command of the model's own: the catalogue steps are omega's,
+		// checked one by one; this one is read for what it would change.
+		if what := safety.NotUpkeep(command); what != "" {
+			return deny("Unattended run: this command changes " + what + ", which is how the user set up this machine, not upkeep, " +
+				"so it was not run. Do not retry it or an equivalent; put it in your summary as a suggestion for the user. " +
+				"Updates and cleanups go through run_step, whose steps leave out what needs a person.")
+		}
+	}
 	if a.opts.Unattended && risk > safety.Safe {
 		if what := safety.PersonalSetup(command); what != "" {
 			return deny("Unattended run: " + what + " is how the user arranged this machine, not maintenance, so it was left as it is. " +
@@ -816,6 +848,11 @@ func (a *Agent) execute(ctx context.Context, call llm.ToolCall) llm.ToolResult {
 	}
 	if goos != "darwin" && macOnlyTool(call.Name) {
 		res.Content, res.IsError = call.Name+" only exists on macOS; this machine runs "+osName()+". Tell the user that part of omega is Mac-only.", true
+		return res
+	}
+	if what, off := notUpkeepTools[call.Name]; off && a.opts.Unattended {
+		// Not offered in this mode; a model that calls it anyway is told so.
+		res.Content, res.IsError = a.notUpkeep(call.Name, "", "the "+call.Name+" tool changes "+what).Error(), true
 		return res
 	}
 	var in map[string]any

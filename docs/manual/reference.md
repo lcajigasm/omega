@@ -206,7 +206,7 @@ omega [task] [options]
 | `--sudo` | ask for sudo at the start and keep it alive |
 | `--no-tui` | plain text output |
 | `--once` | exit when the agent finishes instead of asking for more |
-| `-U, --unattended` | `omega full` only: every stage with no questions, the sudo password asked once ([more](tasks.md#unattended-runs)) |
+| `-U, --unattended` | `omega full` only: the upkeep stages (doctor, analyze, health, update, clean, docker) with no questions, the sudo password asked once ([more](tasks.md#unattended-runs)) |
 | `-v, --version` | version |
 | `--no-ai`, `--offline` | run deterministically without calling an AI model. Only `full`, `quick`, `update`, `clean`, `analyze` and `health` exist without it: any other task, and a request in your own words, is an error |
 | `--json` | one JSON report on stdout; implies `--no-ai`. `omega full` has none |
@@ -241,7 +241,7 @@ The run without AI speaks your language, its summary included. The JSON report k
 | `omega docker` | measure Docker and clean what you select |
 | `omega menu` | home screen: every command on one screen, started with Enter |
 | `omega full [--only a,b] [--skip a,b]` | everything, stage by stage in one interface: choose the stages, see what each does and why, skip, repeat or stop |
-| `omega unattended [--only a,b] [--skip a,b]` | `omega full --unattended`: every stage with no questions, the sudo password asked once and every approval answered yes |
+| `omega unattended [--only a,b] [--skip a,b]` | `omega full --unattended`: upkeep only (checks, updates, caches) with no questions, the sudo password asked once and every approval answered yes; it never changes how you set up the machine |
 | `omega mac [status\|login\|background\|menubar\|dock\|shortcuts]` | review what runs at login and in the background, the menu bar, the Dock and shortcut conflicts (AI-guided without a subcommand) |
 | `omega mac permissions` | remove privacy entries of binaries and apps that are gone |
 | `omega mac apps` | unused apps, Intel-only apps and leftovers of removed apps |

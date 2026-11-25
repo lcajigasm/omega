@@ -51,7 +51,7 @@ func TestRegainAccessForgetsTheCache(t *testing.T) {
 	reran := false
 	a.regainAccess(context.Background(), shellCall("ls"), "SystemPolicyAllFiles", func() (string, error) {
 		reran = true
-		if len(a.results) != 0 {
+		if a.cache.Len() != 0 {
 			t.Error("the cache must be empty when the tool runs again")
 		}
 		return "ok", nil
