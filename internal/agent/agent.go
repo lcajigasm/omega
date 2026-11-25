@@ -846,13 +846,13 @@ func (a *Agent) execute(ctx context.Context, call llm.ToolCall) llm.ToolResult {
 		res.Content, res.IsError = "unknown tool: "+call.Name, true
 		return res
 	}
-	if goos != "darwin" && macOnlyTool(call.Name) {
-		res.Content, res.IsError = call.Name+" only exists on macOS; this machine runs "+osName()+". Tell the user that part of omega is Mac-only.", true
-		return res
-	}
 	if what, off := notUpkeepTools[call.Name]; off && a.opts.Unattended {
 		// Not offered in this mode; a model that calls it anyway is told so.
 		res.Content, res.IsError = a.notUpkeep(call.Name, "", "the "+call.Name+" tool changes "+what).Error(), true
+		return res
+	}
+	if goos != "darwin" && macOnlyTool(call.Name) {
+		res.Content, res.IsError = call.Name+" only exists on macOS; this machine runs "+osName()+". Tell the user that part of omega is Mac-only.", true
 		return res
 	}
 	var in map[string]any
