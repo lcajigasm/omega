@@ -385,13 +385,15 @@ type recommendMsg struct {
 }
 
 // Init starts the editor.
-func (e *RoutineEditor) Init() tea.Cmd { return nil }
+func (e *RoutineEditor) Init() tea.Cmd { return statsTick() }
 
 // Update handles keys, the window size and the model's reply.
 func (e *RoutineEditor) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		e.width, e.height = msg.Width, msg.Height
+	case statsTickMsg:
+		return e, statsTick()
 	case recommendMsg:
 		e.asking = false
 		if msg.err != nil {
@@ -573,8 +575,9 @@ func (e *RoutineEditor) View() string {
 		return ""
 	}
 	w := max(30, min(e.width, 110))
+	fw := max(30, e.width) // the chrome takes the whole width; the list stays readable
 	inner := w - 4
-	rule := faintStyle.Render(strings.Repeat(gl.Rule, w-2))
+	rule := chromeRule(fw)
 
 	// Header.
 	dangerous := 0
@@ -583,7 +586,6 @@ func (e *RoutineEditor) View() string {
 			dangerous++
 		}
 	}
-	left := titleStyle.Render(gl.Brand+" custom") + mutedStyle.Render("  "+gl.Sep+" "+i18n.T("custom.ui_title"))
 	right := mutedStyle.Render(i18n.T("custom.ui_count", len(e.order)))
 	if dangerous > 0 {
 		right += "  " + warnStyle.Render(i18n.T("custom.ui_dangerous", dangerous))
@@ -591,8 +593,7 @@ func (e *RoutineEditor) View() string {
 	if e.dirty() {
 		right += "  " + warnStyle.Render(gl.Running) + mutedStyle.Render(" "+i18n.T("custom.ui_unsaved"))
 	}
-	gap := max(1, w-2-lipgloss.Width(left)-lipgloss.Width(right))
-	header := " " + left + strings.Repeat(" ", gap) + right
+	header := topBar("custom", []string{i18n.T("custom.ui_title")}, right, fw) + "\n" + statsLine(fw)
 
 	// Bottom: details of the step under the cursor, then the keys.
 	var foot []string
@@ -770,8 +771,13 @@ func (e *RoutineEditor) View() string {
 		lines = append(lines, "   "+mutedStyle.Render(i18n.T("custom.ui_no_steps")))
 	}
 
-	keyLines := strings.Split(hintBlock(w, keyHints...), "\n")
-	fixed := 1 + 1 + 1 + len(foot) + 1 + len(keyLines) + statusLines // header, rule, rule, foot, rule, keys, status
+	keyLines := strings.Split(hintBlock(fw, keyHints...), "\n")
+	fixed := 2 + 1 + 1 + len(foot) + 1 + len(keyLines) + statusLines // header and stats, rule, rule, foot, rule, keys, status
+	if e.height > 0 && e.height-fixed < 3 {
+		// A short terminal: the keys that may go give the list its room.
+		keyLines = strings.Split(hintLine(fw, keyHints...), "\n")
+		fixed = 2 + 1 + 1 + len(foot) + 1 + len(keyLines) + statusLines
+	}
 	avail := max(3, e.height-fixed)
 	// Keep the cursor's line in view.
 	if cursorLine < e.offset {
@@ -788,7 +794,7 @@ func (e *RoutineEditor) View() string {
 	midRule := rule
 	if n := len(lines) - e.offset - avail; n > 0 {
 		more := " " + gl.Down + " " + i18n.T("uix.more", n) + " "
-		midRule = faintStyle.Render(strings.Repeat(gl.Rule, max(0, w-2-lipgloss.Width(more)-2)) + more + strings.Repeat(gl.Rule, 2))
+		midRule = faintStyle.Render(strings.Repeat(gl.Rule, max(0, fw-lipgloss.Width(more)-2)) + more + strings.Repeat(gl.Rule, 2))
 	}
 
 	var b strings.Builder
@@ -853,7 +859,7 @@ func (e *RoutineEditor) recView(w int, header, rule string) string {
 		b.WriteString("\n   " + errStyle.Render("− ") + mutedStyle.Render(i18n.T("custom.ui_rec_removed", strings.Join(removed, ", "))) + "\n")
 	}
 	b.WriteString(rule + "\n")
-	b.WriteString(hintBlock(w, hk("a/enter", "uix.use_rec").must(), hk("esc", "uix.keep_mine").must()))
+	b.WriteString(hintBlock(max(30, e.width), hk("a/enter", "uix.use_rec").must(), hk("esc", "uix.keep_mine").must()))
 	return b.String()
 }
 
@@ -862,6 +868,7 @@ func (e *RoutineEditor) recView(w int, header, rule string) string {
 // without saving.
 func EditRoutine(set RoutineSetup) (RoutineChoice, error) {
 	lipgloss.HasDarkBackground()
+	defer watchStats()()
 	e := NewRoutineEditor(set)
 	opts := []tea.ProgramOption{tea.WithAltScreen()}
 	if mouseWanted() {

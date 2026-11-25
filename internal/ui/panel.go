@@ -84,7 +84,7 @@ const diskDelta = 50 << 20
 // panelView is the session panel: where the run stands at a glance, so the
 // transcript does not have to be scrolled to know what happened.
 func (m *model) panelView(height int) string {
-	inner := panelWidth - 4 // border and padding
+	inner := panelWidth - 4 // the margins on both sides
 	var lines []string
 	add := func(s string) { lines = append(lines, s) }
 	row := func(k, v string) {
@@ -93,7 +93,7 @@ func (m *model) panelView(height int) string {
 	if m.g != nil {
 		lines = append(lines, m.routeLines(inner)...)
 	}
-	add(titleStyle.Render(i18n.T("panel.session")))
+	add(panelHead(i18n.T("panel.session"), "", inner))
 	row(i18n.T("ui.label_task"), truncate(m.header.Task, inner-9))
 	row(i18n.T("panel.mode"), truncate(m.modeShort(), inner-9))
 	row(i18n.T("ui.label_model"), truncate(m.header.Model, inner-9))
@@ -113,7 +113,7 @@ func (m *model) panelView(height int) string {
 
 	if m.diskTotal > 0 {
 		add("")
-		add(titleStyle.Render(i18n.T("panel.disk")))
+		add(panelHead(i18n.T("panel.disk"), "", inner))
 		add(gauge(1-float64(m.diskNow)/float64(m.diskTotal), inner))
 		add(mutedStyle.Render(truncate(i18n.T("panel.free", size(m.diskNow), size(m.diskTotal)), inner)))
 		switch {
@@ -125,7 +125,7 @@ func (m *model) panelView(height int) string {
 	}
 
 	add("")
-	add(titleStyle.Render(i18n.T("panel.usage")))
+	add(panelHead(i18n.T("panel.usage"), "", inner))
 	usage := gl.Up + humanTokens(m.stats.Usage.Input()) + " " + gl.Down + humanTokens(m.stats.Usage.OutputTokens)
 	if c := m.costText(); c != "" {
 		usage += " " + gl.Sep + " " + c
@@ -133,7 +133,7 @@ func (m *model) panelView(height int) string {
 	add(mutedStyle.Render(usage))
 
 	add("")
-	add(titleStyle.Render(i18n.T("panel.activity")))
+	add(panelHead(i18n.T("panel.activity"), fmt.Sprint(t.ok+t.failed+t.denied+t.running), inner))
 	var acts []string
 	for _, e := range m.entries {
 		if e.kind != enTool {
@@ -174,7 +174,7 @@ func (m *model) panelView(height int) string {
 		}
 		acts = append(acts, icon+" "+text+strings.Repeat(" ", gap)+faintStyle.Render(right))
 	}
-	room := height - 2 - len(lines) // the border takes two rows
+	room := height - len(lines)
 	if room < 1 {
 		room = 1
 	}
@@ -185,8 +185,16 @@ func (m *model) panelView(height int) string {
 		acts = acts[len(acts)-room:]
 	}
 	lines = append(lines, acts...)
-	if len(lines) > height-2 {
-		lines = lines[:height-2]
+	// No frame: a column beside the transcript, as the unattended run's
+	// panels sit beside each other.
+	if len(lines) > height {
+		lines = lines[:height]
 	}
-	return cardStyle.Width(panelWidth - 2).Height(height - 2).Render(strings.Join(lines, "\n"))
+	for len(lines) < height {
+		lines = append(lines, "")
+	}
+	for i, l := range lines {
+		lines[i] = "  " + fit(l, inner) + "  "
+	}
+	return strings.Join(lines, "\n")
 }

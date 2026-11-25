@@ -86,7 +86,7 @@ func statuses(m *model) string {
 func TestGuidePlanExplainsAndChooses(t *testing.T) {
 	m := testGuide(t, 120, 40, nil)
 	view := screen(m.View(), 120, 40)
-	for _, want := range []string{"omega full v1.2.3", "Guided run", "Check omega", "omega doctor", "What runs on the Mac",
+	for _, want := range []string{"Ω omega", "Guided run  v1.2.3", "Check omega", "omega doctor", "What runs on the Mac",
 		"What it does", "Checks the setup.", "Why", "Everything else needs it.", "read-only: it changes nothing", "4 of 4 stages will run", "enter start"} {
 		if !strings.Contains(view, want) {
 			t.Errorf("the plan lacks %q:\n%s", want, view)
@@ -328,8 +328,8 @@ func TestGuideOnANarrowTerminal(t *testing.T) {
 	finish(t, m, press(m, "enter"))
 	view := screen(m.View(), 80, 24)
 	lines := strings.Split(view, "\n")
-	if !strings.Contains(lines[0], "omega full") || !strings.Contains(lines[0], "1/4") {
-		t.Errorf("the route is not on the first line: %q", lines[0])
+	if !strings.Contains(lines[0], "Guided run") || !strings.Contains(lines[1], "CPU") || !strings.Contains(lines[3], "1/4") {
+		t.Errorf("the chrome and the route are not on the first lines: %q", lines[:4])
 	}
 	if len(lines) > 24 || !strings.Contains(view, "Next · Stage 2 of 4 · Update") || strings.Contains(view, "ROUTE") {
 		t.Errorf("the screen between stages on 80x24 (%d lines):\n%s", len(lines), view)

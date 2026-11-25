@@ -1,4 +1,6 @@
- Ω omega full v1.2.3 · Guided run
+ Ω omega  Guided run  v1.2.3
+ CPU ━─────  23%   RAM ━━━━──  62% 10/16 GB   DISK / ━━━━━─  80%   Backup ━─────  10%   NET ↓1.5 MB/s ↑40 KB/s
+
  These are the stages that apply to this machine, in the order that makes sense. Each one starts when the
  one before ends; between two you can go on, skip, repeat or stop, and nothing risky runs without asking.
 
@@ -14,4 +16,5 @@
 │ Risk          read-only: it changes nothing                                                                │
 ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
  4 of 4 stages will run
-  ↑↓ move · space tick or untick · a all · enter start · q leave
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ ↑↓ move · space tick or untick · a all · enter start · q leave

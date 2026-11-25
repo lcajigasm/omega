@@ -15,6 +15,7 @@ import (
 // The screen, top to bottom:
 //
 //	the title, the model and the clock            elapsed · cost
+//	CPU ━━━─── 23%   RAM ━━━━── 62%   DISK ━━── 45%   NET ↓1 MB/s ↑4 KB/s
 //	━━━━━━━ ━━━━━━━ ━━━━━━━ ───────    progress, one segment per stage
 //
 //	  the mascot   ╭─ Stage 2 of 4 · Update ───── omega update · 21s ─╮
@@ -60,12 +61,10 @@ func (m *pilotModel) mark(i int) string {
 // ---------- the top: title and progress ----------
 
 func (m *pilotModel) headLine(w int) string {
-	right := mutedStyle.Render(humanDuration(time.Since(m.began)))
+	cost := ""
 	if c, ok := m.cost(); ok {
-		right += faintStyle.Render(" "+gl.Sep+" ") + mutedStyle.Render(FormatCost(c))
+		cost = FormatCost(c)
 	}
-	right += " "
-	left := " " + titleStyle.Render(gl.Brand) + "  " + cmdStyle.Render(i18n.T("pilot.title"))
 	// What runs how (a dry run, the demo) matters most, then the model;
 	// the version goes first when there is no room. Nothing is cut in half.
 	var info []string
@@ -76,15 +75,7 @@ func (m *pilotModel) headLine(w int) string {
 		info = append(info, m.header.Model)
 	}
 	info = append(info, m.info.Flags...)
-	for len(info) > 0 {
-		more := faintStyle.Render("  " + strings.Join(info, " "+gl.Sep+" "))
-		if lipgloss.Width(left)+lipgloss.Width(more)+lipgloss.Width(right)+2 <= w {
-			left += more
-			break
-		}
-		info = info[1:]
-	}
-	return spread(left, right, w)
+	return topBar(i18n.T("pilot.title"), info, rightInfo(humanDuration(time.Since(m.began)), cost), w)
 }
 
 // barLine is the progress of the run: one segment per stage, coloured by
@@ -582,11 +573,7 @@ func (m *pilotModel) footer(w int) []string {
 		}
 		note = mutedStyle.Render(i18n.T("uix.pilot_alone"))
 	}
-	left := strings.Split(hintsAt(w-1, " ", true, keys...), "\n")
-	if note != "" && lipgloss.Width(left[0])+lipgloss.Width(note)+4 <= w {
-		left[0] = spread(left[0], note+" ", w)
-	}
-	return append([]string{faintStyle.Render(strings.Repeat(gl.Rule, w))}, left...)
+	return chromeFooter(w, note, keys...)
 }
 
 func (m *pilotModel) View() string {
@@ -595,7 +582,7 @@ func (m *pilotModel) View() string {
 		return ""
 	}
 	w = max(w, 20)
-	top := []string{m.headLine(w), m.barLine(w), ""}
+	top := []string{m.headLine(w), statsLine(w), m.barLine(w), ""}
 	top = append(top, m.hero(w, h)...)
 	foot := m.footer(w)
 

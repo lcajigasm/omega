@@ -182,6 +182,7 @@ func newGuideModel(info GuideInfo, stages []GuideStage, run StageRunner) *model 
 func RunGuide(info GuideInfo, stages []GuideStage, run StageRunner) (results []StageResult, ok bool, err error) {
 	hostMu.Lock()
 	defer hostMu.Unlock()
+	defer watchStats()()
 	m := newGuideModel(info, stages, run)
 	opts := []tea.ProgramOption{tea.WithAltScreen()}
 	if mouseWanted() {

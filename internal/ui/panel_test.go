@@ -126,10 +126,9 @@ func TestMenu(t *testing.T) {
 		}
 	}
 	m := newMenu(MenuInfo{Version: "1.0", Provider: "anthropic", Model: "auto", LastRun: "2 days ago"}, items())
-	m.total, m.free = 500<<30, 100<<30
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	view := stripANSI(m.View())
-	for _, want := range []string{"omega 1.0", "100.0 GB free of 500.0 GB", "2 days ago", "MAINTENANCE", "YOUR MAC", "❯ omega ", "omega mac ›", "omega update +"} {
+	for _, want := range []string{"Ω omega", "1.0", "2 days ago", "MAINTENANCE", "YOUR MAC", "❯ omega ", "omega mac ›", "omega update +"} {
 		if !strings.Contains(view, want) {
 			t.Errorf("menu lacks %q:\n%s", want, view)
 		}

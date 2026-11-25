@@ -164,6 +164,7 @@ func RunTUI(ctx context.Context, cancel context.CancelFunc, ag *agent.Agent, h H
 	if g := host.Load(); g != nil {
 		return g.session(cancel, ag, h)
 	}
+	defer watchStats()()
 	m := newModel(ag, cancel, h)
 	opts := []tea.ProgramOption{tea.WithAltScreen()}
 	if mouseWanted() {
