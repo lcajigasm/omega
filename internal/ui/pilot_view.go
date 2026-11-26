@@ -78,7 +78,7 @@ func (m *pilotModel) headLine(w int) string {
 	found := ""
 	if m.info.Found != nil {
 		if n, bytes := m.info.Found(); n > 0 {
-			found = i18n.T("plan.found", n)
+			found = i18n.N("plan.found", n)
 			if bytes > 0 {
 				found += " " + gl.Sep + " " + Bytes(bytes)
 			}

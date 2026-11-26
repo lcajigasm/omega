@@ -206,6 +206,6 @@ func toolNotes(ctx context.Context, a *Agent, in map[string]any) (string, error)
 		return "", err
 	}
 	a.forget()
-	a.emit(Event{Kind: EvToolEnd, Tool: "notes", Command: i18n.T("agent.notes_forgot", len(drop))})
+	a.emit(Event{Kind: EvToolEnd, Tool: "notes", Command: i18n.N("agent.notes_forgot", len(drop))})
 	return fmt.Sprintf("Deleted %d note(s).", len(drop)), nil
 }

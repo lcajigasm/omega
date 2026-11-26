@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 
 	"github.com/lcajigasm/omega/internal/agent"
 	"github.com/lcajigasm/omega/internal/i18n"
+	"github.com/lcajigasm/omega/internal/steps"
 )
 
 // answer waits for one read of the terminal, and stops waiting when the run
@@ -57,34 +59,47 @@ func RunPlain(ctx context.Context, ag *agent.Agent, in io.Reader, interactive bo
 		})
 	}
 	var stats agent.Stats
+	tools := &plainTools{}
 	for e := range ag.Events() {
 		if e.Stats.Model != "" {
 			stats = e.Stats
 		}
 		switch e.Kind {
-		case agent.EvAssistant:
-			fmt.Printf("\n%s\n", e.Text)
 		case agent.EvToolStart:
 			name, arg := toolLabel(e.Tool, e.Command)
 			if arg != "" {
 				arg = "(" + arg + ")"
 			}
-			fmt.Printf("\n%s %s%s\n", titleStyle.Render(gl.Tool), cmdStyle.Render(name), arg)
+			head := fmt.Sprintf("\n%s %s%s\n", titleStyle.Render(gl.Tool), cmdStyle.Render(name), arg)
 			if strings.HasPrefix(e.Tool, "run_step:") {
-				fmt.Println(faintStyle.Render("  " + e.Command))
+				head += faintStyle.Render("  "+truncate(oneLine(steps.Brief(e.Command)), 120)) + "\n"
 			}
+			tools.start(e.Tool+"\x00"+e.Command, head)
+			continue
 		case agent.EvOutput:
-			fmt.Printf("  %s\n", mutedStyle.Render(e.Text))
+			tools.out(e.Tool+"\x00"+e.Command, fmt.Sprintf("  %s\n", mutedStyle.Render(e.Text)))
+			continue
 		case agent.EvToolEnd:
-			if e.Failed && e.ExitCode != 0 {
-				fmt.Println(errStyle.Render(fmt.Sprintf("  %s %s exit %d", gl.Result, gl.Cross, e.ExitCode)))
-			} else if e.Failed {
-				fmt.Println(errStyle.Render("  " + gl.Result + " " + gl.Cross))
-			} else if e.Duration >= time.Second {
-				fmt.Println(okStyle.Render("  " + gl.Result + " " + gl.Check + " " + humanDuration(e.Duration)))
-			} else {
-				fmt.Println(okStyle.Render("  " + gl.Result + " " + gl.Check))
+			var end string
+			switch {
+			case e.Failed && e.ExitCode != 0:
+				end = errStyle.Render(fmt.Sprintf("  %s %s exit %d", gl.Result, gl.Cross, e.ExitCode))
+			case e.Failed:
+				end = errStyle.Render("  " + gl.Result + " " + gl.Cross)
+			case e.Duration >= time.Second:
+				end = okStyle.Render("  " + gl.Result + " " + gl.Check + " " + humanDuration(e.Duration))
+			default:
+				end = okStyle.Render("  " + gl.Result + " " + gl.Check)
 			}
+			tools.end(e.Tool+"\x00"+e.Command, end+"\n")
+			continue
+		}
+		// Anything else is said between tool calls: what is held back
+		// of the calls still running goes out first.
+		tools.flush()
+		switch e.Kind {
+		case agent.EvAssistant:
+			fmt.Printf("\n%s\n", plainMarkdown(e.Text))
 		case agent.EvDenied:
 			name, arg := toolLabel(e.Tool, e.Command)
 			if arg != "" {
@@ -171,7 +186,7 @@ func RunPlain(ctx context.Context, ag *agent.Agent, in io.Reader, interactive bo
 			fmt.Fprintln(os.Stderr, errStyle.Render("! "+e.Text))
 		case agent.EvDone:
 			if e.Text != "" {
-				fmt.Println(e.Text)
+				fmt.Println(plainMarkdown(e.Text))
 			}
 			cost := ""
 			if stats.CostKnown {
@@ -182,4 +197,107 @@ func RunPlain(ctx context.Context, ag *agent.Agent, in io.Reader, interactive bo
 			fmt.Println(mutedStyle.Render(i18n.T("run.log", ag.LogPath())))
 		}
 	}
+}
+
+// plainTools keeps the output of tool calls that run at the same time
+// apart. One call prints as it goes; the lines of the others are held and
+// printed under their own heading when the first one ends, so no line ends
+// up under the wrong command.
+type plainTools struct {
+	active string // the call printing now, "" when none
+	held   []*heldTool
+}
+
+type heldTool struct {
+	key   string
+	text  strings.Builder
+	ended bool
+}
+
+func (p *plainTools) find(key string) *heldTool {
+	for _, h := range p.held {
+		if h.key == key {
+			return h
+		}
+	}
+	return nil
+}
+
+func (p *plainTools) start(key, head string) {
+	if p.active == "" {
+		p.active = key
+		fmt.Print(head)
+		return
+	}
+	h := &heldTool{key: key}
+	h.text.WriteString(head)
+	p.held = append(p.held, h)
+}
+
+func (p *plainTools) out(key, line string) {
+	if h := p.find(key); h != nil && key != p.active {
+		h.text.WriteString(line)
+		return
+	}
+	fmt.Print(line)
+}
+
+func (p *plainTools) end(key, line string) {
+	if h := p.find(key); h != nil && key != p.active {
+		h.text.WriteString(line)
+		h.ended = true
+		return
+	}
+	fmt.Print(line)
+	if key == p.active {
+		p.active = ""
+		p.next()
+	}
+}
+
+// next prints the held calls in the order they started: the finished ones
+// whole, and the first one still running becomes the one that prints.
+func (p *plainTools) next() {
+	for len(p.held) > 0 {
+		h := p.held[0]
+		p.held = p.held[1:]
+		fmt.Print(h.text.String())
+		if !h.ended {
+			p.active = h.key
+			return
+		}
+	}
+}
+
+// flush prints everything held, finished or not.
+func (p *plainTools) flush() {
+	for _, h := range p.held {
+		fmt.Print(h.text.String())
+	}
+	p.held, p.active = nil, ""
+}
+
+var (
+	mdBold   = regexp.MustCompile(`\*\*([^*\n]+)\*\*`)
+	mdInline = regexp.MustCompile("`([^`\n]+)`")
+)
+
+// plainMarkdown is the model's markdown as plain text reads it: bold and
+// inline code lose their marks; lists, headings and code blocks stay as
+// they are, since they read well as they are.
+func plainMarkdown(s string) string {
+	lines := strings.Split(s, "\n")
+	fence := false
+	for i, l := range lines {
+		if strings.HasPrefix(strings.TrimSpace(l), "```") {
+			fence = !fence
+			continue
+		}
+		if fence {
+			continue
+		}
+		l = mdBold.ReplaceAllString(l, "$1")
+		lines[i] = mdInline.ReplaceAllString(l, "$1")
+	}
+	return strings.Join(lines, "\n")
 }

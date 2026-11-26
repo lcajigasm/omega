@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 
@@ -29,7 +30,9 @@ func devCmd() *cobra.Command {
 	c.AddCommand(
 		&cobra.Command{Use: "status", Short: i18n.T("cmd.dev_status"), Long: i18n.T("cmd.dev_status_more"), Args: cobra.NoArgs,
 			RunE: func(cmd *cobra.Command, args []string) error {
-				fmt.Println(i18n.T("dev.reading"))
+				r := ui.NewReport(os.Stdout)
+				r.Title("omega dev status", i18n.T("cmd.dev_status"))
+				fmt.Println(r.Faint(i18n.T("dev.reading")))
 				printDev(devtools.Load(true))
 				return nil
 			}},
@@ -57,60 +60,76 @@ func devCmd() *cobra.Command {
 
 // printDev is the read-only overview of the development setup.
 func printDev(inv *devtools.Inventory) {
+	r := ui.NewReport(os.Stdout)
+	// Every category lines up with the others.
+	nameW, versionW := 0, 0
+	for _, t := range inv.Installed {
+		nameW = max(nameW, lipgloss.Width(cut(t.Name, 18)))
+		versionW = max(versionW, lipgloss.Width(cut(orDash(t.Version), 16)))
+	}
 	for _, cat := range devtools.Categories {
-		first := true
+		var rows [][]string
+		var marks []ui.Mark
 		for _, t := range inv.Installed {
 			if t.Category != cat {
 				continue
-			}
-			if first {
-				fmt.Printf("\n%s\n", i18n.T("dev.cat."+cat))
-				first = false
 			}
 			where := t.Manager
 			if where == "" {
 				where = homeShort(t.Path)
 			}
-			note := ""
+			mark := ui.MarkOK
+			where = r.Muted(where)
 			if t.Inactive {
-				note = "  ⚠ " + i18n.T("dev.inactive", devtools.RCFile())
+				mark = ui.MarkWarn
+				where += "  " + r.Warn(i18n.T("dev.inactive", devtools.RCFile()))
 			}
-			fmt.Printf("  %-18s %-16s %s%s\n", cut(t.Name, 18), cut(orDash(t.Version), 16), where, note)
+			rows = append(rows, []string{cut(t.Name, 18), cut(orDash(t.Version), 16), where})
+			marks = append(marks, mark)
 		}
+		if len(rows) == 0 {
+			continue
+		}
+		r.Section(i18n.T("dev.cat."+cat), len(rows))
+		r.Table([]ui.Column{{Min: nameW}, {Min: versionW}, {Wrap: true}}, rows, marks)
 	}
-	fmt.Printf("\n%s\n", i18n.T("dev.h.findings"))
+	r.Section(i18n.T("dev.h.findings"), inv.Findings())
 	if inv.Findings() == 0 {
-		fmt.Println("  ✓ " + i18n.T("dev.no_findings"))
+		r.Line(r.Glyph(ui.MarkOK) + " " + i18n.T("dev.no_findings"))
 	}
+	warn := func(text string) { r.Line(r.Glyph(ui.MarkWarn) + " " + text) }
 	for _, c := range inv.Conflicts {
-		fmt.Println("  ⚠ " + i18n.T("dev.conflict", c.Lang, strings.Join(c.Managers, ", ")))
+		warn(i18n.T("dev.conflict", c.Lang, strings.Join(c.Managers, ", ")))
 	}
 	for _, s := range inv.Shadows {
-		fmt.Println("  ⚠ " + i18n.T("dev.shadow", s.Bin, strings.Join(homeShortAll(s.Paths), "  >  ")))
+		warn(i18n.T("dev.shadow", s.Bin, strings.Join(homeShortAll(s.Paths), "  >  ")))
 	}
 	if len(inv.PathDup) > 0 {
-		fmt.Println("  ⚠ " + i18n.T("dev.path_dup", strings.Join(homeShortAll(inv.PathDup), ", ")))
+		warn(i18n.T("dev.path_dup", strings.Join(homeShortAll(inv.PathDup), ", ")))
 	}
 	if len(inv.PathGone) > 0 {
-		fmt.Println("  ⚠ " + i18n.T("dev.path_gone", strings.Join(homeShortAll(inv.PathGone), ", ")))
+		warn(i18n.T("dev.path_gone", strings.Join(homeShortAll(inv.PathGone), ", ")))
 	}
 	for _, t := range inv.Inactive() {
-		fmt.Println("  ⚠ " + i18n.T("dev.not_active", t.Name, t.Init, devtools.RCFile()))
+		warn(i18n.T("dev.not_active", t.Name, t.Init, devtools.RCFile()))
 	}
 	if inv.Startup > 0 {
-		mark := "✓"
+		mark := ui.MarkOK
 		if inv.Startup > devtools.SlowStartup {
-			mark = "⚠"
+			mark = ui.MarkWarn
 		}
-		fmt.Printf("  %s %s\n", mark, i18n.T("dev.startup", inv.Platform.Shell, inv.Startup.Milliseconds()))
+		r.Line(r.Glyph(mark) + " " + i18n.T("dev.startup", inv.Platform.Shell, inv.Startup.Milliseconds()))
 	}
 	if len(inv.Stores) > 0 {
-		fmt.Printf("\n%s\n", i18n.T("dev.h.versions"))
+		r.Section(i18n.T("dev.h.versions"), len(inv.Stores))
+		var rows [][]string
 		for _, s := range inv.Stores {
-			fmt.Printf("  %-28s %9s  %s\n", cut(s.Name, 28), devtools.HumanSize(s.Size), cut(strings.Join(s.Versions, ", "), 70))
+			rows = append(rows, []string{cut(s.Name, 28), devtools.HumanSize(s.Size), r.Muted(strings.Join(s.Versions, ", "))})
 		}
+		r.Table([]ui.Column{{}, {Right: true}, {Wrap: true}}, rows, nil)
 	}
-	fmt.Println("\n" + i18n.T("dev.status_next", len(inv.Missing)))
+	r.Blank()
+	r.Hint(i18n.T("dev.status_next", len(inv.Missing)))
 }
 
 func orDash(s string) string {
@@ -145,7 +164,7 @@ func devInstall(names []string, tty bool) error {
 	if len(names) == 0 {
 		_, missing := devtools.Detect()
 		if len(missing) == 0 {
-			fmt.Println(i18n.T("dev.all_installed"))
+			fmt.Println(ui.NewReport(os.Stdout).Glyph(ui.MarkOK) + " " + i18n.T("dev.all_installed"))
 			return nil
 		}
 		var opts []ui.Option
@@ -160,7 +179,7 @@ func devInstall(names []string, tty bool) error {
 		}
 		ids, err := ui.Pick(i18n.T("dev.pick.install"), i18n.T("mac.pick_hint"), opts, true, tty, os.Stdin, os.Stdout)
 		if errors.Is(err, ui.ErrCancelled) || err != nil || len(ids) == 0 {
-			fmt.Println(i18n.T("mac.nothing"))
+			macNotice(ui.NewReport(os.Stdout), ui.MarkSkip, i18n.T("mac.nothing"))
 			return nil
 		}
 		for _, id := range ids {
@@ -176,7 +195,7 @@ func devInstall(names []string, tty bool) error {
 			return fmt.Errorf("%s", i18n.T("dev.no_install", t.Name))
 		}
 		if t.IsInstalled() {
-			fmt.Println(i18n.T("dev.already", t.Name))
+			fmt.Println(ui.NewReport(os.Stdout).Glyph(ui.MarkOK) + " " + i18n.T("dev.already", t.Name))
 			continue
 		}
 		tools = append(tools, t)
@@ -192,24 +211,25 @@ func devInstall(names []string, tty bool) error {
 	var done []devtools.Tool
 	var su sudoSession
 	defer su.close()
+	r := ui.NewReport(os.Stdout)
 	for _, t := range tools {
-		fmt.Printf("\n● %s\n  %s\n", t.Name, t.Install)
+		macChangeHead(r, t.Name, t.Install)
 		if ok, err := allowInstaller(t, tty, ask); err != nil {
 			return err
 		} else if !ok {
-			fmt.Println("  " + i18n.T("dev.installer_skipped"))
+			fmt.Println("  " + r.Glyph(ui.MarkSkip) + " " + r.Muted(i18n.T("dev.installer_skipped")))
 			continue
 		}
 		if err := su.need(t.Install); err != nil {
 			return err
 		}
-		res := runner.Run(context.Background(), t.Install, 30*time.Minute, func(l string) { fmt.Println("    " + l) })
+		res := runner.Run(context.Background(), t.Install, 30*time.Minute, macOutputLine(r))
 		if res.ExitCode != 0 {
 			failed++
-			fmt.Println("  " + i18n.T("mac.failed", res.ExitCode))
+			macFailed(r, res.ExitCode)
 			continue
 		}
-		fmt.Println("  └ ✓")
+		fmt.Println("  " + r.Glyph(ui.MarkOK))
 		done = append(done, t)
 	}
 	if err := devActivate(done, tty); err != nil {
@@ -255,11 +275,15 @@ func devActivate(tools []devtools.Tool, tty bool) error {
 	if len(opts) == 0 {
 		return nil
 	}
+	r := ui.NewReport(os.Stdout)
 	if !devtools.CanActivate() {
-		fmt.Println("\n" + i18n.T("dev.activate_other"))
+		r.Blank()
+		r.Line(r.Glyph(ui.MarkInfo) + " " + i18n.T("dev.activate_other"))
+		var rows [][]string
 		for _, o := range opts {
-			fmt.Printf("  %-12s %s\n", o.Label, o.Detail)
+			rows = append(rows, []string{o.Label, r.Muted(o.Detail)})
 		}
+		r.Table([]ui.Column{{}, {}}, rows, nil)
 		return nil
 	}
 	ids, err := ui.Pick(i18n.T("dev.pick.activate", devtools.RCFile()), i18n.T("mac.pick_hint"), opts, true, tty, os.Stdin, os.Stdout)
@@ -275,12 +299,12 @@ func devActivate(tools []devtools.Tool, tty bool) error {
 		return err
 	}
 	for _, t := range added {
-		fmt.Printf("  + %s\n", t.Init)
+		fmt.Println("  " + r.OK("+") + " " + t.Init)
 	}
 	if backup != "" {
-		fmt.Println(i18n.T("dev.activated", devtools.RCFile(), homeShort(backup)))
+		fmt.Println(r.Glyph(ui.MarkOK) + " " + i18n.T("dev.activated", devtools.RCFile(), homeShort(backup)))
 	} else {
-		fmt.Println(i18n.T("dev.activated_new", devtools.RCFile()))
+		fmt.Println(r.Glyph(ui.MarkOK) + " " + i18n.T("dev.activated_new", devtools.RCFile()))
 	}
 	return nil
 }

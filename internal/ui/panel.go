@@ -96,7 +96,11 @@ func (m *model) panelView(height int) string {
 	add(panelHead(i18n.T("panel.session"), "", inner))
 	row(i18n.T("ui.label_task"), truncate(m.header.Task, inner-9))
 	row(i18n.T("panel.mode"), truncate(m.modeShort(), inner-9))
-	row(i18n.T("ui.label_model"), truncate(m.header.Model, inner-9))
+	// A stage that asks no model (omega doctor, the built-in steps) has
+	// no model to name and spends no tokens: the rows are left out.
+	if m.header.Model != "" {
+		row(i18n.T("ui.label_model"), truncate(m.header.Model, inner-9))
+	}
 
 	t := m.tally()
 	steps := okStyle.Render(fmt.Sprintf("%s %d", gl.Check, t.ok))
@@ -109,7 +113,9 @@ func (m *model) panelView(height int) string {
 	if t.running > 0 {
 		steps += "  " + titleStyle.Render(fmt.Sprintf("%s %d", gl.Running, t.running))
 	}
-	row(i18n.T("panel.steps"), steps)
+	if t.ok+t.failed+t.denied+t.running > 0 {
+		row(i18n.T("panel.steps"), steps)
+	}
 
 	if m.diskTotal > 0 {
 		add("")
@@ -124,13 +130,15 @@ func (m *model) panelView(height int) string {
 		}
 	}
 
-	add("")
-	add(panelHead(i18n.T("panel.usage"), "", inner))
-	usage := gl.Up + humanTokens(m.stats.Usage.Input()) + " " + gl.Down + humanTokens(m.stats.Usage.OutputTokens)
-	if c := m.costText(); c != "" {
-		usage += " " + gl.Sep + " " + c
+	if m.stats.Usage.Input()+m.stats.Usage.OutputTokens > 0 {
+		add("")
+		add(panelHead(i18n.T("panel.usage"), "", inner))
+		usage := gl.Up + humanTokens(m.stats.Usage.Input()) + " " + gl.Down + humanTokens(m.stats.Usage.OutputTokens)
+		if c := m.costText(); c != "" {
+			usage += " " + gl.Sep + " " + c
+		}
+		add(mutedStyle.Render(usage))
 	}
-	add(mutedStyle.Render(usage))
 
 	add("")
 	add(panelHead(i18n.T("panel.activity"), fmt.Sprint(t.ok+t.failed+t.denied+t.running), inner))

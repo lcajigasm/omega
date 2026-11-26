@@ -194,7 +194,10 @@ func truncateANSI(s string, n int) string {
 // summaryLine is the closing line of a session: time, tokens and, when it
 // is known, the cost. Nothing is left dangling when the cost is not known.
 func summaryLine(elapsed time.Duration, tokens int64, cost string) string {
-	parts := []string{i18n.T("ui.summary_time", humanDuration(elapsed)), i18n.T("ui.summary_tokens", humanTokens(tokens))}
+	parts := []string{i18n.T("ui.summary_time", humanDuration(elapsed))}
+	if tokens > 0 {
+		parts = append(parts, i18n.T("ui.summary_tokens", humanTokens(tokens)))
+	}
 	if cost != "" {
 		parts = append(parts, cost)
 	}
@@ -206,4 +209,27 @@ func summaryLine(elapsed time.Duration, tokens int64, cost string) string {
 // output the same layout is drawn without escapes.
 func markdownStyle(style string) glamour.TermRendererOption {
 	return glamour.WithStandardStyle(style)
+}
+
+// flow lays styled parts out on as many lines of width w as they need,
+// joined by sep, instead of cutting the line at the edge. A part wider than
+// w is cut on its own line.
+func flow(parts []string, sep string, w int) []string {
+	var out []string
+	line := ""
+	for _, p := range parts {
+		switch {
+		case line == "":
+			line = p
+		case lipgloss.Width(line)+lipgloss.Width(sep)+lipgloss.Width(p) <= w:
+			line += sep + p
+		default:
+			out = append(out, truncateANSI(line, w))
+			line = p
+		}
+	}
+	if line != "" {
+		out = append(out, truncateANSI(line, w))
+	}
+	return out
 }

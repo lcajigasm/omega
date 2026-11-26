@@ -201,7 +201,15 @@ func (m *model) planView() string {
 		}
 		rows = view
 	}
-	return top.String() + "\n" + strings.Join(rows, "\n") + "\n\n" + cardView + "\n" + count + "\n" + keyLine
+	body := top.String() + "\n" + strings.Join(rows, "\n") + "\n\n" + cardView + "\n" + count
+	// The keys sit on the last rows of the terminal, as on every other
+	// screen, however short the list is.
+	if m.height > 0 {
+		if gap := m.height - chromeRows - lipgloss.Height(body) - lipgloss.Height(keyLine); gap > 0 {
+			body += strings.Repeat("\n", gap)
+		}
+	}
+	return body + "\n" + keyLine
 }
 
 // outcomeLine says how a stage ended, for the card between two stages.

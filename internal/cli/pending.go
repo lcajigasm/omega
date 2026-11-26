@@ -99,10 +99,11 @@ func writePending(w io.Writer, now time.Time, all bool) error {
 		}
 	}
 	if len(shown) == 0 {
-		fmt.Fprintln(w, i18n.T("pending.empty"))
+		hint := i18n.T("pending.empty_hint")
 		if hidden > 0 {
-			r.Hint(i18n.N("pending.hidden", hidden))
+			hint = i18n.N("pending.hidden", hidden)
 		}
+		writeEmpty(w, "omega pending", "", i18n.T("pending.empty"), hint)
 		return nil
 	}
 	r.Title("omega pending", i18n.N("pending.count", len(shown)))

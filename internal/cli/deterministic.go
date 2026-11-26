@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/lipgloss"
 	"golang.org/x/term"
 
 	"github.com/lcajigasm/omega/internal/agent"
@@ -199,6 +200,10 @@ func (d *detRun) run(ctx context.Context, task string) error {
 		d.report.TotalDuration = time.Since(start)
 		d.report.TotalDurationMS = d.report.TotalDuration.Milliseconds()
 	}()
+	if task != taskCustom {
+		// The routine opens with its own title.
+		d.rep().Title("omega "+task, i18n.T("det.no_ai"))
+	}
 	switch task {
 	case agent.TaskUpdate:
 		d.update(ctx)
@@ -221,7 +226,27 @@ func (d *detRun) run(ctx context.Context, task string) error {
 	default:
 		return fmt.Errorf("%s", i18n.T("err.task_needs_ai", task))
 	}
+	if task != agent.TaskQuick {
+		d.closing()
+	}
 	return nil
+}
+
+// rep is the report the run writes its progress with.
+func (d *detRun) rep() *ui.Report { return ui.NewReport(d.out) }
+
+// closing ends the run with its summary, marked by how it went.
+func (d *detRun) closing() {
+	r := d.rep()
+	mark := ui.MarkOK
+	switch {
+	case d.failed > 0:
+		mark = ui.MarkErr
+	case d.report.WarningCount > 0 || len(d.report.Skipped) > 0:
+		mark = ui.MarkWarn
+	}
+	r.Blank()
+	fmt.Fprintln(d.out, r.Glyph(mark)+" "+d.report.Summary)
 }
 
 // exit is the status of the run: a step that failed is an error, and the
@@ -306,7 +331,8 @@ func (d *detRun) allowed(s steps.Step) bool {
 		return true
 	}
 	if !d.tty {
-		fmt.Fprintln(d.out, "  – "+i18n.T("det.skipped", s.ID))
+		r := d.rep()
+		fmt.Fprintln(d.out, "  "+r.Glyph(ui.MarkSkip)+" "+r.Muted(i18n.T("det.skipped", s.ID)))
 		d.report.Skipped = append(d.report.Skipped, planned(s, i18n.T("det.reason_tty")))
 		return false
 	}
@@ -330,38 +356,47 @@ func (d *detRun) record(s steps.Step, res runner.Result, dur time.Duration, outp
 // confirmation rules.
 func (d *detRun) change(ctx context.Context, s steps.Step, timeout time.Duration) {
 	if d.f.dryRun {
-		fmt.Fprintln(d.out, "  "+i18n.T("det.would_run", s.ID, s.Command))
+		// The command of some steps is a whole script: one line of it is
+		// enough to know what would run.
+		r := d.rep()
+		fmt.Fprintln(d.out, "  "+r.Glyph(ui.MarkInfo)+" "+r.Clip(i18n.T("det.would_run", s.ID, steps.Brief(s.Command)), 4))
 		d.report.WouldRun = append(d.report.WouldRun, planned(s, ""))
 		return
 	}
 	if !d.allowed(s) {
 		return
 	}
-	fmt.Fprintf(d.out, "● %s ... ", stepName(s))
+	// The step's name goes out first and its result after it on the same
+	// line, so a long update shows what it is busy with.
+	r := d.rep()
+	fmt.Fprint(d.out, "  "+r.Faint("●")+" "+stepName(s)+r.Faint(" … "))
 	// Without the password the command would stop at sudo's own prompt,
 	// which nobody can answer: the step fails here instead.
 	if err := d.sudo(s.Command); err != nil {
 		d.failed++
 		d.record(s, runner.Result{ExitCode: 1}, 0, "sudo: "+err.Error())
-		fmt.Fprintf(d.out, "✗ (sudo: %v)\n", err)
+		fmt.Fprintln(d.out, r.Glyph(ui.MarkErr)+" "+r.Err("sudo: "+err.Error()))
 		return
 	}
 
 	var logFn func(string)
 	if d.f.verbose {
 		fmt.Fprintln(d.out)
-		logFn = func(l string) { fmt.Fprintln(d.out, "    "+l) }
+		logFn = func(l string) { fmt.Fprintln(d.out, "    "+r.Faint("│")+" "+l) }
 	}
 	stepStart := time.Now()
 	res := d.exec(ctx, s.Command, timeout, logFn)
 	dur := time.Since(stepStart)
 	d.record(s, res, dur, res.Output)
+	if d.f.verbose {
+		fmt.Fprint(d.out, "    ")
+	}
 	if res.ExitCode == 0 {
-		fmt.Fprintf(d.out, "✓ (%s)\n", ui.Duration(dur))
+		fmt.Fprintln(d.out, r.Glyph(ui.MarkOK)+r.Faint(" "+ui.Duration(dur)))
 		return
 	}
 	d.failed++
-	fmt.Fprintf(d.out, "✗ (exit %d)\n", res.ExitCode)
+	fmt.Fprintln(d.out, r.Glyph(ui.MarkErr)+" "+r.Err(fmt.Sprintf("exit %d", res.ExitCode))+r.Faint(" · "+ui.Duration(dur)))
 }
 
 // check runs a read-only step. Anything else is not a check, whatever its
@@ -386,9 +421,25 @@ func (d *detRun) timeout(def time.Duration) time.Duration {
 	return def
 }
 
-// heading starts the part of a run: "⚡ Update · without AI".
+// heading starts the part of a run: "UPDATE", under the run's title.
 func (d *detRun) heading(key string) {
-	fmt.Fprintf(d.out, "\n⚡ %s · %s\n\n", i18n.T(key), i18n.T("det.no_ai"))
+	d.rep().Section(i18n.T(key), -1)
+}
+
+// checkOutput shows what a read-only step printed: its name marked by how
+// it went, then its lines indented under it as the command wrote them.
+func (d *detRun) checkOutput(s steps.Step, res runner.Result) {
+	r := d.rep()
+	mark := ui.MarkOK
+	if res.ExitCode != 0 {
+		mark = ui.MarkWarn
+	}
+	r.Check(mark, stepName(s), 0, "")
+	for _, l := range strings.Split(strings.TrimRight(res.Output, "\n"), "\n") {
+		if strings.TrimSpace(l) != "" {
+			fmt.Fprintln(d.out, "    "+strings.TrimRight(l, " "))
+		}
+	}
 }
 
 func (d *detRun) update(ctx context.Context) {
@@ -425,7 +476,7 @@ func (d *detRun) custom(ctx context.Context) error {
 	name := rs.DefaultName()
 	rt, ok := rs.Get(name)
 	if !ok || len(rt.Steps) == 0 {
-		fmt.Fprintln(d.out, i18n.T("custom.none"))
+		writeEmpty(d.out, "omega custom", routineTitle(name), i18n.T("custom.empty"), i18n.T("custom.empty_hint"))
 		d.report.Summary = i18n.T("custom.none")
 		return nil
 	}
@@ -516,7 +567,7 @@ func (d *detRun) analyze(ctx context.Context) {
 		if strings.Contains(s.ID, "outdated") {
 			d.report.OutdatedCount += outdatedCount(s.ID, res.Output)
 		}
-		fmt.Fprintf(d.out, "── %s ──\n%s\n\n", stepName(s), res.Output)
+		d.checkOutput(s, res)
 	}
 	d.report.Summary = i18n.T("det.sum_analyze", checks, d.report.OutdatedCount)
 }
@@ -524,14 +575,14 @@ func (d *detRun) analyze(ctx context.Context) {
 func (d *detRun) health(ctx context.Context) {
 	d.heading("det.h_health")
 	if bat, _ := batteryInfo(ctx); bat != nil && bat.Supported {
-		fmt.Fprintf(d.out, "🔋 %s: %s\n\n", i18n.T("det.battery"), bat.Text())
+		d.rep().Check(ui.MarkOK, i18n.T("det.battery"), 0, bat.Text())
 	}
 	for _, s := range steps.For(goos) {
 		if s.ID != "health" && s.ID != "security" && s.ID != "disk" {
 			continue
 		}
 		if res, ran := d.check(ctx, s, 20*time.Second); ran {
-			fmt.Fprintf(d.out, "── %s ──\n%s\n\n", stepName(s), strings.TrimSpace(res.Output))
+			d.checkOutput(s, res)
 		}
 	}
 	d.report.Summary = i18n.T("det.sum_health", len(d.report.StepsRun), d.report.WarningCount)
@@ -541,9 +592,11 @@ func (d *detRun) health(ctx context.Context) {
 // the disk and what is outdated. Its last line says what was looked at and
 // what went wrong, and nothing more: it does not call a machine healthy.
 func (d *detRun) quick(ctx context.Context) {
-	fmt.Fprintf(d.out, "\n✨ %s · %s\n", i18n.T("det.h_quick"), i18n.T("det.no_ai"))
-	fmt.Fprintln(d.out, i18n.T("det.quick_intro"))
-	fmt.Fprintln(d.out)
+	r := d.rep()
+	r.Line(r.Muted(i18n.T("det.quick_intro")))
+	r.Blank()
+	// The battery and the disk line up with each other.
+	lw := max(lipgloss.Width(i18n.T("det.battery_health")), lipgloss.Width(i18n.T("det.disk")))
 
 	// 1. Cleanups. Emptying the Trash deletes for good, so it follows the
 	// same rules as every other step: --dry-run shows it, --yes or an
@@ -558,7 +611,7 @@ func (d *detRun) quick(ctx context.Context) {
 	// 2. Battery
 	var looked []string
 	if bat, _ := batteryInfo(ctx); bat != nil && bat.Supported {
-		fmt.Fprintf(d.out, "  • %s: %s\n", i18n.T("det.battery_health"), bat.HealthText())
+		r.Check(ui.MarkOK, i18n.T("det.battery_health"), lw, bat.HealthText())
 		looked = append(looked, i18n.T("det.w_battery"))
 	}
 
@@ -578,18 +631,18 @@ func (d *detRun) quick(ctx context.Context) {
 		switch {
 		case res.ExitCode != 0:
 			checksFailed++
-			fmt.Fprintf(d.out, "  • %s\n", i18n.T("det.check_failed", stepName(s), res.ExitCode))
+			r.Check(ui.MarkWarn, i18n.T("det.check_failed", stepName(s), res.ExitCode), 0, "")
 		case outdated:
 			outdatedChecks++
 			d.report.OutdatedCount += outdatedCount(s.ID, res.Output)
 		case d.f.verbose:
 			diskSeen = true
-			fmt.Fprintf(d.out, "── %s ──\n%s\n", stepName(s), out)
+			d.checkOutput(s, res)
 		default:
 			diskSeen = true
 			// df prints its header first; the line after it is the disk.
 			if rows := strings.Split(out, "\n"); len(rows) > 1 && goos != "windows" {
-				fmt.Fprintf(d.out, "  • %s: %s\n", i18n.T("det.disk"), strings.Join(strings.Fields(rows[1]), " "))
+				r.Check(ui.MarkOK, i18n.T("det.disk"), lw, strings.Join(strings.Fields(rows[1]), " "))
 			}
 		}
 	}
@@ -616,11 +669,11 @@ func (d *detRun) quick(ctx context.Context) {
 		checked = strings.Join(looked, ", ")
 	}
 	d.report.Summary = state + " " + i18n.T("det.sum_quick", cleaned, checked, d.report.OutdatedCount)
-	fmt.Fprintf(d.out, "\n%s\n", d.report.Summary)
+	d.closing()
 	if skipped := len(d.report.Skipped); skipped > 0 {
-		fmt.Fprintln(d.out, i18n.N("det.quick_skipped", skipped))
+		r.Line(r.Muted(i18n.N("det.quick_skipped", skipped)))
 	}
 	if d.report.OutdatedCount > 0 {
-		fmt.Fprintln(d.out, "💡 "+i18n.T("det.hint_update"))
+		r.Hint(i18n.T("det.hint_update"))
 	}
 }

@@ -642,7 +642,7 @@ func (a *Agent) RunPlanned(ctx context.Context, acts []PlannedAction, done func(
 			done(act.ID, status, result)
 		}
 	}
-	text := i18n.T("plan.done_tally", len(acts)-failed, len(acts))
+	text := i18n.N("plan.done_tally", len(acts), len(acts)-failed, len(acts))
 	if ctx.Err() != nil {
 		a.setExit(ExitCancelled)
 	} else if failed > 0 {

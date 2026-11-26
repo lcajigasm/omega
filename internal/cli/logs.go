@@ -124,7 +124,7 @@ func writeLogList(w io.Writer, lf logFilter) error {
 		return err
 	}
 	if len(all) == 0 {
-		fmt.Fprintln(w, i18n.T("logs.empty"))
+		writeEmpty(w, "omega logs", "", i18n.T("logs.empty"), i18n.T("logs.empty_hint"))
 		return nil
 	}
 	runs, err := logEntries(lf)

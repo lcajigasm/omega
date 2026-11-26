@@ -613,6 +613,83 @@ var cliMessages = map[string][]string{
 	"step.xcode-derived":      {"Xcode DerivedData", "DerivedData de Xcode", "DerivedData de Xcode", "Xcode-DerivedData", "DerivedData do Xcode"},
 	"step.mole-clean":         {"Mole cleanup", "Limpieza de Mole", "Nettoyage Mole", "Mole-Bereinigung", "Limpeza do Mole"},
 	"step.mole-optimize":      {"Mole optimization", "Optimización de Mole", "Optimisation Mole", "Mole-Optimierung", "Otimização do Mole"},
+
+	// ---- empty lists: the same title as a full one, then what to do ----
+	"pending.empty_hint": {
+		"Runs list here what they could not do for you, such as a setting only you can change.",
+		"Las ejecuciones apuntan aquí lo que no pudieron hacer por ti, como un ajuste que solo tú puedes cambiar.",
+		"Les exécutions notent ici ce qu'elles n'ont pas pu faire pour vous, comme un réglage que vous seul pouvez changer.",
+		"Läufe tragen hier ein, was sie nicht für dich erledigen konnten, etwa eine Einstellung, die nur du ändern kannst.",
+		"As execuções anotam aqui o que não puderam fazer por ti, como uma definição que só tu podes mudar.",
+	},
+	"notes.empty_hint": {
+		"Every run writes here what it learns about this machine. Start one: omega quick",
+		"Cada ejecución apunta aquí lo que aprende de este equipo. Empieza una: omega quick",
+		"Chaque exécution note ici ce qu'elle apprend de cette machine. Lancez-en une : omega quick",
+		"Jeder Lauf notiert hier, was er über diesen Rechner lernt. Starte einen: omega quick",
+		"Cada execução anota aqui o que aprende deste equipamento. Começa uma: omega quick",
+	},
+	"logs.empty_hint": {
+		"Every run with AI keeps its transcript here. Start one: omega quick",
+		"Cada ejecución con IA guarda aquí su transcripción. Empieza una: omega quick",
+		"Chaque exécution avec IA garde ici sa transcription. Lancez-en une : omega quick",
+		"Jeder Lauf mit KI legt hier sein Protokoll ab. Starte einen: omega quick",
+		"Cada execução com IA guarda aqui a sua transcrição. Começa uma: omega quick",
+	},
+	"notes.no_match": {"No note mentions %q.", "Ninguna nota menciona %q.", "Aucune note ne mentionne %q.", "Keine Notiz erwähnt %q.", "Nenhuma nota menciona %q."},
+	"custom.empty":   {"You have no routine yet.", "Aún no tienes una rutina.", "Vous n'avez pas encore de routine.", "Du hast noch keine Routine.", "Ainda não tens uma rotina."},
+	"custom.empty_hint": {
+		"Make one with omega custom --set, or give the steps: omega custom --set brew npm",
+		"Créala con omega custom --set, o da los pasos: omega custom --set brew npm",
+		"Créez-la avec omega custom --set, ou donnez les étapes : omega custom --set brew npm",
+		"Lege eine an mit omega custom --set, oder nenne die Schritte: omega custom --set brew npm",
+		"Cria-a com omega custom --set, ou indica os passos: omega custom --set brew npm",
+	},
+
+	// ---- omega mac ----
+	"mac.halfway": {
+		"It stopped halfway: omega mac undo puts back what was moved.",
+		"Se detuvo a medias: omega mac undo devuelve lo que se movió.",
+		"Il s'est arrêté à mi-chemin : omega mac undo remet ce qui a été déplacé.",
+		"Es hat mittendrin aufgehört: omega mac undo stellt zurück, was verschoben wurde.",
+		"Parou a meio: omega mac undo repõe o que foi movido.",
+	},
+	"mac.policy_edit_hint": {
+		"Change them with omega mac policy edit.", "Cámbialas con omega mac policy edit.", "Modifiez-les avec omega mac policy edit.",
+		"Ändere sie mit omega mac policy edit.", "Muda-as com omega mac policy edit.",
+	},
+
+	"auth.status_hint": {
+		"omega auth set <provider> stores a key; omega setup walks you through it.",
+		"omega auth set <proveedor> guarda una clave; omega setup te guía paso a paso.",
+		"omega auth set <fournisseur> enregistre une clé ; omega setup vous guide pas à pas.",
+		"omega auth set <Anbieter> speichert einen Schlüssel; omega setup führt dich Schritt für Schritt.",
+		"omega auth set <fornecedor> guarda uma chave; omega setup guia-te passo a passo.",
+	},
+
+	// ---- omega docs ----
+	"docs.index_sub": {"the manual, offline", "el manual, sin conexión", "le manuel, hors ligne", "das Handbuch, offline", "o manual, sem ligação"},
+	"docs.index_hint": {
+		"omega docs <page> reads one · omega docs search <words> · omega docs ask \"<question>\"",
+		"omega docs <página> lee una · omega docs search <palabras> · omega docs ask \"<pregunta>\"",
+		"omega docs <page> en lit une · omega docs search <mots> · omega docs ask \"<question>\"",
+		"omega docs <Seite> liest eine · omega docs search <Wörter> · omega docs ask \"<Frage>\"",
+		"omega docs <página> lê uma · omega docs search <palavras> · omega docs ask \"<pergunta>\"",
+	},
+	"docs.no_match": {
+		"Nothing in the manual matches %q.", "Nada del manual coincide con %q.", "Rien dans le manuel ne correspond à %q.",
+		"Nichts im Handbuch passt zu %q.", "Nada no manual corresponde a %q.",
+	},
+	"docs.no_match_hint": {
+		"Try other words, or omega --help for every command.", "Prueba con otras palabras, u omega --help para ver todas las órdenes.",
+		"Essayez d'autres mots, ou omega --help pour toutes les commandes.", "Versuch andere Wörter, oder omega --help für alle Befehle.",
+		"Experimenta outras palavras, ou omega --help para ver todos os comandos.",
+	},
+	"docs.no_model": {
+		"no model to ask (%v). Here is what the manual says:", "no hay modelo al que preguntar (%v). Esto es lo que dice el manual:",
+		"aucun modèle à qui demander (%v). Voici ce que dit le manuel :", "kein Modell zum Fragen (%v). Das steht im Handbuch:",
+		"não há modelo a quem perguntar (%v). Eis o que diz o manual:",
+	},
 }
 
 func init() {

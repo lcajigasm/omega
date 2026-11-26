@@ -223,7 +223,7 @@ func dockerCmd() *cobra.Command {
 			fmt.Fprintln(w)
 			ids, err := ui.Pick(i18n.T("docker.pick_title"), i18n.T("docker.pick_hint"), opts, true, true, os.Stdin, w)
 			if errors.Is(err, ui.ErrCancelled) || (err == nil && len(ids) == 0) {
-				fmt.Fprintln(w, i18n.T("docker.nothing"))
+				say(w, ui.MarkSkip, i18n.T("docker.nothing"))
 				return nil
 			}
 			if err != nil {
@@ -231,7 +231,7 @@ func dockerCmd() *cobra.Command {
 			}
 			// Docker cleanups are always confirmed, whatever the approval settings.
 			if !yes && !askYesNo(i18n.N("docker.confirm", len(ids))) {
-				fmt.Fprintln(w, i18n.T("docker.nothing"))
+				say(w, ui.MarkSkip, i18n.T("docker.nothing"))
 				return nil
 			}
 			r := ui.NewReport(w)

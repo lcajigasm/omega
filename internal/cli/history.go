@@ -171,3 +171,23 @@ func writeHistory(w io.Writer, h history, now time.Time) {
 	r.Blank()
 	r.Hint(i18n.T("history.hint"))
 }
+
+// writeEmpty is what a list command says when it has nothing to list: the
+// same title it has when full, the reason on a line of its own, and what to
+// do next, so an empty answer looks like the rest of omega.
+func writeEmpty(w io.Writer, title, detail, text, hint string) {
+	r := ui.NewReport(w)
+	r.Title(title, detail)
+	r.Blank()
+	r.Line(r.Glyph(ui.MarkOff) + " " + text)
+	if hint != "" {
+		r.Blank()
+		r.Hint(hint)
+	}
+}
+
+// say writes one sentence with its mark in front: what a command did, or
+// that it did nothing, in the same form everywhere.
+func say(w io.Writer, m ui.Mark, text string) {
+	fmt.Fprintln(w, ui.NewReport(w).Glyph(m)+" "+text)
+}

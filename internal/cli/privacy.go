@@ -47,7 +47,6 @@ func privacyCmd() *cobra.Command {
 			r.Section(i18n.T("privacy.caches"), len(audit.BrowserCaches))
 			if len(audit.BrowserCaches) == 0 {
 				r.Check(ui.MarkOK, i18n.T("privacy.no_caches"), 0, "")
-				r.Blank()
 				return nil
 			}
 			var total int64
@@ -70,7 +69,7 @@ func privacyCmd() *cobra.Command {
 					return errors.New(i18n.T("privacy.need_yes"))
 				}
 				if !askYesNo(i18n.T("privacy.confirm")) {
-					fmt.Fprintln(w, i18n.T("tools.nothing_done"))
+					fmt.Fprintln(w, r.Glyph(ui.MarkSkip)+" "+i18n.T("tools.nothing_done"))
 					return nil
 				}
 			}

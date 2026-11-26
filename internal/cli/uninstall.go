@@ -58,7 +58,7 @@ func uninstallCmd() *cobra.Command {
 				}
 				fmt.Fprintln(w)
 				if !askYesNo(question) {
-					fmt.Fprintln(w, i18n.T("uninstall.cancelled"))
+					fmt.Fprintln(w, r.Glyph(ui.MarkSkip)+" "+i18n.T("uninstall.cancelled"))
 					return nil
 				}
 			}

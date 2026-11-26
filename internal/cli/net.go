@@ -149,7 +149,7 @@ func parsePortArg(s string) (int, error) {
 
 func writePing(w io.Writer, results []netdiag.RegistryPing) {
 	r := ui.NewReport(w)
-	r.Title("omega net ping", i18n.T("net.ping_detail", len(results)))
+	r.Title("omega net ping", i18n.N("net.ping_detail", len(results)))
 	r.Blank()
 	var rows [][]string
 	var marks []ui.Mark
@@ -176,19 +176,19 @@ func writePing(w io.Writer, results []netdiag.RegistryPing) {
 
 func writePorts(w io.Writer, ports []netdiag.PortInfo, target int, udp bool) {
 	if len(ports) == 0 {
+		text := i18n.T("net.no_ports")
 		switch {
 		case target > 0:
-			fmt.Fprintln(w, i18n.T("net.port_free", target))
+			text = i18n.T("net.port_free", target)
 		case udp:
-			fmt.Fprintln(w, i18n.T("net.no_udp"))
-		default:
-			fmt.Fprintln(w, i18n.T("net.no_ports"))
+			text = i18n.T("net.no_udp")
 		}
+		writeEmpty(w, "omega net ports", "", text, "")
 		return
 	}
 	sort.SliceStable(ports, func(i, j int) bool { return ports[i].Port < ports[j].Port })
 	r := ui.NewReport(w)
-	r.Title("omega net ports", i18n.T("net.ports_detail", len(ports)))
+	r.Title("omega net ports", i18n.N("net.ports_detail", len(ports)))
 	r.Blank()
 	var rows [][]string
 	for _, p := range ports {
@@ -229,7 +229,7 @@ func killPort(ctx context.Context, w io.Writer, port int, yes, tty bool, confirm
 			return errors.New(i18n.T("net.kill_need_yes"))
 		}
 		if !confirm(i18n.N("net.kill_confirm", len(targets))) {
-			fmt.Fprintln(w, i18n.T("net.kill_cancelled"))
+			say(w, ui.MarkSkip, i18n.T("net.kill_cancelled"))
 			return nil
 		}
 	}

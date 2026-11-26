@@ -97,7 +97,7 @@ func writeSSHAudit(w io.Writer, findings []secscan.SSHFinding) {
 
 func writeSecrets(w io.Writer, scan secscan.SecretScan) {
 	r := ui.NewReport(w)
-	r.Title("omega audit secrets", i18n.T("audit.secrets_detail", len(scan.Scanned)))
+	r.Title("omega audit secrets", i18n.N("audit.secrets_detail", len(scan.Scanned)))
 	r.Blank()
 	if len(scan.Scanned) == 0 {
 		r.Line(i18n.T("audit.no_history"))

@@ -144,14 +144,14 @@ func (o customOpts) run(cmd *cobra.Command, args []string) error {
 	switch {
 	case o.clear:
 		if _, ok := rs.Routines[name]; !ok {
-			fmt.Fprintln(out, i18n.T("custom.cleared"))
+			say(out, ui.MarkOK, i18n.T("custom.cleared"))
 			return nil
 		}
 		delete(rs.Routines, name)
 		if err := config.SaveRoutines(rs); err != nil {
 			return err
 		}
-		fmt.Fprintln(out, i18n.T("custom.cleared_one", name))
+		say(out, ui.MarkOK, i18n.T("custom.cleared_one", name))
 		return nil
 	case cmd.Flags().Changed("default"):
 		if strings.TrimSpace(o.makeDefault) != "" {
@@ -164,12 +164,12 @@ func (o customOpts) run(cmd *cobra.Command, args []string) error {
 		if err := config.SaveRoutines(rs); err != nil {
 			return err
 		}
-		fmt.Fprintln(out, i18n.T("custom.default_set", name))
+		say(out, ui.MarkOK, i18n.T("custom.default_set", name))
 		return nil
 	}
 	rt, ok := rs.Routines[name]
 	if !found || !ok || len(rt.Steps) == 0 {
-		fmt.Fprintln(out, i18n.T("custom.none"))
+		writeEmpty(out, "omega custom", routineTitle(name), i18n.T("custom.empty"), i18n.T("custom.empty_hint"))
 		return nil
 	}
 	if o.show {
@@ -256,7 +256,7 @@ func (o customOpts) setRoutine(out io.Writer, cmd *cobra.Command, rs config.Rout
 		if err := config.SaveNamedRoutine(name, rt); err != nil {
 			return err
 		}
-		fmt.Fprintln(out, i18n.N("custom.saved", len(ids), len(ids), tildePath(config.CustomPath())))
+		say(out, ui.MarkOK, i18n.N("custom.saved", len(ids), len(ids), tildePath(config.CustomPath())))
 		return nil
 	case optionsOnly:
 		if len(old.Steps) == 0 {
@@ -265,7 +265,7 @@ func (o customOpts) setRoutine(out io.Writer, cmd *cobra.Command, rs config.Rout
 		if err := config.SaveNamedRoutine(name, withOptions(old)); err != nil {
 			return err
 		}
-		fmt.Fprintln(out, i18n.T("custom.options_saved", name))
+		say(out, ui.MarkOK, i18n.T("custom.options_saved", name))
 		return nil
 	}
 	if !stdinIsTerminal() {
@@ -291,7 +291,7 @@ func (o customOpts) setRoutine(out io.Writer, cmd *cobra.Command, rs config.Rout
 		MachineData: data.words(),
 	})
 	if errors.Is(err, ui.ErrCancelled) {
-		fmt.Fprintln(out, i18n.T("custom.unchanged"))
+		say(out, ui.MarkSkip, i18n.T("custom.unchanged"))
 		return nil
 	}
 	if err != nil {
@@ -303,8 +303,7 @@ func (o customOpts) setRoutine(out io.Writer, cmd *cobra.Command, rs config.Rout
 	if err := config.SaveNamedRoutine(name, rt); err != nil {
 		return err
 	}
-	r := ui.NewReport(out)
-	fmt.Fprintln(out, r.OK("✓ ")+i18n.N("custom.saved", len(chosen), len(chosen), tildePath(config.CustomPath())))
+	say(out, ui.MarkOK, i18n.N("custom.saved", len(chosen), len(chosen), tildePath(config.CustomPath())))
 	showRoutine(out, name, rt)
 	return nil
 }
@@ -353,7 +352,7 @@ func (d routineData) words() string {
 		parts = append(parts, i18n.T("custom.data_free", d.FreeGB))
 	}
 	if d.Days >= 0 {
-		parts = append(parts, i18n.T("custom.data_days", d.Days))
+		parts = append(parts, i18n.N("custom.data_days", d.Days))
 	} else {
 		parts = append(parts, i18n.T("custom.data_never"))
 	}
@@ -415,7 +414,9 @@ func listRoutines(out io.Writer, rs config.Routines) {
 	r.Title("omega custom --list", tildePath(config.CustomPath()))
 	if len(rs.Routines) == 0 {
 		r.Blank()
-		fmt.Fprintln(out, i18n.T("custom.none"))
+		r.Line(r.Glyph(ui.MarkOff) + " " + i18n.T("custom.empty"))
+		r.Blank()
+		r.Hint(i18n.T("custom.empty_hint"))
 		return
 	}
 	r.Blank()

@@ -225,7 +225,9 @@ func chooseModel(cfg *config.Config, info llm.Info, p llm.Provider) error {
 	return nil
 }
 
-func okText(s string) string { return "✓ " + s }
+// okText is a sentence saying something worked, with the mark the other
+// reports use.
+func okText(s string) string { return ui.NewReport(os.Stdout).Glyph(ui.MarkOK) + " " + s }
 
 func modelCmd() *cobra.Command {
 	var provider string
@@ -492,26 +494,29 @@ func modelsReport(w io.Writer, cfg *config.Config, info llm.Info, available []st
 	if len(rows) > 0 {
 		rep.Table([]ui.Column{{}, {}, {}}, rows, marks)
 	}
+	// The notes under the table stay whole lines: they name models, and a
+	// model's name is better not cut.
+	note := func(text string) { fmt.Fprintln(w, "  "+rep.Muted(text)) }
 	fmt.Fprintln(w)
 	if estimated {
-		fmt.Fprintln(w, i18n.T("models.estimated"))
+		note(i18n.T("models.estimated"))
 	}
 	switch {
 	case info.Local:
 		// A local server has no price list to compare.
 	case cfg.Catalog == config.CatalogOff:
-		fmt.Fprintln(w, i18n.T("models.off"))
+		note(i18n.T("models.off"))
 	case modelStore == nil || len(modelStore.Models) == 0:
-		fmt.Fprintln(w, i18n.T("models.none"))
+		note(i18n.T("models.none"))
 	default:
-		fmt.Fprintln(w, i18n.T("models.source", modelStore.Fetched.Local().Format("2006-01-02 15:04")))
+		note(i18n.T("models.source", modelStore.Fetched.Local().Format("2006-01-02 15:04")))
 	}
 	if m := cfg.ModelFor(info.Name); m != "" && m != "auto" {
-		fmt.Fprintln(w, i18n.T("models.fixed", m, fast, smart))
+		fmt.Fprintln(w, rep.Glyph(ui.MarkCurrent)+" "+i18n.T("models.fixed", m, fast, smart))
 	} else if fast != "" {
-		fmt.Fprintln(w, i18n.T("models.auto", fast, smart))
+		fmt.Fprintln(w, rep.Glyph(ui.MarkCurrent)+" "+i18n.T("models.auto", fast, smart))
 		if since := livePicks(cfg, info.Name).Since; !since.IsZero() && cfg.Providers[info.Name].FastModel == "" && cfg.Providers[info.Name].SmartModel == "" {
-			fmt.Fprintln(w, i18n.T("models.since", since.Local().Format("2006-01-02")))
+			note(i18n.T("models.since", since.Local().Format("2006-01-02")))
 		}
 	}
 }

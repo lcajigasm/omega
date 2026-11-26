@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/lcajigasm/omega/internal/i18n"
+	"github.com/lcajigasm/omega/internal/steps"
 )
 
 func (m *model) markdown(s string) string {
@@ -86,12 +87,13 @@ func (m *model) renderWelcome() string {
 	}
 	head := titleStyle.Render(gl.Brand) + mutedStyle.Render(" "+m.header.Version)
 	if m.panelShown() || m.tw() < compactWidth {
-		lines := []string{truncateANSI(head+mutedStyle.Render(" "+gl.Sep+" "+i18n.T("ui.welcome_tagline")), w)}
-		if logPath != "" {
-			label := i18n.T("ui.label_log") + " "
-			lines = append(lines, faintStyle.Render(label)+mutedStyle.Render(truncate(homeTilde(logPath), w-lipgloss.Width(label))))
+		// The top bar already names omega and its version: beside the
+		// panel only where the log goes is new.
+		if logPath == "" {
+			return truncateANSI(head+mutedStyle.Render(" "+gl.Sep+" "+i18n.T("ui.welcome_tagline")), w)
 		}
-		return strings.Join(lines, "\n")
+		label := i18n.T("ui.label_log") + " "
+		return faintStyle.Render(label) + mutedStyle.Render(truncate(homeTilde(logPath), w-lipgloss.Width(label)))
 	}
 	inner := w - 6 // border and padding
 	var b strings.Builder
@@ -197,7 +199,7 @@ func (m *model) paintEntry(e *entry) string {
 		head += mutedStyle.Render("(") + truncate(arg, max(10, w-len(name)-6)) + mutedStyle.Render(")")
 	}
 	if strings.HasPrefix(e.tool, "run_step:") && e.command != "" {
-		head += faintStyle.Render("  " + truncate(e.command, max(10, w-lipgloss.Width(head)-4)))
+		head += faintStyle.Render("  " + truncate(oneLine(steps.Brief(e.command)), max(10, w-lipgloss.Width(head)-4)))
 	}
 
 	var b strings.Builder

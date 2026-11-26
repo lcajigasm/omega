@@ -40,7 +40,7 @@ func notesCompactCmd() *cobra.Command {
 func compactNotes(w io.Writer, path string, yes, dryRun, tty bool, confirm func(string) bool) error {
 	b, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) || (err == nil && len(b) == 0) {
-		fmt.Fprintln(w, i18n.T("notes.empty"))
+		writeEmpty(w, "omega notes compact", tildePath(path), i18n.T("notes.empty"), i18n.T("notes.empty_hint"))
 		return nil
 	}
 	if err != nil {

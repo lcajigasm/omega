@@ -11,6 +11,7 @@ import (
 	"github.com/lcajigasm/omega/internal/agent"
 	"github.com/lcajigasm/omega/internal/i18n"
 	"github.com/lcajigasm/omega/internal/safety"
+	"github.com/lcajigasm/omega/internal/steps"
 )
 
 func riskLabel(r safety.Risk) string {
@@ -105,7 +106,7 @@ func (m *model) confirmLayout() (body string, keyLine int, buttons []confirmButt
 	name, arg := toolLabel(e.Tool, e.Command)
 	write(cmdStyle.Render(name) + mutedStyle.Render("(") + truncate(arg, max(10, w-12)) + mutedStyle.Render(")"))
 	if strings.HasPrefix(e.Tool, "run_step:") {
-		write(faintStyle.Render(truncate(e.Command, max(10, w-6))))
+		write(faintStyle.Render(truncate(oneLine(steps.Brief(e.Command)), max(10, w-6))))
 	}
 	if e.Reason != "" {
 		lines := strings.Split(e.Reason, "\n")
@@ -193,7 +194,7 @@ func (m *model) statusBar() string {
 		if withModel && mdl != "" {
 			parts = append(parts, mdl)
 		}
-		if withTokens {
+		if withTokens && m.stats.Usage.Input()+m.stats.Usage.OutputTokens > 0 {
 			parts = append(parts, tokens)
 		}
 		return mutedStyle.Render(strings.Join(append(parts, keep...), " "+gl.Sep+" "))

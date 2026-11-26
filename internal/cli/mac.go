@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 
@@ -33,6 +34,9 @@ func macCmd() *cobra.Command {
 	section := func(use, short string, run func(inv *macos.Inventory, tty bool) error, sections ...string) *cobra.Command {
 		return &cobra.Command{Use: use, Short: i18n.T(short), Long: i18n.TOr(short+"_more", ""), Args: cobra.NoArgs,
 			RunE: func(cmd *cobra.Command, args []string) error {
+				// The title goes first: reading the login items can take
+				// a while, and what is being read should be clear by then.
+				ui.NewReport(os.Stdout).Title(macPath(cmd), i18n.T(short))
 				inv, err := loadInventory(sections...)
 				if err != nil {
 					return err
@@ -105,18 +109,49 @@ func loadInventory(sections ...string) (*macos.Inventory, error) {
 	for _, s := range sections {
 		needBTM = needBTM || s == "login" || s == "background" || s == "menubar"
 	}
+	r := ui.NewReport(os.Stdout)
 	if needBTM {
-		fmt.Println(i18n.T("mac.reading"))
+		fmt.Println(r.Faint(i18n.T("mac.reading")))
 	}
 	inv, err := macos.Load(p, sections...)
 	if err == nil && inv.NoBTM && needBTM {
-		fmt.Println(i18n.T("mac.no_btm"))
+		macNotice(r, ui.MarkWarn, i18n.T("mac.no_btm"))
 	}
 	if err == nil && inv.NoTCC {
-		fmt.Println(i18n.T("mac.no_tcc"))
+		macNotice(r, ui.MarkWarn, i18n.T("mac.no_tcc"))
 		offerFullDiskAccess()
 	}
 	return inv, err
+}
+
+// macNotice writes a sentence of omega mac with its mark in front, wrapped
+// under itself to the terminal.
+func macNotice(r *ui.Report, m ui.Mark, text string) {
+	lines := strings.Split(lipgloss.NewStyle().Width(r.Width()-2).Render(text), "\n")
+	for i, l := range lines {
+		lead := "  "
+		if i == 0 {
+			lead = r.Glyph(m) + " "
+		}
+		fmt.Println(lead + strings.TrimRight(l, " "))
+	}
+}
+
+// verdictMark is the mark of a verdict in a list: kept things are fine,
+// the rest wants a look.
+func verdictMark(v string) ui.Mark {
+	if v == macos.Keep {
+		return ui.MarkOK
+	}
+	return ui.MarkWarn
+}
+
+// verdictWord is the verdict, coloured when it suggests a change.
+func verdictWord(r *ui.Report, v string) string {
+	if v == macos.Keep {
+		return r.Muted(verdictBadge(v))
+	}
+	return r.Warn(verdictBadge(v))
 }
 
 func verdictBadge(v string) string { return i18n.T("mac.verdict." + v) }
@@ -153,71 +188,124 @@ func itemDetail(it macos.Item) string {
 
 // printStatus is the read-only overview of every section.
 func printStatus(inv *macos.Inventory) {
-	fmt.Printf("\n%s\n", i18n.T("mac.h.login"))
-	for _, it := range inv.LoginItems() {
-		fmt.Printf("  %-34s %-14s %s\n", cut(it.Name, 34), verdictBadge(it.Verdict), i18n.T("mac.cat."+it.Category))
+	r := ui.NewReport(os.Stdout)
+	// The login items, the background ones and the menu bar line up with
+	// each other, so the verdicts read as one column.
+	nameW, verdictW := 0, 0
+	for _, it := range inv.Items {
+		nameW = max(nameW, lipgloss.Width(cut(it.Name, 34)))
+		verdictW = max(verdictW, lipgloss.Width(verdictBadge(it.Verdict)))
 	}
-	fmt.Printf("\n%s\n", i18n.T("mac.h.background"))
-	for _, it := range inv.BackgroundItems() {
-		fmt.Printf("  %-34s %-14s %s\n", cut(it.Name, 34), verdictBadge(it.Verdict), itemDetail(it))
-	}
-	fmt.Printf("\n%s\n", i18n.T("mac.h.menubar"))
 	for _, m := range inv.MenuBar {
-		fmt.Printf("  %-34s %-14s %s\n", cut(m.Name, 34), verdictBadge(m.Verdict), i18n.T("mac.cat."+m.Category))
+		nameW = max(nameW, lipgloss.Width(cut(m.Name, 34)))
+		verdictW = max(verdictW, lipgloss.Width(verdictBadge(m.Verdict)))
 	}
+	cols := []ui.Column{{Min: nameW}, {Min: verdictW}, {Wrap: true}}
+	items := func(list []macos.Item, detail func(macos.Item) string) {
+		var rows [][]string
+		var marks []ui.Mark
+		for _, it := range list {
+			rows = append(rows, []string{cut(it.Name, 34), verdictWord(r, it.Verdict), r.Muted(detail(it))})
+			marks = append(marks, verdictMark(it.Verdict))
+		}
+		if len(rows) == 0 {
+			r.Line(r.Glyph(ui.MarkOff) + " " + r.Muted(i18n.T("mac.none_found")))
+			return
+		}
+		r.Table(cols, rows, marks)
+	}
+	category := func(it macos.Item) string { return i18n.T("mac.cat." + it.Category) }
+
+	login := inv.LoginItems()
+	r.Section(i18n.T("mac.h.login"), len(login))
+	items(login, category)
+	background := inv.BackgroundItems()
+	r.Section(i18n.T("mac.h.background"), len(background))
+	items(background, itemDetail)
+
+	r.Section(i18n.T("mac.h.menubar"), len(inv.MenuBar))
+	var rows [][]string
+	var marks []ui.Mark
+	for _, m := range inv.MenuBar {
+		rows = append(rows, []string{cut(m.Name, 34), verdictWord(r, m.Verdict), r.Muted(i18n.T("mac.cat." + m.Category))})
+		marks = append(marks, verdictMark(m.Verdict))
+	}
+	r.Table(cols, rows, marks)
 	if inv.Manager != "" {
-		fmt.Println("  " + i18n.T("mac.manager", inv.Manager))
+		r.Line(r.Glyph(ui.MarkInfo) + " " + r.Muted(i18n.T("mac.manager", inv.Manager)))
 	}
+
 	if d := inv.Dock; d != nil {
-		fmt.Printf("\n%s\n", i18n.T("mac.h.dock"))
+		r.Section(i18n.T("mac.h.dock"), len(d.Apps))
 		remove, why, _ := inv.DockSuggestions()
 		suggested := map[string]bool{}
 		for _, a := range remove {
 			suggested[a.Label] = true
 		}
+		rows, marks = nil, nil
 		for _, a := range d.Apps {
-			note := ""
+			note, mark := "", ui.MarkNone
 			if suggested[a.Label] {
-				note = dockWhy(inv, a, why[a.Label])
+				note, mark = r.Warn(dockWhy(inv, a, why[a.Label])), ui.MarkWarn
 			}
-			fmt.Printf("  %2d. %-30s %s\n", a.Index+1, a.Label, note)
+			rows = append(rows, []string{fmt.Sprint(a.Index + 1), cut(a.Label, 34), note})
+			marks = append(marks, mark)
 		}
-		fmt.Println("  " + i18n.T("mac.dock_settings", d.Autohide, d.ShowRecents, d.TileSize))
+		r.Table([]ui.Column{{Right: true}, {}, {}}, rows, marks)
+		r.Line(r.Muted(i18n.T("mac.dock_settings", d.Autohide, d.ShowRecents, d.TileSize)))
 	}
-	fmt.Printf("\n%s\n", i18n.T("mac.h.shortcuts"))
+
+	r.Section(i18n.T("mac.h.shortcuts"), len(inv.Conflicts))
 	if len(inv.Conflicts) == 0 {
-		fmt.Println("  " + i18n.T("mac.no_conflicts"))
+		r.Line(r.Glyph(ui.MarkOK) + " " + i18n.T("mac.no_conflicts"))
 	}
 	for _, c := range inv.Conflicts {
-		fmt.Println("  " + i18n.T("mac.conflict", c.Combo.String()))
+		r.Line(r.Glyph(ui.MarkWarn) + " " + r.Bold(i18n.T("mac.conflict", c.Combo.String())))
+		w := 0
+		for _, h := range c.Hotkeys {
+			w = max(w, lipgloss.Width(h.Owner))
+		}
 		for i, h := range c.Hotkeys {
-			mark := " "
+			mark := ui.MarkNone
 			if i == c.Winner {
-				mark = "★"
+				mark = ui.MarkCurrent
 			}
-			fmt.Printf("    %s %-14s %s\n", mark, h.Owner, h.Action)
+			fmt.Printf("    %s %-*s  %s\n", r.Glyph(mark), w, h.Owner, r.Muted(h.Action))
 		}
 	}
-	fmt.Printf("\n%s\n", i18n.T("mac.h.permissions"))
+
 	stale := inv.StalePermissions()
-	fmt.Println("  " + i18n.T("mac.perm_summary", len(inv.Permissions), len(stale)))
+	r.Section(i18n.T("mac.h.permissions"), len(stale))
+	r.Line(r.Muted(i18n.T("mac.perm_summary", len(inv.Permissions), len(stale))))
+	rows, marks = nil, nil
 	for _, x := range stale {
-		fmt.Printf("  %-34s %-30s %s\n", cut(x.Name, 34), cut(macos.ServiceName(x.Service), 30), permWhy(x))
+		rows = append(rows, []string{cut(x.Name, 34), cut(macos.ServiceName(x.Service), 30), r.Muted(permWhy(x))})
+		marks = append(marks, ui.MarkWarn)
 	}
-	fmt.Printf("\n%s\n", i18n.T("mac.h.apps"))
-	for _, a := range inv.ReviewApps() {
-		fmt.Printf("  %-34s %9s  %s\n", cut(a.Name, 34), macos.HumanSize(a.Size), appWhy(inv, a))
+	r.Table([]ui.Column{{}, {}, {Wrap: true}}, rows, marks)
+
+	apps := inv.ReviewApps()
+	r.Section(i18n.T("mac.h.apps"), len(apps))
+	if len(apps) == 0 {
+		r.Line(r.Glyph(ui.MarkOK) + " " + i18n.T("mac.none_found"))
 	}
-	if len(inv.ReviewApps()) == 0 {
-		fmt.Println("  " + i18n.T("mac.none_found"))
+	rows, marks = nil, nil
+	for _, a := range apps {
+		rows = append(rows, []string{cut(a.Name, 34), macos.HumanSize(a.Size), r.Muted(appWhy(inv, a))})
+		marks = append(marks, ui.MarkWarn)
 	}
+	r.Table([]ui.Column{{}, {Right: true}, {Wrap: true}}, rows, marks)
 	if len(inv.Leftovers) > 0 {
-		fmt.Printf("\n%s\n", i18n.T("mac.h.leftovers"))
+		r.Section(i18n.T("mac.h.leftovers"), len(inv.Leftovers))
+		rows, marks = nil, nil
 		for _, l := range inv.Leftovers {
-			fmt.Printf("  %-34s %9s\n", cut(l.Bundle, 34), macos.HumanSize(l.Size))
+			rows = append(rows, []string{cut(l.Bundle, 34), macos.HumanSize(l.Size)})
+			marks = append(marks, ui.MarkWarn)
 		}
+		r.Table([]ui.Column{{}, {Right: true}}, rows, marks)
 	}
-	fmt.Println("\n" + i18n.T("mac.status_next"))
+	r.Blank()
+	r.Hint(i18n.T("mac.status_next"))
 }
 
 func permWhy(x macos.Permission) string {
@@ -230,7 +318,7 @@ func permWhy(x macos.Permission) string {
 func appWhy(inv *macos.Inventory, a macos.AppInfo) string {
 	var parts []string
 	if !a.LastUsed.IsZero() {
-		parts = append(parts, i18n.T("mac.unused", int(inv.Now.Sub(a.LastUsed).Hours()/24)))
+		parts = append(parts, i18n.N("mac.unused", int(inv.Now.Sub(a.LastUsed).Hours()/24)))
 	}
 	if a.Intel {
 		parts = append(parts, i18n.T("mac.intel"))
@@ -256,7 +344,8 @@ func macPermissions(inv *macos.Inventory, tty bool) error {
 		opts = append(opts, ui.Option{ID: c.ID, Label: x.Label(), Detail: detail, Badge: permWhy(x),
 			Risk: verdictRisk(x.Verdict), Selected: x.Verdict == macos.Disable})
 	}
-	fmt.Println(i18n.T("mac.perm_summary", len(inv.Permissions), len(opts)))
+	r := ui.NewReport(os.Stdout)
+	fmt.Println(r.Muted(i18n.T("mac.perm_summary", len(inv.Permissions), len(opts))))
 	return applyChanges(pickChanges(i18n.T("mac.pick.permissions"), opts, changes, tty))
 }
 
@@ -274,7 +363,7 @@ func macApps(inv *macos.Inventory, tty bool) error {
 	for _, l := range inv.Leftovers {
 		c := l.TrashChange(now)
 		changes[c.ID] = c
-		detail := i18n.T("mac.leftover_places", len(l.Paths))
+		detail := i18n.N("mac.leftover_places", len(l.Paths))
 		if l.Vendor {
 			detail += " · " + i18n.T("mac.leftover_vendor")
 		}
@@ -299,20 +388,21 @@ func dockWhy(inv *macos.Inventory, a macos.DockApp, why string) string {
 	case "rules":
 		return i18n.T("mac.rules")
 	case "unused":
-		return i18n.T("mac.unused", int(inv.Now.Sub(a.LastUsed).Hours()/24))
+		return i18n.N("mac.unused", int(inv.Now.Sub(a.LastUsed).Hours()/24))
 	}
 	return ""
 }
 
 // pickChanges shows a card of changes and returns the chosen ones.
 func pickChanges(title string, opts []ui.Option, changes map[string]macos.Change, tty bool) []macos.Change {
+	r := ui.NewReport(os.Stdout)
 	if len(opts) == 0 {
-		fmt.Println(i18n.T("mac.none_found"))
+		macNotice(r, ui.MarkOK, i18n.T("mac.none_found"))
 		return nil
 	}
 	ids, err := ui.Pick(title, i18n.T("mac.pick_hint"), opts, true, tty, os.Stdin, os.Stdout)
 	if errors.Is(err, ui.ErrCancelled) || err != nil || len(ids) == 0 {
-		fmt.Println(i18n.T("mac.nothing"))
+		macNotice(r, ui.MarkSkip, i18n.T("mac.nothing"))
 		return nil
 	}
 	var out []macos.Change
@@ -335,8 +425,9 @@ func applyChanges(changes []macos.Change) error {
 		}
 	}()
 	failed := 0
+	r := ui.NewReport(os.Stdout)
 	for _, c := range changes {
-		fmt.Printf("\n● %s\n  %s\n", c.Title, c.Command)
+		macChangeHead(r, c.Title, c.Command)
 		if c.Sudo() && bridge == nil {
 			b, err := sudo.Start(askTerminalPassword, "")
 			if err != nil {
@@ -345,31 +436,50 @@ func applyChanges(changes []macos.Change) error {
 			bridge = b
 			runner.Configure(b.Env(), b.PathPrefix())
 		}
-		res := runner.Run(context.Background(), c.Command, 2*time.Minute, func(l string) { fmt.Println("    " + l) })
+		res := runner.Run(context.Background(), c.Command, 2*time.Minute, macOutputLine(r))
 		if res.ExitCode != 0 {
 			failed++
-			fmt.Println("  " + i18n.T("mac.failed", res.ExitCode))
+			macFailed(r, res.ExitCode)
 			// Part of it may be done: keep the way back.
 			if c.KeepsUndoOnFailure() && macos.Record(c) == nil {
-				fmt.Println("  ↳ It stopped halfway. `omega mac undo` puts back what was moved.")
+				fmt.Println("  " + r.Glyph(ui.MarkInfo) + " " + r.Muted(i18n.T("mac.halfway")))
 			}
 		} else {
-			fmt.Println("  └ ✓")
+			fmt.Println("  " + r.Glyph(ui.MarkOK))
 			if err := macos.Record(c); err != nil {
-				fmt.Println("  " + err.Error())
+				fmt.Println("  " + r.Glyph(ui.MarkWarn) + " " + err.Error())
 			}
 		}
 		if c.Manual != "" {
-			fmt.Println("  ↳ " + c.Manual)
+			fmt.Println("  " + r.Glyph(ui.MarkInfo) + " " + c.Manual)
 		}
 	}
 	if len(changes) > 0 {
-		fmt.Println("\n" + i18n.T("mac.undo_hint"))
+		r.Blank()
+		r.Hint(i18n.T("mac.undo_hint"))
 	}
 	if failed > 0 {
 		return fmt.Errorf("%s", i18n.T("steps.failed_summary", failed))
 	}
 	return nil
+}
+
+// macChangeHead starts a change as omega's other runs start a step: its
+// title, then the command on one line.
+func macChangeHead(r *ui.Report, title, command string) {
+	fmt.Println()
+	fmt.Println(r.Accent("▸ ") + r.Bold(title))
+	fmt.Println("  " + r.Faint("$ "+r.Clip(command, 4)))
+}
+
+// macOutputLine shows a line a change printed, under its command.
+func macOutputLine(r *ui.Report) func(string) {
+	return func(l string) { fmt.Println("  " + r.Faint("│") + " " + l) }
+}
+
+// macFailed says a change failed, with its exit code.
+func macFailed(r *ui.Report, code int) {
+	fmt.Println("  " + r.Glyph(ui.MarkErr) + " " + r.Err(strings.TrimSpace(strings.TrimPrefix(i18n.T("mac.failed", code), "└"))))
 }
 
 func askTerminalPassword(_ string, retry bool) (string, bool) {
@@ -432,7 +542,7 @@ func macMenuBar(inv *macos.Inventory, tty bool) error {
 		opts = append(opts, ui.Option{ID: h.ID, Label: h.Title, Detail: h.Manual, Risk: "read-only"})
 	}
 	if inv.Manager != "" {
-		fmt.Println(i18n.T("mac.manager", inv.Manager))
+		macNotice(ui.NewReport(os.Stdout), ui.MarkInfo, i18n.T("mac.manager", inv.Manager))
 	}
 	return applyChanges(pickChanges(i18n.T("mac.pick.menubar"), opts, changes, tty))
 }
@@ -477,8 +587,9 @@ func macDock(inv *macos.Inventory, tty bool) error {
 // macShortcuts asks who keeps each contested shortcut, moves the others to a
 // free combo (or says where to change them by hand) and remembers the choice.
 func macShortcuts(inv *macos.Inventory, tty bool) error {
+	r := ui.NewReport(os.Stdout)
 	if len(inv.Conflicts) == 0 {
-		fmt.Println(i18n.T("mac.no_conflicts"))
+		macNotice(r, ui.MarkOK, i18n.T("mac.no_conflicts"))
 		return nil
 	}
 	used := macos.Used(inv.Hotkeys)
@@ -529,11 +640,11 @@ func macShortcuts(inv *macos.Inventory, tty bool) error {
 	}
 	if saved {
 		if err := inv.Policy.Save(); err == nil {
-			fmt.Println(i18n.T("mac.saved_rule", macos.PolicyPath()))
+			macNotice(r, ui.MarkOK, i18n.T("mac.saved_rule", tildePath(macos.PolicyPath())))
 		}
 	}
 	if len(todo) == 0 {
-		fmt.Println(i18n.T("mac.nothing"))
+		macNotice(r, ui.MarkSkip, i18n.T("mac.nothing"))
 		return nil
 	}
 	var opts []ui.Option
@@ -563,13 +674,23 @@ func macPolicyCmd() *cobra.Command {
 	c := &cobra.Command{
 		Use: "policy", Short: i18n.T("cmd.mac_policy"), Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Println(i18n.T("mac.policy_defaults"))
+			r := ui.NewReport(os.Stdout)
+			r.Title("omega mac policy", tildePath(macos.PolicyPath()))
+			r.Blank()
+			writeBullets(r, i18n.T("mac.policy_defaults"))
 			b, err := os.ReadFile(macos.PolicyPath())
 			if err != nil {
-				fmt.Println("\n" + i18n.T("mac.policy_none"))
+				r.Blank()
+				r.Hint(i18n.T("mac.policy_none"))
 				return nil
 			}
-			fmt.Printf("\n%s\n\n%s", i18n.T("mac.policy_path", macos.PolicyPath()), b)
+			r.Blank()
+			r.Line(r.Bold(i18n.T("mac.policy_path", tildePath(macos.PolicyPath()))))
+			for _, l := range strings.Split(strings.TrimRight(string(b), "\n"), "\n") {
+				fmt.Println("    " + l)
+			}
+			r.Blank()
+			r.Hint(i18n.T("mac.policy_edit_hint"))
 			return nil
 		},
 	}
@@ -603,12 +724,13 @@ func macUndoCmd() *cobra.Command {
 				opts = append(opts, ui.Option{ID: id, Label: e.Title, Detail: e.Undo, Badge: e.Time.Format("2006-01-02 15:04"), Risk: "normal"})
 			}
 			if len(opts) == 0 {
-				fmt.Println(i18n.T("mac.undo_empty"))
+				writeEmpty(os.Stdout, "omega mac undo", "", i18n.T("mac.undo_empty"), "")
 				return nil
 			}
+			r := ui.NewReport(os.Stdout)
 			ids, err := ui.Pick(i18n.T("mac.pick.undo"), i18n.T("mac.pick_hint"), opts, true, term.IsTerminal(int(os.Stdin.Fd())), os.Stdin, os.Stdout)
 			if err != nil || len(ids) == 0 {
-				fmt.Println(i18n.T("mac.nothing"))
+				macNotice(r, ui.MarkSkip, i18n.T("mac.nothing"))
 				return nil
 			}
 			done := map[time.Time]bool{}
@@ -624,7 +746,7 @@ func macUndoCmd() *cobra.Command {
 			}()
 			for _, id := range ids {
 				e := entries[id]
-				fmt.Printf("\n● %s\n  %s\n", i18n.T("mac.undoing", e.Title), e.Undo)
+				macChangeHead(r, i18n.T("mac.undoing", e.Title), e.Undo)
 				if strings.Contains(e.Undo, "sudo ") && bridge == nil {
 					b, err := sudo.Start(askTerminalPassword, "")
 					if err != nil {
@@ -633,13 +755,13 @@ func macUndoCmd() *cobra.Command {
 					bridge = b
 					runner.Configure(b.Env(), b.PathPrefix())
 				}
-				res := runner.Run(context.Background(), e.Undo, 2*time.Minute, func(l string) { fmt.Println("    " + l) })
+				res := runner.Run(context.Background(), e.Undo, 2*time.Minute, macOutputLine(r))
 				if res.ExitCode != 0 {
 					failed++
-					fmt.Println("  " + i18n.T("mac.failed", res.ExitCode))
+					macFailed(r, res.ExitCode)
 					continue
 				}
-				fmt.Println("  └ ✓")
+				fmt.Println("  " + r.Glyph(ui.MarkOK))
 				done[e.Time] = true
 				if e.Section == "login" || e.Section == "background" {
 					macos.ForgetBTM()
@@ -682,6 +804,32 @@ func macOpCmd() *cobra.Command {
 	}
 }
 
+// writeBullets writes a heading line and the "  · " lines under it, each
+// wrapped under its own text.
+func writeBullets(r *ui.Report, text string) {
+	var items []string
+	for _, l := range strings.Split(text, "\n") {
+		switch t := strings.TrimSpace(l); {
+		case strings.HasPrefix(t, "· "):
+			items = append(items, strings.TrimPrefix(t, "· "))
+		case len(items) > 0 && t != "":
+			items[len(items)-1] += " " + t
+		case t != "":
+			r.Line(r.Bold(t))
+		}
+	}
+	for _, it := range items {
+		lines := strings.Split(lipgloss.NewStyle().Width(r.Width()-6).Render(it), "\n")
+		for i, l := range lines {
+			lead := "    "
+			if i == 0 {
+				lead = "  " + r.Glyph(ui.MarkOff) + " "
+			}
+			fmt.Println(lead + strings.TrimRight(l, " "))
+		}
+	}
+}
+
 // offerFullDiskAccess opens the pane where Full Disk Access is granted, when
 // someone is at the terminal and says yes: macOS has no dialog for it.
 func offerFullDiskAccess() {
@@ -691,10 +839,11 @@ func offerFullDiskAccess() {
 	if a := strings.ToLower(ask(i18n.T("mac.no_tcc_open")+" [y/N]", "")); a == "" || !strings.ContainsAny(a[:1], "ysojd") {
 		return
 	}
+	r := ui.NewReport(os.Stdout)
 	if err := macos.OpenPrivacyPane("SystemPolicyAllFiles"); err != nil {
-		fmt.Println(err)
+		macNotice(r, ui.MarkErr, err.Error())
 		return
 	}
 	_, app := macos.HostApp()
-	fmt.Println(i18n.T("mac.no_tcc_opened", app))
+	macNotice(r, ui.MarkInfo, i18n.T("mac.no_tcc_opened", app))
 }

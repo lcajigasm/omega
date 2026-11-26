@@ -11,6 +11,7 @@ import (
 
 	"github.com/lcajigasm/omega/internal/agent"
 	"github.com/lcajigasm/omega/internal/i18n"
+	"github.com/lcajigasm/omega/internal/steps"
 )
 
 // The review of omega ultra's plan: what the audit found, one action per
@@ -340,7 +341,7 @@ func (m *reviewModel) headLine(w int) string {
 // of those are high risk, and the space the ticked ones free with a gauge.
 func (m *reviewModel) summaryLine(w int) string {
 	ticked, risky, freed, possible := m.totals()
-	left := " " + cmdStyle.Render(i18n.T("plan.n_actions", len(m.acts))) + faintStyle.Render(" "+gl.Sep+" ") +
+	left := " " + cmdStyle.Render(i18n.N("plan.n_actions", len(m.acts))) + faintStyle.Render(" "+gl.Sep+" ") +
 		titleStyle.Render(fmt.Sprintf("%s %s", gl.BoxOn, i18n.T("plan.n_ticked", ticked)))
 	if risky > 0 {
 		left += faintStyle.Render(" "+gl.Sep+" ") + warnPlainStyle.Render("▲ "+i18n.T("plan.n_risky", risky))
@@ -501,7 +502,7 @@ func (m *reviewModel) detailLines(w int) []string {
 	if imp := m.impact(a); imp != "" {
 		tags = append(tags, mutedStyle.Render(imp))
 	}
-	out = append(out, truncateANSI(strings.Join(tags, faintStyle.Render(" "+gl.Sep+" ")), w))
+	out = append(out, flow(tags, faintStyle.Render(" "+gl.Sep+" "), w)...)
 	riskWhy := i18n.T("plan.risk_normal_why")
 	if a.Risk == "dangerous" {
 		riskWhy = i18n.T("plan.risk_dangerous_why")
@@ -528,7 +529,7 @@ func (m *reviewModel) detailLines(w int) []string {
 	if len(a.Steps) > 0 {
 		out = append(out, "", faintStyle.Render(i18n.T("plan.steps_head")))
 		for _, s := range a.Steps {
-			for n, l := range wrapText(s.Show, tw-2) {
+			for n, l := range wrapText(steps.Brief(s.Show), tw-2) {
 				lead := "$ "
 				if n > 0 {
 					lead = "  "
