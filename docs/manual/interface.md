@@ -49,6 +49,11 @@ omega's TUI follows the conventions of Claude Code's CLI:
 | `ctrl+c` | cancel the run |
 | `Esc` when the line is empty, or empty `Enter` | end the session (`Esc` first clears a typed line) |
 
+In `omega ultra` the top bar carries an **ULTRA** tag, and the approval mode
+stays on asking: `shift+tab` does not reach auto approve, `a` approves only
+the request in front of you, and every change comes as a card with the
+evidence for it.
+
 A model you pick by hand is kept: omega no longer switches to the stronger
 model on failure. Switching to read only mid-run tells the model, which then
 offers changes on a card instead of running them; `a` on an approval card is the

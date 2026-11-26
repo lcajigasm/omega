@@ -71,8 +71,16 @@ During a run, `ctrl+p` (or `/model` in the input box) switches between the
 run's models from the next turn. A model you pick by hand stays for the rest
 of the run, so the automatic switch on failure no longer applies.
 
-Override the tiers per provider with `fast_model` and `smart_model` (see
-[Configuration](reference.md#configuration)); they win over the automatic picks. The status
+`omega ultra` uses stronger models than any other task: each stage starts on
+the smart model with effort `high` (or yours, if higher) and moves to the
+provider's most capable model when a step fails; its deep clean starts on the
+most capable one. With Anthropic that is Sonnet, then Opus. Set that model
+with `ultra_model` under the provider in `config.toml`, or fix one for the
+whole run with `--model`. An ultra run costs more than `omega full`, and
+`--max-cost` still applies ([more](tasks.md#everything-deeper-omega-ultra)).
+
+Override the tiers per provider with `fast_model`, `smart_model` and
+`ultra_model` (see [Configuration](reference.md#configuration)); they win over the automatic picks. The status
 bar and the final summary show the tokens used, including prompt cache reads,
 and the cost when the model's price is known; prices come from the same
 catalogue, so a model released after your copy of omega is still priced. omega caches the conversation with the Anthropic API, so long sessions

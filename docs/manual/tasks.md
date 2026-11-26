@@ -17,6 +17,7 @@
 | `health` | disk and battery health, memory, backups, firewall, encryption, automatic updates and the system logs | only what you pick | fast → smart on failure |
 | `tune` | reviews your tools' configuration against the current docs | only what you pick | fast → smart on failure |
 | `fix` | runs the topgrade and Mole dry runs, diagnoses and fixes their config | yes (with approval) | fast → smart on failure |
+| `ultra` | every stage of `omega full`, plus a deep clean and every review ([more](#everything-deeper-omega-ultra)) | only what you approve, one by one | smart → most capable on failure |
 
 `omega mac` and `omega dev` are guided tasks of the same kind, for what runs on
 your Mac and for your development setup. `omega menu` lists everything on one
@@ -38,7 +39,7 @@ omega full                      # the plan first, then one stage at a time
 omega full --skip tune,dev      # the same, with two stages unticked from the start
 omega full --only update,clean  # only these two ticked
 omega full --dry-run            # every stage in read-only mode
-omega unattended                # everything, no questions: the sudo password once, then all approved
+omega unattended                # upkeep with no questions: the sudo password once, then all approved
 omega full --yes --skip mac     # unattended: every other stage, one after another
 omega full --no-tui             # the same run, line by line
 ```
@@ -95,30 +96,6 @@ the run.
 in a single session. `omega full` used to be another name for it and is now the
 guided run; `omega all` and `omega everything` start it too.
 
-omega takes more than the exact names. All of these work:
-
-| You type | omega runs |
-|---|---|
-| `omega upgrade`, `omega actualizar`, `omega upd` | `omega update`: other words for a task in the five languages, or the start of its name when only one task starts that way |
-| `omega cleanup`, `omega repair`, `omega optimize`, `omega report`, `omega security` | `omega clean`, `fix`, `tune`, `analyze`, `health` |
-| `omega perms`, `omega apps`, `omega undo`, `omega dock` | `omega mac permissions`, `mac apps`, `mac undo`, `mac dock` |
-| `omega install fzf mise` | `omega dev install fzf mise` |
-| `omega historial`, `omega settings`, `omega keys`, `omega status` | `omega history`, `config show`, `auth status`, `doctor` |
-| `omega doc`, `omega mac perm` | nothing if the start is ambiguous (`doc` could be `docker` or `doctor`); the command when it is not (`omega mac perm` is `omega mac permissions`) |
-| `omega why is my disk full` | the same as `omega -p "why is my disk full"`: three words or more are a request for the agent |
-| `omega menuu` | an error that says `Did you mean omega menu?` |
-
-One or two words that omega does not recognise are never guessed at, so a
-typo cannot start a paid session.
-
-You can also give it a free-form task:
-
-```bash
-omega -p "Why is ~/Library 40 GB? Tell me what I can safely delete"
-omega -p "Only update Homebrew and npm, nothing else"
-omega -p "topgrade fails on the rustup step, fix it"
-```
-
 ### Everything, deeper: omega ultra
 
 ```bash
@@ -132,7 +109,7 @@ it. It runs every stage of `omega full` and two that only ultra has:
 
 | Stage | What it does |
 |---|---|
-| **Deep clean** (`deep`) | What the cleaning steps never reach. The git worktrees AI agents (Claude Code, Codex, Cursor) and you created, each with a verdict: *safe* when the only uncommitted files are the agent's own (`PLAN.md`, `.claude-run.json`, `.pr-body.md`, `*.codex.txt`…) and nothing else is lost, *review* when it holds work or was used in the last two days, *keep* when a running process works in it, it is locked or omega runs from it. The run files agents leave next to your projects. Docker images, stopped containers and volumes one by one: an image built on this machine is never taken with the others, and a volume is never recommended. Build folders of projects idle two weeks, merged branches, `git gc`, disk limits and old versions, and large and duplicate files (reported, never offered). |
+| **Deep clean** (`deep`) | What the cleaning steps never reach. The git worktrees AI agents (Claude Code, Codex, Cursor) and you created, each with a verdict: *safe* when everything in it is on the remote (its commits, and any uncommitted file is either the agent's own, like `PLAN.md`, `.claude-run.json` or `.pr-body.md`, or already on a remote branch with the same content) and it was not worked on in the last two days; *review* when something exists only on this machine or it is recent; *keep* when a running process works in it, it is locked or omega runs from it. The run files agents leave next to your projects. Docker images, stopped containers and volumes one by one: an image built on this machine is never taken with the others, and a volume is never recommended. Build folders of projects idle two weeks, merged branches, `git gc`, disk limits and old versions, and large and duplicate files (reported, never offered). |
 | **Every review** (`care`) | What closed agent sessions left running, the configuration assistants of every tool, SSH keys and secrets in shell histories, privacy, the network, agent skills and what is pending from earlier runs. |
 
 How it differs from `omega full`:
@@ -166,9 +143,39 @@ How it differs from `omega full`:
   given the branch `omega/rescued/<name>`, all under
   `~/.local/state/omega/rescued/`, before it goes; its branch always stays.
   Agent files go to the Trash.
-- **Every change is asked.** The approval policy is `all` for the run, and
-  `--yes` and `--auto` are refused. It needs a terminal: for runs nobody
-  watches, use `omega full --unattended`.
+- **Every change is asked.** The approval policy is `all` for the run;
+  "approve all" approves only the request in front of you; `--yes`, `--auto`,
+  `--no-ai`, `--offline` and `--json` are refused. It needs a terminal: for
+  runs nobody watches, use `omega full --unattended`.
+
+In the desktop app, the **Ultra: everything, deeper** card under **Full
+maintenance** runs the whole of ultra in one session (the app runs one
+session at a time), with the same evidence, checks and questions; the
+Automatic mode button is off while it runs.
+
+omega takes more than the exact names. All of these work:
+
+| You type | omega runs |
+|---|---|
+| `omega upgrade`, `omega actualizar`, `omega upd` | `omega update`: other words for a task in the five languages, or the start of its name when only one task starts that way |
+| `omega cleanup`, `omega repair`, `omega optimize`, `omega report`, `omega security` | `omega clean`, `fix`, `tune`, `analyze`, `health` |
+| `omega perms`, `omega apps`, `omega undo`, `omega dock` | `omega mac permissions`, `mac apps`, `mac undo`, `mac dock` |
+| `omega install fzf mise` | `omega dev install fzf mise` |
+| `omega historial`, `omega settings`, `omega keys`, `omega status` | `omega history`, `config show`, `auth status`, `doctor` |
+| `omega doc`, `omega mac perm` | nothing if the start is ambiguous (`doc` could be `docker` or `doctor`); the command when it is not (`omega mac perm` is `omega mac permissions`) |
+| `omega why is my disk full` | the same as `omega -p "why is my disk full"`: three words or more are a request for the agent |
+| `omega menuu` | an error that says `Did you mean omega menu?` |
+
+One or two words that omega does not recognise are never guessed at, so a
+typo cannot start a paid session.
+
+You can also give it a free-form task:
+
+```bash
+omega -p "Why is ~/Library 40 GB? Tell me what I can safely delete"
+omega -p "Only update Homebrew and npm, nothing else"
+omega -p "topgrade fails on the rustup step, fix it"
+```
 
 ## Your own routine
 

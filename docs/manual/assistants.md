@@ -105,8 +105,10 @@ budgets without asking.
 | `xcode.simulators`, `ollama.models` | measured | `xcrun simctl delete unavailable` and `ollama rm` are yours |
 
 What the limits do not cover, because no tool owns it: git worktrees left
-behind (`git worktree list` in each repository), build folders (`omega disk artifacts`)
-and large files (`omega disk large`).
+behind, build folders (`omega disk artifacts`) and large files
+(`omega disk large`). The deep clean of
+[`omega ultra --only deep`](tasks.md#everything-deeper-omega-ultra) goes
+through all three, and says for each worktree what is already on the remote.
 
 ## omega for AI agents: the MCP server
 

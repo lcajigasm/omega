@@ -193,7 +193,9 @@ func ultraCmd() *cobra.Command {
 		},
 	}
 	bindRunFlags(c.Flags(), &f)
-	for _, name := range []string{"prompt", "once", "yes", "auto"} {
+	// What ultra refuses or has no use for is not offered in its help.
+	for _, name := range []string{"prompt", "once", "yes", "auto", "no-ai", "offline", "json", "format", "quiet", "verbose",
+		"fail-on-warning", "fail-on-outdated", "fail-on-critical", "debug"} {
 		c.Flags().MarkHidden(name)
 	}
 	c.Flags().StringSliceVar(&skip, "skip", nil, i18n.T("flag.full_skip", ultraStageIDList()))

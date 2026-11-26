@@ -157,15 +157,13 @@ command_timeout = "45m"         # time limit per command
 # model_catalog = "off"         # do not download the public model catalogue (automatic mode then uses built-in names)
 skip_steps = ["macos"]
 
-# [providers.anthropic]
-# ultra_model = "claude-opus-5-5" # the model omega ultra moves to for its deepest analysis
-
 [disk_budgets]                    # omega disk limits set <check> <size>
 "claude-desktop.vm" = "8.0 GB"
 
 [providers.anthropic]
 fast_model = "claude-haiku-5-5"     # optional: override the automatic tiers
 smart_model = "claude-sonnet-5-5"
+# ultra_model = "claude-opus-5-5"   # omega ultra: the most capable model, used when a step fails and for the deep clean
 
 [providers.ollama]
 model = "qwen3:14b"
@@ -245,6 +243,7 @@ The run without AI speaks your language, its summary included. The JSON report k
 | `omega docker` | measure Docker and clean what you select |
 | `omega menu` | home screen: every command on one screen, started with Enter |
 | `omega full [--only a,b] [--skip a,b]` | everything, stage by stage in one interface: choose the stages, see what each does and why, skip, repeat or stop |
+| `omega ultra [--only a,b] [--skip a,b]` | every stage of `omega full` plus the deep clean (`deep`) and every review (`care`), on stronger models, with evidence for each change and every change asked; needs a terminal and refuses `--yes`, `--auto`, `--no-ai`, `--offline` and `--json` ([more](tasks.md#everything-deeper-omega-ultra)); `omega deep` is the same |
 | `omega unattended [--only a,b] [--skip a,b]` | `omega full --unattended`: upkeep only (checks, updates, caches) with no questions, the sudo password asked once and every approval answered yes; it never changes how you set up the machine |
 | `omega mac [status\|login\|background\|menubar\|dock\|shortcuts]` | review what runs at login and in the background, the menu bar, the Dock and shortcut conflicts (AI-guided without a subcommand) |
 | `omega mac permissions` | remove privacy entries of binaries and apps that are gone |
