@@ -36,6 +36,7 @@ const icons = {
   skills: '<path d="M12 3l8 4.5-8 4.5-8-4.5z"/><path d="M4 12l8 4.5 8-4.5M4 16.5L12 21l8-4.5"/>',
   configure: '<path d="M4 18h16M4 18V9l4-3 4 3 4-3 4 3v9"/><path d="M9 14h6"/>',
   agents: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M13 15h4"/>',
+  ultra: '<path d="M12 2l3 6 6 1-4.5 4.5L18 20l-6-3-6 3 1.5-6.5L3 9l6-1z"/><path d="M12 8v5"/>',
 };
 icons.full = icons.home;
 
@@ -133,15 +134,19 @@ function renderTasks() {
   $("lead").dataset.task = lead.id;
   $("lead-title").textContent = lead.title;
   $("lead-detail").textContent = lead.detail;
-  $("tasks").replaceChildren(...rest.map((task) => {
-    const b = el("button", "task");
+  // Ultra sits under the lead, apart from the tasks done one at a time.
+  const card = (task) => {
+    // Ultra stands apart: deeper, costlier, every change asked.
+    const b = el("button", task.id === "ultra" ? "task ultra" : "task");
     b.type = "button";
     b.dataset.task = task.id;
     const body = el("span", "body");
     body.append(el("b", "", task.title), el("span", "", task.detail));
     b.append(icon(task.id), body);
     return b;
-  }));
+  };
+  $("ultra-slot").replaceChildren(...rest.filter((x) => x.id === "ultra").map(card));
+  $("tasks").replaceChildren(...rest.filter((x) => x.id !== "ultra").map(card));
   homeState();
 }
 
@@ -170,8 +175,12 @@ async function showHome() {
 
 // openSession clears the session view for a session that starts, or for
 // one that is drawn again.
+let ultraSession = false; // the session is omega ultra
+
 function openSession(task, prompt) {
   const preset = info.tasks.find((x) => x.id === task);
+  ultraSession = !prompt && task === "ultra";
+  $("s-task").classList.toggle("ultra", ultraSession);
   $("log").replaceChildren();
   tools.clear();
   cards.clear();
@@ -265,8 +274,12 @@ function setIdle(on) {
 function setMode(mode) {
   for (const b of document.querySelectorAll("#mode button")) {
     b.classList.toggle("on", b.dataset.mode === mode);
-    // Until the session has started there is no mode to change.
-    b.disabled = !live || !mode;
+    // Until the session has started there is no mode to change. Ultra has
+    // no automatic mode: it asks before every change.
+    const noAuto = ultraSession && b.dataset.mode === "auto";
+    b.disabled = !live || !mode || noAuto;
+    if (noAuto) b.title = t("gui.mode.no_auto_ultra");
+    else if (b.dataset.title) b.title = t(b.dataset.title);
   }
 }
 

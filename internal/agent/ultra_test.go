@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/lcajigasm/omega/internal/config"
 	"github.com/lcajigasm/omega/internal/deepclean"
 )
 
@@ -126,5 +127,28 @@ func TestUltraCardsNeedEvidence(t *testing.T) {
 		proposal(true, opt("a", "Remove the worktree", "dangerous", true)))
 	if got := s.p.results[1][0]; got.IsError {
 		t.Fatalf("an ordinary run refused a card: %+v", got)
+	}
+}
+
+// Ultra has no automatic mode: not from the app's mode switch, not from
+// "approve all" on a card.
+func TestUltraNeverGoesAutomatic(t *testing.T) {
+	sandbox(t)
+	fakeDeep(t)
+	scan := call("1", "deep_scan", nil)
+	clean := call("2", "omega_cmd", map[string]any{"action": "git_gc"})
+	again := call("3", "omega_cmd", map[string]any{"action": "git_gc"})
+	old := OmegaRun
+	OmegaRun = func(context.Context, ...string) (string, error) { return "ok", nil }
+	t.Cleanup(func() { OmegaRun = old })
+	_, _, asked := drive(t, Options{Ultra: true}, ApproveAll, scan, clean, again)
+	if asked != 2 {
+		t.Errorf("after approve all, ultra must still ask: asked %d times, want 2", asked)
+	}
+
+	a := New(&scriptedProvider{}, Options{Ultra: true, Config: config.Default()})
+	a.SetMode(ModeAuto)
+	if a.Mode() == ModeAuto {
+		t.Errorf("ultra switched to automatic mode")
 	}
 }

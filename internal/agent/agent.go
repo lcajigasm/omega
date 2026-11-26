@@ -647,6 +647,11 @@ func (a *Agent) SetMode(m Mode) {
 	if m == a.mode {
 		return
 	}
+	// omega ultra puts every change to the person: there is no automatic
+	// mode to switch to.
+	if m == ModeAuto && a.opts.Ultra {
+		return
+	}
 	switch {
 	case m == ModeReadOnly:
 		a.notes = append(a.notes, "The user switched to read-only mode: from now on only read-only commands and steps "+
@@ -799,6 +804,10 @@ func (a *Agent) authorize(ctx context.Context, tool, command, reason string, ris
 	case d := <-reply:
 		switch d {
 		case ApproveAll:
+			if a.opts.Ultra {
+				a.logApproval(tool, command, "approved by the user (omega ultra asks again for the next one)")
+				return true, ""
+			}
 			if !always {
 				a.SetMode(ModeAuto)
 			}

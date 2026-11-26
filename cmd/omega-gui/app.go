@@ -140,7 +140,7 @@ type SessionInfo struct {
 
 // homeTasks are the presets in the order the home screen shows them. The
 // ones this system has no prompt for are left out.
-var homeTasks = []string{agent.TaskFull, agent.TaskQuick, agent.TaskUpdate, agent.TaskClean, agent.TaskAnalyze, agent.TaskHealth,
+var homeTasks = []string{agent.TaskFull, agent.TaskUltra, agent.TaskQuick, agent.TaskUpdate, agent.TaskClean, agent.TaskAnalyze, agent.TaskHealth,
 	agent.TaskFix, agent.TaskTune, agent.TaskDev, agent.TaskMac, agent.TaskDocker}
 
 // Info returns the texts and the tasks of the home screen. The frontend asks

@@ -241,15 +241,34 @@ func ultraActionNames() []string {
 	return names
 }
 
-// The two stages only omega ultra has.
+// The two stages only omega ultra has, and the whole of it in one session
+// (the desktop app, which runs one session at a time).
 const (
 	TaskUltraDeep = "ultra-deep"
 	TaskUltraCare = "ultra-care"
+	TaskUltra     = "ultra"
 )
+
+// UltraAllTask is omega ultra in one session: every stage of omega full,
+// the deep clean and every review, in that order.
+const UltraAllTask = "Run omega ultra on this machine, the deepest pass omega makes, in this one session and in this order. " +
+	"Say which part you are on as you go, and ask every decision with propose_actions before moving on. " +
+	"(1) Report: system_info, list_steps, disk usage, outdated software, the system-logs step. " +
+	"(2) Health and security: the health, security and macos-check steps where they exist; offer the fixes. " +
+	"(3) Update everything installed (what topgrade would do), through the catalogue steps. " +
+	"(4) Clean: measure first, then the caches and leftovers worth it (what Mole would do). " +
+	"(5) Docker, if installed: docker-df, then what to free, safest first; never preselect volumes. " +
+	"(6) Deep clean: " + UltraDeepTask + " " +
+	"(7) Every review: " + UltraCareTask + " " +
+	"(8) Tools: config_hints and the current official docs, and offer the settings worth changing. " +
+	"(9) Developer setup: dev_inventory; overlapping version managers, shadowed commands, old versions. " +
+	"(10) Earlier runs: run_history and pending; what is still worth doing. " +
+	"Finish with what was freed (measured before and after), changed, verified and left, and why."
 
 func init() {
 	TaskPrompts[TaskUltraDeep] = UltraDeepTask
 	TaskPrompts[TaskUltraCare] = UltraCareTask
+	TaskPrompts[TaskUltra] = UltraAllTask
 	handlers["deep_scan"] = toolDeepScan
 	handlers["deep_inspect"] = toolDeepInspect
 	handlers["deep_clean"] = toolDeepClean

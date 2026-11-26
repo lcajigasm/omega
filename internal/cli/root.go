@@ -608,6 +608,11 @@ func prepareRun(task string, f runFlags) (*run, error) {
 	} else {
 		task = i18n.T("task.custom")
 	}
+	// The whole of omega ultra in one session (the desktop app) is ultra
+	// whoever starts it.
+	if task == agent.TaskUltra && f.prompt == "" {
+		f.ultra, f.auto, f.yes = true, false, false
+	}
 	if f.auto {
 		prompt += agent.AutoSuffix
 	}
@@ -637,6 +642,11 @@ func prepareRun(task string, f runFlags) (*run, error) {
 	if f.demo {
 		p, plan = demo.Provider(), modelPlan{Model: "claude-haiku-5-5", Escalate: "claude-sonnet-5-5",
 			Choices: []string{"claude-haiku-5-5", "claude-sonnet-5-5"}}
+		if f.ultra && !f.unattended {
+			// The scripted demo shows the models an ultra run would use.
+			info, _ := llm.Lookup("anthropic")
+			plan = ultraPlan(config.Default(), info, "", task)
+		}
 	} else if p, plan, err = resolveProvider(cfg, f.provider, f.model, f.effort, planTask); err != nil {
 		return nil, err
 	} else if f.ultra && !f.unattended {
