@@ -143,6 +143,17 @@ How it differs from `omega full`:
   that is Sonnet, then Opus. Set another with
   `providers.<name>.ultra_model` in `config.toml`, or fix one with `--model`.
   It costs more than `omega full`; `--max-cost` still applies.
+- **What is on the remote.** For every worktree omega asks the server which
+  branches it has now (`git ls-remote`: it reads, never fetches), and says
+  whether the last commit is on it, how many commits are on no remote
+  branch, and whether the branch was deleted there (usually after a merge).
+  Each uncommitted file is compared by content with the worktree's remote
+  branch and the default branch: a file already there as it is here needs
+  no rescue, and the ones only on this machine are named. A worktree is
+  *safe* only when everything in it is on the remote; the options on the
+  card start with that state (*all on the remote*, *2 commits not pushed*,
+  *3 files only here*). When the server does not answer, the last fetch is
+  used, and the card says so.
 - **Evidence for every change.** The model is told to verify before it
   proposes, and omega enforces it: a card whose options change something
   without an `evidence` line (the PR state, the files git reports, who

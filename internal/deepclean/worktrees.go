@@ -87,6 +87,7 @@ func scanWorktrees(ctx context.Context, repo string, busy []string, now time.Tim
 	}
 	def := defaultBranch(ctx, repo)
 	self := selfDir()
+	srv := askServer(ctx, repo)
 	var found []Finding
 	var prunable []string
 	// The first entry is the main checkout: never offered.
@@ -95,7 +96,7 @@ func scanWorktrees(ctx context.Context, repo string, busy []string, now time.Tim
 			prunable = append(prunable, wt.path)
 			continue
 		}
-		found = append(found, inspectWorktree(ctx, repo, def, wt, busy, self, now))
+		found = append(found, inspectWorktree(ctx, repo, def, wt, busy, self, now, srv))
 	}
 	if len(prunable) > 0 {
 		found = append(found, Finding{
@@ -108,7 +109,7 @@ func scanWorktrees(ctx context.Context, repo string, busy []string, now time.Tim
 	return found, nil
 }
 
-func inspectWorktree(ctx context.Context, repo, def string, wt worktree, busy []string, self string, now time.Time) Finding {
+func inspectWorktree(ctx context.Context, repo, def string, wt worktree, busy []string, self string, now time.Time, srv server) Finding {
 	name := filepath.Base(wt.path)
 	f := Finding{
 		ID: id(KindWorktree, wt.path), Category: CatAgents, Kind: KindWorktree,
@@ -167,45 +168,67 @@ func inspectWorktree(ctx context.Context, repo, def string, wt worktree, busy []
 			reachable = true
 		}
 	}
-	switch {
-	case !reachable:
+	if !reachable {
 		f.Rescue = append(f.Rescue, "commit "+short(wt.head)+" is on no branch: saved as branch omega/rescued/"+name)
-	case wt.branch != "":
-		if up, err := command(ctx, wt.path, "git", "rev-parse", "--abbrev-ref", "@{u}"); err == nil {
-			ahead, _ := command(ctx, wt.path, "git", "rev-list", "--count", "@{u}..HEAD")
-			if n := strings.TrimSpace(ahead); n != "" && n != "0" {
-				f.Reasons = append(f.Reasons, n+" commits not pushed to "+strings.TrimSpace(up)+" (they stay on branch "+wt.branch+")")
-			} else {
-				f.Reasons = append(f.Reasons, "pushed: "+wt.branch+" matches "+strings.TrimSpace(up))
-			}
-		} else {
-			f.Reasons = append(f.Reasons, "branch "+wt.branch+" has no upstream (it stays in the repository)")
+	}
+
+	// How much of it is on the remote: the commits, checked with the
+	// server, and each uncommitted file, by content.
+	rs := remoteState(ctx, wt, ch, def, srv)
+	f.Remote = &rs
+	where := rs.Remote
+	if rs.Branch != "" && rs.Remote != "" {
+		where = rs.Remote + "/" + rs.Branch
+	}
+	switch {
+	case rs.Remote == "":
+		f.Reasons = append(f.Reasons, "the repository has no remote: nothing in it is anywhere else")
+	case rs.OnServer && rs.Unpushed == 0:
+		on := rs.Remote + "/" + rs.FoundOn
+		if rs.FoundOn == "" {
+			on = where
 		}
+		f.Reasons = append(f.Reasons, "commits pushed: the last one is on "+on+" ("+rs.Server+")")
+	case rs.Unpushed > 0:
+		f.Reasons = append(f.Reasons, fmt.Sprintf("%d commits are on no remote branch (they stay on the local branch %s) (%s)", rs.Unpushed, f.Ref, rs.Server))
+	default:
+		f.Reasons = append(f.Reasons, "the last commit is not on the server's "+where+" ("+rs.Server+")")
+	}
+	if rs.BranchGone {
+		f.Reasons = append(f.Reasons, "the server no longer has "+where+": usually merged and deleted (deep_inspect shows the pull request)")
 	}
 	if def != "" {
-		if _, err := command(ctx, repo, "git", "merge-base", "--is-ancestor", wt.head, def); err == nil {
+		if _, err := command(ctx, repo, "git", "merge-base", "--is-ancestor", wt.head, def); err == nil && wt.head != revOf(ctx, repo, def) {
 			f.Reasons = append(f.Reasons, "already merged into "+def)
 		}
 	}
 
 	if len(ch.scratch) > 0 {
-		f.Reasons = append(f.Reasons, fmt.Sprintf("%d agent files only (%s)", len(ch.scratch), list(ch.scratch, 4)))
+		f.Reasons = append(f.Reasons, fmt.Sprintf("%d agent files (%s)", len(ch.scratch), list(ch.scratch, 4)))
 	}
-	if len(ch.tracked) > 0 {
-		f.Rescue = append(f.Rescue, fmt.Sprintf("%d changed tracked files (%s), saved as a patch", len(ch.tracked), list(ch.tracked, 4)))
+	if len(rs.FilesOnRemote) > 0 {
+		f.Reasons = append(f.Reasons, fmt.Sprintf("%d uncommitted files are already on the remote with the same content: %s",
+			len(rs.FilesOnRemote), list(rs.FilesOnRemote, 4)))
 	}
-	if len(ch.others) > 0 {
-		f.Rescue = append(f.Rescue, fmt.Sprintf("%d untracked files or folders (%s), copied", len(ch.others), list(ch.others, 4)))
+	if len(rs.FilesOnlyHere) > 0 {
+		f.Rescue = append(f.Rescue, fmt.Sprintf("%d files changed or added here and on no remote branch (%s): saved as a patch and copies",
+			len(rs.FilesOnlyHere), list(rs.FilesOnlyHere, 4)))
 	}
-	if len(f.Rescue) == 0 && recent {
-		f.Verdict = Review
-		f.Reasons = append(f.Reasons, "nothing in it would be lost, but it was worked on in the last two days: it may still be in use")
-	} else if len(f.Rescue) == 0 {
-		f.Verdict = Safe
-		f.Reasons = append(f.Reasons, "nothing in it is lost: no changes of anyone's but the agent's own files")
-	} else {
+
+	pushed := rs.Remote != "" && rs.OnServer && rs.Unpushed == 0
+	switch {
+	case len(f.Rescue) > 0:
 		f.Verdict = Review
 		f.Action += "; first " + strings.Join(f.Rescue, "; ") + " under " + RescueRoot()
+	case !pushed:
+		f.Verdict = Review
+		f.Reasons = append(f.Reasons, "not everything is on the remote: removing it loses nothing (the branch stays here), but this is the only copy of those commits")
+	case recent:
+		f.Verdict = Review
+		f.Reasons = append(f.Reasons, "everything is on the remote, but it was worked on in the last two days: it may still be in use")
+	default:
+		f.Verdict = Safe
+		f.Reasons = append(f.Reasons, "everything in it is on the remote: nothing is lost")
 	}
 	return f
 }
@@ -260,4 +283,13 @@ func ago(d time.Duration) string {
 	default:
 		return fmt.Sprintf("%d days ago", int(d.Hours()/24))
 	}
+}
+
+// revOf is the commit a ref points to, or "".
+func revOf(ctx context.Context, repo, ref string) string {
+	out, err := command(ctx, repo, "git", "rev-parse", "--verify", "--quiet", ref+"^{commit}")
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(out)
 }

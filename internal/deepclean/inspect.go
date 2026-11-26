@@ -35,6 +35,9 @@ func Inspect(ctx context.Context, f Finding) string {
 	}
 	switch f.Kind {
 	case KindWorktree:
+		if r := f.Remote; r != nil {
+			section("on the remote", r.Summary(), nil)
+		}
 		out, err := command(ctx, f.Path, "git", "status", "--short", "--untracked-files=all")
 		section("git status (every file)", out, err)
 		out, err = command(ctx, f.Path, "git", "diff", "--stat", "HEAD")

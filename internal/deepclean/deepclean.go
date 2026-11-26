@@ -84,6 +84,8 @@ type Finding struct {
 	// Rescue lists what Apply copies away before removing (files changed
 	// or added by hand, commits on no branch).
 	Rescue []string `json:"rescue,omitempty"`
+	// Remote is how much of a worktree is on the remote.
+	Remote *RemoteState `json:"remote,omitempty"`
 	// LastUsed is the last commit or change, when known.
 	LastUsed time.Time `json:"last_used,omitempty"`
 	// Action is what Apply does, as the user reads it on the approval card.
@@ -145,6 +147,11 @@ var (
 		cmd.Env = append(os.Environ(), "GIT_OPTIONAL_LOCKS=0", "GIT_TERMINAL_PROMPT=0")
 		if name == "git" {
 			cmd.Env = append(cmd.Env, runner.GitEnv()...)
+			// Asking the server must never stop for a passphrase or a
+			// host key: it fails instead, and the last fetch is used.
+			if os.Getenv("GIT_SSH_COMMAND") == "" {
+				cmd.Env = append(cmd.Env, "GIT_SSH_COMMAND=ssh -o BatchMode=yes -o ConnectTimeout=10")
+			}
 		}
 		out, err := cmd.Output()
 		if err != nil {

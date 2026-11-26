@@ -55,7 +55,7 @@ func Verify(ctx context.Context, f Finding) (Finding, error) {
 			if i == 0 || wt.path != f.Path {
 				continue
 			}
-			now := inspectWorktree(ctx, f.Repo, defaultBranch(ctx, f.Repo), wt, busyDirs(ctx), selfDir(), clock())
+			now := inspectWorktree(ctx, f.Repo, defaultBranch(ctx, f.Repo), wt, busyDirs(ctx), selfDir(), clock(), askServer(ctx, f.Repo))
 			switch {
 			case now.Verdict == Keep:
 				return now, fmt.Errorf("%w: %s", ErrChanged, strings.Join(now.Reasons, "; "))

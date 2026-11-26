@@ -143,7 +143,7 @@ func TestAWorktreeWithWorkHasItSavedFirst(t *testing.T) {
 	os.WriteFile(filepath.Join(wt, "notes", "idea.txt"), []byte("mine"), 0o644)
 
 	f := finding(t, scan(t, main), wt)
-	if f.Verdict != Review || len(f.Rescue) != 2 {
+	if f.Verdict != Review || f.Remote == nil || strings.Join(f.Remote.FilesOnlyHere, ",") != "a.txt,notes/idea.txt" {
 		t.Fatalf("got %+v", f)
 	}
 	res, err := Apply(context.Background(), f)

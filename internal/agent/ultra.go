@@ -48,8 +48,13 @@ const UltraSuffix = "\n\nULTRA MODE (omega ultra). The user asked for the deepes
 const UltraDeepTask = "Deep clean this machine's disk, which the ordinary cleaning stages never reach. Start with system_info and deep_scan. " +
 	"Then, for each category, worst offenders first: " +
 	"(1) AI coding agents: the git worktrees agents (Claude Code, Codex, Cursor) and the user created, and the run files agents " +
-	"wrote next to the projects. For every worktree over 100 MB or marked review, call deep_inspect: read every changed file, the " +
-	"last commits and the pull request state; a worktree whose PR is merged or closed and whose branch is pushed is done work. " +
+	"wrote next to the projects. Each worktree comes with its remote state (remote): whether its commits are on the server (checked with " +
+	"git ls-remote, not only the last fetch), whether its branch was deleted there, and each uncommitted file compared by content " +
+	"with the remote branches (files_on_remote, files_only_here). Start every worktree option's label with that state in a few " +
+	"words (\"all on the remote\", \"2 commits not pushed\", \"3 files only here\") so the user can choose by it, and group the " +
+	"options: everything on the remote first, then what has something only here. For every worktree over 100 MB or marked review, " +
+	"call deep_inspect: read every file only here, the last commits and the pull request state; a worktree whose PR is merged or " +
+	"closed and whose content is all on the remote is done work. " +
 	"(2) Docker, object by object (deep_scan lists them): images from a registry, dangling images and stopped containers that " +
 	"changed nothing are safe; images built here and containers with their own changes need the user's word; volumes are never " +
 	"recommended. (3) Build folders: omega_cmd artifacts_scan with days 14 (node_modules, target, .venv, dist… of projects idle " +
@@ -78,7 +83,8 @@ const ultraModePrompt = " ULTRA: a person confirms every change; every option th
 func ultraToolSpecs() []llm.ToolSpec {
 	return []llm.ToolSpec{
 		{Name: "deep_scan", Description: "omega ultra: find what the cleaning steps never reach, without changing anything: git worktrees " +
-			"(the ones AI agents leave and the user's), run files agents wrote next to the projects, and Docker images, stopped containers " +
+			"(the ones AI agents leave and the user's, each with how much of it is on the remote: commits checked with the server, " +
+			"uncommitted files compared by content), run files agents wrote next to the projects, and Docker images, stopped containers " +
 			"and volumes one by one. Each finding has an id, a size, a verdict (safe: nothing is lost; review: something would be lost " +
 			"or must be rescued first, or it was used in the last two days; keep: never removed) and the reasons. JSON.",
 			Properties: map[string]any{"docker": map[string]any{"type": "boolean", "description": "include Docker (default true)"}}},
@@ -335,6 +341,9 @@ func toolDeepClean(ctx context.Context, a *Agent, in map[string]any) (string, er
 			continue
 		}
 		why := fmt.Sprintf("%s · %s · %s: %s", f.Title, humanBytes(f.Size), f.Verdict, strings.Join(f.Reasons, "; "))
+		if f.Remote != nil {
+			why = fmt.Sprintf("%s · %s · remote: %s · %s: %s", f.Title, humanBytes(f.Size), f.Remote.Label(), f.Verdict, strings.Join(f.Reasons, "; "))
+		}
 		if len(f.Rescue) > 0 {
 			why += " · saved first: " + strings.Join(f.Rescue, "; ")
 		}
