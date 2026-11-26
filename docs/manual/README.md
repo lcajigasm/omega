@@ -117,4 +117,5 @@ every step and every setting.
 - **Everything, deeper** (`omega ultra`): every stage of `omega full`, a deep
   clean of the git worktrees and files AI agents leave, Docker object by
   object and build folders, and every review omega has, on stronger models.
-  Each change comes with its evidence and waits for your yes.
+  First an audit that changes nothing and needs nobody, then one plan of
+  self-explaining actions: you tick what you want and omega does exactly that.

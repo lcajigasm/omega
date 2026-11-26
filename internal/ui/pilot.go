@@ -27,6 +27,28 @@ import (
 type PilotInfo struct {
 	Version string
 	Flags   []string // how the stages run, e.g. "read-only"
+	// Title is what the screen is, when it is not an unattended run:
+	// omega ultra's audit and the carrying out of its plan.
+	Title string
+	// Ultra puts omega ultra's badge on the top bar.
+	Ultra bool
+	// Found, when set, is what the run has gathered so far (the actions of
+	// an audit and the space they free), shown on the right of the top bar.
+	Found func() (n int, bytes int64)
+	// Note replaces the note beside the keys.
+	Note string
+}
+
+// title is what the top bar says the screen is.
+func (i PilotInfo) title() string {
+	t := i.Title
+	if t == "" {
+		t = i18n.T("pilot.title")
+	}
+	if i.Ultra {
+		t += " " + ultraBadge.Render(" ULTRA ")
+	}
+	return t
 }
 
 // Kinds of line in the list of what has run.

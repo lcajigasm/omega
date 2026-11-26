@@ -17,7 +17,7 @@
 | `health` | disk and battery health, memory, backups, firewall, encryption, automatic updates and the system logs | only what you pick | fast → smart on failure |
 | `tune` | reviews your tools' configuration against the current docs | only what you pick | fast → smart on failure |
 | `fix` | runs the topgrade and Mole dry runs, diagnoses and fixes their config | yes (with approval) | fast → smart on failure |
-| `ultra` | every stage of `omega full`, plus a deep clean and every review ([more](#everything-deeper-omega-ultra)) | only what you approve, one by one | smart → most capable on failure |
+| `ultra` | audits every stage of `omega full`, a deep clean and every review, then shows one plan ([more](#everything-deeper-omega-ultra)) | only what you tick in the plan | smart → most capable on failure |
 
 `omega mac` and `omega dev` are guided tasks of the same kind, for what runs on
 your Mac and for your development setup. `omega menu` lists everything on one
@@ -99,13 +99,42 @@ guided run; `omega all` and `omega everything` start it too.
 ### Everything, deeper: omega ultra
 
 ```bash
-omega ultra                     # every stage, deeper, on stronger models
+omega ultra                     # audit everything, then review the plan
+omega ultra --review            # the plan of the last audit, without auditing again
 omega ultra --only deep         # only the deep clean
 omega ultra --skip update,mac   # everything else
 ```
 
-`omega ultra` is the deepest pass omega makes, and you are there for all of
-it. It runs every stage of `omega full` and two that only ultra has:
+`omega ultra` is the deepest pass omega makes, in two stages, so you do not
+have to sit in front of it:
+
+1. **The audit.** omega asks for the sudo password once and then needs
+   nobody: every stage below runs on stronger models, read-only, on the same
+   screen as an unattended run (the top bar counts the actions found so far
+   and the space they would free). Nothing changes. Every change a stage
+   recommends becomes an *action* of the plan, written for someone who did
+   not watch: what the audit found (with figures), what will happen if you
+   tick it and whether it can be undone, what verified it, and the exact
+   steps that carry it out. omega checks every step when it is planned (the
+   tool exists, a catalogue step is installed, a command is not blocked, a
+   deep-clean finding is not one omega keeps) and refuses an action without
+   its evidence. The terminal rings when the audit ends.
+2. **The plan.** A full-screen review: every action grouped (Updates,
+   Cleanup, Docker, AI agents, Security…), with a tick box, a risk mark (●
+   routine, ▲ high risk: it deletes data or changes your setup) and what it
+   frees; beside it, or under it on a narrow terminal, everything about the
+   action under the cursor. The recommended ones start ticked. `space` ticks,
+   `a` all, `n` none, `r` the recommended, `tab` the next group, `←`/`→`
+   fold, `J`/`K` scroll the details, `enter` shows a summary (with every high
+   risk action named) and runs it. omega then carries out exactly the steps of
+   what you ticked, with no model and no further questions, on the same
+   screen, and leaves on the terminal how each action ended and the free
+   space before and after. The plan is kept in
+   `~/.local/state/omega/ultra-plan.json`: `omega ultra --review` opens what
+   was not carried out yet, without a new audit. With `--dry-run` the plan
+   only prints the steps it would run.
+
+The audit runs every stage of `omega full` and two that only ultra has:
 
 | Stage | What it does |
 |---|---|
@@ -127,15 +156,14 @@ How it differs from `omega full`:
   Each uncommitted file is compared by content with the worktree's remote
   branch and the default branch: a file already there as it is here needs
   no rescue, and the ones only on this machine are named. A worktree is
-  *safe* only when everything in it is on the remote; the options on the
-  card start with that state (*all on the remote*, *2 commits not pushed*,
-  *3 files only here*). When the server does not answer, the last fetch is
-  used, and the card says so.
+  *safe* only when everything in it is on the remote; the actions start
+  with that state (*all on the remote*, *2 commits not pushed*, *3 files
+  only here*). When the server does not answer, the last fetch is used, and
+  the action says so.
 - **Evidence for every change.** The model is told to verify before it
-  proposes, and omega enforces it: a card whose options change something
-  without an `evidence` line (the PR state, the files git reports, who
-  recreates a cache) is refused, and the evidence is shown on the card you
-  answer.
+  proposes, and omega enforces it: an action without an `evidence` line (the
+  PR state, the files git reports, who recreates a cache) is refused, and the
+  evidence is shown in the plan under *Verified*.
 - **Checked again before acting.** Each deletion of the deep clean is looked
   at again just before it runs and refused if it changed (a worktree that got
   new work, a process that started in it). A worktree's uncommitted changes
@@ -143,10 +171,11 @@ How it differs from `omega full`:
   given the branch `omega/rescued/<name>`, all under
   `~/.local/state/omega/rescued/`, before it goes; its branch always stays.
   Agent files go to the Trash.
-- **Every change is asked.** The approval policy is `all` for the run;
-  "approve all" approves only the request in front of you; `--yes`, `--auto`,
-  `--no-ai`, `--offline` and `--json` are refused. It needs a terminal: for
-  runs nobody watches, use `omega full --unattended`.
+- **Nothing changes until you tick it.** The audit is read-only whatever a
+  stage tries; `--yes`, `--auto`, `--no-ai`, `--offline` and `--json` are
+  refused. Your tick is the approval of exactly the steps the plan shows:
+  nothing else runs, and what the safety policy blocks is still refused. It
+  needs a terminal: for runs nobody watches, use `omega full --unattended`.
 
 In the desktop app, the **Ultra: everything, deeper** card under **Full
 maintenance** runs the whole of ultra in one session (the app runs one

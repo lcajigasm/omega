@@ -87,6 +87,14 @@ type Options struct {
 	// option that changes something must carry its evidence, and every
 	// change is put to the user.
 	Ultra bool
+	// Audit is the plan of omega ultra's audit: the session changes
+	// nothing and every change it recommends goes into this plan with
+	// plan_actions, for the person to review when the audit ends.
+	Audit *Plan
+	// Preapproved is the agent that carries out a reviewed plan: the
+	// person ticked each action, so its steps run without another card.
+	// Only what the safety policy blocks is still refused.
+	Preapproved bool
 }
 
 // Agent drives one maintenance session.
@@ -182,6 +190,9 @@ func New(p llm.Provider, opts Options) *Agent {
 	}
 	if opts.Ultra && !opts.Unattended {
 		specs = append(specs, ultraToolSpecs()...)
+	}
+	if opts.Audit != nil {
+		specs = auditSpecs(specs)
 	}
 	a := &Agent{
 		opts:    opts,
@@ -296,6 +307,34 @@ func (a *Agent) clearExit() {
 	a.mu.Unlock()
 }
 
+// startSudo starts the bridge that answers sudo for the commands of this
+// run, and returns what stops it; nil when there is none.
+func (a *Agent) startSudo() func() {
+	if !a.real {
+		return nil
+	}
+	b, err := sudo.Start(a.askPassword, a.opts.SudoPassword)
+	if err != nil {
+		return nil
+	}
+	// OMEGA_SUDO tells a step whether this run can answer sudo:
+	// yes with --sudo, ask when someone can type the password,
+	// no when nobody can (the brew step then leaves out the casks
+	// that need it instead of failing on them).
+	sudoMode := "no"
+	switch {
+	case a.opts.SudoPassword != "":
+		sudoMode = "yes"
+	case a.opts.Interactive && !a.opts.Unattended:
+		sudoMode = "ask"
+	}
+	runner.Configure(append(b.Env(), "OMEGA_SUDO="+sudoMode), b.PathPrefix())
+	return func() {
+		runner.Configure(nil, "")
+		b.Close()
+	}
+}
+
 // Run executes the task until the model stops and, in interactive mode, the
 // user ends the session.
 func (a *Agent) Run(ctx context.Context, task string) {
@@ -303,25 +342,8 @@ func (a *Agent) Run(ctx context.Context, task string) {
 	defer a.closeLog()
 	a.ctx = ctx
 	a.writeLog(Event{Kind: EvAssistant, Text: "> " + task})
-	if a.real {
-		if b, err := sudo.Start(a.askPassword, a.opts.SudoPassword); err == nil {
-			// OMEGA_SUDO tells a step whether this run can answer sudo:
-			// yes with --sudo, ask when someone can type the password,
-			// no when nobody can (the brew step then leaves out the casks
-			// that need it instead of failing on them).
-			sudoMode := "no"
-			switch {
-			case a.opts.SudoPassword != "":
-				sudoMode = "yes"
-			case a.opts.Interactive && !a.opts.Unattended:
-				sudoMode = "ask"
-			}
-			runner.Configure(append(b.Env(), "OMEGA_SUDO="+sudoMode), b.PathPrefix())
-			defer func() {
-				runner.Configure(nil, "")
-				b.Close()
-			}()
-		}
+	if stop := a.startSudo(); stop != nil {
+		defer stop()
 	}
 
 	text := task
@@ -760,9 +782,17 @@ func (a *Agent) authorize(ctx context.Context, tool, command, reason string, ris
 		return deny("Blocked by omega's safety policy; this command can never run.")
 	}
 	mode := a.Mode()
+	if mode == ModeReadOnly && risk > safety.Safe && a.opts.Audit != nil {
+		return deny("omega ultra audit: nothing changes during the audit, so this was not run. Add it to the plan with " +
+			"plan_actions (this same call as a step) and go on with the audit.")
+	}
 	if mode == ModeReadOnly && risk > safety.Safe {
 		return deny("Read-only mode: this action would change the system and was rejected. " +
 			"Offer it to the user with propose_actions instead.")
+	}
+	if a.opts.Preapproved {
+		a.logApproval(tool, command, "approved by the user, who ticked it in the omega ultra plan")
+		return true, ""
 	}
 	if a.opts.Unattended && risk > safety.Safe && tool == "run_command" {
 		// A command of the model's own: the catalogue steps are omega's,

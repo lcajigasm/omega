@@ -75,7 +75,16 @@ func (m *pilotModel) headLine(w int) string {
 		info = append(info, m.header.Model)
 	}
 	info = append(info, m.info.Flags...)
-	return topBar(i18n.T("pilot.title"), info, rightInfo(humanDuration(time.Since(m.began)), cost), w)
+	found := ""
+	if m.info.Found != nil {
+		if n, bytes := m.info.Found(); n > 0 {
+			found = i18n.T("plan.found", n)
+			if bytes > 0 {
+				found += " " + gl.Sep + " " + Bytes(bytes)
+			}
+		}
+	}
+	return topBar(m.info.title(), info, rightInfo(found, humanDuration(time.Since(m.began)), cost), w)
 }
 
 // barLine is the progress of the run: one segment per stage, coloured by
@@ -167,7 +176,7 @@ func (m *pilotModel) bubbleHead() (left, right string) {
 	case m.last >= 0:
 		return mutedStyle.Render(i18n.T("pilot.waiting")), ""
 	}
-	return mutedStyle.Render(i18n.T("pilot.title")), ""
+	return mutedStyle.Render(m.info.title()), ""
 }
 
 // bubble is what the mascot says, in a frame w columns wide (its tail
@@ -572,6 +581,9 @@ func (m *pilotModel) footer(w int) []string {
 			keys = append(keys, hk("↑↓", "uix.scroll"))
 		}
 		note = mutedStyle.Render(i18n.T("uix.pilot_alone"))
+		if m.info.Note != "" {
+			note = mutedStyle.Render(m.info.Note)
+		}
 	}
 	return chromeFooter(w, note, keys...)
 }

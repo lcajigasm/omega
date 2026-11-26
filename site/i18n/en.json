@@ -316,7 +316,7 @@
   "cmds.g6": "Do it your way",
   "cmd.omega": "Checks the state, updates, cleans up and tells you what changed",
   "cmd.full": "Every stage that applies to this machine on one screen, with a plan you can edit",
-  "cmd.ultra": "Everything omega full does, deeper and on stronger models: the git worktrees and files AI agents leave (checked against the remote), Docker object by object, build folders and every review, with the evidence for each change and your yes before it",
+  "cmd.ultra": "Everything omega full does, deeper and on stronger models, in two stages: an audit that changes nothing and needs nobody (the git worktrees and files AI agents leave, checked against the remote, Docker object by object, build folders and every review), then one plan of self-explaining actions where you tick what omega does",
   "cmd.unattended": "Upkeep with no questions: the sudo password once, then checks, updates and caches with every approval answered yes",
   "cmd.quick": "The safe part in seconds: Trash, caches, an updates check and a disk and battery report",
   "cmd.update": "Homebrew, the App Store, apt, dnf, pacman, winget, Scoop, npm, pnpm, pipx, uv, rustup, cargo and more",

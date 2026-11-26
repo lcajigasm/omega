@@ -61,6 +61,17 @@ func toolLabel(tool, command string) (string, string) {
 		name, arg = "Doctor", ""
 	case tool == "model_ranking":
 		name, arg = "Models", ""
+	case tool == "plan_actions":
+		name = "Plan"
+	case tool == "deep_scan":
+		name, arg = "Scan", ""
+	case tool == "deep_inspect":
+		name = "Inspect"
+	case tool == "deep_clean":
+		name = "Remove"
+	case tool == "omega_cmd":
+		name = "omega"
+		arg = strings.TrimPrefix(command, "omega ")
 	}
 	return name, homeTilde(arg)
 }
