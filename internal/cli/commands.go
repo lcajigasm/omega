@@ -338,18 +338,20 @@ func authStatusCmd() *cobra.Command {
 			var marks []ui.Mark
 			for _, k := range list {
 				if !k.Set {
-					rows = append(rows, []string{k.Provider, r.Faint("—"), ""})
+					rows = append(rows, []string{k.Provider, r.Faint("—")})
 					marks = append(marks, ui.MarkOff)
 					continue
 				}
-				where, mark := r.Muted(k.Source), ui.MarkOK
+				// "(where)" right after the key: scripts and the CI read the
+				// line as `provider key (where)`.
+				where, mark := r.Muted("("+k.Source+")"), ui.MarkOK
 				if k.LooksWrong {
-					where, mark = r.Warn(i18n.T("auth.looks_wrong", k.Provider)), ui.MarkWarn
+					where, mark = where+"  "+r.Warn(i18n.T("auth.looks_wrong", k.Provider)), ui.MarkWarn
 				}
-				rows = append(rows, []string{k.Provider, k.Masked, where})
+				rows = append(rows, []string{k.Provider, k.Masked + " " + where})
 				marks = append(marks, mark)
 			}
-			r.Table([]ui.Column{{}, {}, {Wrap: true}}, rows, marks)
+			r.Table([]ui.Column{{}, {Wrap: true}}, rows, marks)
 			r.Blank()
 			r.Hint(i18n.T("auth.status_hint"))
 			return nil
