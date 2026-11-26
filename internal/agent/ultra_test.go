@@ -5,7 +5,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lcajigasm/omega/internal/config"
 	"github.com/lcajigasm/omega/internal/deepclean"
 )
 
@@ -146,7 +145,9 @@ func TestUltraNeverGoesAutomatic(t *testing.T) {
 		t.Errorf("after approve all, ultra must still ask: asked %d times, want 2", asked)
 	}
 
-	a := New(&scriptedProvider{}, Options{Ultra: true, Config: config.Default()})
+	// An agent that opens no transcript: Windows cannot remove a file
+	// left open.
+	a := &Agent{opts: Options{Ultra: true}, mode: ModeAsk}
 	a.SetMode(ModeAuto)
 	if a.Mode() == ModeAuto {
 		t.Errorf("ultra switched to automatic mode")
