@@ -30,7 +30,8 @@ func parseWorktrees(out string) []worktree {
 		line = strings.TrimRight(line, "\r")
 		switch {
 		case strings.HasPrefix(line, "worktree "):
-			list = append(list, worktree{path: strings.TrimPrefix(line, "worktree ")})
+			// git writes C:/x on Windows: the path as the system writes it.
+			list = append(list, worktree{path: filepath.Clean(filepath.FromSlash(strings.TrimPrefix(line, "worktree ")))})
 			cur = &list[len(list)-1]
 		case cur == nil:
 		case strings.HasPrefix(line, "HEAD "):
