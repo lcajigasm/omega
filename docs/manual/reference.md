@@ -157,6 +157,9 @@ command_timeout = "45m"         # time limit per command
 # model_catalog = "off"         # do not download the public model catalogue (automatic mode then uses built-in names)
 skip_steps = ["macos"]
 
+# [providers.anthropic]
+# ultra_model = "claude-opus-5-5" # the model omega ultra moves to for its deepest analysis
+
 [disk_budgets]                    # omega disk limits set <check> <size>
 "claude-desktop.vm" = "8.0 GB"
 
@@ -206,6 +209,7 @@ omega [task] [options]
 | `--sudo` | ask for sudo at the start and keep it alive |
 | `--no-tui` | plain text output |
 | `--once` | exit when the agent finishes instead of asking for more |
+| `--only`, `--skip` | `omega full` and `omega ultra`: the stages to run or leave out, by id |
 | `-U, --unattended` | `omega full` only: the upkeep stages (doctor, analyze, health, update, clean, docker) with no questions, the sudo password asked once ([more](tasks.md#unattended-runs)) |
 | `-v, --version` | version |
 | `--no-ai`, `--offline` | run deterministically without calling an AI model. Only `full`, `quick`, `update`, `clean`, `analyze` and `health` exist without it: any other task, and a request in your own words, is an error |

@@ -17,6 +17,7 @@ func toolProposeActions(ctx context.Context, a *Agent, in map[string]any) (strin
 	var opts []Choice
 	labels := map[string]string{}
 	recommended := map[string]bool{}
+	evidence := map[string]string{}
 	for _, r := range raw {
 		m, ok := r.(map[string]any)
 		if !ok {
@@ -30,11 +31,24 @@ func toolProposeActions(ctx context.Context, a *Agent, in map[string]any) (strin
 		if rec, _ := m["recommended"].(bool); rec {
 			recommended[c.ID] = true
 		}
+		if ev := strings.TrimSpace(getString(m, "evidence")); ev != "" {
+			evidence[c.ID] = ev
+			if a.opts.Ultra {
+				// The person confirming sees what the option rests on.
+				c.Detail = strings.TrimSpace(c.Detail + " · ✓ " + ev)
+			}
+		}
 		opts = append(opts, c)
 		labels[c.ID] = c.Label
 	}
 	if len(opts) == 0 {
 		return "", fmt.Errorf("options is empty")
+	}
+	if a.opts.Ultra && !a.opts.Unattended {
+		if why := ultraEvidence(opts, evidence); why != "" {
+			a.emit(Event{Kind: EvDenied, Tool: "propose_actions", Command: question, Reason: why})
+			return "", explained(fmt.Errorf("%s", why))
+		}
 	}
 	if a.opts.Unattended {
 		return a.autoChoose(question, opts, multi, recommended, labels), nil

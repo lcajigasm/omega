@@ -129,6 +129,7 @@ topgrade and Mole are excellent until something breaks. Then the work is yours.
 |---|---|---|
 | **Everything** | `omega` | Checks the state, updates, cleans up and tells you what changed |
 | **A guided run** | `omega full` | Every stage that applies to this machine, on one screen, with a plan you can edit |
+| **Everything, deeper** | `omega ultra` | Every stage of `omega full` plus a deep clean (the worktrees and files AI agents leave, Docker object by object, build folders, git) and every review omega has, on stronger models, with evidence for each change and your yes before it |
 | **Hands-off** | `omega unattended` | Upkeep with no questions (checks, updates, caches): the sudo password once, then every approval answered yes, on a screen that says what it is doing. It never touches your apps, what starts at login, the menu bar or your settings, and leaves out the updates that would close an open app |
 | **Quick clean** | `omega quick` | One-click safe cleanup (trash, caches), pending updates, free disk space and battery |
 | **Update** | `omega update` | Homebrew, the App Store, apt, dnf, pacman, winget, Scoop, npm, pnpm, pipx, uv, rustup, cargo and more |

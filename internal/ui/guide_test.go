@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"strings"
+
+	"github.com/charmbracelet/x/ansi"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -349,5 +351,22 @@ func TestStageWriterSendsWholeLines(t *testing.T) {
 	w.flush()
 	if strings.Join(got, "|") != "one|two|three" {
 		t.Errorf("lines: %q", got)
+	}
+}
+
+// omega ultra has its own title, badge and introduction, so the deeper,
+// costlier run is never taken for the ordinary one.
+func TestUltraGuideLooksItsOwn(t *testing.T) {
+	m := testGuide(t, 120, 40, nil)
+	m.g.info = GuideInfo{Version: "v1.2.3", Ultra: true, Model: "claude-sonnet-5-5 → claude-opus-5-5"}
+	view := ansi.Strip(m.View())
+	for _, want := range []string{"Ultra run", "ULTRA", "claude-sonnet-5-5 → claude-opus-5-5", "Nothing changes without your yes"} {
+		if !strings.Contains(view, want) {
+			t.Errorf("the ultra plan does not show %q:\n%s", want, view)
+		}
+	}
+	plain := ansi.Strip(testGuide(t, 120, 40, nil).View())
+	if strings.Contains(plain, "ULTRA") {
+		t.Errorf("the ordinary guided run shows the ultra badge")
 	}
 }

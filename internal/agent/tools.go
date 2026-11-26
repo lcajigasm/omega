@@ -129,6 +129,8 @@ func allToolSpecs() []llm.ToolSpec {
 							"detail": str("one line: what will run and why"),
 							"impact": str("expected effect, e.g. '~9 GB' or 'fixes brew doctor'"),
 							"risk":   map[string]any{"type": "string", "enum": []string{"read-only", "normal", "dangerous"}},
+							"evidence": str("one line: what you checked that shows this is safe and what it frees (the tool output, " +
+								"the PR state, who recreates it). Required in omega ultra for every option that changes something"),
 							"recommended": map[string]any{"type": "boolean", "description": "the option you recommend; with multiple=false mark exactly one. " +
 								"An unattended run takes only recommended options whose risk is read-only or normal (one, for a single-choice question)"},
 						},

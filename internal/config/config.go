@@ -39,6 +39,7 @@ type ProviderConfig struct {
 	Model      string `toml:"model,omitempty"`       // fixed model; empty or "auto" picks per task
 	FastModel  string `toml:"fast_model,omitempty"`  // override for routine work in auto mode
 	SmartModel string `toml:"smart_model,omitempty"` // override for failures and fix tasks in auto mode
+	UltraModel string `toml:"ultra_model,omitempty"` // the model omega ultra moves to for its deepest analysis
 	BaseURL    string `toml:"base_url,omitempty"`
 }
 

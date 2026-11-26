@@ -119,6 +119,46 @@ omega -p "Only update Homebrew and npm, nothing else"
 omega -p "topgrade fails on the rustup step, fix it"
 ```
 
+### Everything, deeper: omega ultra
+
+```bash
+omega ultra                     # every stage, deeper, on stronger models
+omega ultra --only deep         # only the deep clean
+omega ultra --skip update,mac   # everything else
+```
+
+`omega ultra` is the deepest pass omega makes, and you are there for all of
+it. It runs every stage of `omega full` and two that only ultra has:
+
+| Stage | What it does |
+|---|---|
+| **Deep clean** (`deep`) | What the cleaning steps never reach. The git worktrees AI agents (Claude Code, Codex, Cursor) and you created, each with a verdict: *safe* when the only uncommitted files are the agent's own (`PLAN.md`, `.claude-run.json`, `.pr-body.md`, `*.codex.txt`…) and nothing else is lost, *review* when it holds work or was used in the last two days, *keep* when a running process works in it, it is locked or omega runs from it. The run files agents leave next to your projects. Docker images, stopped containers and volumes one by one: an image built on this machine is never taken with the others, and a volume is never recommended. Build folders of projects idle two weeks, merged branches, `git gc`, disk limits and old versions, and large and duplicate files (reported, never offered). |
+| **Every review** (`care`) | What closed agent sessions left running, the configuration assistants of every tool, SSH keys and secrets in shell histories, privacy, the network, agent skills and what is pending from earlier runs. |
+
+How it differs from `omega full`:
+
+- **Stronger models.** Each stage starts on the provider's smart model with
+  effort `high` (or yours, if higher) and moves to its most capable model when
+  a step fails; the deep clean starts on the most capable one. With Anthropic
+  that is Sonnet, then Opus. Set another with
+  `providers.<name>.ultra_model` in `config.toml`, or fix one with `--model`.
+  It costs more than `omega full`; `--max-cost` still applies.
+- **Evidence for every change.** The model is told to verify before it
+  proposes, and omega enforces it: a card whose options change something
+  without an `evidence` line (the PR state, the files git reports, who
+  recreates a cache) is refused, and the evidence is shown on the card you
+  answer.
+- **Checked again before acting.** Each deletion of the deep clean is looked
+  at again just before it runs and refused if it changed (a worktree that got
+  new work, a process that started in it). A worktree's uncommitted changes
+  are saved as a patch, its untracked files copied and a commit on no branch
+  given the branch `omega/rescued/<name>`, all under
+  `~/.local/state/omega/rescued/`, before it goes; its branch always stays.
+  Agent files go to the Trash.
+- **Every change is asked.** The approval policy is `all` for the run, and
+  `--yes` and `--auto` are refused. It needs a terminal: for runs nobody
+  watches, use `omega full --unattended`.
+
 ## Your own routine
 
 `omega custom` runs a routine you put together: the steps you pick, in the

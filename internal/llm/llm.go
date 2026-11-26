@@ -210,6 +210,9 @@ type Info struct {
 	Label      string
 	FastModel  string // cheap model for routine maintenance
 	SmartModel string // stronger model for diagnosing failures
+	// UltraModel is the most capable model, which omega ultra moves to for
+	// its deepest analysis; "" means the smart one.
+	UltraModel string
 	KeyURL     string
 	Local      bool   // runs on this Mac; no API key needed
 	BaseURL    string // default endpoint for local and custom providers
@@ -217,9 +220,9 @@ type Info struct {
 
 // Providers lists every supported provider, in display order.
 var Providers = []Info{
-	{Name: "anthropic", Label: "Anthropic (Claude)", FastModel: "claude-haiku-5-5", SmartModel: "claude-sonnet-5-5", KeyURL: "https://console.anthropic.com/settings/keys"},
+	{Name: "anthropic", Label: "Anthropic (Claude)", FastModel: "claude-haiku-5-5", SmartModel: "claude-sonnet-5-5", UltraModel: "claude-opus-5-5", KeyURL: "https://console.anthropic.com/settings/keys"},
 	{Name: "openai", Label: "OpenAI", FastModel: "gpt-5.4-mini", SmartModel: "gpt-5.5", KeyURL: "https://platform.openai.com/api-keys"},
-	{Name: "openrouter", Label: "OpenRouter", FastModel: "anthropic/claude-haiku-5.5", SmartModel: "anthropic/claude-sonnet-5.5", KeyURL: "https://openrouter.ai/settings/keys"},
+	{Name: "openrouter", Label: "OpenRouter", FastModel: "anthropic/claude-haiku-5.5", SmartModel: "anthropic/claude-sonnet-5.5", UltraModel: "anthropic/claude-opus-5.5", KeyURL: "https://openrouter.ai/settings/keys"},
 	{Name: "opencode", Label: "OpenCode Zen", FastModel: "claude-sonnet-4-6", SmartModel: "claude-sonnet-4-6", KeyURL: "https://opencode.ai/auth"},
 	{Name: "ollama", Label: "Ollama (local)", Local: true, BaseURL: "http://localhost:11434/v1", KeyURL: "https://ollama.com/download"},
 	{Name: "lmstudio", Label: "LM Studio (local)", Local: true, BaseURL: "http://localhost:1234/v1", KeyURL: "https://lmstudio.ai"},

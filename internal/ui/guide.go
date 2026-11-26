@@ -52,6 +52,11 @@ type StageResult struct {
 type GuideInfo struct {
 	Version string
 	Flags   []string // how the stages run, e.g. "read-only"
+	// Ultra is omega ultra: its own title, badge and introduction, so the
+	// deeper, costlier run is never mistaken for the ordinary one.
+	Ultra bool
+	// Model is the model the stages start on, shown in the top bar.
+	Model string
 }
 
 // StageRunner runs one stage and returns when it has ended. A stage that

@@ -210,6 +210,13 @@ func menuTree(root *cobra.Command) []ui.MenuItem {
 			items = append(items, menuFromCommand(c, maintain))
 		}
 	}
+	// Then its deeper, attended sibling. Without the run options: --yes
+	// and --auto are what ultra refuses.
+	for _, c := range root.Commands() {
+		if c.Name() == "ultra" {
+			items = append(items, menuFromCommand(c, maintain))
+		}
+	}
 	for _, t := range taskOrder {
 		var args []string
 		if t.task != "" {
@@ -220,7 +227,7 @@ func menuTree(root *cobra.Command) []ui.MenuItem {
 	byName := map[string]*cobra.Command{}
 	for _, c := range root.Commands() {
 		// The tasks have their rows above, with their run options.
-		if !c.Hidden && c.Name() != "help" && c.Name() != "completion" && c.Name() != "menu" && c.Name() != "full" && !slices.Contains(taskCommands, c.Name()) {
+		if !c.Hidden && c.Name() != "help" && c.Name() != "completion" && c.Name() != "menu" && c.Name() != "full" && c.Name() != "ultra" && !slices.Contains(taskCommands, c.Name()) {
 			byName[c.Name()] = c
 		}
 	}
@@ -275,7 +282,7 @@ func fullScreen(args []string) bool {
 		if _, ok := taskFor(words[0]); ok {
 			return true
 		}
-		return words[0] == "full" || words[0] == "mac" || words[0] == "dev"
+		return words[0] == "full" || words[0] == "ultra" || words[0] == "mac" || words[0] == "dev"
 	}
 	return false
 }
