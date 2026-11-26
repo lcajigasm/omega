@@ -3,6 +3,7 @@
   --bg: #f6f6f4; --panel: #ffffff; --side: #eeeeea; --line: #e2e2dd; --text: #1c1c1e; --muted: #6d6d72;
   --accent: #5b46d6; --accent-text: #ffffff; --accent-soft: #ebe8fb; --ok: #2d7d46; --bad: #c0392b; --warn: #b7791f;
   --code: #f0f0ec;
+  --ultra: #b4410f; --ultra-soft: #fbeee6;
   --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
 }
 @media (prefers-color-scheme: dark) {
@@ -10,6 +11,7 @@
     --bg: #121214; --panel: #1b1b1f; --side: #17171a; --line: #2c2c31; --text: #ececee; --muted: #9a9aa2;
     --accent: #9d8cff; --accent-text: #14112b; --accent-soft: #26223f; --ok: #5cc27d; --bad: #f0776a; --warn: #e3b25a;
     --code: #232328;
+    --ultra: #ff9b54; --ultra-soft: #2e2018;
   }
 }
 * { box-sizing: border-box; }
@@ -111,6 +113,12 @@ i[data-icon] { display: contents; }
 .task .body { display: flex; flex-direction: column; min-width: 0; }
 .task b { font-size: 14px; }
 .task .body span { color: var(--muted); font-size: 12.5px; line-height: 1.35; }
+#ultra-slot { margin-top: 10px; }
+.task.ultra { grid-column: 1 / -1; border-color: var(--ultra); background: var(--ultra-soft); }
+.task.ultra svg.icon { color: var(--ultra); }
+.task.ultra b { color: var(--ultra); }
+.task.ultra:hover:not(:disabled) { border-color: var(--ultra); filter: brightness(1.04); }
+#s-task.ultra { color: var(--ultra); }
 .ask { display: flex; gap: 8px; }
 .check { color: var(--muted); display: flex; gap: 6px; align-items: center; }
 .facts { font-size: 13px; margin-top: 6px; }

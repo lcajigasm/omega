@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/lcajigasm/omega/internal/deepclean"
 	"os"
 	"strings"
 	"sync"
@@ -82,6 +83,10 @@ type Options struct {
 	// Cache, when set, is shared with the other stages of the same run:
 	// what one stage measured read-only is not measured again by the next.
 	Cache *ResultCache
+	// Ultra is a stage of omega ultra: the deep tools are offered, every
+	// option that changes something must carry its evidence, and every
+	// change is put to the user.
+	Ultra bool
 }
 
 // Agent drives one maintenance session.
@@ -145,8 +150,10 @@ type Agent struct {
 	// --yes or --force to it afterwards is asked about every time.
 	refusedConfirm map[string]bool
 	cache          *ResultCache // read-only results kept for the session (or the run)
-	conclusion     string       // the last thing the model wrote: what the session concluded
-	lastCall       uint64       // numbers the shell calls, for the transcript (under mu)
+	// deep is what the last deep_scan found (omega ultra).
+	deep       *deepclean.Report
+	conclusion string // the last thing the model wrote: what the session concluded
+	lastCall   uint64 // numbers the shell calls, for the transcript (under mu)
 }
 
 // nextCall numbers a tool call: two identical commands of one batch run
@@ -172,6 +179,9 @@ func New(p llm.Provider, opts Options) *Agent {
 	specs := toolSpecs()
 	if opts.Unattended {
 		specs = upkeepTools(specs)
+	}
+	if opts.Ultra && !opts.Unattended {
+		specs = append(specs, ultraToolSpecs()...)
 	}
 	a := &Agent{
 		opts:    opts,
@@ -637,6 +647,11 @@ func (a *Agent) SetMode(m Mode) {
 	if m == a.mode {
 		return
 	}
+	// omega ultra puts every change to the person: there is no automatic
+	// mode to switch to.
+	if m == ModeAuto && a.opts.Ultra {
+		return
+	}
 	switch {
 	case m == ModeReadOnly:
 		a.notes = append(a.notes, "The user switched to read-only mode: from now on only read-only commands and steps "+
@@ -789,6 +804,10 @@ func (a *Agent) authorize(ctx context.Context, tool, command, reason string, ris
 	case d := <-reply:
 		switch d {
 		case ApproveAll:
+			if a.opts.Ultra {
+				a.logApproval(tool, command, "approved by the user (omega ultra asks again for the next one)")
+				return true, ""
+			}
 			if !always {
 				a.SetMode(ModeAuto)
 			}

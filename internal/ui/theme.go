@@ -11,6 +11,8 @@ import (
 var (
 	accent    = lipgloss.AdaptiveColor{Light: "#5A4FCF", Dark: "#9D8CFF"}
 	accentDim = lipgloss.AdaptiveColor{Light: "#A49DE6", Dark: "#5B5196"}
+	// ultraHue marks omega ultra: a warmer colour than the everyday accent.
+	ultraHue  = lipgloss.AdaptiveColor{Light: "#B4410F", Dark: "#FF9B54"}
 	bright    = lipgloss.AdaptiveColor{Light: "#1E1B4B", Dark: "#FFFFFF"}
 	muted     = lipgloss.AdaptiveColor{Light: "#6B7280", Dark: "#8B93A1"}
 	faint     = lipgloss.AdaptiveColor{Light: "#9CA3AF", Dark: "#5C6370"}
@@ -72,6 +74,9 @@ var (
 	warnPlainStyle = th.warnPlain
 	cmdStyle       = th.bold
 	hintKeyStyle   = th.hintKey
+	// ultraBadge is the ULTRA tag of omega ultra's top bar.
+	ultraBadge = lipgloss.DefaultRenderer().NewStyle().Bold(true).
+			Foreground(lipgloss.AdaptiveColor{Light: "#FFFFFF", Dark: "#1A1A1A"}).Background(ultraHue)
 )
 
 // Framed styles: cards, boxes and the input. applyBorder builds them, so

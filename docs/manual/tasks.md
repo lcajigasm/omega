@@ -17,6 +17,7 @@
 | `health` | disk and battery health, memory, backups, firewall, encryption, automatic updates and the system logs | only what you pick | fast → smart on failure |
 | `tune` | reviews your tools' configuration against the current docs | only what you pick | fast → smart on failure |
 | `fix` | runs the topgrade and Mole dry runs, diagnoses and fixes their config | yes (with approval) | fast → smart on failure |
+| `ultra` | every stage of `omega full`, plus a deep clean and every review ([more](#everything-deeper-omega-ultra)) | only what you approve, one by one | smart → most capable on failure |
 
 `omega mac` and `omega dev` are guided tasks of the same kind, for what runs on
 your Mac and for your development setup. `omega menu` lists everything on one
@@ -38,7 +39,7 @@ omega full                      # the plan first, then one stage at a time
 omega full --skip tune,dev      # the same, with two stages unticked from the start
 omega full --only update,clean  # only these two ticked
 omega full --dry-run            # every stage in read-only mode
-omega unattended                # everything, no questions: the sudo password once, then all approved
+omega unattended                # upkeep with no questions: the sudo password once, then all approved
 omega full --yes --skip mac     # unattended: every other stage, one after another
 omega full --no-tui             # the same run, line by line
 ```
@@ -94,6 +95,63 @@ the run.
 `omega` alone is still the quick maintenance (check, update, clean, summarise)
 in a single session. `omega full` used to be another name for it and is now the
 guided run; `omega all` and `omega everything` start it too.
+
+### Everything, deeper: omega ultra
+
+```bash
+omega ultra                     # every stage, deeper, on stronger models
+omega ultra --only deep         # only the deep clean
+omega ultra --skip update,mac   # everything else
+```
+
+`omega ultra` is the deepest pass omega makes, and you are there for all of
+it. It runs every stage of `omega full` and two that only ultra has:
+
+| Stage | What it does |
+|---|---|
+| **Deep clean** (`deep`) | What the cleaning steps never reach. The git worktrees AI agents (Claude Code, Codex, Cursor) and you created, each with a verdict: *safe* when everything in it is on the remote (its commits, and any uncommitted file is either the agent's own, like `PLAN.md`, `.claude-run.json` or `.pr-body.md`, or already on a remote branch with the same content) and it was not worked on in the last two days; *review* when something exists only on this machine or it is recent; *keep* when a running process works in it, it is locked or omega runs from it. The run files agents leave next to your projects. Docker images, stopped containers and volumes one by one: an image built on this machine is never taken with the others, and a volume is never recommended. Build folders of projects idle two weeks, merged branches, `git gc`, disk limits and old versions, and large and duplicate files (reported, never offered). |
+| **Every review** (`care`) | What closed agent sessions left running, the configuration assistants of every tool, SSH keys and secrets in shell histories, privacy, the network, agent skills and what is pending from earlier runs. |
+
+How it differs from `omega full`:
+
+- **Stronger models.** Each stage starts on the provider's smart model with
+  effort `high` (or yours, if higher) and moves to its most capable model when
+  a step fails; the deep clean starts on the most capable one. With Anthropic
+  that is Sonnet, then Opus. Set another with
+  `providers.<name>.ultra_model` in `config.toml`, or fix one with `--model`.
+  It costs more than `omega full`; `--max-cost` still applies.
+- **What is on the remote.** For every worktree omega asks the server which
+  branches it has now (`git ls-remote`: it reads, never fetches), and says
+  whether the last commit is on it, how many commits are on no remote
+  branch, and whether the branch was deleted there (usually after a merge).
+  Each uncommitted file is compared by content with the worktree's remote
+  branch and the default branch: a file already there as it is here needs
+  no rescue, and the ones only on this machine are named. A worktree is
+  *safe* only when everything in it is on the remote; the options on the
+  card start with that state (*all on the remote*, *2 commits not pushed*,
+  *3 files only here*). When the server does not answer, the last fetch is
+  used, and the card says so.
+- **Evidence for every change.** The model is told to verify before it
+  proposes, and omega enforces it: a card whose options change something
+  without an `evidence` line (the PR state, the files git reports, who
+  recreates a cache) is refused, and the evidence is shown on the card you
+  answer.
+- **Checked again before acting.** Each deletion of the deep clean is looked
+  at again just before it runs and refused if it changed (a worktree that got
+  new work, a process that started in it). A worktree's uncommitted changes
+  are saved as a patch, its untracked files copied and a commit on no branch
+  given the branch `omega/rescued/<name>`, all under
+  `~/.local/state/omega/rescued/`, before it goes; its branch always stays.
+  Agent files go to the Trash.
+- **Every change is asked.** The approval policy is `all` for the run;
+  "approve all" approves only the request in front of you; `--yes`, `--auto`,
+  `--no-ai`, `--offline` and `--json` are refused. It needs a terminal: for
+  runs nobody watches, use `omega full --unattended`.
+
+In the desktop app, the **Ultra: everything, deeper** card under **Full
+maintenance** runs the whole of ultra in one session (the app runs one
+session at a time), with the same evidence, checks and questions; the
+Automatic mode button is off while it runs.
 
 omega takes more than the exact names. All of these work:
 

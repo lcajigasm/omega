@@ -37,6 +37,7 @@ omega setup                        # pick a provider and store its key
 omega analyze                      # a first report that changes nothing
 omega quick                        # fast, safe maintenance: trash, caches, updates & health
 omega                              # the maintenance: update, clean, summarise
+omega ultra                        # everything, deeper: AI agents' worktrees, Docker one by one, every review; asks before each change
 ```
 
 Prefer a window? `brew install --cask lcajigasm/tap/omega-app` installs the
@@ -129,6 +130,7 @@ topgrade and Mole are excellent until something breaks. Then the work is yours.
 |---|---|---|
 | **Everything** | `omega` | Checks the state, updates, cleans up and tells you what changed |
 | **A guided run** | `omega full` | Every stage that applies to this machine, on one screen, with a plan you can edit |
+| **Everything, deeper** | `omega ultra` | Every stage of `omega full` plus a deep clean (the worktrees and files AI agents leave, Docker object by object, build folders, git) and every review omega has, on stronger models, with evidence for each change and your yes before it |
 | **Hands-off** | `omega unattended` | Upkeep with no questions (checks, updates, caches): the sudo password once, then every approval answered yes, on a screen that says what it is doing. It never touches your apps, what starts at login, the menu bar or your settings, and leaves out the updates that would close an open app |
 | **Quick clean** | `omega quick` | One-click safe cleanup (trash, caches), pending updates, free disk space and battery |
 | **Update** | `omega update` | Homebrew, the App Store, apt, dnf, pacman, winget, Scoop, npm, pnpm, pipx, uv, rustup, cargo and more |
@@ -319,7 +321,10 @@ agents: what is installed, which agent can see it, and installing, sharing,
 updating and removing them. The **Configure** view has the disk limits and
 the configuration assistants: what each tool takes, its limit, and the settings
 and actions of each one. The **AI agents** view shows what closed agent
-sessions left running and the sessions still open, and ends them in two clicks. On a Mac, when macOS blocks something for lack of a
+sessions left running and the sessions still open, and ends them in two clicks. Under **Full maintenance**, the
+**Ultra: everything, deeper** card runs the whole of `omega ultra` in one
+session, with the same evidence, checks and questions as the command (the
+Automatic mode is off while it runs). On a Mac, when macOS blocks something for lack of a
 privacy permission, the app and the command show a card that opens the right
 pane of System Settings and retry once you have granted it.
 

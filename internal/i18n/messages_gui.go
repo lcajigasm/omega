@@ -97,7 +97,19 @@ var guiMessages = map[string][]string{
 	"gui.tool.export":                 {"Export blueprint", "Exportar el plano", "Exporter le plan", "Bauplan exportieren", "Exportar a planta"},
 	"gui.tool.export.detail":          {"Writes what is installed to a file, to rebuild this machine elsewhere", "Escribe en un archivo lo que hay instalado, para rehacer este equipo en otro", "Écrit dans un fichier ce qui est installé, pour refaire cette machine ailleurs", "Schreibt in eine Datei, was installiert ist, um diesen Rechner woanders nachzubauen", "Escreve num ficheiro o que está instalado, para refazer esta máquina noutra"},
 
-	"gui.task.full":           {"Full maintenance", "Mantenimiento completo", "Maintenance complète", "Komplette Wartung", "Manutenção completa"},
+	"gui.task.full":  {"Full maintenance", "Mantenimiento completo", "Maintenance complète", "Komplette Wartung", "Manutenção completa"},
+	"gui.task.ultra": {"Ultra: everything, deeper", "Ultra: todo, a fondo", "Ultra : tout, à fond", "Ultra: alles, gründlich", "Ultra: tudo, a fundo"},
+	"gui.task.ultra.detail": {
+		"Every task plus a deep clean of what AI agents, Docker and builds leave, on stronger models; it shows the evidence and asks before every change",
+		"Todas las tareas y una limpieza profunda de lo que dejan los agentes de IA, Docker y las compilaciones, con modelos más potentes; muestra la evidencia y pregunta antes de cada cambio",
+		"Toutes les tâches plus un nettoyage profond de ce que laissent les agents d'IA, Docker et les builds, avec des modèles plus puissants ; montre la preuve et demande avant chaque changement",
+		"Alle Aufgaben plus eine Tiefenreinigung dessen, was KI-Agenten, Docker und Builds hinterlassen, mit stärkeren Modellen; zeigt den Beleg und fragt vor jeder Änderung",
+		"Todas as tarefas e uma limpeza profunda do que deixam os agentes de IA, o Docker e as compilações, com modelos mais potentes; mostra a evidência e pergunta antes de cada alteração",
+	},
+	"gui.mode.no_auto_ultra": {
+		"Ultra asks before every change", "Ultra pregunta antes de cada cambio", "Ultra demande avant chaque changement",
+		"Ultra fragt vor jeder Änderung", "Ultra pergunta antes de cada alteração",
+	},
 	"gui.task.full.detail":    {"Update everything, then clean up", "Actualiza todo y después limpia", "Tout mettre à jour, puis nettoyer", "Alles aktualisieren, dann aufräumen", "Atualiza tudo e depois limpa"},
 	"gui.task.update":         {"Update", "Actualizar", "Mettre à jour", "Aktualisieren", "Atualizar"},
 	"gui.task.update.detail":  {"Bring installed software up to date", "Pone al día el software instalado", "Mettre à jour les logiciels installés", "Installierte Software auf den neuesten Stand bringen", "Põe em dia o software instalado"},

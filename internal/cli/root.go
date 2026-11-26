@@ -45,6 +45,7 @@ type runFlags struct {
 	once           bool
 	stage          bool // a stage of the guided run: it ends when the model does
 	unattended     bool // omega full --unattended: nobody answers anything
+	ultra          bool // a stage of omega ultra: deeper, on stronger models, every change asked
 	demo           bool
 	auto           bool
 	noAI           bool
@@ -214,7 +215,7 @@ func newRoot(f *runFlags) *cobra.Command {
 	_ = root.PersistentFlags().MarkHidden(strings.TrimPrefix(scheduler.FlagScheduled, "--"))
 
 	root.AddCommand(
-		fullCmd(), quickCmd(f), customCmd(), fixCmd(f), setupCmd(), group(authCmd()), modelCmd(), modelsCmd(),
+		fullCmd(), ultraCmd(), quickCmd(f), customCmd(), fixCmd(f), setupCmd(), group(authCmd()), modelCmd(), modelsCmd(),
 		taskCmd(f, agent.TaskUpdate), taskCmd(f, agent.TaskClean), taskCmd(f, agent.TaskAnalyze),
 		taskCmd(f, agent.TaskHealth), taskCmd(f, agent.TaskTune), historyCmd(),
 		dockerCmd(), macCmd(), devCmd(), menuCmd(), group(configCmd()), stepsCmd(), notesCmd(), pendingCmd(),
@@ -234,7 +235,7 @@ var commandGroups = []struct {
 	id, title string
 	names     []string
 }{
-	{"run", "help.g.run", []string{"full", "quick", "update", "clean", "analyze", "health", "tune", "custom", "fix", "menu", "shell", "schedule", "rollback"}},
+	{"run", "help.g.run", []string{"full", "ultra", "quick", "update", "clean", "analyze", "health", "tune", "custom", "fix", "menu", "shell", "schedule", "rollback"}},
 	{"tools", "help.g.tools", []string{"assist", "agents", "skills", "dev", "docker", "mac", "uninstall"}},
 	{"system", "help.g.system", []string{"disk", "net", "git", "audit", "privacy"}},
 	{"setup", "help.g.setup", []string{"setup", "auth", "model", "models", "config", "steps", "history", "notes", "pending", "logs", "doctor", "export", "bootstrap"}},
@@ -607,6 +608,11 @@ func prepareRun(task string, f runFlags) (*run, error) {
 	} else {
 		task = i18n.T("task.custom")
 	}
+	// The whole of omega ultra in one session (the desktop app) is ultra
+	// whoever starts it.
+	if task == agent.TaskUltra && f.prompt == "" {
+		f.ultra, f.auto, f.yes = true, false, false
+	}
 	if f.auto {
 		prompt += agent.AutoSuffix
 	}
@@ -615,6 +621,12 @@ func prepareRun(task string, f runFlags) (*run, error) {
 	}
 	if f.unattended {
 		prompt += agent.UnattendedSuffix
+	}
+	if f.ultra && !f.unattended {
+		prompt += agent.UltraSuffix
+		if f.effort == "" {
+			f.effort = ultraEffort(cfg.Effort)
+		}
 	}
 	if f.stage && f.prompt == "" {
 		prompt += f.share.prompt()
@@ -630,8 +642,17 @@ func prepareRun(task string, f runFlags) (*run, error) {
 	if f.demo {
 		p, plan = demo.Provider(), modelPlan{Model: "claude-haiku-5-5", Escalate: "claude-sonnet-5-5",
 			Choices: []string{"claude-haiku-5-5", "claude-sonnet-5-5"}}
+		if f.ultra && !f.unattended {
+			// The scripted demo shows the models an ultra run would use.
+			info, _ := llm.Lookup("anthropic")
+			plan = ultraPlan(config.Default(), info, "", task)
+		}
 	} else if p, plan, err = resolveProvider(cfg, f.provider, f.model, f.effort, planTask); err != nil {
 		return nil, err
+	} else if f.ultra && !f.unattended {
+		if info, ok := llm.Lookup(p.Name()); ok {
+			plan = ultraPlan(cfg, info, f.model, task)
+		}
 	}
 	if err := cfg.Validate(); err != nil {
 		return nil, err
@@ -682,6 +703,15 @@ func (r *run) agent(interactive, demoInteractive bool, sudoPassword string) *age
 		Task:       r.task,
 		Command:    strings.Join(os.Args, " "),
 		Cache:      r.f.share.resultCache(),
+		Ultra:      r.f.ultra && !r.f.unattended,
+	}
+	if opts.Ultra {
+		// Every change is put to the person, whatever the approval policy
+		// says and whatever was given on the command line.
+		opts.Approval, opts.AutoYes = config.ApproveAll, false
+		if opts.MaxTurns == 0 {
+			opts.MaxTurns = ultraTurns
+		}
 	}
 	if r.f.demo {
 		opts.Provider = "anthropic"

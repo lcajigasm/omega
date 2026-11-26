@@ -69,6 +69,14 @@ commands with `&&`, `;`, `|`) and applies the highest risk level found:
   another user of the machine could write is not read.
 - git is always called with `core.fsmonitor` off, so looking at a folder that
   came with its own `.git/config` does not run the program it names.
+- In `omega ultra`, every change is asked: `--yes` and `--auto` are refused
+  and "approve all" does not switch to automatic. An option that changes
+  something must carry the model's evidence (the files git reports, the PR
+  state), or omega refuses the card. Each deletion of the deep clean is
+  checked again just before it runs and refused if it changed, and a git
+  worktree's work that exists only on this machine is saved under
+  `~/.local/state/omega/rescued/` before it goes; its branch always stays
+  ([more](tasks.md#everything-deeper-omega-ultra)).
 - Denied actions are shown in the interface and recorded in the run log.
 - The agent is instructed never to touch personal data (Documents, Desktop,
   Downloads, Photos, iCloud, SSH keys, keychains).

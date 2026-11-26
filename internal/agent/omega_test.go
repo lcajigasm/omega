@@ -71,7 +71,7 @@ func drive(t *testing.T, opts Options, answer Decision, calls ...llm.ToolCall) (
 
 func TestEveryToolHasASpecAndAHandler(t *testing.T) {
 	specs := map[string]bool{}
-	for _, s := range allToolSpecs() {
+	for _, s := range append(allToolSpecs(), ultraToolSpecs()...) {
 		if specs[s.Name] {
 			t.Errorf("tool %s is declared twice", s.Name)
 		}

@@ -125,6 +125,9 @@ func (m *model) planView() string {
 	}
 	var top strings.Builder
 	intro := i18n.T("full.plan_intro")
+	if g.info.Ultra {
+		intro = i18n.T("ultra.plan_intro")
+	}
 	if len(g.info.Flags) > 0 {
 		intro += " " + i18n.T("full.plan_flags", strings.Join(g.info.Flags, ", "))
 	}
@@ -299,11 +302,16 @@ func (m *model) chromeTop() string {
 	title, info := m.header.Task, []string{}
 	if m.g != nil {
 		title = i18n.T("full.title")
+		if m.g.info.Ultra {
+			title = i18n.T("ultra.title") + " " + ultraBadge.Render(" ULTRA ")
+		}
 		if m.g.info.Version != "" {
 			info = append(info, m.g.info.Version)
 		}
 		if m.header.Model != "" {
 			info = append(info, m.header.Model)
+		} else if m.g.info.Model != "" {
+			info = append(info, m.g.info.Model)
 		}
 		info = append(info, m.g.info.Flags...)
 	} else {

@@ -8,7 +8,7 @@ every step and every setting.
 | Page | What is in it |
 |---|---|
 | [Install and set up](install.md) | Homebrew, binaries for the three systems, the container image, the desktop app, building from source, `omega setup` |
-| [Tasks and the guided run](tasks.md) | What each task does, `omega full` stage by stage, unattended runs (cron, launchd, CI) |
+| [Tasks and the guided run](tasks.md) | What each task does, `omega full` stage by stage, `omega ultra`, unattended runs (cron, launchd, CI) |
 | [The interface](interface.md) | The full-screen interface, the session panel, shortcuts, slash commands, selection cards |
 | [Models and cost](models.md) | How the two models are chosen, prices, fixing a model, local models |
 | [Your tools](tools.md) | `omega tune`, `omega dev` and `omega docker` |
@@ -114,3 +114,7 @@ every step and every setting.
   it in one interface. A plan says what each stage does and why; you untick
   the ones you do not want, watch the route as they run, and skip, repeat or
   stop between them.
+- **Everything, deeper** (`omega ultra`): every stage of `omega full`, a deep
+  clean of the git worktrees and files AI agents leave, Docker object by
+  object and build folders, and every review omega has, on stronger models.
+  Each change comes with its evidence and waits for your yes.
