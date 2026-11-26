@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"io"
 	"strings"
 	"testing"
 
@@ -76,5 +77,37 @@ func TestUltraStagesFlags(t *testing.T) {
 	}
 	if _, err := pickUltraStages(ultraStages(), []string{"nope"}, nil); err == nil {
 		t.Errorf("an unknown stage must be an error")
+	}
+}
+
+// The ticked actions run grouped by the stage that found them, in the
+// order of the stages, each group in the order the audit found them.
+func TestPlanRunsInTheStagesOrder(t *testing.T) {
+	acts := []agent.PlannedAction{
+		{ID: "a", Stage: agent.TaskUltraCare}, {ID: "b", Stage: agent.TaskClean}, {ID: "c", Stage: agent.TaskUltraCare},
+		{ID: "d", Stage: agent.TaskUpdate}, {ID: "e", Stage: agent.TaskClean},
+	}
+	todo := pickActions(acts, []string{"e", "a", "d", "c"})
+	order, groups := planGroups(todo)
+	if strings.Join(order, ",") != strings.Join([]string{agent.TaskUpdate, agent.TaskClean, agent.TaskUltraCare}, ",") {
+		t.Fatalf("order %v", order)
+	}
+	var care []string
+	for _, a := range groups[agent.TaskUltraCare] {
+		care = append(care, a.ID)
+	}
+	if strings.Join(care, ",") != "a,c" || len(groups[agent.TaskClean]) != 1 {
+		t.Fatalf("groups %v", groups)
+	}
+	if ultraStageTitle(agent.TaskUltraDeep) == "" || ultraStageTitle("nope") != "" {
+		t.Error("stage titles")
+	}
+}
+
+func TestUltraReviewWithoutAPlan(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	err := ultraReview(io.Discard, runFlags{})
+	if err == nil || !strings.Contains(err.Error(), "omega ultra") {
+		t.Fatalf("%v", err)
 	}
 }

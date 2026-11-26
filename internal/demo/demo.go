@@ -19,14 +19,25 @@ func Provider() llm.Provider { return &provider{} }
 
 type provider struct{}
 
-func (provider) Name() string                                    { return "anthropic" }
-func (provider) Models(context.Context) ([]string, error)        { return nil, nil }
-func (provider) NewChat(string, string, []llm.ToolSpec) llm.Chat { return &chat{} }
+func (provider) Name() string                             { return "anthropic" }
+func (provider) Models(context.Context) ([]string, error) { return nil, nil }
+func (provider) NewChat(_ string, _ string, specs []llm.ToolSpec) llm.Chat {
+	for _, s := range specs {
+		if s.Name == "plan_actions" {
+			// The stage is known from the task text of the first turn.
+			return &chat{audit: "audit"}
+		}
+	}
+	return &chat{}
+}
 
 type chat struct {
 	turn  int
 	picks []string
 	n     int
+	// audit is the stage of omega ultra's audit this chat plays, "" for
+	// an ordinary session.
+	audit string
 }
 
 func (c *chat) SetModel(string) {}
@@ -57,6 +68,12 @@ func (c *chat) Send(ctx context.Context, text string, results []llm.ToolResult) 
 	c.turn++
 	u := llm.Usage{InputTokens: 3200 + int64(c.turn)*900, OutputTokens: 180 + int64(c.turn)*40}
 	r := &llm.Reply{Usage: u}
+	if c.audit != "" {
+		if c.turn == 1 {
+			c.audit = auditStage(text)
+		}
+		return c.auditTurn(r), nil
+	}
 	switch c.turn {
 	case 1:
 		r.Calls = []llm.ToolCall{call(c, "system_info", map[string]any{})}
@@ -145,4 +162,90 @@ func Exec(ctx context.Context, command string, _ time.Duration, onLine func(stri
 	}
 	time.Sleep(500 * time.Millisecond)
 	return runner.Result{Output: "ok", Duration: time.Since(start)}
+}
+
+// auditStage names the omega ultra stage a task text starts.
+func auditStage(text string) string {
+	switch {
+	case strings.Contains(text, "Deep clean"):
+		return "deep"
+	case strings.Contains(text, "every review omega has"):
+		return "care"
+	case strings.HasPrefix(text, "Update"):
+		return "update"
+	case strings.HasPrefix(text, "Clean"), strings.HasPrefix(text, "Free"):
+		return "clean"
+	}
+	return "other"
+}
+
+// demoActions are the actions each scripted audit stage plans.
+var demoActions = map[string][]map[string]any{
+	"update": {
+		{"id": "brew-upgrade", "category": "Updates", "title": "Update 6 Homebrew packages",
+			"why":    "brew outdated lists 6 packages behind: node 24.9.0 → 24.11.1 (security fixes), gh, ffmpeg, go, uv and ripgrep.",
+			"what":   "Homebrew downloads and installs the new versions; open terminals keep the old ones until restarted. The previous versions stay until the next cleanup.",
+			"impact": "6 packages", "risk": "normal", "recommended": true, "reversible": true,
+			"evidence": "brew outdated: 6 formulae, no casks; brew doctor reports nothing blocking an upgrade",
+			"steps":    []map[string]any{{"tool": "run_step", "input": map[string]any{"id": "brew"}}}},
+		{"id": "pipx-python", "category": "Repairs", "title": "Rebuild 4 pipx tools on Python 3.13",
+			"why":    "pipx upgrade-all fails: httpie, poetry, ruff and black still point at Python 3.12, which Homebrew replaced with 3.13.",
+			"what":   "pipx reinstalls the 4 tools on the current Python; their settings are kept. Until then those commands fail to start.",
+			"impact": "fixes 4 commands", "risk": "normal", "recommended": true,
+			"evidence": "pipx list shows 4 venvs with a missing interpreter (python@3.12 is not installed)",
+			"steps":    []map[string]any{{"tool": "run_command", "input": map[string]any{"command": "pipx reinstall-all --python python3.13", "reason": "Rebuild the pipx environments"}}}},
+	},
+	"clean": {
+		{"id": "brew-cache", "category": "Cleanup", "title": "Clear the Homebrew cache", "bytes": 8_900_000_000,
+			"why":  "~/Library/Caches/Homebrew holds 8.9 GB of downloads and old versions of packages that are no longer installed.",
+			"what": "Homebrew removes old versions and downloads. Nothing installed changes; a reinstall of an old version would download it again.",
+			"risk": "normal", "recommended": true,
+			"evidence": "brew cleanup --dry-run lists 412 files, 8.9 GB; none belongs to an installed version",
+			"steps":    []map[string]any{{"tool": "run_step", "input": map[string]any{"id": "brew-cleanup"}}}},
+		{"id": "npm-cache", "category": "Cleanup", "title": "Empty the npm cache", "bytes": 1_300_000_000,
+			"why":  "~/.npm/_cacache takes 1.3 GB; npm verifies it on every install and downloads again what it needs.",
+			"what": "The next npm install of each package downloads it again. No project changes.",
+			"risk": "normal", "recommended": true,
+			"evidence": "du -sh ~/.npm/_cacache: 1.3G; npm cache verify: no errors",
+			"steps":    []map[string]any{{"tool": "run_step", "input": map[string]any{"id": "npm-cache"}}}},
+	},
+	"deep": {
+		{"id": "xcode-derived", "category": "Deep clean", "title": "Delete Xcode DerivedData", "bytes": 4_100_000_000,
+			"why":      "~/Library/Developer/Xcode/DerivedData holds 4.1 GB of build products of 23 projects, the newest from 19 days ago.",
+			"what":     "Xcode rebuilds what a project needs the next time it is opened; the first build takes longer. Cannot be undone, nothing is lost.",
+			"risk":     "dangerous",
+			"evidence": "du -sh DerivedData: 4.1G; no xcodebuild process running; Xcode recreates it",
+			"steps":    []map[string]any{{"tool": "run_command", "input": map[string]any{"command": "rm -rf ~/Library/Developer/Xcode/DerivedData/*", "reason": "Delete Xcode build products"}}}},
+		{"id": "docker-build-cache", "category": "Docker", "title": "Prune the Docker build cache", "bytes": 6_200_000_000,
+			"why":  "docker system df: the build cache takes 6.2 GB, all of it unused for more than 30 days.",
+			"what": "Docker removes the cached build layers; the next build of each image takes longer. Images and containers stay.",
+			"risk": "normal", "recommended": true,
+			"evidence": "docker system df -v: 6.2 GB reclaimable build cache, no build running",
+			"steps":    []map[string]any{{"tool": "run_command", "input": map[string]any{"command": "docker builder prune -f", "reason": "Free the Docker build cache"}}}},
+	},
+	"care": {
+		{"id": "agents-left", "category": "AI agents", "title": "End 3 processes closed agent sessions left", "impact": "~1.2 GB RAM",
+			"why":  "Two Vite dev servers and a Chromium started by Claude Code sessions that ended yesterday still run and hold 1.2 GB of memory.",
+			"what": "omega ends the 3 processes; nothing running in an open session is touched. Start a dev server again when you need it.",
+			"risk": "normal", "recommended": true,
+			"evidence": "omega agents --json: 3 orphans whose parent session exited 21 h ago",
+			"steps":    []map[string]any{{"tool": "omega_cmd", "input": map[string]any{"action": "agents_kill"}}}},
+	},
+}
+
+// auditTurn plays one turn of an audit stage: look, plan, summarise.
+func (c *chat) auditTurn(r *llm.Reply) *llm.Reply {
+	acts := demoActions[c.audit]
+	switch {
+	case c.turn == 1:
+		r.Calls = []llm.ToolCall{call(c, "system_info", map[string]any{})}
+	case c.turn == 2:
+		r.Calls = []llm.ToolCall{step(c, "disk"), step(c, "brew-outdated")}
+	case c.turn == 3 && len(acts) > 0:
+		r.Text = "Audit findings ready; adding them to the plan."
+		r.Calls = []llm.ToolCall{call(c, "plan_actions", map[string]any{"actions": acts})}
+	default:
+		r.Text = fmt.Sprintf("**Audit of this stage done.** %d actions planned for your review; nothing was changed.", len(acts))
+	}
+	return r
 }

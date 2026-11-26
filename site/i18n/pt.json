@@ -316,7 +316,7 @@
   "cmds.g6": "Fazer à tua maneira",
   "cmd.omega": "Verifica o estado, atualiza, limpa e diz-te o que mudou",
   "cmd.full": "Todas as etapas que se aplicam a esta máquina num só ecrã, com um plano que podes editar",
-  "cmd.ultra": "Tudo o que o omega full faz, mais a fundo e com modelos mais potentes: os worktrees git e os ficheiros que os agentes de IA deixam (comparados com o remoto), Docker objeto a objeto, pastas de build e todas as revisões, com a evidência de cada alteração e o teu sim antes",
+  "cmd.ultra": "Tudo o que o omega full faz, mais a fundo e com modelos mais potentes, em duas etapas: uma auditoria que não muda nada e não precisa de ninguém (os worktrees git e os ficheiros que os agentes de IA deixam, comparados com o remoto, Docker objeto a objeto, pastas de build e todas as revisões), e depois um plano de ações autoexplicativas onde marcas o que o omega faz",
   "cmd.unattended": "Manutenção sem perguntas: a palavra-passe do sudo uma vez e depois verificações, atualizações e caches com sim a todas as aprovações",
   "cmd.quick": "A parte segura em segundos: o Lixo, as caches, uma verificação de atualizações e um relatório do disco e da bateria",
   "cmd.update": "Homebrew, a App Store, apt, dnf, pacman, winget, Scoop, npm, pnpm, pipx, uv, rustup, cargo e mais",

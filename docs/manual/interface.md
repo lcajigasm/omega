@@ -49,10 +49,14 @@ omega's TUI follows the conventions of Claude Code's CLI:
 | `ctrl+c` | cancel the run |
 | `Esc` when the line is empty, or empty `Enter` | end the session (`Esc` first clears a typed line) |
 
-In `omega ultra` the top bar carries an **ULTRA** tag, and the approval mode
-stays on asking: `shift+tab` does not reach auto approve, `a` approves only
-the request in front of you, and every change comes as a card with the
-evidence for it.
+In `omega ultra` the top bar carries an **ULTRA** tag. The audit and the
+carrying out of the plan use the unattended run's screen; between them, the
+plan is a screen of its own: the actions grouped on the left with their tick
+box, risk and size, the details of the one under the cursor on the right (what
+the audit found, what will happen, what verified it, the steps that run), and
+the totals on top: how many are ticked, how many of those are high risk and
+how much space they free. In the desktop app, an ultra session keeps the
+approval mode on asking and every change comes as a card with its evidence.
 
 A model you pick by hand is kept: omega no longer switches to the stronger
 model on failure. Switching to read only mid-run tells the model, which then

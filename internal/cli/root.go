@@ -34,18 +34,21 @@ import (
 )
 
 type runFlags struct {
-	provider       string
-	model          string
-	effort         string
-	yes            bool
-	noTUI          bool
-	dryRun         bool
-	sudo           bool
-	prompt         string
-	once           bool
-	stage          bool // a stage of the guided run: it ends when the model does
-	unattended     bool // omega full --unattended: nobody answers anything
-	ultra          bool // a stage of omega ultra: deeper, on stronger models, every change asked
+	provider   string
+	model      string
+	effort     string
+	yes        bool
+	noTUI      bool
+	dryRun     bool
+	sudo       bool
+	prompt     string
+	once       bool
+	stage      bool // a stage of the guided run: it ends when the model does
+	unattended bool // omega full --unattended: nobody answers anything
+	ultra      bool // a stage of omega ultra: deeper, on stronger models, every change asked
+	// audit is the plan of omega ultra's audit: the stage changes nothing
+	// and puts every change it recommends in it.
+	audit          *agent.Plan
 	demo           bool
 	auto           bool
 	noAI           bool
@@ -616,7 +619,7 @@ func prepareRun(task string, f runFlags) (*run, error) {
 	if f.auto {
 		prompt += agent.AutoSuffix
 	}
-	if f.stage {
+	if f.stage && f.audit == nil {
 		prompt += agent.StageSuffix
 	}
 	if f.unattended {
@@ -628,10 +631,13 @@ func prepareRun(task string, f runFlags) (*run, error) {
 			f.effort = ultraEffort(cfg.Effort)
 		}
 	}
+	if f.audit != nil {
+		prompt += agent.AuditSuffix + f.audit.PromptSummary()
+	}
 	if f.stage && f.prompt == "" {
 		prompt += f.share.prompt()
 	}
-	readOnly := f.dryRun || task == agent.TaskAnalyze
+	readOnly := f.dryRun || task == agent.TaskAnalyze || f.audit != nil
 
 	planTask := task
 	if f.prompt != "" {
@@ -704,6 +710,7 @@ func (r *run) agent(interactive, demoInteractive bool, sudoPassword string) *age
 		Command:    strings.Join(os.Args, " "),
 		Cache:      r.f.share.resultCache(),
 		Ultra:      r.f.ultra && !r.f.unattended,
+		Audit:      r.f.audit,
 	}
 	if opts.Ultra {
 		// Every change is put to the person, whatever the approval policy
@@ -830,7 +837,7 @@ func runAgent(task string, f runFlags) error {
 	sudoPassword := ""
 	if f.sudo && goos == "windows" {
 		fmt.Fprintln(os.Stderr, i18n.T("sudo.not_windows"))
-	} else if f.sudo && !r.readOnly && stdinTTY {
+	} else if f.sudo && (!r.readOnly || f.audit != nil) && stdinTTY {
 		if sudoPassword, err = askSudo(); err != nil {
 			return err
 		}

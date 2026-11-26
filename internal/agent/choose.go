@@ -44,6 +44,10 @@ func toolProposeActions(ctx context.Context, a *Agent, in map[string]any) (strin
 	if len(opts) == 0 {
 		return "", fmt.Errorf("options is empty")
 	}
+	if a.opts.Audit != nil {
+		return "", fmt.Errorf("omega ultra audit: there are no cards during the audit. Put each change in the plan with plan_actions, " +
+			"which the user reviews when the audit ends")
+	}
 	if a.opts.Ultra && !a.opts.Unattended {
 		if why := ultraEvidence(opts, evidence); why != "" {
 			a.emit(Event{Kind: EvDenied, Tool: "propose_actions", Command: question, Reason: why})

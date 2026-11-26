@@ -69,10 +69,11 @@ commands with `&&`, `;`, `|`) and applies the highest risk level found:
   another user of the machine could write is not read.
 - git is always called with `core.fsmonitor` off, so looking at a folder that
   came with its own `.git/config` does not run the program it names.
-- In `omega ultra`, every change is asked: `--yes` and `--auto` are refused
-  and "approve all" does not switch to automatic. An option that changes
-  something must carry the model's evidence (the files git reports, the PR
-  state), or omega refuses the card. Each deletion of the deep clean is
+- In `omega ultra`, the audit changes nothing, and only what you tick in its
+  plan runs: `--yes` and `--auto` are refused. An action must carry the
+  model's evidence (the files git reports, the PR state), or omega refuses
+  it, and each of its steps is checked against the safety policy when it is
+  planned and again when it runs. Each deletion of the deep clean is
   checked again just before it runs and refused if it changed, and a git
   worktree's work that exists only on this machine is saved under
   `~/.local/state/omega/rescued/` before it goes; its branch always stays
