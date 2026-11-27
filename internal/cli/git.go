@@ -309,7 +309,7 @@ func cleanBranches(ctx context.Context, w, progressTo io.Writer, yes, dryRun boo
 		}
 		ids, err := ui.Pick(i18n.N("git.pick_title", count), i18n.T("git.pick_hint"), opts, true, true, os.Stdin, w)
 		if errors.Is(err, ui.ErrCancelled) || (err == nil && len(ids) == 0) {
-			fmt.Fprintln(w, i18n.T("tools.nothing_done"))
+			say(w, ui.MarkSkip, i18n.T("tools.nothing_done"))
 			return nil
 		}
 		if err != nil {

@@ -296,10 +296,12 @@ func firstLine(s string) string {
 func ago(t time.Time) string {
 	d := time.Since(t)
 	switch {
+	case d < time.Minute:
+		return i18n.T("menu.ago_now")
 	case d < time.Hour:
 		return i18n.T("menu.ago_min", int(d.Minutes()))
 	case d < 48*time.Hour:
-		return i18n.T("menu.ago_hours", int(d.Hours()))
+		return i18n.N("menu.ago_hours", int(d.Hours()))
 	}
 	return i18n.T("menu.ago_days", int(d.Hours()/24))
 }

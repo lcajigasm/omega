@@ -12,6 +12,7 @@ import (
 	"github.com/lcajigasm/omega/internal/config"
 	"github.com/lcajigasm/omega/internal/i18n"
 	"github.com/lcajigasm/omega/internal/llm"
+	"github.com/lcajigasm/omega/internal/ui"
 )
 
 // keyPrefix is the usual prefix of each provider's keys, used only to warn.
@@ -46,26 +47,27 @@ func checkKey(cfg *config.Config, provider, key string) error {
 // per line: the desktop app shows them in its window.
 func checkKeyTo(w io.Writer, cfg *config.Config, provider, key string) error {
 	info, _ := llm.Lookup(provider)
+	r := ui.NewReport(w)
 	if keyLooksWrong(key) {
 		return fmt.Errorf("%s", i18n.T("setup.key_url", info.KeyURL))
 	}
 	if pre := keyPrefix[provider]; pre != "" && !strings.HasPrefix(key, pre) {
-		fmt.Fprintln(w, i18n.T("setup.key_prefix", info.Label, pre))
+		fmt.Fprintln(w, r.Glyph(ui.MarkWarn)+" "+i18n.T("setup.key_prefix", info.Label, pre))
 	}
 	p, err := llm.New(provider, llm.Options{APIKey: key, BaseURL: cfg.BaseURLFor(provider)})
 	if err != nil {
 		return err
 	}
-	fmt.Fprintln(w, i18n.T("setup.key_checking", info.Label))
+	fmt.Fprintln(w, r.Faint(i18n.T("setup.key_checking", info.Label)))
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	switch err := llm.Verify(ctx, p); {
 	case err == nil:
-		fmt.Fprintln(w, i18n.T("setup.key_ok"))
+		fmt.Fprintln(w, r.Glyph(ui.MarkOK)+" "+i18n.T("setup.key_ok"))
 	case errors.Is(err, llm.ErrUnauthorized):
 		return fmt.Errorf("%s", i18n.T("setup.key_rejected", info.Label, err))
 	default:
-		fmt.Fprintln(w, i18n.T("setup.key_unverified", err))
+		fmt.Fprintln(w, r.Glyph(ui.MarkWarn)+" "+i18n.T("setup.key_unverified", err))
 	}
 	return nil
 }

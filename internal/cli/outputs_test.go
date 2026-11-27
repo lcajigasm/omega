@@ -206,7 +206,7 @@ func TestDeterministicIsTranslated(t *testing.T) {
 	d, _, _, out := newDet(runFlags{dryRun: true}, false, true)
 	d.cfg.SkipSteps = nil
 	_ = d.run(context.Background(), agent.TaskClean)
-	if !strings.Contains(out.String(), "Limpieza · sin IA") || strings.Contains(out.String(), "Deterministic Mode") {
+	if !strings.Contains(out.String(), "omega clean  · sin IA") || !strings.Contains(out.String(), "LIMPIEZA") || strings.Contains(out.String(), "Deterministic Mode") {
 		t.Errorf("clean in Spanish:\n%s", out.String())
 	}
 	if !strings.Contains(d.report.Summary, "Limpieza") {

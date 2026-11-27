@@ -1,12 +1,12 @@
  Ω omega  AI maintenance for your Mac   last run 2 days ago
  CPU  23%   RAM  62%   DISK  80%   NET ↓1.5 MB/s ↑40 KB/s
 
-  MAINTENANCE ──────────────────────────────────────────────
+  MAINTENANCE ─────────────────────────────────
 ❯ omega           Full maintenance
   omega update +  Update all installed software
   omega -p "…" …  Ask in words
 
-  YOUR MAC ─────────────────────────────────────────────────
+  YOUR MAC ────────────────────────────────────
   omega mac ›     Review your Mac
 
 

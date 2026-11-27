@@ -86,58 +86,71 @@ func writeIndented(w io.Writer, v any) error {
 }
 
 func writeTools(w io.Writer, r assist.Report) {
-	fmt.Fprintln(w, "\n"+strings.ToUpper(i18n.T("assist.title")))
+	rep := ui.NewReport(w)
+	rep.Title("omega assist", i18n.T("assist.title"))
+	rep.Blank()
 	var missing []string
+	var rows [][]string
+	var marks []ui.Mark
 	for _, t := range r.Tools {
 		if !t.Installed {
 			missing = append(missing, t.Name)
 			continue
 		}
-		state := "✓ " + i18n.T("assist.nothing_pending")
+		mark, state := ui.MarkOK, rep.Muted(i18n.T("assist.nothing_pending"))
 		if t.Pending > 0 {
-			state = "● " + i18n.T("assist.to_review", t.Pending)
+			mark, state = ui.MarkWarn, rep.Warn(i18n.T("assist.to_review", t.Pending))
 		}
-		extra := t.Version
-		if t.DataText != "" {
-			extra = strings.TrimSpace(extra + "  " + t.DataText)
+		var extra []string
+		for _, e := range []string{t.Version, t.DataText} {
+			if e != "" {
+				extra = append(extra, e)
+			}
 		}
 		if t.Running {
-			extra += "  (" + i18n.T("assist.open") + ")"
+			extra = append(extra, i18n.T("assist.open"))
 		}
-		fmt.Fprintf(w, "  %-16s %-18s %-20s %s\n", t.ID, t.Name, state, extra)
+		rows = append(rows, []string{t.ID, t.Name, state, rep.Muted(strings.Join(extra, " · "))})
+		marks = append(marks, mark)
 	}
+	rep.Table([]ui.Column{{}, {}, {}, {Wrap: true}}, rows, marks)
 	if len(missing) > 0 {
-		fmt.Fprintln(w, "\n  "+i18n.T("assist.not_found", strings.Join(missing, ", ")))
+		rep.Blank()
+		rep.Line(rep.Glyph(ui.MarkOff) + " " + rep.Muted(i18n.T("assist.not_found", strings.Join(missing, ", "))))
 	}
-	fmt.Fprintln(w, "\n  "+i18n.T("assist.hint"))
+	rep.Blank()
+	rep.Hint(i18n.T("assist.hint"))
 }
 
-func checkLine(w io.Writer, c assist.Check) {
-	mark := "✓"
+// checkLine is one check of a tool: its title and id, then what it is now,
+// why it matters and where it is set, under it.
+func checkLine(r *ui.Report, c assist.Check) {
+	mark := ui.MarkOK
 	switch {
 	case c.Kind == assist.KindInfo:
-		mark = "·"
+		mark = ui.MarkOff
 	case !c.OK:
-		mark = "●"
+		mark = ui.MarkWarn
 	}
-	fmt.Fprintf(w, "\n  %s %s  [%s]\n", mark, c.Title, c.ID)
-	fmt.Fprintf(w, "      %s", i18n.T("assist.now", c.Current))
+	r.Blank()
+	r.Check(mark, c.Title, 0, r.Faint(c.ID))
+	facts := []string{i18n.T("assist.now", c.Current)}
 	if c.SizeText != "" && !strings.Contains(c.Current, c.SizeText) {
-		fmt.Fprintf(w, "   %s", i18n.T("assist.size", c.SizeText))
+		facts = append(facts, i18n.T("assist.size", c.SizeText))
 	}
 	if c.Recommended != "" && !c.OK && c.Kind != assist.KindAction {
-		fmt.Fprintf(w, "   %s", strings.TrimSpace(i18n.T("assist.recommended", c.Recommended+" "+unitWord(c))))
+		facts = append(facts, strings.TrimSpace(i18n.T("assist.recommended", c.Recommended+" "+unitWord(c))))
 	}
-	fmt.Fprintln(w)
-	fmt.Fprintf(w, "      %s\n", c.Why)
+	r.Detail(strings.Join(facts, " · "))
+	r.Detail(c.Why)
 	if c.File != "" {
-		fmt.Fprintf(w, "      %s\n", i18n.T("assist.file", c.File))
+		r.Detail(i18n.T("assist.file", tildePath(c.File)))
 	}
 	if c.Note != "" {
-		fmt.Fprintf(w, "      %s\n", c.Note)
+		r.Detail(c.Note)
 	}
 	if c.Blocked != "" {
-		fmt.Fprintf(w, "      ⚠ %s\n", c.Blocked)
+		r.Line("  " + r.Glyph(ui.MarkWarn) + " " + r.Warn(c.Blocked))
 	}
 }
 
@@ -151,25 +164,24 @@ func unitWord(c assist.Check) string {
 // walkTool shows a tool's checks and, on a terminal, asks about each one
 // with something to do.
 func walkTool(w io.Writer, in io.Reader, t *assist.Tool, yes, dry bool) error {
-	fmt.Fprintf(w, "\n%s", strings.ToUpper(t.Name))
-	if t.Version != "" {
-		fmt.Fprintf(w, "  %s", t.Version)
-	}
-	fmt.Fprintln(w)
+	r := ui.NewReport(w)
+	r.Title("omega assist "+t.ID, strings.TrimSpace(t.Name+" "+t.Version))
 	if !t.Installed {
-		fmt.Fprintln(w, "  "+i18n.T("assist.not_installed"))
+		r.Blank()
+		r.Line(r.Glyph(ui.MarkOff) + " " + i18n.T("assist.not_installed"))
 		return nil
 	}
-	fmt.Fprintf(w, "  %s\n", t.About)
+	r.Blank()
+	r.Line(t.About)
 	if t.Where != "" {
-		fmt.Fprintf(w, "  %s", t.Where)
+		where := tildePath(t.Where)
 		if t.DataText != "" {
-			fmt.Fprintf(w, " (%s)", t.DataText)
+			where += " · " + t.DataText
 		}
-		fmt.Fprintln(w)
+		r.Line(r.Muted(where))
 	}
 	for _, c := range t.Checks {
-		checkLine(w, c)
+		checkLine(r, c)
 	}
 	pending := 0
 	for _, c := range t.Checks {
@@ -178,7 +190,8 @@ func walkTool(w io.Writer, in io.Reader, t *assist.Tool, yes, dry bool) error {
 		}
 	}
 	if pending == 0 {
-		fmt.Fprintln(w, "\n✓ "+i18n.T("assist.nothing_to_change"))
+		r.Blank()
+		fmt.Fprintln(w, r.Glyph(ui.MarkOK)+" "+i18n.T("assist.nothing_to_change"))
 		return nil
 	}
 	if dry {
@@ -186,7 +199,8 @@ func walkTool(w io.Writer, in io.Reader, t *assist.Tool, yes, dry bool) error {
 	}
 	interactive := !yes && stdinIsTerminal()
 	if !yes && !interactive {
-		fmt.Fprintln(w, "\n"+i18n.T("assist.need_yes_walk"))
+		r.Blank()
+		r.Hint(i18n.T("assist.need_yes_walk"))
 		return nil
 	}
 	fmt.Fprintln(w)
@@ -246,7 +260,7 @@ func applyOne(w io.Writer, c *assist.Check, value string, yes bool) error {
 		return fmt.Errorf("%s: %s", c.ID, c.Blocked)
 	}
 	if !yes {
-		checkLine(w, *c)
+		checkLine(ui.NewReport(w), *c)
 		if !stdinIsTerminal() {
 			return errors.New(i18n.T("assist.need_yes"))
 		}
@@ -262,7 +276,7 @@ func applyOne(w io.Writer, c *assist.Check, value string, yes bool) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(w, "✓ %s\n", msg)
+	say(w, ui.MarkOK, msg)
 	return nil
 }
 
@@ -311,7 +325,7 @@ func diskLimitsCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "✓ %s\n", msg)
+			say(cmd.OutOrStdout(), ui.MarkOK, msg)
 			return nil
 		},
 	}
@@ -329,7 +343,7 @@ func diskLimitsCmd() *cobra.Command {
 				}
 			}
 			if len(todo) == 0 {
-				fmt.Fprintln(w, "✓ "+i18n.T("limits.all_set"))
+				say(w, ui.MarkOK, i18n.T("limits.all_set"))
 				return nil
 			}
 			for _, ch := range todo {
@@ -342,7 +356,7 @@ func diskLimitsCmd() *cobra.Command {
 				if !stdinIsTerminal() {
 					return errors.New(i18n.T("assist.need_yes"))
 				}
-				if !askYesNo("\n" + i18n.T("limits.ask_write", len(todo))) {
+				if !askYesNo("\n" + i18n.N("limits.ask_write", len(todo))) {
 					return nil
 				}
 			}
@@ -364,7 +378,7 @@ func diskLimitsCmd() *cobra.Command {
 				return err
 			}
 			if len(plan) == 0 {
-				fmt.Fprintln(w, "✓ "+i18n.T("limits.none_over"))
+				say(w, ui.MarkOK, i18n.T("limits.none_over"))
 				return nil
 			}
 			for _, l := range plan {
@@ -397,36 +411,44 @@ func diskLimitsCmd() *cobra.Command {
 }
 
 func writeLimits(w io.Writer, r assist.Report) {
-	fmt.Fprintln(w, "\n"+strings.ToUpper(i18n.T("limits.title")))
-	fmt.Fprintf(w, "  %-28s %9s  %-30s %s\n", strings.ToUpper(i18n.T("limits.col_check")), strings.ToUpper(i18n.T("disk.col_size")),
-		strings.ToUpper(i18n.T("limits.col_now")), strings.ToUpper(i18n.T("limits.col_rec")))
+	rep := ui.NewReport(w)
+	rep.Title("omega disk limits", "")
+	rep.Blank()
+	var rows [][]string
+	var marks []ui.Mark
 	for _, c := range r.Disk {
-		rec := ""
+		rec, mark := "", ui.MarkWarn
 		switch {
 		case c.Kind == assist.KindInfo:
-			rec = i18n.T("limits.measured")
+			rec, mark = i18n.T("limits.measured"), ui.MarkOff
 		case c.Kind == assist.KindCleanup && c.Free > 0 && !c.OK:
 			rec = i18n.T("assist.free", ui.Bytes(c.Free))
 		case c.Kind == assist.KindBudget && c.Free > 0:
 			rec = i18n.T("limits.over_budget", ui.Bytes(c.Free))
 		case c.Kind == assist.KindBudget && c.OK && strings.HasPrefix(c.Current, "no budget"):
-			rec = i18n.T("limits.set_budget")
+			rec, mark = i18n.T("limits.set_budget"), ui.MarkOff
 		case !c.OK:
 			rec = c.Recommended + " " + unitWord(c)
 		default:
-			rec = "✓"
+			mark = ui.MarkOK
 		}
 		if c.Blocked != "" && !c.OK {
 			rec += " (" + i18n.T("limits.app_open") + ")"
 		}
-		cur := c.Current
-		if len(cur) > 30 {
-			cur = cur[:29] + "…"
+		if mark == ui.MarkWarn {
+			rec = rep.Warn(strings.TrimSpace(rec))
+		} else {
+			rec = rep.Muted(strings.TrimSpace(rec))
 		}
-		fmt.Fprintf(w, "  %-28s %9s  %-30s %s\n", c.ID, c.SizeText, cur, strings.TrimSpace(rec))
+		rows = append(rows, []string{c.ID, c.SizeText, cut(c.Current, 30), rec})
+		marks = append(marks, mark)
 	}
-	fmt.Fprintln(w, "\n  "+i18n.T("limits.summary", r.DiskText, r.FreeText))
-	fmt.Fprintln(w, "  "+i18n.T("limits.hint"))
+	rep.Table([]ui.Column{{Title: strings.ToUpper(i18n.T("limits.col_check"))}, {Title: strings.ToUpper(i18n.T("disk.col_size")), Right: true},
+		{Title: strings.ToUpper(i18n.T("limits.col_now"))}, {Title: strings.ToUpper(i18n.T("limits.col_rec")), Wrap: true}}, rows, marks)
+	rep.Blank()
+	rep.Line(rep.Muted(i18n.T("limits.summary", r.DiskText, r.FreeText)))
+	rep.Blank()
+	rep.Hint(i18n.T("limits.hint"))
 }
 
 // ---------- the desktop app ----------

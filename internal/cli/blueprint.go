@@ -70,7 +70,7 @@ func exportBlueprint(ctx context.Context, w, errw io.Writer, file string, force,
 				return fmt.Errorf("%s", i18n.T("export.exists", absPath))
 			}
 			if !confirm(i18n.T("export.overwrite", absPath)) {
-				fmt.Fprintln(w, i18n.T("tools.nothing_done"))
+				fmt.Fprintln(w, ui.NewReport(w).Glyph(ui.MarkSkip)+" "+i18n.T("tools.nothing_done"))
 				return nil
 			}
 		}
@@ -153,31 +153,38 @@ func (b bootstrapRun) run(w io.Writer, file string) error {
 	}
 	writeRoutines, replacesRoutines := bp.RoutinesChange()
 
-	fmt.Fprintln(w, i18n.T("bp.plan", file, bp.ExportDate.Format("2006-01-02"), bp.Platform))
+	r := ui.NewReport(w)
+	r.Title("omega bootstrap", tildePath(file))
+	r.Blank()
+	r.Line(r.Muted(i18n.T("bp.plan", tildePath(file), bp.ExportDate.Format("2006-01-02"), bp.Platform)))
+	r.Blank()
+	step := func(text string) { r.Line(r.Glyph(ui.MarkInfo) + " " + text) }
 	for _, a := range actions {
-		fmt.Fprintf(w, "  • %s\n      $ %s\n", a.What, a.Command)
+		step(a.What)
+		fmt.Fprintln(w, "    "+r.Faint("$ "+r.Clip(a.Command, 6)))
 	}
 	for _, s := range skipped {
-		fmt.Fprintln(w, "  – "+i18n.T("bp.skipped", s))
+		r.Line(r.Glyph(ui.MarkSkip) + " " + r.Muted(i18n.T("bp.skipped", s)))
 	}
 	if newCfg != nil {
-		fmt.Fprintln(w, "  • "+i18n.T("bp.config_replace", config.Path(), config.Path()+".bak"))
+		step(i18n.T("bp.config_replace", tildePath(config.Path()), tildePath(config.Path())+".bak"))
 	}
 	for _, k := range kept {
-		fmt.Fprintln(w, "      "+i18n.T("bp.config_kept", k))
+		r.Detail(i18n.T("bp.config_kept", k))
 	}
 	switch {
 	case replacesRoutines:
-		fmt.Fprintln(w, "  • "+i18n.T("bp.routines_replace", config.CustomPath(), config.CustomPath()+".bak"))
+		step(i18n.T("bp.routines_replace", tildePath(config.CustomPath()), tildePath(config.CustomPath())+".bak"))
 	case writeRoutines:
-		fmt.Fprintln(w, "  • "+i18n.T("bp.routines_write", config.CustomPath()))
+		step(i18n.T("bp.routines_write", tildePath(config.CustomPath())))
 	}
 	if len(actions) == 0 && newCfg == nil && !writeRoutines {
-		fmt.Fprintln(w, i18n.T("bp.nothing"))
+		r.Line(r.Glyph(ui.MarkOK) + " " + i18n.T("bp.nothing"))
 		return nil
 	}
 	if b.dryRun {
-		fmt.Fprintln(w, "\n"+i18n.T("bp.dry_run"))
+		r.Blank()
+		r.Hint(i18n.T("bp.dry_run"))
 		return nil
 	}
 	if !b.yes && !b.tty {
@@ -199,12 +206,13 @@ func (b bootstrapRun) run(w io.Writer, file string) error {
 	case b.tty:
 		routines = b.confirm(i18n.T("bp.ask_routines_replace", config.CustomPath()))
 	default:
-		fmt.Fprintln(w, "  – "+i18n.T("bp.routines_kept", config.CustomPath()))
+		r.Line(r.Glyph(ui.MarkSkip) + " " + i18n.T("bp.routines_kept", tildePath(config.CustomPath())))
 	}
 	if !install && !restore && !routines {
-		fmt.Fprintln(w, i18n.T("bp.cancelled"))
+		fmt.Fprintln(w, r.Glyph(ui.MarkSkip)+" "+i18n.T("bp.cancelled"))
 		return nil
 	}
+	done := func(m ui.Mark, text string) { fmt.Fprintln(w, "  "+r.Glyph(m)+" "+text) }
 
 	failed := 0
 	if restore {
@@ -212,11 +220,11 @@ func (b bootstrapRun) run(w io.Writer, file string) error {
 		switch {
 		case err != nil:
 			failed++
-			fmt.Fprintln(w, "  ✗ "+i18n.T("bp.config_failed", err))
+			done(ui.MarkErr, i18n.T("bp.config_failed", err))
 		case backup != "":
-			fmt.Fprintln(w, "  ✓ "+i18n.T("bp.config_saved", backup))
+			done(ui.MarkOK, i18n.T("bp.config_saved", tildePath(backup)))
 		default:
-			fmt.Fprintln(w, "  ✓ "+i18n.T("bp.config_new", config.Path()))
+			done(ui.MarkOK, i18n.T("bp.config_new", tildePath(config.Path())))
 		}
 	}
 	if routines {
@@ -224,11 +232,11 @@ func (b bootstrapRun) run(w io.Writer, file string) error {
 		switch {
 		case err != nil:
 			failed++
-			fmt.Fprintln(w, "  ✗ "+i18n.T("bp.routines_failed", err))
+			done(ui.MarkErr, i18n.T("bp.routines_failed", err))
 		case backup != "":
-			fmt.Fprintln(w, "  ✓ "+i18n.T("bp.routines_saved", backup))
+			done(ui.MarkOK, i18n.T("bp.routines_saved", tildePath(backup)))
 		default:
-			fmt.Fprintln(w, "  ✓ "+i18n.T("bp.routines_new", config.CustomPath()))
+			done(ui.MarkOK, i18n.T("bp.routines_new", tildePath(config.CustomPath())))
 		}
 	}
 	if install {
@@ -237,6 +245,7 @@ func (b bootstrapRun) run(w io.Writer, file string) error {
 	if failed > 0 {
 		return fmt.Errorf("%s", i18n.N("bp.failed", failed))
 	}
-	fmt.Fprintln(w, i18n.T("bp.done"))
+	r.Blank()
+	fmt.Fprintln(w, r.Glyph(ui.MarkOK)+" "+i18n.T("bp.done"))
 	return nil
 }

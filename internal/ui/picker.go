@@ -442,7 +442,12 @@ func pickPlain(p *Picker, in *bufio.Reader, out io.Writer) ([]string, error) {
 	} else {
 		fmt.Fprint(out, i18n.T("pick.plain_single"))
 	}
-	line, _ := in.ReadString('\n')
+	line, err := in.ReadString('\n')
+	if err != nil && !strings.HasSuffix(line, "\n") {
+		// Nothing more to read (no terminal, or ctrl+d): end the prompt's
+		// line so what is printed next starts on its own.
+		fmt.Fprintln(out)
+	}
 	line = strings.TrimSpace(line)
 	if line == "" {
 		return nil, ErrCancelled

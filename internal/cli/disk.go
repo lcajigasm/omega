@@ -159,7 +159,7 @@ func writeScanNotes(r *ui.Report, st cleaner.ScanStats) {
 		for _, p := range st.Unreadable[:min(3, n)] {
 			shown = append(shown, tildePath(p))
 		}
-		r.Check(ui.MarkWarn, i18n.T("disk.unreadable", n), 0, strings.Join(shown, ", "))
+		r.Check(ui.MarkWarn, i18n.N("disk.unreadable", n), 0, strings.Join(shown, ", "))
 	}
 	if len(st.Skipped) > 0 {
 		var shown []string
@@ -345,7 +345,7 @@ func writeLarge(w io.Writer, rep largeReport) {
 	}
 	r.Table([]ui.Column{{Title: i18n.T("disk.col_size"), Right: true}, {Title: i18n.T("disk.col_path"), Wrap: true}}, rows, nil)
 	r.Blank()
-	r.Line(i18n.T("disk.large_total", len(rep.Files), ui.Bytes(sum)))
+	r.Line(i18n.N("disk.large_total", len(rep.Files), len(rep.Files), ui.Bytes(sum)))
 	if rep.Truncated {
 		r.Hint(i18n.T("disk.cut", len(rep.Files), rep.Total))
 	}
@@ -408,15 +408,15 @@ func diskArtifactsCmd() *cobra.Command {
 				var err error
 				chosen, err = pickArtifacts(found)
 				if err != nil || len(chosen) == 0 {
-					fmt.Fprintln(w, i18n.T("tools.nothing_done"))
+					say(w, ui.MarkSkip, i18n.T("tools.nothing_done"))
 					return nil
 				}
 				var size int64
 				for _, a := range chosen {
 					size += a.Size
 				}
-				if !askYesNo(i18n.T("disk.artifacts_confirm", len(chosen), ui.Bytes(size))) {
-					fmt.Fprintln(w, i18n.T("tools.nothing_done"))
+				if !askYesNo(i18n.N("disk.artifacts_confirm", len(chosen), len(chosen), ui.Bytes(size))) {
+					say(w, ui.MarkSkip, i18n.T("tools.nothing_done"))
 					return nil
 				}
 			}
@@ -444,7 +444,7 @@ func writeArtifacts(w io.Writer, rep artifactsReport) {
 	r.Table([]ui.Column{{Title: i18n.T("disk.col_size"), Right: true}, {Title: i18n.T("disk.col_type")},
 		{Title: i18n.T("disk.col_idle"), Right: true}, {Title: i18n.T("disk.col_path"), Wrap: true}}, rows, nil)
 	r.Blank()
-	r.Line(i18n.T("disk.artifacts_total", len(rep.Artifacts), ui.Bytes(rep.Total)))
+	r.Line(i18n.N("disk.artifacts_total", len(rep.Artifacts), len(rep.Artifacts), ui.Bytes(rep.Total)))
 }
 
 // pickArtifacts asks which folders to delete, all ticked to start with.
@@ -482,7 +482,7 @@ func pruneArtifacts(w io.Writer, chosen []cleaner.ArtifactDir) error {
 		r.Check(ui.MarkOK, tildePath(a.Path), 0, ui.Bytes(a.Size))
 	}
 	r.Blank()
-	r.Line(i18n.T("disk.artifacts_done", len(chosen)-failed, ui.Bytes(freed)))
+	r.Line(i18n.N("disk.artifacts_done", len(chosen)-failed, len(chosen)-failed, ui.Bytes(freed)))
 	if failed > 0 {
 		return fmt.Errorf("%s", i18n.T("disk.artifacts_failed", failed, len(chosen)))
 	}

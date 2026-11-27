@@ -233,7 +233,7 @@ func runUltra(w io.Writer, here []fullStage, chosen map[string]bool, f runFlags)
 		known = known && (r.CostKnown || r.Cost == 0)
 	}
 	acts := plan.List()
-	fmt.Fprintln(w, i18n.T("ultra.audit_done", ui.Duration(time.Since(began)), len(acts)))
+	fmt.Fprintln(w, i18n.N("ultra.audit_done", len(acts), ui.Duration(time.Since(began)), len(acts)))
 	if len(acts) == 0 {
 		fmt.Fprintln(w, i18n.T("ultra.nothing"))
 		return nil

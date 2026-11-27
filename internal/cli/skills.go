@@ -12,6 +12,7 @@ import (
 
 	"github.com/lcajigasm/omega/internal/i18n"
 	"github.com/lcajigasm/omega/internal/skills"
+	"github.com/lcajigasm/omega/internal/ui"
 )
 
 // The skills of the AI coding agents on this machine: what is installed,
@@ -163,7 +164,11 @@ func installPlaces(s skills.Skill) string {
 }
 
 func writeSkillList(w io.Writer, inv *skills.Inventory) {
-	fmt.Fprintln(w, "\n"+i18n.T("skills.agents"))
+	r := ui.NewReport(w)
+	r.Title("omega skills", skillCount(len(inv.Skills)))
+	r.Section(i18n.T("skills.agents"), -1)
+	var rows [][]string
+	var marks []ui.Mark
 	for _, a := range inv.Agents {
 		var dirs []string
 		for _, id := range a.Reads {
@@ -172,34 +177,39 @@ func writeSkillList(w io.Writer, inv *skills.Inventory) {
 			}
 		}
 		if !a.Installed {
-			fmt.Fprintf(w, "  · %-20s %s\n", a.Name, i18n.T("skills.not_installed"))
+			rows = append(rows, []string{a.Name, r.Faint(i18n.T("skills.not_installed")), ""})
+			marks = append(marks, ui.MarkOff)
 			continue
 		}
-		fmt.Fprintf(w, "  ✓ %-20s %-10s %s\n", a.Name, skillCount(a.Skills), i18n.T("skills.reads", strings.Join(dirs, ", ")))
+		rows = append(rows, []string{a.Name, skillCount(a.Skills), r.Muted(i18n.T("skills.reads", strings.Join(dirs, ", ")))})
+		marks = append(marks, ui.MarkOK)
 	}
-	fmt.Fprintf(w, "\n%s (%d)\n", i18n.T("skills.skills"), len(inv.Skills))
+	r.Table([]ui.Column{{}, {}, {Wrap: true}}, rows, marks)
+	r.Section(i18n.T("skills.skills"), len(inv.Skills))
 	if len(inv.Skills) == 0 {
-		fmt.Fprintln(w, "  "+i18n.T("skills.none"))
+		r.Line(r.Glyph(ui.MarkOff) + " " + i18n.T("skills.none"))
+		r.Blank()
 		return
 	}
-	for _, s := range inv.Skills {
-		fmt.Fprintf(w, "\n  %s\n", s.Name)
-		if d := s.Description; d != "" {
-			if r := []rune(d); len(r) > 110 {
-				d = string(r[:109]) + "…"
-			}
-			fmt.Fprintf(w, "    %s\n", d)
+	for n, s := range inv.Skills {
+		if n > 0 {
+			r.Blank()
 		}
-		fmt.Fprintf(w, "    %s\n", i18n.T("skills.in", installPlaces(s)))
+		mark := ui.MarkOK
+		if s.Problems() > 0 {
+			mark = ui.MarkWarn
+		}
+		r.Check(mark, s.Name, 0, "")
+		if d := s.Description; d != "" {
+			r.Detail(r.Clip(d, 4))
+		}
+		r.Detail(i18n.T("skills.in", installPlaces(s)))
 		if s.Origin != nil {
-			fmt.Fprintf(w, "    %s\n", i18n.T("skills.from", s.Origin.Source))
+			// A source is a path or a URL: whole, so it can be copied.
+			fmt.Fprintln(w, "    "+r.Muted(i18n.T("skills.from", s.Origin.Source)))
 		}
 		for _, f := range s.Findings {
-			mark := "⚠"
-			if f.Level == skills.Note {
-				mark = "·"
-			}
-			fmt.Fprintf(w, "    %s %s\n", mark, f.Text())
+			writeFinding(w, r, f)
 		}
 	}
 	problems, hidden := 0, 0
@@ -209,53 +219,74 @@ func writeSkillList(w io.Writer, inv *skills.Inventory) {
 			hidden++
 		}
 	}
-	fmt.Fprintln(w)
+	r.Blank()
 	if problems > 0 {
-		fmt.Fprintln(w, i18n.T("skills.problems_hint", problemCount(problems)))
+		r.Hint(i18n.T("skills.problems_hint", problemCount(problems)))
 	}
 	if hidden > 0 {
 		if hidden == 1 {
-			fmt.Fprintln(w, i18n.T("skills.hidden_one"))
+			r.Hint(i18n.T("skills.hidden_one"))
 		} else {
-			fmt.Fprintln(w, i18n.T("skills.hidden_many", hidden))
+			r.Hint(i18n.T("skills.hidden_many", hidden))
 		}
 	}
 }
 
+// writeFinding is one finding under its skill: a problem marked "!", a
+// note marked "·".
+func writeFinding(w io.Writer, r *ui.Report, f skills.Finding) {
+	mark := ui.MarkWarn
+	if f.Level == skills.Note {
+		mark = ui.MarkOff
+	}
+	fmt.Fprintln(w, "    "+r.Glyph(mark)+" "+f.Text())
+}
+
 func writeSkillAudit(w io.Writer, inv *skills.Inventory) {
+	r := ui.NewReport(w)
+	r.Title("omega skills audit", skillCount(len(inv.Skills)))
 	problems, notes := 0, 0
 	for _, s := range inv.Skills {
 		if len(s.Findings) == 0 {
 			continue
 		}
-		fmt.Fprintf(w, "\n%s  (%s)\n", s.Name, installPlaces(s))
+		mark := ui.MarkOff
+		if s.Problems() > 0 {
+			mark = ui.MarkWarn
+		}
+		r.Blank()
+		r.Check(mark, s.Name, 0, r.Muted(installPlaces(s)))
 		for _, f := range s.Findings {
 			if f.Level == skills.Problem {
 				problems++
-				fmt.Fprintf(w, "  ⚠ %s\n", f.Text())
 			} else {
 				notes++
-				fmt.Fprintf(w, "  · %s\n", f.Text())
 			}
+			writeFinding(w, r, f)
 		}
 	}
+	r.Blank()
 	if problems+notes == 0 {
-		fmt.Fprintln(w, "✓ "+i18n.T("skills.audit_clean", skillCount(len(inv.Skills))))
+		r.Line(r.Glyph(ui.MarkOK) + " " + i18n.T("skills.audit_clean", skillCount(len(inv.Skills))))
 		return
 	}
-	fmt.Fprintln(w, "\n"+i18n.T("skills.audit_summary", skillCount(len(inv.Skills)), problemCount(problems),
+	mark := ui.MarkOff
+	if problems > 0 {
+		mark = ui.MarkWarn
+	}
+	fmt.Fprintln(w, r.Glyph(mark)+" "+i18n.T("skills.audit_summary", skillCount(len(inv.Skills)), problemCount(problems),
 		plural(notes, i18n.T("skills.w_note"), i18n.T("skills.w_notes"))))
 }
 
 func skillInstall(w io.Writer, source string, opts skills.InstallOptions) error {
 	done, err := skills.InstallFrom(context.Background(), source, opts)
 	for _, d := range done {
-		fmt.Fprintf(w, "✓ %s\n", d.Skill)
+		say(w, ui.MarkOK, d.Skill)
 		for _, p := range d.Paths {
 			fmt.Fprintf(w, "    %s\n", skills.Tilde(p))
 		}
 		for _, p := range d.Skipped {
-			fmt.Fprintf(w, "    ⚠ %s\n", i18n.T("skills.left_alone", skills.Tilde(p)))
+			fmt.Fprintf(w, "    ! %s\n", i18n.T("skills.left_alone", skills.Tilde(p)))
 		}
 	}
 	if err != nil {
@@ -275,29 +306,29 @@ func skillSync(w io.Writer, names []string, copyAll, dry bool) error {
 		return err
 	}
 	for _, s := range skipped {
-		fmt.Fprintf(w, "⚠ %s: %s\n", s.Skill, s.Reason)
+		fmt.Fprintf(w, "! %s: %s\n", s.Skill, s.Reason)
 	}
 	if len(actions) == 0 {
 		if len(skipped) == 0 {
-			fmt.Fprintln(w, "✓ "+i18n.T("skills.all_visible"))
+			say(w, ui.MarkOK, i18n.T("skills.all_visible"))
 		}
 		return nil
 	}
 	var failed int
 	for _, a := range actions {
 		if dry {
-			fmt.Fprintln(w, "  "+i18n.T("skills.would_link", skills.Tilde(a.Path), skills.Tilde(a.Source)))
+			fmt.Fprintln(w, "› "+i18n.T("skills.would_link", skills.Tilde(a.Path), skills.Tilde(a.Source)))
 			continue
 		}
 		linked, err := skills.Apply(a, copyAll)
 		switch {
 		case err != nil:
 			failed++
-			fmt.Fprintf(w, "⚠ %s: %v\n", a.Skill, err)
+			fmt.Fprintf(w, "✗ %s: %v\n", a.Skill, err)
 		case linked:
 			fmt.Fprintf(w, "✓ %s → %s\n", skills.Tilde(a.Path), skills.Tilde(a.Source))
 		default:
-			fmt.Fprintln(w, "✓ "+i18n.T("skills.copy_of", skills.Tilde(a.Path), skills.Tilde(a.Source)))
+			say(w, ui.MarkOK, i18n.T("skills.copy_of", skills.Tilde(a.Path), skills.Tilde(a.Source)))
 		}
 	}
 	if failed > 0 {
@@ -309,7 +340,7 @@ func skillSync(w io.Writer, names []string, copyAll, dry bool) error {
 func skillUpdate(w io.Writer, names []string, check, force bool) error {
 	results, err := skills.Update(context.Background(), names, check, force)
 	marks := map[string]string{skills.Updated: "✓", skills.Current: "·", skills.Available: "↑",
-		skills.Modified: "⚠", skills.Failed: "⚠", skills.Untracked: "·"}
+		skills.Modified: "!", skills.Failed: "✗", skills.Untracked: "·"}
 	words := map[string]string{skills.Updated: i18n.T("skills.st_updated"), skills.Current: i18n.T("skills.st_current"),
 		skills.Available: i18n.T("skills.st_available"), skills.Modified: i18n.T("skills.st_modified"),
 		skills.Failed: i18n.T("skills.st_failed"), skills.Untracked: i18n.T("skills.st_untracked")}
@@ -352,17 +383,17 @@ func skillRemove(w io.Writer, name, from string, confirm func(question string) b
 		if in.Link != "" {
 			kind = i18n.T("skills.link")
 		}
-		fmt.Fprintf(w, "  %s  (%s)\n", skills.Tilde(in.Path), kind)
+		fmt.Fprintf(w, "  · %s  (%s)\n", skills.Tilde(in.Path), kind)
 	}
 	if !confirm(i18n.T("skills.ask_remove")) {
-		fmt.Fprintln(w, i18n.T("skills.not_removed"))
+		fmt.Fprintln(w, "– "+i18n.T("skills.not_removed"))
 		return nil
 	}
 	kept, err := skills.Remove(name, installs)
 	if err != nil {
 		return err
 	}
-	fmt.Fprintln(w, "✓ "+i18n.T("skills.removed", name))
+	say(w, ui.MarkOK, i18n.T("skills.removed", name))
 	for _, k := range kept {
 		fmt.Fprintln(w, "  "+i18n.T("skills.folder_in", skills.Tilde(k)))
 	}

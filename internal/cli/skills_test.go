@@ -55,7 +55,7 @@ func TestSkillsCommand(t *testing.T) {
 	home, source := skillsHome(t)
 
 	out, err := omegaSkills(t)
-	if err != nil || !strings.Contains(out, "None installed") || !strings.Contains(out, "Gemini CLI           not installed") {
+	if err != nil || !strings.Contains(out, "None installed") || !strings.Contains(out, "· Gemini CLI          not installed") {
 		t.Fatalf("empty list: %v\n%s", err, out)
 	}
 	out, err = omegaSkills(t, "install", source)
@@ -63,7 +63,7 @@ func TestSkillsCommand(t *testing.T) {
 		t.Fatalf("install: %v\n%s", err, out)
 	}
 	out, err = omegaSkills(t, "list")
-	if err != nil || !strings.Contains(out, "Reads PDFs") || !strings.Contains(out, "from: "+source) || !strings.Contains(out, "Claude Code          1 skill ") {
+	if err != nil || !strings.Contains(out, "Reads PDFs") || !strings.Contains(out, "from: "+source) || !strings.Contains(out, "✓ Claude Code         1 skill ") {
 		t.Fatalf("list: %v\n%s", err, out)
 	}
 	if out, err = omegaSkills(t, "--json"); err != nil || !strings.Contains(out, `"name": "pdf"`) {

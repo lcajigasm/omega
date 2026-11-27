@@ -281,6 +281,14 @@ func (m *menuModel) View() string {
 	if compact {
 		labelW = w - 2 // the label takes the line; the detail goes
 	}
+	// The group rules run as far as the rows under them.
+	ruleW := labelW
+	for _, it := range rows {
+		if !compact {
+			ruleW = max(ruleW, labelW+min(lipgloss.Width(it.Detail), max(10, w-labelW-6)))
+		}
+	}
+	ruleW = min(ruleW, w-2)
 	var lines []string
 	if len(crumbs) > 0 && m.filter == "" {
 		lines = append(lines, "  "+faintStyle.Render(gl.Back+" ")+mutedStyle.Render(strings.Join(crumbs, faintStyle.Render("  "+gl.Crumb+"  "))), "")
@@ -294,7 +302,7 @@ func (m *menuModel) View() string {
 				lines = append(lines, "")
 			}
 			if group != "" {
-				lines = append(lines, "  "+panelHead(group, "", min(w, 60)))
+				lines = append(lines, "  "+panelHead(group, "", ruleW))
 			}
 		}
 		mark := "  "
@@ -336,6 +344,20 @@ func (m *menuModel) View() string {
 		hints = []hint{hk("↑↓", "uix.move"), hk("enter", "uix.open_run"), hk("→", "uix.options"), hint{action: i18n.T("uix.type_search")}, hk("q", "uix.quit").must()}
 	}
 	keyLine := strings.Join(chromeFooter(full, "", hints...), "\n")
+	// The whole description of the row under the cursor, which the list
+	// cuts to one line (and leaves out on a narrow terminal).
+	if *cursor >= 0 && *cursor < len(rows) {
+		if d := rows[*cursor].Detail; d != "" && (compact || lipgloss.Width(d) > max(10, w-labelW-6)) {
+			var desc []string
+			for i, l := range wrapText(d, max(10, full-4)) {
+				if i == 2 {
+					break
+				}
+				desc = append(desc, "  "+mutedStyle.Render(l))
+			}
+			keyLine = strings.Join(desc, "\n") + "\n" + keyLine
+		}
+	}
 
 	// Keep the highlighted row on screen when the list is taller than the
 	// terminal, and say what is out of sight.

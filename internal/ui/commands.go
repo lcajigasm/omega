@@ -438,6 +438,11 @@ func (m *model) helpView() string {
 	}
 	b.WriteString("  " + cmdStyle.Render(line) + "\n")
 	b.WriteString("  " + strings.Repeat(" ", 27) + mutedStyle.Render(truncate(i18n.T("slash.tasks"), max(12, w-33))) + "\n")
+	// A blank line between the two halves where the terminal has the row
+	// to spare.
+	if m.height >= 36 {
+		b.WriteString("\n")
+	}
 	b.WriteString(titleStyle.Render(i18n.T("slash.keys_title")) + "\n")
 	// Two columns when there is room, so the card fits a short terminal.
 	cols := 1

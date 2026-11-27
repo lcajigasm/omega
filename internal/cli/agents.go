@@ -82,7 +82,7 @@ func agentsCmd() *cobra.Command {
 			}
 			w := cmd.OutOrStdout()
 			if len(targets) == 0 {
-				fmt.Fprintln(w, i18n.T("agents.nothing_left"))
+				fmt.Fprintln(w, ui.NewReport(w).Glyph(ui.MarkOK)+" "+i18n.T("agents.nothing_left"))
 				return nil
 			}
 			if ok, err := confirm(cmd, i18n.T("agents.confirm_kill", what, ui.Bytes(int64(memoryOf(targets))))); !ok || err != nil {
@@ -134,7 +134,7 @@ func agentsCmd() *cobra.Command {
 			w := cmd.OutOrStdout()
 			sessions := r.IdleSessions(after)
 			if len(sessions) == 0 {
-				fmt.Fprintln(w, i18n.T("agents.none_idle", ageText(int(after.Seconds()))))
+				fmt.Fprintln(w, ui.NewReport(w).Glyph(ui.MarkOK)+" "+i18n.T("agents.none_idle", ageText(int(after.Seconds()))))
 				return nil
 			}
 			rep := ui.NewReport(w)
@@ -163,7 +163,7 @@ func procCount(n int) string {
 	if n == 1 {
 		return i18n.T("agents.one_proc")
 	}
-	return i18n.T("agents.n_procs", n)
+	return i18n.N("agents.n_procs", n)
 }
 
 // leftoverTargets resolves what to end: every leftover with no arguments,
@@ -325,7 +325,7 @@ func procLine(r *ui.Report, p aiagents.Proc) {
 		extra = " · :" + strings.Join(p.Ports, " :")
 	}
 	if len(p.Helpers) > 0 {
-		extra += " · " + i18n.T("agents.helpers", len(p.Helpers))
+		extra += " · " + i18n.N("agents.helpers", len(p.Helpers))
 	}
 	r.Line(fmt.Sprintf("%-7d %8s  %-6s %s%s", p.PID, ui.Bytes(int64(p.Memory)), ageText(p.Age), r.Clip(p.Short(), 34+len(extra)), extra))
 	if p.Cwd != "" {
@@ -426,7 +426,7 @@ func writeAgents(w io.Writer, r *aiagents.Report) {
 	}
 
 	rep.Section(i18n.T("agents.open_section"), len(r.Sessions))
-	for _, s := range r.Sessions {
+	for i, s := range r.Sessions {
 		state := i18n.T("gui.agents.unknown")
 		if s.Status == aiagents.Busy {
 			state = i18n.T("gui.agents.working")
@@ -450,7 +450,9 @@ func writeAgents(w io.Writer, r *aiagents.Report) {
 		if s.Current {
 			mark = ui.MarkCurrent
 		}
-		rep.Blank()
+		if i > 0 {
+			rep.Blank()
+		}
 		rep.Check(mark, fmt.Sprintf("%s · pid %d", head, s.PID), 0, state+" · "+ui.Bytes(int64(s.Total())))
 		if s.Title != "" {
 			rep.Detail(clip(s.Title, 90))
@@ -459,8 +461,8 @@ func writeAgents(w io.Writer, r *aiagents.Report) {
 			procLine(rep, p)
 		}
 	}
-	rep.Blank()
 	if n > 0 {
+		rep.Blank()
 		rep.Hint(i18n.T("agents.kill_hint"))
 	}
 }

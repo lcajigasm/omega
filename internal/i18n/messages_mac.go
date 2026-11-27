@@ -289,6 +289,7 @@ pergunta-te com cartões e aplica só o que escolheres. Os subcomandos fazem o m
 		"ocultar automaticamente: %v · apps recentes: %v · tamanho dos ícones: %d",
 	},
 	"mac.not_installed": {"no longer installed", "ya no está instalada", "désinstallée", "nicht mehr installiert", "já não está instalada"},
+	"mac.unused.one":    {"not opened in %d day", "sin abrir desde hace %d día", "pas ouverte depuis %d jour", "seit %d Tag nicht geöffnet", "sem abrir há %d dia"},
 	"mac.unused":        {"not opened in %d days", "sin abrir desde hace %d días", "pas ouverte depuis %d jours", "seit %d Tagen nicht geöffnet", "sem abrir há %d dias"},
 	"mac.rules":         {"your rules", "tus reglas", "vos règles", "deine Regeln", "as tuas regras"},
 	"mac.none_found":    {"Nothing to review here.", "Aquí no hay nada que revisar.", "Rien à passer en revue ici.", "Hier gibt es nichts zu prüfen.", "Aqui não há nada para rever."},

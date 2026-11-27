@@ -15,6 +15,7 @@ import (
 
 	"github.com/lcajigasm/omega/internal/config"
 	"github.com/lcajigasm/omega/internal/i18n"
+	"github.com/lcajigasm/omega/internal/steps"
 )
 
 // RoutineStep is a step the routine editor can offer.
@@ -586,7 +587,7 @@ func (e *RoutineEditor) View() string {
 			dangerous++
 		}
 	}
-	right := mutedStyle.Render(i18n.T("custom.ui_count", len(e.order)))
+	right := mutedStyle.Render(i18n.N("custom.ui_count", len(e.order)))
 	if dangerous > 0 {
 		right += "  " + warnStyle.Render(i18n.T("custom.ui_dangerous", dangerous))
 	}
@@ -604,7 +605,7 @@ func (e *RoutineEditor) View() string {
 			detail += mutedStyle.Render("  " + gl.Sep + " " + i18n.T("custom.stops"))
 		}
 		foot = append(foot, detail)
-		foot = append(foot, " "+faintStyle.Render("$ ")+mutedStyle.Render(truncate(s.Command, inner-2)))
+		foot = append(foot, " "+faintStyle.Render("$ ")+mutedStyle.Render(truncate(oneLine(steps.Brief(s.Command)), inner-2)))
 		if why := e.why[s.ID]; why != "" {
 			for i, l := range wrapText(why, inner-6) {
 				p := "   "

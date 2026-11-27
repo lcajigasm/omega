@@ -20,6 +20,7 @@ import (
 	"github.com/lcajigasm/omega/internal/agent"
 	"github.com/lcajigasm/omega/internal/config"
 	"github.com/lcajigasm/omega/internal/i18n"
+	"github.com/lcajigasm/omega/internal/ui"
 )
 
 // omega docs: the manual inside the binary. It lists the pages, shows one,
@@ -207,15 +208,20 @@ func docsCmd(root *cobra.Command) *cobra.Command {
 					names = append(names, n)
 				}
 				sort.Strings(names)
-				fmt.Fprintln(w, "\nOMEGA MANUAL")
+				r := ui.NewReport(w)
+				r.Title("omega docs", i18n.T("docs.index_sub"))
+				r.Blank()
+				var rows [][]string
 				for _, n := range names {
 					title := n
 					if m := headingRe.FindStringSubmatch(pages[n]); m != nil {
 						title = m[2]
 					}
-					fmt.Fprintf(w, "  %-12s %s\n", n, title)
+					rows = append(rows, []string{r.Bold(n), title})
 				}
-				fmt.Fprintln(w, "\n  omega docs <page> · omega docs search <words> · omega docs ask \"<question>\"")
+				r.Table([]ui.Column{{}, {Wrap: true}}, rows, nil)
+				r.Blank()
+				r.Hint(i18n.T("docs.index_hint"))
 				return nil
 			}
 			name := strings.TrimSuffix(strings.ToLower(args[0]), ".md")
@@ -245,7 +251,7 @@ func docsCmd(root *cobra.Command) *cobra.Command {
 			answer, err := askManual(cmd.Context(), root, q, provider, model)
 			w := cmd.OutOrStdout()
 			if err != nil {
-				fmt.Fprintf(cmd.ErrOrStderr(), "omega: no model to ask (%v). Here is what the manual says:\n\n", err)
+				fmt.Fprintf(cmd.ErrOrStderr(), "omega: %s\n\n", i18n.T("docs.no_model", err))
 				return writeSearch(w, q)
 			}
 			return writeMarkdown(w, answer)
@@ -260,7 +266,7 @@ func docsCmd(root *cobra.Command) *cobra.Command {
 func writeSearch(w io.Writer, q string) error {
 	hits := searchManual(q, 5)
 	if len(hits) == 0 {
-		fmt.Fprintf(w, "Nothing in the manual matches %q. omega --help lists every command.\n", q)
+		writeEmpty(w, "omega docs search", q, i18n.T("docs.no_match", q), i18n.T("docs.no_match_hint"))
 		return nil
 	}
 	var b strings.Builder

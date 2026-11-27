@@ -218,9 +218,9 @@ func setupCmd() *cobra.Command {
 					if err != nil {
 						return err
 					}
-					fmt.Println(i18n.T("setup.key_saved", secrets.Describe(where)))
+					fmt.Println(okText(i18n.T("setup.key_saved", secrets.Describe(where))))
 					if where == secrets.FromFile {
-						fmt.Println(i18n.T("secrets.no_keyring"))
+						say(os.Stdout, ui.MarkWarn, i18n.T("secrets.no_keyring"))
 					}
 				}
 			} else if name == "custom" && cfg.BaseURLFor(name) == "" {
@@ -281,9 +281,9 @@ func authCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				fmt.Println(i18n.T("auth.saved", secrets.Describe(where)))
+				fmt.Println(okText(i18n.T("auth.saved", secrets.Describe(where))))
 				if where == secrets.FromFile {
-					fmt.Println(i18n.T("secrets.no_keyring"))
+					say(os.Stdout, ui.MarkWarn, i18n.T("secrets.no_keyring"))
 				}
 				return nil
 			},
@@ -331,17 +331,29 @@ func authStatusCmd() *cobra.Command {
 			if asJSON {
 				return writeJSON(w, list)
 			}
+			r := ui.NewReport(w)
+			r.Title("omega auth status", "")
+			r.Blank()
+			var rows [][]string
+			var marks []ui.Mark
 			for _, k := range list {
 				if !k.Set {
-					fmt.Fprintf(w, "  %-12s —\n", k.Provider)
+					rows = append(rows, []string{k.Provider, r.Faint("—")})
+					marks = append(marks, ui.MarkOff)
 					continue
 				}
-				warn := ""
+				// "(where)" right after the key: scripts and the CI read the
+				// line as `provider key (where)`.
+				where, mark := r.Muted("("+k.Source+")"), ui.MarkOK
 				if k.LooksWrong {
-					warn = "  ⚠ " + i18n.T("auth.looks_wrong", k.Provider)
+					where, mark = where+"  "+r.Warn(i18n.T("auth.looks_wrong", k.Provider)), ui.MarkWarn
 				}
-				fmt.Fprintf(w, "  %-12s %s (%s)%s\n", k.Provider, k.Masked, k.Source, warn)
+				rows = append(rows, []string{k.Provider, k.Masked + " " + where})
+				marks = append(marks, mark)
 			}
+			r.Table([]ui.Column{{}, {Wrap: true}}, rows, marks)
+			r.Blank()
+			r.Hint(i18n.T("auth.status_hint"))
 			return nil
 		},
 	}
@@ -411,6 +423,9 @@ func modelListCmd() *cobra.Command {
 			if asJSON {
 				return writeJSON(cmd.OutOrStdout(), modelsList(cfg, info, available, filter))
 			}
+			r := ui.NewReport(cmd.OutOrStdout())
+			r.Title("omega model list", info.Label)
+			r.Blank()
 			modelsReport(cmd.OutOrStdout(), cfg, info, available, filter)
 			return nil
 		},
@@ -467,11 +482,12 @@ func configCmd() *cobra.Command {
 				if _, problems := customsteps.Load(); len(problems) > 0 {
 					return fmt.Errorf("%s", strings.Join(problems, "\n"))
 				}
-				fmt.Fprintln(cmd.OutOrStdout(), i18n.T("config.ok", config.Path()))
+				r := ui.NewReport(cmd.OutOrStdout())
+				fmt.Fprintln(cmd.OutOrStdout(), r.Glyph(ui.MarkOK)+" "+i18n.T("config.ok", tildePath(config.Path())))
 				// A key omega does not know is a typo more often than not, and
 				// its setting silently stays the default.
 				for _, k := range unknownConfigKeys() {
-					fmt.Fprintln(cmd.OutOrStdout(), "! "+i18n.T("config.unknown_key", k))
+					fmt.Fprintln(cmd.OutOrStdout(), r.Glyph(ui.MarkWarn)+" "+i18n.T("config.unknown_key", k))
 				}
 				return nil
 			},
@@ -725,7 +741,7 @@ func notesCmd() *cobra.Command {
 				return writeJSON(cmd.OutOrStdout(), pickNotes(parseNotes(string(b)), last, grep))
 			}
 			if len(b) == 0 {
-				fmt.Fprintln(cmd.OutOrStdout(), i18n.T("notes.empty"))
+				writeEmpty(cmd.OutOrStdout(), "omega notes", "", i18n.T("notes.empty"), i18n.T("notes.empty_hint"))
 				return nil
 			}
 			writeNotes(cmd.OutOrStdout(), string(b), last, grep)
@@ -747,7 +763,7 @@ func notesCmd() *cobra.Command {
 				return nil
 			}
 			if err == nil {
-				fmt.Fprintln(cmd.OutOrStdout(), i18n.T("notes.cleared"))
+				say(cmd.OutOrStdout(), ui.MarkOK, i18n.T("notes.cleared"))
 			}
 			return err
 		},
@@ -799,6 +815,10 @@ func pickNotes(notes []note, last int, grep string) []note {
 func writeNotes(w io.Writer, text string, last int, grep string) {
 	total := len(pickNotes(parseNotes(text), 0, grep))
 	notes := pickNotes(parseNotes(text), last, grep)
+	if len(notes) == 0 && grep != "" {
+		writeEmpty(w, "omega notes", "--grep "+grep, i18n.T("notes.no_match", grep), i18n.T("notes.hint", tildePath(config.NotesPath())))
+		return
+	}
 	r := ui.NewReport(w)
 	r.Title("omega notes", i18n.T("notes.count", len(notes), total))
 	day := "\x00"
